@@ -1,6 +1,9 @@
 // Drops and recreates the dev (default) or test database, applies all
 // migrations and loads reference data. Never runs against production.
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import pg from "pg";
 import { applyTarget, loadRootEnv, requireEnv } from "./env";
 
@@ -30,10 +33,17 @@ try {
   await admin.end();
 }
 
-execFileSync("pnpm", ["exec", "prisma", "migrate", "deploy"], {
-  stdio: "inherit",
-  env: process.env,
-});
+// Child steps run on this Node binary directly (no shell, no `.cmd` shims),
+// so the script behaves the same on Windows, macOS and Linux.
+const require = createRequire(import.meta.url);
+const prismaPackage = require.resolve("prisma/package.json");
+const prismaBin = (JSON.parse(readFileSync(prismaPackage, "utf8")) as { bin: { prisma: string } })
+  .bin.prisma;
+const node = (args: string[]) => {
+  execFileSync(process.execPath, args, { stdio: "inherit", env: process.env });
+};
+
+node([join(dirname(prismaPackage), prismaBin), "migrate", "deploy"]);
 // Reference data (plans) is part of a usable database, including the test one.
-execFileSync("pnpm", ["exec", "tsx", "scripts/seed.ts"], { stdio: "inherit", env: process.env });
+node(["--import", "tsx", "scripts/seed.ts"]);
 console.log(`reset ${target} database ${database}`);

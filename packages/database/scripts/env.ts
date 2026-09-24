@@ -24,9 +24,17 @@ export function databaseName(url: string): string {
   return decodeURIComponent(new URL(url).pathname.replace(/^\//, ""));
 }
 
-/** Target selection: `STOREVIA_DB_TARGET=test` switches every role URL to the test database. */
+/**
+ * Target selection: `--target=test` (or `STOREVIA_DB_TARGET=test`) switches
+ * every role URL to the test database. The flag form works in every shell,
+ * including Windows cmd; the choice is exported so child scripts inherit it.
+ */
 export function applyTarget(): { target: "dev" | "test"; database: string } {
-  const target = process.env["STOREVIA_DB_TARGET"] === "test" ? "test" : "dev";
+  const target =
+    process.argv.includes("--target=test") || process.env["STOREVIA_DB_TARGET"] === "test"
+      ? "test"
+      : "dev";
+  process.env["STOREVIA_DB_TARGET"] = target;
   const base = databaseName(requireEnv("DATABASE_URL"));
   // Idempotent: child scripts inherit URLs that already point at the test DB.
   const alreadyTest = base.endsWith("_test");

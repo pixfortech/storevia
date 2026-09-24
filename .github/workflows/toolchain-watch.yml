@@ -1,0 +1,113 @@
+name: Toolchain watch
+
+# Keeps what Dependabot can't see moving (docs/engineering/toolchain-policy.md):
+# - pnpm (`packageManager`) within its major: opens a pull request;
+# - Node LTS promotion (.nvmrc) when a newer LTS line exists: opens a pull request;
+# - pnpm majors and gitleaks releases: reported in an issue for review.
+# Pull requests opened here don't trigger CI on their own (GitHub rule for
+# workflow tokens), so this workflow dispatches CI on each new branch; its
+# checks attach to the branch's commit and gate the merge like any other PR.
+# Nothing is merged automatically.
+
+on:
+  schedule:
+    - cron: "30 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: toolchain-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: Check Node, pnpm and pinned tools
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      actions: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js (required LTS line)
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version-file: .nvmrc
+          check-latest: true
+
+      - name: Compare with upstream releases
+        id: plan
+        run: node scripts/toolchain-check.mjs --github
+
+      - name: Configure git
+        if: steps.plan.outputs.pnpm_update != '' || steps.plan.outputs.node_promotion != ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Propose pnpm ${{ steps.plan.outputs.pnpm_update }}
+        if: steps.plan.outputs.pnpm_update != ''
+        env:
+          VERSION: ${{ steps.plan.outputs.pnpm_update }}
+        run: |
+          branch="toolchain/pnpm-${VERSION}"
+          if [ -n "$(gh pr list --head "$branch" --state all --json number --jq '.[].number')" ]; then
+            echo "A pull request for $branch already exists."; exit 0
+          fi
+          git switch -c "$branch" "origin/${{ github.event.repository.default_branch }}"
+          node -e 'const fs=require("fs");const p=JSON.parse(fs.readFileSync("package.json","utf8"));p.packageManager="pnpm@"+process.env.VERSION;fs.writeFileSync("package.json",JSON.stringify(p,null,2)+"\n")'
+          # Refresh the lockfile with the new pnpm (usually unchanged).
+          npx --yes "pnpm@${VERSION}" install --lockfile-only --ignore-scripts
+          git add package.json pnpm-lock.yaml
+          git commit -m "chore(toolchain): pnpm ${VERSION}"
+          git push origin "$branch"
+          body="Proposed by the toolchain watch (docs/engineering/toolchain-policy.md). Same-major pnpm update; CI was dispatched on this branch. Merge only when every required check is green."
+          if gh pr create --head "$branch" --title "chore(toolchain): pnpm ${VERSION}" --body "$body"; then
+            gh workflow run ci.yml --ref "$branch"
+          else
+            gh issue create --title "Toolchain: pnpm ${VERSION} is ready on branch ${branch}" --body "$body (Pull request creation by workflows is disabled in this repository: open it manually.)"
+          fi
+
+      - name: Propose Node ${{ steps.plan.outputs.node_promotion }} as the required LTS runtime
+        if: steps.plan.outputs.node_promotion != ''
+        env:
+          MAJOR: ${{ steps.plan.outputs.node_promotion }}
+        run: |
+          branch="toolchain/node-lts-${MAJOR}"
+          if [ -n "$(gh pr list --head "$branch" --state all --json number --jq '.[].number')" ]; then
+            echo "A pull request for $branch already exists."; exit 0
+          fi
+          git switch -c "$branch" "origin/${{ github.event.repository.default_branch }}"
+          echo "$MAJOR" > .nvmrc
+          git add .nvmrc
+          git commit -m "chore(toolchain): promote Node ${MAJOR} LTS to the required CI runtime"
+          git push origin "$branch"
+          body="Node ${MAJOR} is now the latest LTS line. This makes it the required CI runtime (.nvmrc); the canary keeps tracking Node Current. The minimum supported version (engines.node) is a separate decision. Review the Node ${MAJOR} release notes, check the canary history, and merge only when every required check is green (docs/engineering/toolchain-policy.md)."
+          if gh pr create --head "$branch" --title "chore(toolchain): Node ${MAJOR} LTS as the required runtime" --body "$body"; then
+            gh workflow run ci.yml --ref "$branch"
+          else
+            gh issue create --title "Toolchain: Node ${MAJOR} LTS promotion is ready on branch ${branch}" --body "$body"
+          fi
+
+      - name: Report updates that need review
+        if: steps.plan.outputs.review != ''
+        env:
+          REVIEW: ${{ steps.plan.outputs.review }}
+        run: |
+          title="Toolchain updates need review"
+          body="$(printf 'The weekly toolchain watch found updates that need a person (docs/engineering/toolchain-policy.md):\n\n%s\n' "$(printf '%s\n' "$REVIEW" | sed 's/^/- /')")"
+          existing="$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number')"
+          if [ -n "$existing" ]; then
+            gh issue edit "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi

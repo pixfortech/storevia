@@ -1,0 +1,19 @@
+{
+  "$comment": "Runtime compatibility matrix for CI (docs/engineering/toolchain-policy.md). One place to change what CI proves. 'lts' is the required production runtime: its Node major comes from .nvmrc. 'canary' tracks the newest Node Current release and the newest PostgreSQL major; it reports early and never blocks a merge.",
+  "runtimes": [
+    {
+      "channel": "lts",
+      "label": "Node LTS",
+      "node": "from-nvmrc",
+      "postgres": "17",
+      "canary": false
+    },
+    {
+      "channel": "canary",
+      "label": "Node Current (canary)",
+      "node": "current",
+      "postgres": "latest",
+      "canary": true
+    }
+  ]
+}

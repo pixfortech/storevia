@@ -6,8 +6,8 @@
   "type": "module",
   "packageManager": "pnpm@10.33.0",
   "engines": {
-    "node": ">=22.12.0 <23",
-    "pnpm": ">=10.33.0"
+    "node": ">=24",
+    "pnpm": ">=10"
   },
   "scripts": {
     "dev": "turbo run dev",
@@ -19,6 +19,8 @@
     "test": "turbo run test",
     "test:integration": "turbo run test:integration --concurrency=1",
     "test:e2e": "pnpm --filter @storevia/dashboard test:e2e",
+    "test:tooling": "node --test \"scripts/*.test.mjs\"",
+    "toolchain:check": "node scripts/toolchain-check.mjs",
     "db:setup": "pnpm --filter @storevia/database db:setup",
     "db:migrate": "pnpm --filter @storevia/database db:migrate",
     "db:migrate:dev": "pnpm --filter @storevia/database db:migrate:dev",
@@ -33,7 +35,7 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
-    "@types/node": "22.19.1",
+    "@types/node": "24.13.6",
     "eslint": "10.11.0",
     "globals": "17.12.0",
     "prettier": "3.9.9",

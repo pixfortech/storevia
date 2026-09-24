@@ -1,0 +1,44 @@
+{
+  "$comment": "Which dependency updates may merge without a human (docs/engineering/toolchain-policy.md §5). Applied by scripts/dependency-policy.mjs from the base branch, only after every required CI job has passed. Majors are never merged automatically.",
+  "highRisk": {
+    "$comment": "Security-sensitive or foundational: every update needs review, patches included.",
+    "patterns": [
+      "next",
+      "react",
+      "react-dom",
+      "prisma",
+      "@prisma/*",
+      "better-auth",
+      "@better-auth/*",
+      "@node-rs/argon2",
+      "pg",
+      "nodemailer",
+      "zod"
+    ]
+  },
+  "coreFrameworks": {
+    "$comment": "Actively tracked frameworks and toolchain: patches may merge automatically; minors need review.",
+    "patterns": [
+      "typescript",
+      "typescript-eslint",
+      "@typescript-eslint/*",
+      "eslint",
+      "vitest",
+      "@vitest/*",
+      "@playwright/test",
+      "playwright",
+      "tailwindcss",
+      "@tailwindcss/*",
+      "turbo",
+      "@types/node"
+    ]
+  },
+  "reviewEcosystems": {
+    "$comment": "Workflow actions run with repository credentials: always reviewed.",
+    "ecosystems": ["github_actions"]
+  },
+  "autoMerge": {
+    "patch": true,
+    "minorDevelopmentOnly": true
+  }
+}

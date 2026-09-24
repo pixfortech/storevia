@@ -71,12 +71,37 @@ Never commit `.env` files, keys, credentials or tokens. Use `.env.example`
 for documentation. CI runs a secret scan on full history. If you commit a
 secret by accident, treat it as leaked: rotate it first, then clean up.
 
+## Dependencies and toolchain
+
+See the [toolchain and update policy](docs/engineering/toolchain-policy.md).
+In short:
+
+- Use Node 24 or newer (`pnpm toolchain:check`). The required and
+  production line is in `.nvmrc`. CI also tests the newest Node Current
+  release as a non-blocking canary.
+- Never use `latest` or `*` as a version, and never delete `pnpm-lock.yaml`.
+  Versions change only through pull requests that pass the full CI.
+- Dependabot and the toolchain watch open update PRs. Low-risk patches (and
+  low-risk development minors) merge automatically once every required check
+  is green. Majors, high-risk packages and core-framework minors need a
+  review: read the release notes, analyse breaking changes, and apply
+  migrations in the same PR.
+- A major framework or runtime update gets its own PR, following the checklist
+  in the policy (§6). Don't bundle unrelated upgrades.
+- Package scripts must run in every shell, Windows `cmd` included: no inline
+  `VAR=value`, no single-quoted arguments.
+
 ## Branch protection (to be configured on `main`)
 
-Required checks: `Format, lint, typecheck, test, build`,
-`Integration and tenant-isolation tests`, `End-to-end security tests
-(Playwright)` and `Secret scan`. The tenant-isolation and security suites
-must never be skipped or weakened to get a PR green
-([11-testing.md](docs/architecture/11-testing.md)).
+Required checks: `Verify · Node LTS`, `Integration and tenant isolation ·
+Node LTS`, `End-to-end · Node LTS`, `Windows · Node LTS`, `Runtime matrix`
+and `Secret scan`. The `· Node Current (canary)` checks are informational:
+they report compatibility problems early and are not required. Also enable
+"Allow auto-merge" (used by the `Dependency update policy` job, which merges
+only after every required check passed) and "Allow GitHub Actions to create
+and approve pull requests" (used by the toolchain watch).
+
+The tenant-isolation and security suites must never be skipped or weakened
+to get a PR green ([11-testing.md](docs/architecture/11-testing.md)).
 Required review: at least one approval, plus CODEOWNERS where applicable.
 No force-pushes; linear history.

@@ -25,6 +25,8 @@ Supporting documents:
 - [API, webhooks and apps](architecture/10-api-webhooks-apps.md) and [API conventions](api/README.md)
 - [Architecture Decision Records](adr/README.md)
 - [Testing strategy and security test suites](architecture/11-testing.md) (Milestone 1)
+- [Design system](architecture/12-design-system.md) (Milestone 2.5)
+- [Toolchain and dependency update policy](engineering/toolchain-policy.md) (ADR-0026)
 
 ## Status
 

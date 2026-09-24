@@ -24,6 +24,7 @@ Start with the [documentation index](docs/README.md).
 | Roadmap                     | [docs/roadmap/implementation-roadmap.md](docs/roadmap/implementation-roadmap.md)           |
 | Decisions                   | [docs/adr/](docs/adr/README.md)                                                            |
 | Testing and security suites | [docs/architecture/11-testing.md](docs/architecture/11-testing.md)                         |
+| Toolchain and updates       | [docs/engineering/toolchain-policy.md](docs/engineering/toolchain-policy.md)               |
 
 ## Product surfaces
 
@@ -37,14 +38,24 @@ Start with the [documentation index](docs/README.md).
 
 ## Requirements
 
-- Node.js 22 LTS (`.nvmrc`)
-- pnpm 10.33 (`corepack enable` picks up the pinned version)
-- PostgreSQL 16+ (CI uses 17) and a superuser connection for local setup
+- **Node.js 24 or newer.** The recommended version is the latest release of the
+  LTS line in `.nvmrc`, which is what CI requires and production runs. CI also
+  tests the newest Node Current release as a canary. Run `pnpm toolchain:check`
+  to see where your runtime stands
+  ([toolchain policy](docs/engineering/toolchain-policy.md)).
+- **pnpm** at the exact version in `package.json` → `packageManager`.
+  `corepack enable` provides it. Node 25+ doesn't bundle corepack, so run
+  `npm install -g corepack` first. Any pnpm ≥ 10 also switches to the pinned
+  version on its own.
+- PostgreSQL 16+ (production and required CI use 17; the canary tests the
+  newest major) and a superuser connection for local setup.
+- macOS, Linux or Windows. CI runs the non-browser suites on Windows too.
 
 ## Getting started
 
 ```sh
-corepack enable
+corepack enable              # Node 25+: npm install -g corepack first
+pnpm toolchain:check         # runtime and tool versions against the policy
 pnpm install                 # also generates the Prisma client
 cp .env.example .env         # then set AUTH_SECRET (openssl rand -base64 32) and DATABASE_ADMIN_URL
 pnpm db:setup                # create database roles + dev and test databases

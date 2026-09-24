@@ -115,6 +115,16 @@ supersedes" guard fails the out-of-order regression.
 | High-risk staff actions acknowledged                  | E2E `admin-shell.spec.ts` and the shared `submitDialog` helper                                                                                                                                              |
 | Design token contrast                                 | unit `packages/ui/src/theme.test.ts` (AA for every semantic text pair)                                                                                                                                      |
 
+## Runtime compatibility
+
+CI runs every suite on the required Node LTS line (`.nvmrc`, PostgreSQL 17)
+and again on the newest Node Current release with the newest PostgreSQL
+major as a non-blocking canary. A Windows job runs install, lint, typecheck,
+unit, database setup, integration and builds.
+`.github/runtime-matrix.json` defines the matrix
+([toolchain policy](../engineering/toolchain-policy.md)). `pnpm test:tooling`
+covers the update-policy classifier and the toolchain checks.
+
 ## Running locally
 
 ```sh

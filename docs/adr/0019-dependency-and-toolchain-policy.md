@@ -1,6 +1,6 @@
 # ADR-0019: Dependency and toolchain policy
 
-- Status: Accepted
+- Status: Accepted (amended by [ADR-0026](0026-evergreen-toolchain-and-controlled-updates.md))
 - Date: 2026-09-24
 
 ## Decision
@@ -9,7 +9,8 @@
   install with `--frozen-lockfile` in CI.
 - Foundations use **stable releases only**: no alpha/beta/RC, and new
   majors are adopted after their first patch releases.
-- Current pins (2026-09): Node 22 LTS, pnpm 10.33, TypeScript **6.0.x**
+- Current pins (2026-09, M0 snapshot; ADR-0026 replaces the runtime rule
+  and makes these a starting point, not a ceiling): Node 22 LTS, pnpm 10.33, TypeScript **6.0.x**
   (`typescript-eslint` supports `<6.1`; TypeScript 7 is adopted when the lint
   and framework tooling support it), Next.js 16.3.x, Prisma 7.10.x (not the
   8.0 RC on the `latest` tag), Better Auth 1.7.x, zod 4.x, Tailwind 4.x,
