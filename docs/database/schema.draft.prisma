@@ -2476,3 +2476,57 @@ model AuditLog {
   @@index([actorId, createdAt])
   @@index([entityType, entityId])
 }
+
+// -----------------------------------------------------------------------------
+// 18. Background jobs (ADR-0023): periodic scheduler for apps/worker
+// -----------------------------------------------------------------------------
+
+enum JobRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+/// One row per periodic job. A worker claims a due row with
+/// FOR UPDATE SKIP LOCKED and holds a lease (lockedBy/lockedUntil) renewed by
+/// a heartbeat. `slot` is the scheduled time being processed; it advances
+/// only when that slot succeeds or exhausts its retries.
+model ScheduledJob {
+  name                String        @id
+  intervalSeconds     Int
+  slot                DateTime      @db.Timestamptz(3)
+  nextRunAt           DateTime      @db.Timestamptz(3)
+  attempt             Int           @default(0)
+  lockedBy            String?
+  lockedUntil         DateTime?     @db.Timestamptz(3)
+  lastStartedAt       DateTime?     @db.Timestamptz(3)
+  lastFinishedAt      DateTime?     @db.Timestamptz(3)
+  lastStatus          JobRunStatus?
+  consecutiveFailures Int           @default(0)
+  createdAt           DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime      @updatedAt @db.Timestamptz(3)
+
+  runs JobRun[]
+
+  @@index([nextRunAt])
+}
+
+/// History of job runs (at-least-once: a slot may have several attempts).
+/// result/error are sanitised (no secrets or payload values).
+model JobRun {
+  id         String       @id @default(uuid(7)) @db.Uuid
+  jobName    String
+  slot       DateTime     @db.Timestamptz(3)
+  attempt    Int
+  workerId   String
+  status     JobRunStatus
+  startedAt  DateTime     @db.Timestamptz(3)
+  finishedAt DateTime?    @db.Timestamptz(3)
+  result     Json?
+  error      String?
+
+  job ScheduledJob @relation(fields: [jobName], references: [name], onDelete: Cascade)
+
+  @@unique([jobName, slot, attempt])
+  @@index([jobName, startedAt])
+}

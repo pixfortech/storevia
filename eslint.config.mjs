@@ -111,6 +111,8 @@ export default defineConfig(
       "**/tests/**",
       "**/e2e/**",
       "**/scripts/**",
+      "packages/jobs/**",
+      "apps/worker/**",
     ],
     rules: {
       "no-restricted-imports": [
@@ -128,6 +130,10 @@ export default defineConfig(
             {
               name: "@storevia/database/billing",
               message: "The billing role is for packages/billing only.",
+            },
+            {
+              name: "@storevia/database/worker",
+              message: "The worker role is for packages/jobs and apps/worker only.",
             },
             {
               name: "@storevia/database/testing",

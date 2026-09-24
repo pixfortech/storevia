@@ -622,3 +622,49 @@ model AuditLog {
   @@index([actorId, createdAt])
   @@index([entityType, entityId])
 }
+
+// --- Background jobs (Milestone 2.5, ADR-0023) --------------------------------
+
+enum JobRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+model ScheduledJob {
+  name                String        @id
+  intervalSeconds     Int
+  slot                DateTime      @db.Timestamptz(3)
+  nextRunAt           DateTime      @db.Timestamptz(3)
+  attempt             Int           @default(0)
+  lockedBy            String?
+  lockedUntil         DateTime?     @db.Timestamptz(3)
+  lastStartedAt       DateTime?     @db.Timestamptz(3)
+  lastFinishedAt      DateTime?     @db.Timestamptz(3)
+  lastStatus          JobRunStatus?
+  consecutiveFailures Int           @default(0)
+  createdAt           DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime      @updatedAt @db.Timestamptz(3)
+
+  runs JobRun[]
+
+  @@index([nextRunAt])
+}
+
+model JobRun {
+  id         String       @id @default(uuid(7)) @db.Uuid
+  jobName    String
+  slot       DateTime     @db.Timestamptz(3)
+  attempt    Int
+  workerId   String
+  status     JobRunStatus
+  startedAt  DateTime     @db.Timestamptz(3)
+  finishedAt DateTime?    @db.Timestamptz(3)
+  result     Json?
+  error      String?
+
+  job ScheduledJob @relation(fields: [jobName], references: [name], onDelete: Cascade)
+
+  @@unique([jobName, slot, attempt])
+  @@index([jobName, startedAt])
+}

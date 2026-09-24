@@ -52,6 +52,7 @@ pnpm db:reset                # migrate the dev database from zero
 pnpm db:seed:dev             # optional demo tenants (password: storevia-dev-password)
 pnpm --filter @storevia/dashboard dev        # http://app.localhost:3001
 pnpm --filter @storevia/platform-admin dev   # http://admin.localhost:3003 (staff)
+pnpm --filter @storevia/worker dev           # background jobs (expiry, usage reconciliation)
 ```
 
 `pnpm db:reset` also loads the plan catalogue (`pnpm db:seed`). No real
@@ -86,7 +87,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow.
 | `pnpm db:test:prepare`                                | Recreate and migrate the `*_test` database                                        |
 | `pnpm db:seed`                                        | Idempotent reference data: the plan catalogue                                     |
 | `pnpm db:seed:dev`                                    | Idempotent demo data (never in production)                                        |
-| `pnpm --filter @storevia/billing billing:sweep`       | Expire manual subscriptions whose term has ended (cron until the worker exists)   |
+| `pnpm --filter @storevia/billing billing:sweep`       | Run the subscription expiry sweep once (the worker runs it every 5 minutes)       |
 | `pnpm db:validate:draft`                              | Validate the draft ERD schema                                                     |
 | `pnpm check:schema`                                   | Live schema agrees with the ERD draft (ADR-0020)                                  |
 | `pnpm verify`                                         | Everything CI runs, locally                                                       |

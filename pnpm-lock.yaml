@@ -188,6 +188,37 @@ importers:
         specifier: 4.3.3
         version: 4.3.3
 
+  apps/worker:
+    dependencies:
+      '@storevia/billing':
+        specifier: workspace:*
+        version: link:../../packages/billing
+      '@storevia/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@storevia/entitlements':
+        specifier: workspace:*
+        version: link:../../packages/entitlements
+      '@storevia/jobs':
+        specifier: workspace:*
+        version: link:../../packages/jobs
+      '@storevia/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
+      '@storevia/tenancy':
+        specifier: workspace:*
+        version: link:../../packages/tenancy
+      server-only:
+        specifier: 0.0.1
+        version: 0.0.1
+      tsx:
+        specifier: 4.23.15
+        version: 4.23.15
+    devDependencies:
+      vitest:
+        specifier: 4.1.11
+        version: 4.1.11(@types/node@22.19.1)(vite@8.3.0(@types/node@22.19.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+
   packages/auth:
     dependencies:
       '@node-rs/argon2':
@@ -302,6 +333,22 @@ importers:
       '@storevia/types':
         specifier: workspace:*
         version: link:../types
+      server-only:
+        specifier: 0.0.1
+        version: 0.0.1
+    devDependencies:
+      vitest:
+        specifier: 4.1.11
+        version: 4.1.11(@types/node@22.19.1)(vite@8.3.0(@types/node@22.19.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+
+  packages/jobs:
+    dependencies:
+      '@storevia/database':
+        specifier: workspace:*
+        version: link:../database
+      '@storevia/observability':
+        specifier: workspace:*
+        version: link:../observability
       server-only:
         specifier: 0.0.1
         version: 0.0.1

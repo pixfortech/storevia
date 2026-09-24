@@ -1,0 +1,25 @@
+{
+  "name": "@storevia/worker",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --conditions=react-server src/main.ts",
+    "start": "tsx --conditions=react-server src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "test:integration": "vitest run --config vitest.int.config.ts"
+  },
+  "dependencies": {
+    "@storevia/billing": "workspace:*",
+    "@storevia/database": "workspace:*",
+    "@storevia/entitlements": "workspace:*",
+    "@storevia/jobs": "workspace:*",
+    "@storevia/observability": "workspace:*",
+    "@storevia/tenancy": "workspace:*",
+    "server-only": "0.0.1",
+    "tsx": "4.23.15"
+  },
+  "devDependencies": {
+    "vitest": "4.1.11"
+  }
+}

@@ -28,6 +28,7 @@ Accepted, Superseded by ADR-XXXX, Deprecated.
 | [0020](./0020-staged-schema-promotion.md)                         | Staged promotion of the draft schema                               | Accepted |
 | [0021](./0021-better-auth-integration.md)                         | Better Auth integration details                                    | Accepted |
 | [0022](./0022-provider-neutral-subscriptions-and-entitlements.md) | Provider-neutral subscriptions, manual assignment and mock billing | Accepted |
+| [0023](./0023-worker-scheduled-jobs.md)                           | Worker and scheduled jobs (spike outcome for M2-04)                | Accepted |
 
 ADRs 0002–0019 were accepted with the Milestone 0 review on 2026-09-24.
 ADRs 0020–0021 were recorded during Milestone 1 and ADR-0022 for the Milestone 2

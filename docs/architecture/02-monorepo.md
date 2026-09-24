@@ -79,7 +79,7 @@ unexpected errors as structured JSON with the request ID (`apps/dashboard/src/li
 | `types`, `validation`, `database`, `security`, `email`                           | M1 ✔                                   | foundation only                                        |
 | `auth`, `tenancy`, `ui`                                                          | M1 ✔                                   | foundation                                             |
 | `observability`, `entitlements`, `billing`, app `platform-admin`                 | M2 ✔                                   | foundation, tenancy                                    |
-| `jobs`, app `worker`                                                             | M3                                     | foundation                                             |
+| `jobs`, app `worker` (periodic scheduler, ADR-0023)                              | M2.5 ✔                                 | foundation (`worker` composes billing, entitlements)   |
 | `config`                                                                         | when a second app needs shared presets | —                                                      |
 | `commerce` (catalogue + inventory), `media`                                      | M3                                     | foundation, tenancy, entitlements                      |
 | `editor` (document schema, registry, base renderers: `/document`, `/components`) | M4                                     | foundation, validation                                 |
