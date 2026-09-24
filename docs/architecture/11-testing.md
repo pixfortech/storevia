@@ -98,6 +98,23 @@ concurrent creators through a limit of 3; granting the app role INSERT on
 `Subscription` fails the database suite; removing the "only a newer snapshot
 supersedes" guard fails the out-of-order regression.
 
+## Milestone 2.5: what is proven where
+
+| Guarantee                                             | Where                                                                                                                                                                                                       |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Business type persists, changes and deletes nothing   | `packages/tenancy/tests/business-types.int.test.ts`; E2E `business-types.spec.ts` (create as a publication, switch to portfolio, content and name kept)                                                     |
+| Business type never grants permissions or plan limits | integration: limits hold and authors gain nothing for every type; lint bans business-type literals in enforcement code; E2E: a publication still can't create a second free store                           |
+| Navigation never exceeds RBAC or the plan             | unit `business-types.test.ts` (every type × permissions × entitlements); integration: locks follow the plan; E2E: viewer navigation, locked analytics                                                       |
+| Role presets are existing roles                       | unit: every preset maps to a `MemberRole`; the role matrix test keeps doc 04 identical to code                                                                                                              |
+| Pricing ↔ catalogue                                   | `packages/entitlements/tests/catalogue.int.test.ts` (reference data parity, archived/private plans hidden, renames without code); E2E `marketing.spec.ts` (names and prices on the page equal the database) |
+| Marketing role isolation                              | `packages/database/tests/marketing-role.int.test.ts` (catalogue read-only, no tenant/identity tables, RLS-confined rate-limit buckets); `rate-limit.int.test.ts`                                            |
+| Contact form                                          | email escaping and header safety (unit); E2E validation and delivery to the inbox                                                                                                                           |
+| Worker scheduling                                     | `packages/jobs` unit and integration (single claimant, lease takeover, retries, slot advance, skipped slots); `apps/worker` jobs end to end, idempotent re-runs                                             |
+| Job health view                                       | billing integration (stalled/failing detection, permission); E2E `admin-shell.spec.ts`                                                                                                                      |
+| Desktop, tablet and phone layouts                     | E2E `business-types.spec.ts` (sidebar, rail + drawer, bottom bar + More sheet, ⌘K), `marketing.spec.ts` and `admin-shell.spec.ts` (no horizontal scroll on phones)                                          |
+| High-risk staff actions acknowledged                  | E2E `admin-shell.spec.ts` and the shared `submitDialog` helper                                                                                                                                              |
+| Design token contrast                                 | unit `packages/ui/src/theme.test.ts` (AA for every semantic text pair)                                                                                                                                      |
+
 ## Running locally
 
 ```sh
@@ -105,11 +122,12 @@ pnpm db:setup && pnpm db:test:prepare   # once
 pnpm test                               # unit
 pnpm test:integration                   # integration + isolation (uses *_test)
 pnpm db:seed                            # plans, for the dev database used by E2E
-pnpm --filter @storevia/dashboard --filter @storevia/platform-admin build
+pnpm --filter @storevia/dashboard --filter @storevia/platform-admin --filter @storevia/marketing build
 EMAIL_TRANSPORT=file EMAIL_FILE_DIR=/tmp/storevia-mail pnpm test:e2e
 ```
 
-The E2E suite starts the dashboard (port 3001) and platform-admin (port 3003)
+The E2E suite starts the dashboard (port 3001), platform-admin (port 3003) and
+the marketing site (port 3000)
 with `next start`, or reuses running ones. It needs `DATABASE_MIGRATOR_URL`
 to grant the test staff member's `PlatformStaff` row, as operations would. Outside CI, point `PLAYWRIGHT_CHROMIUM_EXECUTABLE` at a local Chromium
 if Playwright's bundled browser isn't installed.

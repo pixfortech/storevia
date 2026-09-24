@@ -74,20 +74,21 @@ needs presets, so `config` has not been created. `observability` moves to M2
 with the worker, which is its first real consumer. In M1, server actions log
 unexpected errors as structured JSON with the request ID (`apps/dashboard/src/lib/action.ts`).
 
-| Package                                                                          | Milestone                              | Depends on                                             |
-| -------------------------------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------ |
-| `types`, `validation`, `database`, `security`, `email`                           | M1 ✔                                   | foundation only                                        |
-| `auth`, `tenancy`, `ui`                                                          | M1 ✔                                   | foundation                                             |
-| `observability`, `entitlements`, `billing`, app `platform-admin`                 | M2 ✔                                   | foundation, tenancy                                    |
-| `jobs`, app `worker` (periodic scheduler, ADR-0023)                              | M2.5 ✔                                 | foundation (`worker` composes billing, entitlements)   |
-| `config`                                                                         | when a second app needs shared presets | —                                                      |
-| `commerce` (catalogue + inventory), `media`                                      | M3                                     | foundation, tenancy, entitlements                      |
-| `editor` (document schema, registry, base renderers: `/document`, `/components`) | M4                                     | foundation, validation                                 |
-| `storefront-engine`, `domains`                                                   | M4                                     | foundation, commerce (read models), editor (renderers) |
-| `editor` (editor UI `/ui`, full component set)                                   | M5                                     | foundation, validation, ui                             |
-| `payments`, `commerce` (checkout/orders)                                         | M6                                     | foundation, commerce                                   |
-| `themes`                                                                         | M7                                     | foundation, editor                                     |
-| `analytics`                                                                      | later                                  | foundation                                             |
+| Package                                                                          | Milestone                              | Depends on                                                      |
+| -------------------------------------------------------------------------------- | -------------------------------------- | --------------------------------------------------------------- |
+| `types`, `validation`, `database`, `security`, `email`                           | M1 ✔                                   | foundation only                                                 |
+| `auth`, `tenancy`, `ui`                                                          | M1 ✔                                   | foundation                                                      |
+| `observability`, `entitlements`, `billing`, app `platform-admin`                 | M2 ✔                                   | foundation, tenancy                                             |
+| `jobs`, app `worker` (periodic scheduler, ADR-0023)                              | M2.5 ✔                                 | foundation (`worker` composes billing, entitlements)            |
+| app `marketing` (public site, catalogue-driven pricing, ADR-0025)                | M2.5 ✔                                 | ui, entitlements (catalogue/format), tenancy (client-safe data) |
+| `config`                                                                         | when a second app needs shared presets | —                                                               |
+| `commerce` (catalogue + inventory), `media`                                      | M3                                     | foundation, tenancy, entitlements                               |
+| `editor` (document schema, registry, base renderers: `/document`, `/components`) | M4                                     | foundation, validation                                          |
+| `storefront-engine`, `domains`                                                   | M4                                     | foundation, commerce (read models), editor (renderers)          |
+| `editor` (editor UI `/ui`, full component set)                                   | M5                                     | foundation, validation, ui                                      |
+| `payments`, `commerce` (checkout/orders)                                         | M6                                     | foundation, commerce                                            |
+| `themes`                                                                         | M7                                     | foundation, editor                                              |
+| `analytics`                                                                      | later                                  | foundation                                                      |
 
 ## 4. Dependency rules
 
@@ -116,7 +117,11 @@ Enforced by lint (`eslint-plugin-boundaries` or equivalent) and a CI check:
    and the platform-staff resolver in `packages/tenancy`. The billing role
    (`@storevia/database/billing`: webhook ledger, mock provider, expiry sweep)
    is imported only by `packages/billing`, which may not import the system
-   entry point. ESLint
+   entry point. The worker role (`@storevia/database/worker`) is imported
+   only by `packages/jobs` and `apps/worker`. The marketing role
+   (`@storevia/database/marketing`: the plan catalogue and its own rate-limit
+   rows, ADR-0025) is imported only by `apps/marketing`, which in turn may
+   import no other role and no server service package. ESLint
    (`no-restricted-imports`) enforces both allow-lists. Migrations and reference seeds use
    the migrator connection through the Prisma CLI and seed scripts.
 5. Domain packages do not import each other in cycles. Cross-domain calls go

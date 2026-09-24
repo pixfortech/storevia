@@ -111,6 +111,59 @@ Moved out of Milestone 2, with the reason:
 | Storefront behaviour per subscription status (M2-08)                                                       | M4 (storefront engine)                        | No storefront exists yet; the dashboard shows status banners                                                        |
 | MFA/SSO for platform staff                                                                                 | Before platform-admin goes to production (M8) | Doc 04 §6; platform-admin must not be deployed to production before it                                              |
 
+## Milestone 2.5 status: product experience and commercial foundation
+
+**Built. Waiting at the design review checkpoint.** Commerce Catalogue (M3),
+Products, Inventory, Orders and the Visual Builder don't start until the
+owner approves the design on desktop, tablet and phone. No payment gateway,
+POS or OmniPOS integration was built.
+
+Delivered:
+
+- **Background jobs** (ADR-0023): `packages/jobs` scheduler and
+  `apps/worker`, with the subscription expiry sweep every 5 minutes and
+  nightly usage reconciliation. This brings forward M2-04 and the
+  reconciliation job moved out of M2.
+- **Business types and role presets** (ADR-0024): store-level
+  `businessType` (online store, business website, publication, portfolio)
+  that drives onboarding, navigation, the store home and invitation
+  suggestions. It never grants permissions or plan features. Five preset
+  roles use the existing permission primitives.
+- **Design system** ([12-design-system.md](../architecture/12-design-system.md)):
+  tokens, Inter, the Lucide-based icon system, Storevia glyphs, and the
+  data, choice and command components, with AA contrast tested.
+- **Merchant dashboard**: separate desktop, tablet and phone layouts,
+  navigation by business type with plan locks, a ⌘K command menu,
+  contextual create actions, and business-type selection and change.
+- **Marketing site** (ADR-0025): home, products, solutions, pricing from the
+  plan catalogue, resources (roadmap and security), about, contact (working
+  form) and legal placeholders. It runs on its own read-only database role.
+  This brings forward M1-21 and M2-11.
+- **Platform-admin**: internal chrome, an environment strip, a risk summary,
+  confirmation-gated high-risk actions, readable entitlements and a
+  read-only background jobs view.
+
+### Design review checkpoint (how to run it)
+
+```sh
+git fetch origin claude/cool-thompson-c7u8qp && git checkout claude/cool-thompson-c7u8qp
+pnpm install
+cp .env.example .env            # first time only; adjust ports if needed
+pnpm db:setup && pnpm db:migrate && pnpm db:seed && pnpm db:seed:dev
+pnpm dev                        # marketing :3000, dashboard :3001, platform-admin :3003
+```
+
+- Marketing: <http://localhost:3000>
+- Dashboard: <http://app.localhost:3001>. Sign in as `owner@acme.test`
+  (online store and publication), `owner@studionorth.test` (portfolio and
+  business website) or `owner@globex.test` (starter trial), with the password
+  printed by `pnpm db:seed:dev`.
+- Platform-admin: <http://admin.localhost:3003> as `staff@storevia.test`.
+
+Review each surface at desktop (≥1280 px), tablet (768–1023 px, for example
+an iPad in portrait) and phone (≈390 px) widths. In a desktop browser, use
+the responsive mode of the developer tools.
+
 ## Milestone 1 plan (as scheduled at M0)
 
 Order of work, each step a vertical slice with tests:
