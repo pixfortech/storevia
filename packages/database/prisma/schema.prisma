@@ -157,6 +157,11 @@ model Organisation {
   stores      Store[]
   auditLogs   AuditLog[]
 
+  billingCustomers BillingCustomer[]
+  subscriptions    Subscription[]
+  featureOverrides OrganisationFeatureOverride[]
+  usageCounters    UsageCounter[]
+
   @@index([createdById])
 }
 
@@ -309,6 +314,278 @@ model StoreDomain {
 
   @@index([storeId])
   @@index([status, lastCheckedAt])
+}
+
+// --- Plans, entitlements, subscriptions (Milestone 2, ADR-0022) ---------------
+
+enum PlanStatus {
+  ACTIVE
+  LEGACY
+  ARCHIVED
+}
+
+/// `key` is a stable identifier for ops/seed data. Application code must
+/// never branch on it — it asks the entitlement engine about features.
+/// ACTIVE plans can be assigned; LEGACY plans keep existing subscribers only.
+model Plan {
+  id          String     @id @default(uuid(7)) @db.Uuid
+  key         String     @unique
+  name        String
+  description String?
+  status      PlanStatus @default(ACTIVE)
+  isPublic    Boolean    @default(true)
+  sortOrder   Int        @default(0)
+  trialDays   Int        @default(14)
+  createdAt   DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime   @updatedAt @db.Timestamptz(3)
+
+  prices        PlanPrice[]
+  features      PlanFeature[]
+  subscriptions Subscription[]
+}
+
+enum BillingInterval {
+  MONTH
+  YEAR
+}
+
+/// Provider-reference layer only (ADR-0022): domain logic never branches on it.
+enum BillingProviderKey {
+  MOCK
+  RAZORPAY
+  STRIPE
+}
+
+/// Provider-neutral list price (pricing metadata), BigInt minor units.
+/// SQL: partial unique (planId, interval, currency) WHERE active.
+model PlanPrice {
+  id        String          @id @default(uuid(7)) @db.Uuid
+  planId    String          @db.Uuid
+  interval  BillingInterval
+  currency  String          @db.Char(3)
+  amount    BigInt
+  active    Boolean         @default(true)
+  createdAt DateTime        @default(now()) @db.Timestamptz(3)
+
+  plan Plan @relation(fields: [planId], references: [id], onDelete: Restrict)
+
+  @@index([planId])
+}
+
+enum FeatureType {
+  BOOLEAN
+  LIMIT
+  CONFIGURATION
+}
+
+/// Rows are inserted by migrations: keys are part of the code contract (the
+/// closed FeatureKey union). default* is the system default, the last step of
+/// resolution (override → plan → system default).
+model Feature {
+  id               String      @id @default(uuid(7)) @db.Uuid
+  /// e.g. "store_count", "custom_domain". Referenced from code via a typed
+  /// FeatureKey constant, never a free string.
+  key              String      @unique
+  name             String
+  description      String?
+  type             FeatureType
+  sortOrder        Int         @default(0)
+  defaultEnabled   Boolean     @default(false)
+  defaultLimit     BigInt?
+  defaultUnlimited Boolean     @default(false)
+  defaultConfig    Json?
+  createdAt        DateTime    @default(now()) @db.Timestamptz(3)
+
+  plans         PlanFeature[]
+  overrides     OrganisationFeatureOverride[]
+  usageCounters UsageCounter[]
+}
+
+/// A complete entitlement value, validated against Feature.type by a trigger:
+/// LIMIT needs exactly one of limit >= 0 / unlimited when enabled.
+model PlanFeature {
+  planId    String  @db.Uuid
+  featureId String  @db.Uuid
+  enabled   Boolean @default(true)
+  limit     BigInt?
+  unlimited Boolean @default(false)
+  config    Json?
+
+  plan    Plan    @relation(fields: [planId], references: [id], onDelete: Cascade)
+  feature Feature @relation(fields: [featureId], references: [id], onDelete: Restrict)
+
+  @@id([planId, featureId])
+  @@index([featureId])
+}
+
+/// Staff override for one organisation and feature. A complete replacement
+/// value (same shape as PlanFeature) that takes precedence over the plan.
+/// Written only by platform-admin; every change is audited (ADR-0022).
+model OrganisationFeatureOverride {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organisationId String    @db.Uuid
+  featureId      String    @db.Uuid
+  enabled        Boolean
+  limit          BigInt?
+  unlimited      Boolean   @default(false)
+  config         Json?
+  reason         String
+  expiresAt      DateTime? @db.Timestamptz(3)
+  createdById    String?   @db.Uuid
+  updatedById    String?   @db.Uuid
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @db.Timestamptz(3)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  feature      Feature      @relation(fields: [featureId], references: [id], onDelete: Restrict)
+
+  @@unique([organisationId, featureId])
+  @@index([featureId])
+}
+
+model BillingCustomer {
+  id                 String             @id @default(uuid(7)) @db.Uuid
+  organisationId     String             @db.Uuid
+  provider           BillingProviderKey
+  providerCustomerId String
+  createdAt          DateTime           @default(now()) @db.Timestamptz(3)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  @@unique([organisationId, provider])
+  @@unique([provider, providerCustomerId])
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+}
+
+/// Where a subscription came from. Never changes what a status means.
+enum SubscriptionSource {
+  MANUAL
+  MOCK
+  PAYMENT_PROVIDER
+}
+
+/// SQL: partial unique (organisationId) WHERE status <> 'EXPIRED' — at most
+/// one live subscription per organisation; CHECKs tie source to provider
+/// columns and each status to its required dates (ADR-0022 §1–2).
+/// expiresAt: scheduled end of entitlement (fixed manual term, or the access
+/// end of a CANCELLED subscription); NULL = no scheduled end.
+model Subscription {
+  id                     String              @id @default(uuid(7)) @db.Uuid
+  organisationId         String              @db.Uuid
+  planId                 String              @db.Uuid
+  status                 SubscriptionStatus
+  source                 SubscriptionSource
+  provider               BillingProviderKey?
+  providerSubscriptionId String?
+  billingInterval        BillingInterval?
+  startedAt              DateTime            @db.Timestamptz(3)
+  trialStartsAt          DateTime?           @db.Timestamptz(3)
+  trialEndsAt            DateTime?           @db.Timestamptz(3)
+  currentPeriodStart     DateTime?           @db.Timestamptz(3)
+  currentPeriodEnd       DateTime?           @db.Timestamptz(3)
+  expiresAt              DateTime?           @db.Timestamptz(3)
+  cancelledAt            DateTime?           @db.Timestamptz(3)
+  pastDueSince           DateTime?           @db.Timestamptz(3)
+  graceEndsAt            DateTime?           @db.Timestamptz(3)
+  endedAt                DateTime?           @db.Timestamptz(3)
+  /// Version of the last provider snapshot applied (event time, or fetch time
+  /// for adapters that re-fetch). Older snapshots are ignored as stale.
+  providerSyncedAt       DateTime?           @db.Timestamptz(3)
+  createdAt              DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime            @updatedAt @db.Timestamptz(3)
+
+  organisation Organisation        @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  plan         Plan                @relation(fields: [planId], references: [id], onDelete: Restrict)
+  events       SubscriptionEvent[]
+
+  @@unique([id, organisationId])
+  @@unique([provider, providerSubscriptionId])
+  @@index([organisationId, status])
+  @@index([planId])
+}
+
+/// Append-only history of subscription changes, whatever their source.
+/// reason/note are staff-entered (platform-admin only; never shown to merchants).
+model SubscriptionEvent {
+  id              String              @id @default(uuid(7)) @db.Uuid
+  subscriptionId  String              @db.Uuid
+  organisationId  String              @db.Uuid
+  type            String
+  source          SubscriptionSource
+  fromStatus      SubscriptionStatus?
+  toStatus        SubscriptionStatus?
+  fromPlanId      String?             @db.Uuid
+  toPlanId        String?             @db.Uuid
+  actorType       AuditActorType
+  actorId         String?             @db.Uuid
+  reason          String?
+  note            String?
+  providerEventId String?
+  requestId       String?
+  data            Json?
+  occurredAt      DateTime            @db.Timestamptz(3)
+  createdAt       DateTime            @default(now()) @db.Timestamptz(3)
+
+  subscription Subscription @relation(fields: [subscriptionId, organisationId], references: [id, organisationId], onDelete: Restrict)
+
+  @@index([subscriptionId, occurredAt])
+  @@index([organisationId, occurredAt])
+}
+
+enum InboundWebhookStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+  IGNORED
+}
+
+/// Idempotency ledger for billing-provider webhooks (platform level).
+/// organisationId is filled once the event is matched to a customer.
+/// outcome: short machine-readable reason for IGNORED/FAILED (never secrets).
+model BillingWebhookEvent {
+  id              String               @id @default(uuid(7)) @db.Uuid
+  provider        BillingProviderKey
+  providerEventId String
+  type            String
+  status          InboundWebhookStatus @default(RECEIVED)
+  organisationId  String?              @db.Uuid
+  attempts        Int                  @default(0)
+  outcome         String?
+  lastError       String?
+  payload         Json
+  receivedAt      DateTime             @default(now()) @db.Timestamptz(3)
+  processedAt     DateTime?            @db.Timestamptz(3)
+
+  @@unique([provider, providerEventId])
+  @@index([status, receivedAt])
+  @@index([organisationId, receivedAt])
+}
+
+/// Gauge counters (period = "all") are changed in the same transaction as the
+/// resource they count, under a row lock. Metered counters use a period key
+/// such as "2026-09". scopeKey = storeId or "" for organisation-wide usage.
+/// SQL: CHECK (value >= 0).
+model UsageCounter {
+  organisationId String   @db.Uuid
+  featureId      String   @db.Uuid
+  scopeKey       String   @default("")
+  period         String   @default("all")
+  value          BigInt   @default(0)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  feature      Feature      @relation(fields: [featureId], references: [id], onDelete: Restrict)
+
+  @@id([organisationId, featureId, scopeKey, period])
+  @@index([featureId])
 }
 
 // --- Audit (Milestone 1) ------------------------------------------------------

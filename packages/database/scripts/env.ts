@@ -28,8 +28,12 @@ export function databaseName(url: string): string {
 export function applyTarget(): { target: "dev" | "test"; database: string } {
   const target = process.env["STOREVIA_DB_TARGET"] === "test" ? "test" : "dev";
   const base = databaseName(requireEnv("DATABASE_URL"));
+  // Idempotent: child scripts inherit URLs that already point at the test DB.
+  const alreadyTest = base.endsWith("_test");
   const database =
-    target === "test" ? (process.env["STOREVIA_TEST_DATABASE"] ?? `${base}_test`) : base;
+    target === "test" && !alreadyTest
+      ? (process.env["STOREVIA_TEST_DATABASE"] ?? `${base}_test`)
+      : base;
   for (const key of ROLE_URL_VARS) {
     const url = process.env[key];
     if (url) process.env[key] = withDatabase(url, database);

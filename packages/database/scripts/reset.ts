@@ -1,5 +1,5 @@
-// Drops and recreates the dev (default) or test database, then applies all
-// migrations. Never runs against production.
+// Drops and recreates the dev (default) or test database, applies all
+// migrations and loads reference data. Never runs against production.
 import { execFileSync } from "node:child_process";
 import pg from "pg";
 import { applyTarget, loadRootEnv, requireEnv } from "./env";
@@ -29,4 +29,6 @@ execFileSync("pnpm", ["exec", "prisma", "migrate", "deploy"], {
   stdio: "inherit",
   env: process.env,
 });
+// Reference data (plans) is part of a usable database, including the test one.
+execFileSync("pnpm", ["exec", "tsx", "scripts/seed.ts"], { stdio: "inherit", env: process.env });
 console.log(`reset ${target} database ${database}`);
