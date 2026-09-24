@@ -18,7 +18,7 @@
     "format:check": "prettier --check .",
     "test": "turbo run test",
     "test:integration": "turbo run test:integration --concurrency=1",
-    "test:e2e": "turbo run test:e2e",
+    "test:e2e": "pnpm --filter @storevia/dashboard test:e2e",
     "db:setup": "pnpm --filter @storevia/database db:setup",
     "db:migrate": "pnpm --filter @storevia/database db:migrate",
     "db:migrate:dev": "pnpm --filter @storevia/database db:migrate:dev",
@@ -28,7 +28,8 @@
     "db:validate:draft": "prisma validate --schema docs/database/schema.draft.prisma && node scripts/check-fk-indexes.mjs docs/database/schema.draft.prisma",
     "check:schema": "node scripts/check-schema-agreement.mjs packages/database/prisma/schema.prisma docs/database/schema.draft.prisma && node scripts/check-fk-indexes.mjs packages/database/prisma/schema.prisma",
     "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm db:validate:draft && pnpm check:schema",
-    "postinstall": "pnpm --filter @storevia/database generate"
+    "postinstall": "pnpm --filter @storevia/database generate",
+    "db:seed:dev": "pnpm --filter @storevia/dashboard seed:dev"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
