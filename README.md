@@ -4,10 +4,9 @@ Storevia is a multi-tenant SaaS platform for building websites and running
 online stores. Merchants subscribe to a plan, create one or more stores, design
 pages visually, manage products and orders, connect domains and invite staff.
 
-> **Status: Milestone 0 (Architecture).** This repository contains the
-> architecture, database design, security model and roadmap, plus the
-> repository tooling. Application code starts in Milestone 1, after the
-> architecture is reviewed.
+> **Status: Milestone 0 complete (tag `milestone-0`).** The architecture,
+> database design, security model and roadmap are the approved baseline.
+> Milestone 1 (platform foundation) is in progress.
 
 ## Documentation
 

@@ -1,6 +1,6 @@
 # ADR-0010: Money as integer minor units with explicit currency
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-24
 
 ## Decision

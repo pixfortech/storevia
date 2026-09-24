@@ -1,6 +1,6 @@
 # ADR-0004: PostgreSQL with Prisma ORM 7
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-24
 
 ## Context

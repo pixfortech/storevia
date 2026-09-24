@@ -1,6 +1,6 @@
 # Storevia — Entity Relationship Design
 
-> Milestone 0 deliverable. Status: **proposed, awaiting review**.
+> Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**.
 >
 > The full field-level design is in [`schema.draft.prisma`](./schema.draft.prisma)
 > (79 models, validated by `prisma validate` in CI). This document explains the

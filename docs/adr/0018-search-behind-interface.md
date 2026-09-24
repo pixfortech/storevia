@@ -1,6 +1,6 @@
 # ADR-0018: Search behind an interface, PostgreSQL first
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-24
 
 ## Decision

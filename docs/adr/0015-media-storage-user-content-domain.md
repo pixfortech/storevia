@@ -1,6 +1,6 @@
 # ADR-0015: Media in S3-compatible storage, served from a user-content domain
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-24
 
 ## Decision

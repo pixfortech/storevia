@@ -1,6 +1,6 @@
 # 07 — Visual builder: document architecture
 
-> Milestone 0 deliverable. Status: **proposed, awaiting review**. ADR-0011.
+> Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**. ADR-0011.
 >
 > The page document is the most long-lived data format in Storevia. Every
 > published site depends on it forever, so it is designed conservatively:

@@ -1,6 +1,6 @@
 # ADR-0005: Multi-tenancy with a shared schema, tenant columns and RLS
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-24
 
 ## Context

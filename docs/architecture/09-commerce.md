@@ -1,6 +1,6 @@
 # 09 — Commerce domain
 
-> Milestone 0 deliverable. Status: **proposed, awaiting review**. ADR-0010.
+> Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**. ADR-0010.
 >
 > Implemented in `packages/commerce` (M3, M6) and `packages/payments` (M6).
 > This document fixes the rules that must hold from the first line of code.

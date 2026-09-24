@@ -1,6 +1,6 @@
 # 06 — Storefront architecture
 
-> Milestone 0 deliverable. Status: **proposed, awaiting review**. ADR-0013.
+> Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**. ADR-0013.
 
 ## 1. One engine, every store
 

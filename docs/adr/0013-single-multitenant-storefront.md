@@ -1,6 +1,6 @@
 # ADR-0013: One multi-tenant storefront engine
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-24
 
 ## Decision

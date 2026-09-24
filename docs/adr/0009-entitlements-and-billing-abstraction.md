@@ -1,6 +1,6 @@
 # ADR-0009: Entitlement service and billing-provider abstraction
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-24
 
 ## Context

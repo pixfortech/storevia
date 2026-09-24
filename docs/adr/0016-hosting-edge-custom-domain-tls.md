@@ -1,6 +1,6 @@
 # ADR-0016: Portable containers, managed data services, edge-managed TLS
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-24
 
 ## Decision

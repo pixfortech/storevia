@@ -1,6 +1,6 @@
 # Implementation roadmap
 
-> Milestone 0 deliverable. Status: **proposed, awaiting review**.
+> Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**.
 > Issue-level breakdown: [github-milestones-and-issues.md](./github-milestones-and-issues.md).
 
 ## Working agreement (every task)
@@ -79,6 +79,11 @@ Order of work, each step a vertical slice with tests:
    scan.
 
 ## Open questions for the Milestone 0 review
+
+The baseline was approved without overrides, so each question proceeds with
+its **default** below until the product owner decides otherwise. Q3, Q5 and
+Q-S2 still need an explicit decision before the milestones that depend on
+them (M2/M6, M8, first production deployment).
 
 | #    | Question                                                                                                                               | Default if unanswered                                                                                               |
 | ---- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |

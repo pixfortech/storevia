@@ -1,6 +1,6 @@
 # ADR-0011: Page builder canonical format is a versioned JSON document tree
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-24
 
 ## Decision

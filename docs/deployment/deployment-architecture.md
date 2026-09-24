@@ -1,6 +1,6 @@
 # Deployment architecture
 
-> Milestone 0 deliverable. Status: **proposed, awaiting review**. ADR-0016.
+> Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**. ADR-0016.
 > Vendor choices below are recommendations. Every provider sits behind an
 > interface or standard protocol so it can be replaced.
 

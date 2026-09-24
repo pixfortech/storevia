@@ -27,5 +27,6 @@ Supporting documents:
 
 ## Status
 
-All Milestone 0 documents are **proposed**. The architecture is agreed when
-the ADRs are accepted and the open questions in the roadmap are answered.
+Milestone 0 is complete. The document set and ADRs 0002–0019 are the
+**approved architecture baseline** (tag `milestone-0`). Changes to
+foundational architecture need a new ADR.

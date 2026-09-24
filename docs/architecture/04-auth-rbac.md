@@ -1,6 +1,6 @@
 # 04 — Authentication and RBAC
 
-> Milestone 0 deliverable. Status: **proposed, awaiting review**. ADR-0007, ADR-0008.
+> Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**. ADR-0007, ADR-0008.
 
 ## 1. Identity realms
 

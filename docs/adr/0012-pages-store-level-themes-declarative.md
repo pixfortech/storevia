@@ -1,6 +1,6 @@
 # ADR-0012: Pages belong to the store; themes are declarative packages
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-24
 
 ## Context

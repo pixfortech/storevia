@@ -1,6 +1,6 @@
 # 03 — Tenancy strategy
 
-> Milestone 0 deliverable. Status: **proposed, awaiting review**. ADR-0005.
+> Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**. ADR-0005.
 >
 > Cross-tenant access is a **critical security defect**. This document defines
 > how isolation is achieved and how it is proven.

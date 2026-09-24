@@ -1,6 +1,6 @@
 # 01 — System architecture
 
-> Milestone 0 deliverable. Status: **proposed, awaiting review**.
+> Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**.
 
 ## 1. Goals, in priority order
 

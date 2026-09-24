@@ -1,6 +1,6 @@
 # ADR-0014: Postgres-backed job queue and transactional outbox
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-24
 
 ## Context

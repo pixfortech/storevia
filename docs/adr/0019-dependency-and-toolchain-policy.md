@@ -1,6 +1,6 @@
 # ADR-0019: Dependency and toolchain policy
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-24
 
 ## Decision

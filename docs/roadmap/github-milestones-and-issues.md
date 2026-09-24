@@ -1,6 +1,6 @@
 # GitHub milestones and issues
 
-> Milestone 0 deliverable. Status: **proposed, awaiting review**.
+> Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**.
 >
 > Ready to be created as GitHub milestones and issues once the review
 > approves the plan. Milestones M0–M2 are broken down fully; M3–M8 at issue

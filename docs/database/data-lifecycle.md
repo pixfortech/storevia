@@ -1,6 +1,6 @@
 # Data lifecycle: migrations, seeds, deletion and retention
 
-> Milestone 0 deliverable. Status: **proposed, awaiting review**.
+> Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**.
 
 ## 1. Migrations
 

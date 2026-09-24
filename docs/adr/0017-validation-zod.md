@@ -1,6 +1,6 @@
 # ADR-0017: Centralised validation with zod
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-24
 
 ## Decision

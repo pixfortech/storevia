@@ -1,6 +1,6 @@
 # 02 — Monorepo structure
 
-> Milestone 0 deliverable. Status: **proposed, awaiting review**. ADR-0002.
+> Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**. ADR-0002.
 
 ## 1. Tooling
 

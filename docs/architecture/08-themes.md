@@ -1,6 +1,6 @@
 # 08 — Theme architecture
 
-> Milestone 0 deliverable. Status: **proposed, awaiting review**. ADR-0012.
+> Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**. ADR-0012.
 
 ## 1. What a theme is (and is not)
 

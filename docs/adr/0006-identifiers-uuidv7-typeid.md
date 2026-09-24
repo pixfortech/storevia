@@ -1,6 +1,6 @@
 # ADR-0006: UUIDv7 primary keys, TypeID public identifiers
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-24
 
 ## Context

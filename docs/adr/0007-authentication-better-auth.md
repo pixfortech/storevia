@@ -1,6 +1,6 @@
 # ADR-0007: Authentication with Better Auth, wrapped in packages/auth
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-24
 
 ## Context

@@ -1,6 +1,6 @@
 # 05 — Subscription billing and entitlements
 
-> Milestone 0 deliverable. Status: **proposed, awaiting review**. ADR-0009.
+> Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**. ADR-0009.
 
 Storevia SaaS billing (merchants paying Storevia) and merchant storefront
 payments (shoppers paying merchants) are **separate systems** with separate

@@ -1,6 +1,6 @@
 # ADR-0002: Monorepo with pnpm workspaces and Turborepo
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-24
 
 ## Context

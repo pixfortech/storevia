@@ -1,6 +1,6 @@
 # Security threat model
 
-> Milestone 0 deliverable. Status: **proposed, awaiting review**.
+> Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**.
 > Revisited at the start of every milestone and before launch (M8 security
 > review). Reporting vulnerabilities: [SECURITY.md](../../SECURITY.md).
 

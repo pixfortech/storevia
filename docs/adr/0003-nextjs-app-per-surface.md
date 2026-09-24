@@ -1,6 +1,6 @@
 # ADR-0003: Next.js App Router, one app per product surface
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-24
 
 ## Context

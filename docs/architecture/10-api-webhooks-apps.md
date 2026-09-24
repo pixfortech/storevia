@@ -1,6 +1,6 @@
 # 10 — API, webhooks and the future app platform
 
-> Milestone 0 deliverable. Status: **proposed, awaiting review**.
+> Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**.
 > Wire-level conventions: [docs/api/README.md](../api/README.md).
 
 ## 1. API surfaces
