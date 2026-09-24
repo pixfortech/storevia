@@ -147,6 +147,33 @@ describe("sign-in", () => {
     ).toMatchObject({ code: "RATE_LIMITED" });
   });
 
+  it("rate-limits sign-ups per client IP when the edge IP header is trusted", async () => {
+    process.env["TRUSTED_CLIENT_IP_HEADER"] = "x-test-client-ip";
+    try {
+      const headers = () =>
+        new Headers({ "x-test-client-ip": "203.0.113.7", "user-agent": "vitest" });
+      const results = [];
+      for (let i = 0; i < 11; i++) {
+        results.push(
+          await dashboard.signUp(
+            { name: "Burst", email: `burst${String(i)}@example.test`, password: PASSWORD },
+            headers(),
+          ),
+        );
+      }
+      expect(results.slice(0, 10).every((r) => r.ok)).toBe(true);
+      expect(results[10]).toMatchObject({ ok: false, code: "RATE_LIMITED" });
+      // Another client is unaffected.
+      const other = await dashboard.signUp(
+        { name: "Other", email: "other-ip@example.test", password: PASSWORD },
+        new Headers({ "x-test-client-ip": "198.51.100.9" }),
+      );
+      expect(other.ok).toBe(true);
+    } finally {
+      delete process.env["TRUSTED_CLIENT_IP_HEADER"];
+    }
+  });
+
   it("issues host-only, HttpOnly session cookies", async () => {
     await registerVerified("cookie@example.test");
     const result = await dashboard.signIn(

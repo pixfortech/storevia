@@ -41,20 +41,24 @@ describe("clientIp", () => {
   it("ignores forwarding headers unless a trusted header is configured", () => {
     const headers = new Headers({ "x-forwarded-for": "203.0.113.9" });
     delete process.env["TRUSTED_CLIENT_IP_HEADER"];
-    expect(clientIp(headers)).toBe("unknown");
+    expect(clientIp(headers)).toBeNull();
     process.env["TRUSTED_CLIENT_IP_HEADER"] = "x-forwarded-for";
     expect(clientIp(headers)).toBe("203.0.113.9");
-    expect(clientIp(new Headers({ "x-forwarded-for": "not-an-ip" }))).toBe("unknown");
+    expect(clientIp(new Headers({ "x-forwarded-for": "not-an-ip" }))).toBeNull();
     delete process.env["TRUSTED_CLIENT_IP_HEADER"];
   });
 });
 
 describe("contentSecurityPolicy", () => {
   it("uses a nonce and forbids framing and plugins", () => {
-    const csp = contentSecurityPolicy({ nonce: "abc", isDevelopment: false });
+    const csp = contentSecurityPolicy({ nonce: "abc", isDevelopment: false, secure: true });
     expect(csp).toContain("script-src 'self' 'nonce-abc' 'strict-dynamic'");
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("object-src 'none'");
     expect(csp).not.toContain("unsafe-eval");
+    expect(csp).toContain("upgrade-insecure-requests");
+    expect(
+      contentSecurityPolicy({ nonce: "abc", isDevelopment: false, secure: false }),
+    ).not.toContain("upgrade-insecure-requests");
   });
 });

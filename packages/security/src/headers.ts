@@ -1,10 +1,12 @@
 export interface CspOptions {
   readonly nonce: string;
   readonly isDevelopment: boolean;
+  /** true when the app is served over HTTPS (adds upgrade-insecure-requests). */
+  readonly secure: boolean;
 }
 
 /** Nonce-based CSP for the dashboard and platform-admin (threat-model §5). */
-export function contentSecurityPolicy({ nonce, isDevelopment }: CspOptions): string {
+export function contentSecurityPolicy({ nonce, isDevelopment, secure }: CspOptions): string {
   const directives: Record<string, string[]> = {
     "default-src": ["'self'"],
     "script-src": [
@@ -22,22 +24,22 @@ export function contentSecurityPolicy({ nonce, isDevelopment }: CspOptions): str
     "form-action": ["'self'"],
     "object-src": ["'none'"],
   };
-  if (!isDevelopment) directives["upgrade-insecure-requests"] = [];
+  if (secure) directives["upgrade-insecure-requests"] = [];
   return Object.entries(directives)
     .map(([key, values]) => [key, ...values].join(" "))
     .join("; ");
 }
 
 /** Headers applied to every dashboard / platform-admin response. */
-export function baseSecurityHeaders(isDevelopment: boolean): Record<string, string> {
+export function baseSecurityHeaders(secure: boolean): Record<string, string> {
   return {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "X-Frame-Options": "DENY",
     "Cross-Origin-Opener-Policy": "same-origin",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
-    ...(isDevelopment
-      ? {}
-      : { "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload" }),
+    ...(secure
+      ? { "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload" }
+      : {}),
   };
 }

@@ -44,12 +44,23 @@ export async function consumeRateLimit(
   };
 }
 
-/** Checks several rules; all are counted, and the request is allowed only if every rule allows it. */
+/**
+ * Checks several rules; all are counted, and the request is allowed only if
+ * every rule allows it. Rules whose subject is null (e.g. an unknown client
+ * IP) are skipped rather than pooled under a shared key, which would turn a
+ * per-client limit into a global one.
+ */
 export async function consumeRateLimits(
-  checks: readonly (readonly [RateLimitRule, string])[],
+  checks: readonly (readonly [RateLimitRule, string | null])[],
 ): Promise<RateLimitResult> {
+  const applicable = checks.filter(
+    (check): check is readonly [RateLimitRule, string] => check[1] !== null,
+  );
+  if (applicable.length === 0) {
+    return { allowed: true, remaining: Number.POSITIVE_INFINITY, retryAfterSeconds: 0 };
+  }
   const results = await Promise.all(
-    checks.map(([rule, subject]) => consumeRateLimit(rule, subject)),
+    applicable.map(([rule, subject]) => consumeRateLimit(rule, subject)),
   );
   const blocked = results.filter((r) => !r.allowed);
   if (blocked.length === 0) {

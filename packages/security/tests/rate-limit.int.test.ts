@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { disconnectTestClients, truncateAll } from "@storevia/database/testing";
-import { consumeRateLimit } from "../src/rate-limit";
+import { consumeRateLimit, consumeRateLimits } from "../src/rate-limit";
 
 beforeAll(truncateAll);
 afterAll(disconnectTestClients);
@@ -20,5 +20,12 @@ describe("consumeRateLimit", () => {
     expect((await consumeRateLimit(rule, "a")).allowed).toBe(true);
     expect((await consumeRateLimit(rule, "b")).allowed).toBe(true);
     expect((await consumeRateLimit(rule, "a")).allowed).toBe(false);
+  });
+
+  it("skips rules whose subject is unknown instead of pooling them under one key", async () => {
+    const rule = { name: "test:unknown-ip", limit: 1, windowSeconds: 60 };
+    for (let i = 0; i < 5; i++) {
+      expect((await consumeRateLimits([[rule, null] as const])).allowed).toBe(true);
+    }
   });
 });

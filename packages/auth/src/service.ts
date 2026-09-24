@@ -284,7 +284,7 @@ export class AuthService {
   }
 
   private async limited(
-    checks: readonly (readonly [RateLimitRule, string])[],
+    checks: readonly (readonly [RateLimitRule, string | null])[],
   ): Promise<AuthResult<never> | null> {
     const result = await consumeRateLimits(checks);
     if (result.allowed) return null;

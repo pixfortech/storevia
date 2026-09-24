@@ -5,13 +5,15 @@ import { isIP } from "node:net";
  * when TRUSTED_CLIENT_IP_HEADER names the header our edge sets (e.g.
  * cf-connecting-ip); otherwise a client could spoof its own address.
  */
-export function clientIp(headers: Headers): string {
+export function clientIp(headers: Headers): string | null {
   const trusted = process.env["TRUSTED_CLIENT_IP_HEADER"];
   if (trusted) {
     const raw = headers.get(trusted)?.split(",")[0]?.trim();
     if (raw && isIP(raw)) return raw;
   }
-  return "unknown";
+  // Unknown: callers must not bucket all such requests under one key (that
+  // would turn a per-IP limit into a global one).
+  return null;
 }
 
 export function userAgent(headers: Headers): string | null {
