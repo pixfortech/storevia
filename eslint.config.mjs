@@ -10,6 +10,7 @@ export default defineConfig(
   globalIgnores([
     "**/node_modules/",
     "**/.next/",
+    "**/.next-*/",
     "**/.turbo/",
     "**/dist/",
     "**/coverage/",
