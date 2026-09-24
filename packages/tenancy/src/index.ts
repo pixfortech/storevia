@@ -40,3 +40,5 @@ export { getAllowance, getOrganisationBilling, grantedFeatures } from "./billing
 export type { OrganisationBilling } from "./billing";
 export { recordActorAudit, sanitiseMetadata } from "./audit";
 export type { ActorAuditEntry, AuditMetadata } from "./audit";
+export { listRecentActivity } from "./activity";
+export type { ActivityDetailKey, ActivityEntry } from "./activity";
