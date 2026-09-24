@@ -1,0 +1,6 @@
+# Verified false positives in the secret scan (gitleaks). One fingerprint per
+# line: <commit>:<file>:<rule>:<line>. Add an entry only after checking the
+# match is not a secret; anything real is rotated first (CONTRIBUTING.md).
+
+# A keyboard-shortcut test fixture, keys: "Shift+Escape" (aria-keyshortcuts).
+783b12bf421b2f555af31cfc1692584fa4c51832:packages/ui/src/command.test.tsx:generic-api-key:173
