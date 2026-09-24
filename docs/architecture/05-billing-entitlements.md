@@ -25,7 +25,8 @@ packages (`billing` vs `payments`), tables, webhooks and credentials.
 Initial feature keys: `store_count`, `staff_accounts`, `product_limit`,
 `custom_domain`, `visual_builder`, `advanced_builder`, `premium_themes`,
 `analytics`, `discounts`, `abandoned_cart`, `api_access`, `webhooks`,
-`custom_code`, `advanced_permissions`, `export`, `priority_support`.
+`custom_code`, `advanced_permissions`, `export`, `priority_support`,
+`media_storage` (LIMIT, bytes; introduced with the media library in M3).
 
 Example seed (reference data only; code never reads plan codes):
 
@@ -177,8 +178,7 @@ Endpoint: `POST https://app.storevia.com/api/webhooks/billing/stripe`
 1. **Verify the signature** against the raw body using the provider SDK and
    the endpoint secret, with timestamp tolerance (≤ 5 min). If invalid, return
    `400` and log it (no processing, no details echoed).
-2. **Record** `INSERT INTO "BillingWebhookEvent" (provider, providerEventId, …)
-ON CONFLICT DO NOTHING`. If the row already existed with `PROCESSED`,
+2. **Record** `INSERT INTO "BillingWebhookEvent" (provider, providerEventId, …) ON CONFLICT DO NOTHING`. If the row already existed with `PROCESSED`,
    return `200` immediately. This insert is the idempotency guarantee.
 3. **Enqueue** a `billing.sync` job and return `200` quickly, so the
    provider's timeout is never hit.
@@ -186,8 +186,12 @@ ON CONFLICT DO NOTHING`. If the row already existed with `PROCESSED`,
    - Fetches the **current** subscription/invoice object from the provider
      (`fetchSubscription`) instead of trusting the event payload, which
      makes out-of-order delivery harmless.
-   - Ignores the update if the provider object's timestamp is older than
-     `Subscription.providerUpdatedAt`.
+   - Syncs for one subscription are **serialised** (the job is keyed by the
+     subscription and takes a row lock). Each sync re-fetches current
+     provider state, so event order doesn't matter. `Subscription.providerSyncedAt`
+     records when the applied snapshot was fetched, and a sync whose fetch
+     started earlier is discarded. (Stripe objects carry no "updated at"
+     field, so the guard uses our fetch time, not a provider timestamp.)
    - In one transaction: upsert `Subscription`, append `SubscriptionEvent`,
      upsert `Invoice`, write `AuditLog`, set the webhook row to `PROCESSED`.
    - On failure, increments `attempts`, stores a sanitised `lastError`, and

@@ -104,10 +104,9 @@ my-theme/
 ## 7. Design tokens
 
 Token namespaces: `color.*` (primary, secondary, accent, background, surface,
-text, muted, border, success, warning, danger), `font.*` (heading, body, mono
-
-- weights), `fontSize.*` (xs … 4xl), `space.*` (xs … 3xl), `radius.*`,
-  `shadow.*`, `container.width`, `button.*` (radius, padding, weight, case).
+text, muted, border, success, warning, danger), `font.*` (heading, body, mono and
+weights), `fontSize.*` (xs … 4xl), `space.*` (xs … 3xl), `radius.*`,
+`shadow.*`, `container.width`, `button.*` (radius, padding, weight, case).
 
 At render time, the live `publishedSettings` produce a `:root` block of CSS
 custom properties (`--sv-color-primary: #…`). Node styles referencing
@@ -119,8 +118,7 @@ below WCAG AA.
 
 ## 8. Future marketplace compatibility
 
-- Third-party themes use the same package format; `Theme.origin =
-MARKETPLACE`. Review = the automated validation above plus a human review.
+- Third-party themes use the same package format; `Theme.origin = MARKETPLACE`. Review = the automated validation above plus a human review.
 - No executable code in themes means a malicious theme can at worst produce
   ugly CSS or misleading content, which review and revocation handle.
 - If theme JavaScript is ever allowed, it will run in a sandbox with a

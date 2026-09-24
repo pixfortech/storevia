@@ -19,7 +19,7 @@
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "db:validate:draft": "prisma validate --schema docs/database/schema.draft.prisma",
+    "db:validate:draft": "prisma validate --schema docs/database/schema.draft.prisma && node scripts/check-fk-indexes.mjs docs/database/schema.draft.prisma",
     "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm db:validate:draft"
   },
   "devDependencies": {

@@ -202,8 +202,11 @@ validation as `LinkTarget.url`.
   error.
 - **Schema versions:** `migrations[n]` converts a v*n* document to v*n+1*.
   Migrations are pure functions with fixture tests (old document in, expected
-  document out). Documents are upgraded lazily on read and eagerly by a
-  backfill job after deploy. Renderers only need to understand the latest
+  document out). `DRAFT` documents are upgraded and re-saved when the
+  editor opens them. `PUBLISHED` and `ARCHIVED` documents are immutable
+  (trigger), so they are **only upgraded in memory on read** and never
+  rewritten. Every migration step therefore stays in the codebase as long as
+  any stored version uses it. Renderers only need to understand the latest
   version.
 - Per-component `migrations` handle prop-shape changes for one component
   without bumping the whole document version.
@@ -218,7 +221,10 @@ validation as `LinkTarget.url`.
   allow-listed embed list such as YouTube/Vimeo/Maps).
 - **With `custom_code` entitlement:** raw embeds render inside a sandboxed
   iframe (`sandbox="allow-scripts allow-popups"` without
-  `allow-same-origin`, `srcdoc`, served with its own restrictive CSP), so the
+  `allow-same-origin`) whose `src` is served from a **separate origin**
+  (`https://embed.storeviausercontent.com/{embedId}`) with its own
+  restrictive CSP header. `srcdoc` is not used, because a `srcdoc` document
+  inherits the storefront's CSP, which would block the embed's scripts. The
   code gets an opaque origin and can't touch the storefront DOM, cookies or
   cart.
 - No server-side execution of merchant code, and no `eval`, ever. Full custom
@@ -226,15 +232,15 @@ validation as `LinkTarget.url`.
 
 ## 9. Drafts, autosave and publishing
 
-| Operation   | Behaviour                                                                                                                                                                                                                                                                                  |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Open editor | Loads the page's `DRAFT` version, creating one from the published version if none exists                                                                                                                                                                                                   |
-| Autosave    | Debounced (≈1.5 s idle, max every 10 s) `saveDraft(pageId, baseRevision, document)`; the server validates, checks `revision = baseRevision` (optimistic concurrency) and increments it. A conflict returns `409`, and the editor shows who else saved and offers reload or copy            |
-| Manual save | Same call, immediate                                                                                                                                                                                                                                                                       |
-| Publish     | Transaction: validate + reference check → lock page row → draft becomes `PUBLISHED` (document frozen by trigger) → previous published becomes `ARCHIVED` → `Page.publishedVersionId` = draft → audit + outbox `page.published` (cache invalidation). Next edit creates a new draft from it |
-| Unpublish   | `publishedVersionId = NULL`, version → `ARCHIVED`; storefront shows 404 (home page cannot be unpublished)                                                                                                                                                                                  |
-| History     | Archived versions listed with author and timestamp; retention: last 50 versions + all from the last 90 days                                                                                                                                                                                |
-| Restore     | Copies an archived version's document into the current draft (`basedOnVersionId` set). Publishing stays a separate, explicit step                                                                                                                                                          |
+| Operation   | Behaviour                                                                                                                                                                                                                                                                                                                                               |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Open editor | Loads the page's `DRAFT` version, creating one from the published version if none exists                                                                                                                                                                                                                                                                |
+| Autosave    | Debounced (≈1.5 s idle, max every 10 s) `saveDraft(pageId, baseRevision, document)`; the server validates, checks `revision = baseRevision` (optimistic concurrency) and increments it. A conflict returns `409`, and the editor shows who else saved and offers reload or copy                                                                         |
+| Manual save | Same call, immediate                                                                                                                                                                                                                                                                                                                                    |
+| Publish     | Transaction: validate + reference check → lock page row → previous published version becomes `ARCHIVED` **first** (partial unique indexes can't be deferred) → draft becomes `PUBLISHED` (document frozen by trigger) → `Page.publishedVersionId` = draft → audit + outbox `page.published` (cache invalidation). Next edit creates a new draft from it |
+| Unpublish   | `publishedVersionId = NULL`, version → `ARCHIVED`; storefront shows 404 (home page cannot be unpublished)                                                                                                                                                                                                                                               |
+| History     | Archived versions listed with author and timestamp; retention: last 50 versions + all from the last 90 days                                                                                                                                                                                                                                             |
+| Restore     | Copies an archived version's document into the current draft (`basedOnVersionId` set). Publishing stays a separate, explicit step                                                                                                                                                                                                                       |
 
 A crashed browser, a failed autosave or a half-applied operation can only
 affect the draft. The published version is immutable and swapped atomically.

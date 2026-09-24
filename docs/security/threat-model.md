@@ -119,7 +119,7 @@ verified.
 | Threat                                             | Mitigation                                                                                                                                                                                                                                 | Test                | M   |
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------- | --- |
 | Malicious upload (HTML/SVG with script, polyglots) | Signed uploads with size + type constraints; server-side magic-byte sniffing; allow-listed types; SVG sanitised or rasterised; served from a separate user-content domain with `Content-Disposition` and `X-Content-Type-Options: nosniff` | upload corpus tests | 3   |
-| Storage exhaustion / cost abuse                    | Per-store storage quota (entitlement), upload rate limits, pending-upload expiry                                                                                                                                                           | quota tests         | 3   |
+| Storage exhaustion / cost abuse                    | Per-organisation storage quota (`media_storage` entitlement), upload rate limits, pending-upload expiry                                                                                                                                    | quota tests         | 3   |
 | Image-processing exploits (decompression bombs)    | Pixel-count limits; processing in the worker with memory/time limits                                                                                                                                                                       | bomb fixtures       | 3   |
 
 ### 4.6 Webhooks and payments
@@ -165,7 +165,11 @@ verified.
 
 ## 5. Security headers (all web apps)
 
-`Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` ·
+`Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` on
+Storevia-owned domains (`storevia.com`, `storevia.site`,
+`storeviausercontent.com`). Merchant custom domains get
+`max-age=31536000` **without** `includeSubDomains`/`preload`, because
+those would force HTTPS onto the merchant's other subdomains ·
 `Content-Security-Policy` with per-request nonces, `default-src 'self'`,
 `frame-ancestors 'none'` (dashboard/admin), `object-src 'none'`,
 `base-uri 'none'` · `X-Content-Type-Options: nosniff` ·

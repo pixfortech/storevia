@@ -156,25 +156,42 @@ CREATE POLICY tenant_isolation ON "Product"
 - `NULLIF(…, '')` matters: after a transaction-local setting ends, Postgres
   reports `''` rather than NULL, and `''::uuid` would raise. With no context
   set, the comparison is `NULL` and **no rows are visible** (fail closed).
-- `Organisation`, `Membership` and `Store` get an extra read clause so the
-  context resolver can list "my organisations/stores" before an organisation
-  is selected:
-  `OR EXISTS (SELECT 1 FROM "Membership" m WHERE m."organisationId" = … AND m."userId" = NULLIF(current_setting('app.user_id', true), '')::uuid AND m.status = 'ACTIVE')`.
+- The context resolver must list "my organisations/stores" before an
+  organisation is selected. Three extra **`FOR SELECT`** policies allow it.
+  Writes still require the strict tenant policy.
+  - `Membership`: `"userId" = app.user_id`. A user sees their own
+    memberships. This clause doesn't query `Membership`, so it cannot
+    recurse (a policy on `Membership` that queried `Membership` would fail
+    with "infinite recursion detected in policy").
+  - `Organisation` and `Store`: the row's organisation is in
+    `app_member_organisation_ids()`. This is a `STABLE SECURITY DEFINER` SQL
+    function returning the `organisationId`s of the current user's `ACTIVE`
+    memberships. It runs as the table owner (which has `BYPASSRLS`), so it
+    doesn't re-enter the policies.
+  - `User` (merchant identity): the app role has column-level `SELECT` on
+    non-secret columns only (`id`, `name`, `email`, `image`, `locale`,
+    `timezone`). Rows are visible when they are the current user, or share
+    a membership with `app.organisation_id` (member lists).
 - A generated SQL test asserts that **every** table with an
   `organisationId` column has RLS enabled, forced, and a policy. A new
   tenant table without a policy fails CI.
 
 ### 5.3 Database roles
 
-| Role                | Used by                                                                                                                      | Privileges                                                                                    |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `storevia_migrator` | CI/CD migration job only                                                                                                     | Owns schema; DDL                                                                              |
-| `storevia_app`      | dashboard, storefront, worker (tenant work)                                                                                  | DML on application tables, **`NOBYPASSRLS`**; `UPDATE`/`DELETE` revoked on append-only tables |
-| `storevia_system`   | allow-listed system entry point: auth (identity tables), hostname resolution, webhook ingestion, tenant-iterating schedulers | Narrow grants on the tables it needs; queries are reviewed                                    |
-| `storevia_platform` | platform-admin                                                                                                               | `BYPASSRLS` **read** access; writes only through audited platform-admin services              |
+| Role                      | Used by                                                       | RLS                       | Privileges                                                                                                                                                                                                                                                                                         |
+| ------------------------- | ------------------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `storevia_migrator`       | Migrations and reference seeds (CI/CD job, `pnpm db:migrate`) | `BYPASSRLS` (table owner) | Owns the schema; DDL. Owns the few `SECURITY DEFINER` helper functions                                                                                                                                                                                                                             |
+| `storevia_app`            | dashboard, storefront, worker tenant jobs                     | **`NOBYPASSRLS`**         | DML on tenant tables; column-level `SELECT` on `User`; **no** access to `Account`, `Session`, `Verification`; `UPDATE`/`DELETE` revoked on append-only tables                                                                                                                                      |
+| `storevia_system`         | the allow-listed `@storevia/database/system` entry point only | `BYPASSRLS`               | **Narrow `GRANT`s**, added per use case: identity tables (auth), invitation lookup by token hash (tenancy), later hostname resolution (M4), inbound webhook ledgers (M2/M6) and tenant-iterating schedulers. Because the role bypasses RLS, its grants and queries are reviewed like security code |
+| `storevia_platform`       | platform-admin                                                | `BYPASSRLS`               | `SELECT` grants only (BYPASSRLS cannot be limited to reads, so read-only access comes from the grants); each audited platform write gets its own specific grant when built                                                                                                                         |
+| `storevia_retention` (M8) | worker purge jobs                                             | `BYPASSRLS`               | `DELETE` on expired rows and partitions, including append-only tables                                                                                                                                                                                                                              |
+
+Roles are cluster-level objects. Infrastructure (IaC in production;
+`pnpm db:setup` locally and in CI) creates them with credentials. Migrations
+only `GRANT` to them and never embed passwords.
 
 Identity tables (`User`, `Account`, `Session`, `Verification`) are not tenant
-data. They are accessed only through `packages/auth`, which uses the system
+data. They are written only by `packages/auth` through the system
 connection.
 
 ## 6. Other isolation surfaces
@@ -192,7 +209,7 @@ connection.
 ## 7. Platform administration isolation
 
 - Separate app, host (`admin.storevia.com`), session realm and cookie
-  (`__Host-storevia-admin`). A dashboard session is **not valid** on the
+  (`__Host-storevia-admin.session`). A dashboard session is **not valid** on the
   admin surface and the reverse.
 - Access requires an active `PlatformStaff` row. Merchant roles (even
   `OWNER`) grant nothing on the platform surface.
@@ -207,21 +224,21 @@ connection.
 
 Milestone 2 (billing) does not start until all of these pass in CI.
 
-| #   | Test                                                                                                                                                                            | Layer   |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| T1  | User A signs up and creates Organisation A; User B creates Organisation B                                                                                                       | flow    |
-| T2  | User A cannot read Organisation B (settings, members, invitations): **404**                                                                                                     | 1, 3    |
-| T3  | User A cannot read, update or archive Store B by ID: **404**                                                                                                                    | 1, 3    |
-| T4  | User A listing organisations/stores sees only their own (no enumeration)                                                                                                        | 1, 3, 4 |
-| T5  | User A cannot invite members to, or change roles in, Organisation B                                                                                                             | 1, 2    |
-| T6  | Role permissions: each role × each permission matches the matrix (table-driven, generated from the role map)                                                                    | 2       |
-| T7  | Role escalation: ADMIN cannot grant OWNER; non-owners cannot transfer ownership; the last OWNER cannot leave or be demoted                                                      | 2       |
-| T8  | Store-scoped member (allStores = false) cannot access a non-granted store in the same organisation                                                                              | 1       |
-| T9  | Removed or suspended membership loses access on the **next request** (no cached grants)                                                                                         | 1       |
-| T10 | Unauthenticated requests to every dashboard action / API route are rejected (401 / redirect). The route list is generated, so new routes are covered automatically              | 1       |
-| T11 | Platform admin: a merchant session (even OWNER) is rejected by platform-admin; a non-staff user cannot sign in there; the admin session cookie is not accepted by the dashboard | 7       |
-| T12 | RLS: with the `storevia_app` role and context = Org A, `SELECT` on each tenant table returns no Org B rows; `INSERT`/`UPDATE` with Org B IDs fail; with no context, zero rows   | 4       |
-| T13 | RLS coverage: every table with `organisationId` has RLS enabled + forced + policy                                                                                               | 4       |
-| T14 | Composite FK: inserting a child that references another store's parent fails                                                                                                    | 4       |
-| T15 | IDOR sweep: for every registered store-scoped server action, calling it as User A with Store B's resource IDs returns 404 and changes nothing                                   | 1–3     |
-| T16 | Tenant IDs in request bodies are ignored or rejected: a body `organisationId`/`storeId` that differs from the resolved context never takes effect                               | 1       |
+| #   | Test                                                                                                                                                                            | Layer    |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| T1  | User A signs up and creates Organisation A; User B creates Organisation B                                                                                                       | flow     |
+| T2  | User A cannot read Organisation B (settings, members, invitations): **404**                                                                                                     | 1, 3     |
+| T3  | User A cannot read, update or archive Store B by ID: **404**                                                                                                                    | 1, 3     |
+| T4  | User A listing organisations/stores sees only their own (no enumeration)                                                                                                        | 1, 3, 4  |
+| T5  | User A cannot invite members to, or change roles in, Organisation B                                                                                                             | 1, 2     |
+| T6  | Role permissions: each role × each permission matches the matrix (table-driven, generated from the role map)                                                                    | 2        |
+| T7  | Role escalation: ADMIN cannot grant OWNER; non-owners cannot transfer ownership; the last OWNER cannot leave or be demoted                                                      | 2        |
+| T8  | Store-scoped member (allStores = false) cannot access a non-granted store in the same organisation                                                                              | 1        |
+| T9  | Removed or suspended membership loses access on the **next request** (no cached grants)                                                                                         | 1        |
+| T10 | Unauthenticated requests to every dashboard action / API route are rejected (401 / redirect). The route list is generated, so new routes are covered automatically              | 1        |
+| T11 | Platform admin: a merchant session (even OWNER) is rejected by platform-admin; a non-staff user cannot sign in there; the admin session cookie is not accepted by the dashboard | 1–2 (§7) |
+| T12 | RLS: with the `storevia_app` role and context = Org A, `SELECT` on each tenant table returns no Org B rows; `INSERT`/`UPDATE` with Org B IDs fail; with no context, zero rows   | 4        |
+| T13 | RLS coverage: every table with `organisationId` has RLS enabled + forced + policy                                                                                               | 4        |
+| T14 | Composite FK: inserting a child that references another store's parent fails                                                                                                    | 4        |
+| T15 | IDOR sweep: for every registered store-scoped server action, calling it as User A with Store B's resource IDs returns 404 and changes nothing                                   | 1–3      |
+| T16 | Tenant IDs in request bodies are ignored or rejected: a body `organisationId`/`storeId` that differs from the resolved context never takes effect                               | 1        |

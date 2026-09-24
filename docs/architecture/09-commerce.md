@@ -43,8 +43,7 @@
 
 - `InventoryItem` 1:1 with variant; `InventoryLevel` per location with
   `available`, `reserved`, `incoming`.
-- **Single entry point:** `adjustInventory(tx, ctx, changes[], reason,
-reference)`. It applies conditional updates, rejects negative `available`
+- **Single entry point:** `adjustInventory(tx, ctx, changes[], reason, reference)`. It applies conditional updates, rejects negative `available`
   unless the variant's policy is `CONTINUE` (oversell allowed), and appends
   one `InventoryMovement` per change with `resultingValue`. No other code
   writes `InventoryLevel`.
@@ -182,8 +181,7 @@ interface PaymentProvider {
 - Conditions: minimum subtotal, target products/collections, eligible
   customers, date range, total usage limit, per-customer limit,
   combinability.
-- Evaluation is a **pure service** (`evaluateDiscounts(quoteInput,
-discounts, redemptionCounts)`) with a table-driven test suite. The
+- Evaluation is a **pure service** (`evaluateDiscounts(quoteInput, discounts, redemptionCounts)`) with a table-driven test suite. The
   database stores the rule data; the logic lives in code.
 - Usage limits are enforced twice: at quote time (advisory) and at order
   creation under row lock on `Discount` (authoritative), so concurrent

@@ -6,7 +6,7 @@ treat security reports as a top priority.
 ## Reporting a vulnerability
 
 **Do not open a public issue.** Report privately through GitHub's
-[private vulnerability reporting](../../security/advisories/new) for this
+[private vulnerability reporting](https://github.com/pixfortech/storevia/security/advisories/new) for this
 repository. Once a dedicated security mailbox is set up, it will be listed
 here.
 

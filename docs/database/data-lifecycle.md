@@ -50,12 +50,19 @@ Anonymised snapshots, if ever needed, are produced by a reviewed script.
    memberships; it may never cascade to order lines (those use `SET NULL` and
    keep their snapshots). Everything referencing `Store` or `Organisation`
    uses `RESTRICT`.
+   A product can be purged only when nothing outside its aggregate still
+   needs it: no inventory movements or reservations (the ledger references
+   `InventoryItem` with `RESTRICT`), no discount targets and no navigation
+   items. Soft-deleted products with stock history are kept. They are small
+   rows, and the ledger must stay complete.
 3. **Removing a membership removes access, not data.** Records created by that
    member stay; `createdById`-style columns are nullable plain references.
 4. **Deleting a user never deletes an organisation.** A user who is the sole
    owner must transfer ownership or delete the organisation first.
-5. **Hard deletes happen only in retention jobs**, which run in the worker,
-   process in batches, write an audit event, and are idempotent.
+5. **Hard deletes happen only in retention jobs**, which run in the worker
+   under the dedicated `storevia_retention` database role (the only role
+   allowed to delete from append-only tables), process in batches, write an
+   audit event, and are idempotent.
 
 ## 4. Retention schedule (initial proposal)
 

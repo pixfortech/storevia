@@ -200,6 +200,8 @@ model Organisation {
   invoices         Invoice[]
   apiKeys          ApiKey[]
   auditLogs        AuditLog[]
+
+  @@index([createdById])
 }
 
 enum MemberRole {
@@ -247,7 +249,7 @@ model MembershipStoreAccess {
   createdAt      DateTime @default(now()) @db.Timestamptz(3)
 
   membership Membership @relation(fields: [membershipId, organisationId], references: [id, organisationId], onDelete: Cascade)
-  store      Store      @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Cascade)
+  store      Store      @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
 
   @@id([membershipId, storeId])
   @@index([storeId])
@@ -280,6 +282,8 @@ model Invitation {
   acceptedBy   User?        @relation("InvitationAcceptedBy", fields: [acceptedById], references: [id], onDelete: SetNull)
 
   @@index([organisationId, status])
+  @@index([invitedById])
+  @@index([acceptedById])
 }
 
 // -----------------------------------------------------------------------------
@@ -367,6 +371,7 @@ model PlanFeature {
   feature Feature @relation(fields: [featureId], references: [id], onDelete: Restrict)
 
   @@id([planId, featureId])
+  @@index([featureId])
 }
 
 /// Enterprise / support overrides. Takes precedence over PlanFeature.
@@ -387,6 +392,7 @@ model OrganisationFeatureOverride {
   feature      Feature      @relation(fields: [featureId], references: [id], onDelete: Restrict)
 
   @@unique([organisationId, featureId])
+  @@index([featureId])
 }
 
 model BillingCustomer {
@@ -425,9 +431,10 @@ model Subscription {
   cancelledAt            DateTime?          @db.Timestamptz(3)
   pastDueSince           DateTime?          @db.Timestamptz(3)
   endedAt                DateTime?          @db.Timestamptz(3)
-  /// Provider event timestamp of the last applied change; older events are
-  /// ignored (out-of-order webhook protection).
-  providerUpdatedAt      DateTime?          @db.Timestamptz(3)
+  /// When the provider snapshot last applied here was FETCHED. Syncs for one
+  /// subscription are serialised and always re-fetch current provider state;
+  /// a sync whose fetch started before this value is discarded.
+  providerSyncedAt       DateTime?          @db.Timestamptz(3)
   createdAt              DateTime           @default(now()) @db.Timestamptz(3)
   updatedAt              DateTime           @updatedAt @db.Timestamptz(3)
 
@@ -438,6 +445,8 @@ model Subscription {
   invoices     Invoice[]
 
   @@index([organisationId, status])
+  @@index([planId])
+  @@index([planPriceId])
 }
 
 /// Append-only history of subscription state transitions.
@@ -521,6 +530,7 @@ model Invoice {
 
   @@unique([provider, providerInvoiceId])
   @@index([organisationId, issuedAt])
+  @@index([subscriptionId])
 }
 
 /// Gauge counters (period = "all") are changed in the same transaction as the
@@ -538,6 +548,7 @@ model UsageCounter {
   feature      Feature      @relation(fields: [featureId], references: [id], onDelete: Restrict)
 
   @@id([organisationId, featureId, scopeKey, period])
+  @@index([featureId])
 }
 
 // -----------------------------------------------------------------------------
@@ -793,6 +804,7 @@ model ProductOption {
   @@unique([productId, position])
   @@unique([id, storeId])
   @@unique([id, productId])
+  @@index([storeId])
 }
 
 model ProductOptionValue {
@@ -810,6 +822,7 @@ model ProductOptionValue {
   @@unique([optionId, value])
   @@unique([id, storeId])
   @@unique([id, optionId])
+  @@index([storeId])
 }
 
 enum InventoryPolicy {
@@ -875,6 +888,8 @@ model ProductVariantOptionValue {
 
   @@id([variantId, optionId])
   @@index([optionValueId])
+  @@index([storeId])
+  @@index([optionId])
 }
 
 model ProductMedia {
@@ -892,6 +907,8 @@ model ProductMedia {
 
   @@unique([productId, mediaAssetId])
   @@index([productId, position])
+  @@index([storeId])
+  @@index([mediaAssetId])
 }
 
 enum CollectionType {
@@ -954,6 +971,7 @@ model CollectionProduct {
   @@id([collectionId, productId])
   @@index([productId])
   @@index([collectionId, position])
+  @@index([storeId])
 }
 
 // -----------------------------------------------------------------------------
@@ -974,6 +992,8 @@ model Location {
   phone               String?
   isActive            Boolean   @default(true)
   fulfilsOnlineOrders Boolean   @default(true)
+  /// Lower value = preferred when allocating online orders.
+  priority            Int       @default(0)
   createdAt           DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt           DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt           DateTime? @db.Timestamptz(3)
@@ -1009,6 +1029,7 @@ model InventoryItem {
 
   @@unique([id, storeId])
   @@unique([variantId, storeId])
+  @@index([storeId])
 }
 
 /// on hand = available + reserved. Quantities change ONLY through the
@@ -1031,6 +1052,7 @@ model InventoryLevel {
 
   @@unique([inventoryItemId, locationId])
   @@index([locationId])
+  @@index([storeId])
 }
 
 enum InventoryQuantityName {
@@ -1077,6 +1099,7 @@ model InventoryMovement {
 
   @@index([inventoryItemId, createdAt])
   @@index([storeId, createdAt])
+  @@index([locationId])
 }
 
 enum ReservationStatus {
@@ -1108,6 +1131,9 @@ model InventoryReservation {
 
   @@index([status, expiresAt])
   @@index([checkoutId])
+  @@index([storeId])
+  @@index([inventoryItemId])
+  @@index([locationId])
 }
 
 // -----------------------------------------------------------------------------
@@ -1179,6 +1205,7 @@ model CustomerAddress {
   customer Customer @relation(fields: [customerId, storeId], references: [id, storeId], onDelete: Cascade)
 
   @@index([customerId])
+  @@index([storeId])
 }
 
 // -----------------------------------------------------------------------------
@@ -1213,6 +1240,7 @@ model Cart {
 
   @@unique([id, storeId])
   @@index([storeId, status, updatedAt])
+  @@index([customerId])
 }
 
 model CartLine {
@@ -1231,6 +1259,8 @@ model CartLine {
   variant ProductVariant @relation(fields: [variantId, storeId], references: [id, storeId], onDelete: Cascade)
 
   @@unique([cartId, variantId])
+  @@index([storeId])
+  @@index([variantId])
 }
 
 enum CheckoutStatus {
@@ -1276,6 +1306,8 @@ model Checkout {
 
   @@unique([id, storeId])
   @@index([storeId, status, updatedAt])
+  @@index([cartId])
+  @@index([customerId])
 }
 
 // -----------------------------------------------------------------------------
@@ -1375,6 +1407,8 @@ model DiscountProduct {
   product  Product  @relation(fields: [productId, storeId], references: [id, storeId], onDelete: Cascade)
 
   @@id([discountId, productId])
+  @@index([storeId])
+  @@index([productId])
 }
 
 model DiscountCollection {
@@ -1388,6 +1422,8 @@ model DiscountCollection {
   collection Collection @relation(fields: [collectionId, storeId], references: [id, storeId], onDelete: Cascade)
 
   @@id([discountId, collectionId])
+  @@index([storeId])
+  @@index([collectionId])
 }
 
 /// One row per order that used a discount — basis for usage / per-customer limits.
@@ -1410,6 +1446,10 @@ model DiscountRedemption {
 
   @@unique([discountId, orderId])
   @@index([discountId, customerId])
+  @@index([storeId])
+  @@index([discountCodeId])
+  @@index([orderId])
+  @@index([customerId])
 }
 
 // -----------------------------------------------------------------------------
@@ -1429,6 +1469,7 @@ model ShippingZone {
   rates     ShippingRate[]
 
   @@unique([id, storeId])
+  @@index([storeId])
 }
 
 /// A country (optionally narrowed to regions) belongs to at most one zone per store.
@@ -1473,6 +1514,7 @@ model ShippingRate {
   zone  ShippingZone @relation(fields: [zoneId, storeId], references: [id, storeId], onDelete: Cascade)
 
   @@index([zoneId])
+  @@index([storeId])
 }
 
 /// One per store. Tax calculation is behind a TaxCalculator interface so an
@@ -1618,6 +1660,8 @@ model OrderLine {
   @@unique([id, storeId])
   @@index([orderId])
   @@index([variantId])
+  @@index([storeId])
+  @@index([productId])
 }
 
 enum AddressType {
@@ -1647,6 +1691,7 @@ model OrderAddress {
   order Order @relation(fields: [orderId, storeId], references: [id, storeId], onDelete: Restrict)
 
   @@unique([orderId, type])
+  @@index([storeId])
 }
 
 /// Snapshot of each discount applied to the order.
@@ -1667,6 +1712,7 @@ model OrderDiscount {
   order Order @relation(fields: [orderId, storeId], references: [id, storeId], onDelete: Restrict)
 
   @@index([orderId])
+  @@index([storeId])
 }
 
 model OrderShippingLine {
@@ -1685,6 +1731,7 @@ model OrderShippingLine {
   order Order @relation(fields: [orderId, storeId], references: [id, storeId], onDelete: Restrict)
 
   @@index([orderId])
+  @@index([storeId])
 }
 
 model OrderTaxLine {
@@ -1703,6 +1750,8 @@ model OrderTaxLine {
   orderLine OrderLine? @relation(fields: [orderLineId], references: [id], onDelete: Restrict)
 
   @@index([orderId])
+  @@index([storeId])
+  @@index([orderLineId])
 }
 
 /// Merchant-visible order timeline (append-only).
@@ -1721,6 +1770,7 @@ model OrderEvent {
   order Order @relation(fields: [orderId, storeId], references: [id, storeId], onDelete: Restrict)
 
   @@index([orderId, createdAt])
+  @@index([storeId])
 }
 
 // -----------------------------------------------------------------------------
@@ -1803,6 +1853,8 @@ model Payment {
   @@unique([id, storeId])
   @@index([orderId])
   @@index([checkoutId])
+  @@index([storeId])
+  @@index([connectionId])
 }
 
 /// Idempotency ledger for merchant payment-provider webhooks.
@@ -1824,6 +1876,7 @@ model PaymentWebhookEvent {
 
   @@unique([provider, providerEventId])
   @@index([status, receivedAt])
+  @@index([storeId])
 }
 
 enum RefundStatus {
@@ -1855,6 +1908,8 @@ model Refund {
 
   @@unique([id, storeId])
   @@index([orderId])
+  @@index([storeId])
+  @@index([paymentId])
 }
 
 model RefundLine {
@@ -1872,6 +1927,8 @@ model RefundLine {
   orderLine OrderLine @relation(fields: [orderLineId, storeId], references: [id, storeId], onDelete: Restrict)
 
   @@unique([refundId, orderLineId])
+  @@index([storeId])
+  @@index([orderLineId])
 }
 
 enum FulfilmentState {
@@ -1902,6 +1959,8 @@ model Fulfilment {
 
   @@unique([id, storeId])
   @@index([orderId])
+  @@index([storeId])
+  @@index([locationId])
 }
 
 model FulfilmentLine {
@@ -1917,6 +1976,8 @@ model FulfilmentLine {
   orderLine  OrderLine  @relation(fields: [orderLineId, storeId], references: [id, storeId], onDelete: Restrict)
 
   @@unique([fulfilmentId, orderLineId])
+  @@index([storeId])
+  @@index([orderLineId])
 }
 
 // -----------------------------------------------------------------------------
@@ -1998,6 +2059,7 @@ model PageVersion {
   /// a page can only publish one of its own versions.
   @@unique([id, pageId])
   @@index([pageId, state])
+  @@index([storeId])
 }
 
 model Navigation {
@@ -2054,6 +2116,11 @@ model NavigationItem {
   /// Target of the SQL composite FK (parentId, navigationId) -> (id, navigationId).
   @@unique([id, navigationId])
   @@index([navigationId, parentId, position])
+  @@index([storeId])
+  @@index([parentId])
+  @@index([pageId])
+  @@index([productId])
+  @@index([collectionId])
 }
 
 // -----------------------------------------------------------------------------
@@ -2066,16 +2133,17 @@ enum ThemeOrigin {
   CUSTOM
 }
 
-/// Platform-level catalogue. CUSTOM themes are private to organisationId.
+/// Platform-level catalogue (no tenant ownership). Private per-organisation
+/// (CUSTOM) themes are deferred; they will get a tenant-scoped availability
+/// table rather than a nullable owner column here (erd.md §7).
 model Theme {
-  id             String      @id @default(uuid(7)) @db.Uuid
-  key            String      @unique
-  name           String
-  author         String
-  origin         ThemeOrigin
-  organisationId String?     @db.Uuid
-  createdAt      DateTime    @default(now()) @db.Timestamptz(3)
-  updatedAt      DateTime    @updatedAt @db.Timestamptz(3)
+  id        String      @id @default(uuid(7)) @db.Uuid
+  key       String      @unique
+  name      String
+  author    String
+  origin    ThemeOrigin
+  createdAt DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime    @updatedAt @db.Timestamptz(3)
 
   versions ThemeVersion[]
 }
@@ -2132,6 +2200,7 @@ model StoreTheme {
   themeVersion ThemeVersion @relation(fields: [themeVersionId], references: [id], onDelete: Restrict)
 
   @@index([storeId])
+  @@index([themeVersionId])
 }
 
 // -----------------------------------------------------------------------------
@@ -2157,6 +2226,7 @@ model ApiKey {
   store        Store        @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
 
   @@index([storeId])
+  @@index([organisationId])
 }
 
 enum WebhookEndpointStatus {
@@ -2211,6 +2281,7 @@ model OutboxEvent {
 
   @@unique([id, storeId])
   @@index([dispatchedAt, occurredAt])
+  @@index([storeId])
 }
 
 enum WebhookDeliveryStatus {
@@ -2241,6 +2312,8 @@ model WebhookDelivery {
   @@unique([endpointId, eventId])
   @@unique([id, storeId])
   @@index([status, nextAttemptAt])
+  @@index([storeId])
+  @@index([eventId])
 }
 
 /// Delivery log. Response bodies are truncated (<= 4 KiB) and never contain
@@ -2261,6 +2334,7 @@ model WebhookDeliveryAttempt {
   delivery WebhookDelivery @relation(fields: [deliveryId, storeId], references: [id, storeId], onDelete: Cascade)
 
   @@unique([deliveryId, attemptNumber])
+  @@index([storeId])
 }
 
 /// Idempotency for API/checkout mutations (Idempotency-Key header).
@@ -2299,7 +2373,7 @@ enum AuditActorType {
 /// metadata passes through a redaction allow-list — never secrets, passwords
 /// or payment credentials.
 model AuditLog {
-  id               String         @id @default(uuid(7)) @db.Uuid
+  id               String         @default(uuid(7)) @db.Uuid
   organisationId   String?        @db.Uuid
   storeId          String?        @db.Uuid
   actorType        AuditActorType
@@ -2318,6 +2392,8 @@ model AuditLog {
 
   organisation Organisation? @relation(fields: [organisationId], references: [id], onDelete: Restrict)
 
+  /// Partition key (createdAt) must be part of the primary key.
+  @@id([id, createdAt])
   @@index([organisationId, createdAt])
   @@index([storeId, createdAt])
   @@index([actorId, createdAt])

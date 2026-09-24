@@ -86,8 +86,7 @@ be under our control.
 
 ### 7.1 Principles
 
-1. **Code checks permissions, never role names.** `authorize(ctx,
-"product.update")`, not `if (role === "ADMIN")`.
+1. **Code checks permissions, never role names.** `authorize(ctx, "product.update")`, not `if (role === "ADMIN")`.
 2. Roles are **named sets of permissions**, defined in one typed map in
    `packages/tenancy/src/rbac.ts`. The map is the single source of truth for
    the dashboard UI (hiding controls), the server (enforcement) and the
@@ -139,7 +138,7 @@ be under our control.
 | collection.manage               |   ✔   |   ✔   |       ✔       |          |         ✔         |               |     ✔     |         |        |
 | inventory.adjust                |   ✔   |   ✔   |       ✔       |          |         ✔         |       ✔       |           |         |        |
 | media.manage                    |   ✔   |   ✔   |       ✔       |    ✔     |         ✔         |               |     ✔     |         |        |
-| order.read                      |   ✔   |   ✔   |       ✔       |          |                   |       ✔       |           |    ✔    |   ✔    |
+| order.read                      |   ✔   |   ✔   |       ✔       |          |                   |       ✔       |           |    ✔    |        |
 | order.manage                    |   ✔   |   ✔   |       ✔       |          |                   |       ✔       |           |         |        |
 | order.refund                    |   ✔   |   ✔   |       ✔       |          |                   |       ✔       |           |         |        |
 | customer.read                   |   ✔   |   ✔   |       ✔       |          |                   |       ✔       |     ✔     |    ✔    |        |
@@ -156,7 +155,9 @@ be under our control.
 
 Notes:
 
-- VIEWER is read-only and does not see customer PII.
+- VIEWER is read-only and never sees shopper PII: it has neither
+  `customer.read` nor `order.read` (orders carry emails, phones and
+  addresses). Aggregates come through `analytics.read`.
 - SUPPORT can view orders and edit customer records (address changes,
   notes), but cannot refund or manage orders.
 - MARKETING can edit pages (`design.edit`) but cannot publish them, so a

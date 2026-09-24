@@ -32,14 +32,21 @@ Rules:
    `(storeId, organisationId) → Store(id, organisationId)`. A row therefore
    cannot claim a store belonging to another organisation even if application
    code is wrong.
-4. Child rows reference their parent through `(parentId, storeId) →
-Parent(id, storeId)`. This makes cross-store links **unrepresentable**: a
+4. Child rows reference their parent through `(parentId, storeId) → Parent(id, storeId)`. This makes cross-store links **unrepresentable**: a
    `CollectionProduct` cannot join a collection from store A to a product from
    store B, a `CartLine` cannot contain another store's variant, a `Payment`
    cannot point at another store's provider connection.
-5. Historical references that must survive a purge (e.g. `OrderLine.productId`)
-   are single-column, nullable, `ON DELETE SET NULL`. The row keeps its own
-   snapshot values, so losing the link loses nothing commercial.
+5. **Optional same-store references** (nullable, often `ON DELETE SET NULL`)
+   are declared single-column in Prisma, because Prisma cannot express an
+   optional relation over a required `storeId`. The migration then adds the
+   composite FK `(refId, storeId) → Target(id, storeId)` with
+   `ON DELETE SET NULL (refId)` (the PostgreSQL 15+ column-list form, which
+   nulls only the reference and never `storeId`). With `MATCH SIMPLE`, a NULL
+   reference is not checked; a non-NULL one must be in the same store. The
+   complete list is in §6, so rule 4 holds for these links too.
+6. Historical references that must survive a purge (e.g. `OrderLine.productId`)
+   follow rule 5. The row keeps its own snapshot values, so losing the link
+   loses nothing commercial.
 
 ## 2. Conventions
 
@@ -224,7 +231,7 @@ trigger hard deletes directly.
 | `PlanPrice`           | `(provider, providerPriceId)`                                                                      | Prices are immutable at the provider; a price change = new row, old row `active=false`.                                                               |
 | `Feature`             | `key`                                                                                              | Keys mirrored by a typed `FeatureKey` union in `packages/entitlements`; a CI test asserts DB seed ↔ code parity.                                      |
 | `PlanFeature`         | `(planId, featureId)`                                                                              | `limit NULL` = unlimited.                                                                                                                             |
-| `Subscription`        | `providerSubscriptionId`; at most one non-`EXPIRED` subscription per organisation (partial unique) | `providerUpdatedAt` guards against out-of-order webhooks.                                                                                             |
+| `Subscription`        | `providerSubscriptionId`; at most one non-`EXPIRED` subscription per organisation (partial unique) | Syncs per subscription are serialised and re-fetch provider state; `providerSyncedAt` discards a stale sync (see 05 §4).                              |
 | `BillingWebhookEvent` | `(provider, providerEventId)`                                                                      | The insert **is** the idempotency check.                                                                                                              |
 | `UsageCounter`        | `(organisationId, featureId, scopeKey, period)`                                                    | Changed with `SELECT … FOR UPDATE` in the same transaction as the counted resource; nightly reconciliation job recomputes gauges and alerts on drift. |
 
@@ -253,8 +260,7 @@ by `Product.categoryCode`. The taxonomy table is deferred to Milestone 3.
 - `InventoryLevel` is unique per `(inventoryItemId, locationId)`; stores
   `available`, `reserved`, `incoming` (on hand = available + reserved).
 - **No code path writes `InventoryLevel` directly.** The inventory service
-  applies a change with a conditional `UPDATE … SET available = available + $d
-WHERE … AND available + $d >= 0` (unless the variant's policy is `CONTINUE`)
+  applies a change with a conditional `UPDATE … SET available = available + $d WHERE … AND available + $d >= 0` (unless the variant's policy is `CONTINUE`)
   and inserts an `InventoryMovement` with `reason`, `delta`, `resultingValue`
   and a reference (order, checkout, transfer…) in the same transaction.
 - `InventoryMovement` is append-only (`UPDATE`/`DELETE` revoked from the app
@@ -279,7 +285,10 @@ WHERE … AND available + $d >= 0` (unless the variant's policy is `CONTINUE`)
   prices, discounts, taxes, addresses. Post-purchase changes (refunds,
   fulfilments, cancellations) are new rows plus status transitions, never
   edits of the original lines. `Restrict` everywhere — orders are never
-  cascaded away.
+  cascaded away. The **only** permitted in-place edit is a legal erasure
+  request, which replaces shopper PII fields (email, phone, names, address
+  lines) with anonymised placeholders while every commercial value stays
+  unchanged ([data-lifecycle.md §5](./data-lifecycle.md#5-erasure-requests-storefront-customers)).
 - Payment state (`paymentStatus`) and fulfilment state (`fulfilmentStatus`)
   are separate columns. `CANCELLED` in the fulfilment enum follows the
   specification; `cancelledAt`/`cancelReason` record the cancellation itself.
@@ -293,7 +302,14 @@ WHERE … AND available + $d >= 0` (unless the variant's policy is `CONTINUE`)
   pointer the storefront reads; `publishPage()` swaps it atomically.
 - `PageVersion.document` is immutable once the version leaves `DRAFT`
   (trigger). Restoring an old version copies its document into the draft.
+  Published and archived documents are never rewritten by schema upgrades;
+  they are upgraded in memory on read (07 §7).
+- `Page.publishedVersionId` has the SQL composite FK
+  `(publishedVersionId, id) → PageVersion(id, pageId)`, so a page can only
+  publish one of its own versions.
 - Pages are store-level, not theme-level (ADR-0012).
+- `Theme` is platform catalogue data with no tenant owner. Private
+  per-organisation themes are deferred (§7).
 - `ThemeVersion` rows are immutable once `RELEASED` (trigger), except for the
   `status` column moving to `DEPRECATED`/`REVOKED`.
 - `StoreTheme`: exactly one `LIVE` per store (partial unique). Customisation
@@ -301,7 +317,8 @@ WHERE … AND available + $d >= 0` (unless the variant's policy is `CONTINUE`)
 - `NavigationItem` targets are typed references (`PAGE`, `PRODUCT`,
   `COLLECTION`, …) with `SetNull`; a dangling item is hidden by the renderer
   and flagged in the dashboard. A CHECK enforces that the column matching
-  `targetType` is the one that is set. Depth ≤ 3 (service rule).
+  `targetType` is the one that is set. `parentId` must be in the same
+  navigation (SQL composite FK `(parentId, navigationId) → (id, navigationId)`). Depth ≤ 3 (service rule).
 
 ### 4.7 Integration & audit
 
@@ -312,17 +329,22 @@ WHERE … AND available + $d >= 0` (unless the variant's policy is `CONTINUE`)
 - `OutboxEvent` is written in the same transaction as the state change it
   describes; the worker fans it out to `WebhookDelivery` rows (unique per
   endpoint + event, so fan-out is idempotent).
+- `WebhookDeliveryAttempt` stores response excerpts from merchant endpoints,
+  so it is Store-scoped like every other delivery table: it carries
+  `organisationId` + `storeId` and references its delivery through
+  `(deliveryId, storeId)`.
 - `AuditLog` is append-only, organisation-scoped when a tenant is involved,
-  and partitioned by month in production.
+  and partitioned by month in production. Its primary key is
+  `(id, createdAt)` because PostgreSQL requires the partition key in the
+  primary key.
 
 ## 5. Indexing strategy
 
-1. **Every foreign key is indexed** (Postgres does not do this automatically).
-   Composite FKs are covered by the `@@unique([id, storeId])` target indexes and
-   by leading-column indexes on the referencing side.
+1. **Every foreign key has an index led by its first column** (Postgres does
+   not do this automatically). The draft schema is checked for this; for
+   composite FKs the target side is covered by `@@unique([id, storeId])`.
 2. **Tenant-leading composite indexes** for list screens:
-   `(storeId, status, updatedAt)`, `(storeId, placedAt)`, `(storeId,
-createdAt)`. Every dashboard list query filters by `storeId` first.
+   `(storeId, status, updatedAt)`, `(storeId, placedAt)`, `(storeId, createdAt)`. Every dashboard list query filters by `storeId` first.
 3. **Keyset pagination** on `(sortKey, id)`; offset pagination is not used
    for large tables.
 4. **Partial indexes** for "active only" uniqueness (soft delete) and for
@@ -339,30 +361,32 @@ createdAt)`. Every dashboard list query filters by `storeId` first.
 Prisma cannot express these; they are part of the migration that creates each
 table and are covered by integration tests.
 
-| Constraint                                                | Table(s)                                                           |
-| --------------------------------------------------------- | ------------------------------------------------------------------ |
-| RLS enabled + `FORCE ROW LEVEL SECURITY` + tenant policy  | every Organisation- and Store-scoped table                         |
-| Immutable `organisationId` / `storeId` (update trigger)   | every Organisation- and Store-scoped table                         |
-| `citext` email columns                                    | `User`, `Invitation`, `Customer`                                   |
-| Partial unique: one `OWNER` per organisation              | `Membership`                                                       |
-| Partial unique: one pending invitation per org+email      | `Invitation`                                                       |
-| Partial unique: one live subscription per organisation    | `Subscription`                                                     |
-| Partial unique: one primary domain per store              | `StoreDomain`                                                      |
-| Partial unique: handle among non-deleted rows             | `Product`, `Collection`, `Page`                                    |
-| Partial unique: SKU among non-deleted variants            | `ProductVariant`                                                   |
-| Partial unique: customer email among non-deleted          | `Customer`                                                         |
-| Partial unique: one DRAFT, one PUBLISHED version per page | `PageVersion`                                                      |
-| Partial unique: one special page per kind                 | `Page` (kind ≠ `STANDARD`)                                         |
-| Partial unique: one LIVE theme per store                  | `StoreTheme`                                                       |
-| CHECK money ≥ 0; compare-at > price                       | variants, orders, payments, refunds                                |
-| CHECK quantity > 0                                        | cart/order/refund/fulfilment lines                                 |
-| CHECK `reserved >= 0`, `incoming >= 0`                    | `InventoryLevel`                                                   |
-| CHECK discount value matches type                         | `Discount`                                                         |
-| CHECK navigation target column matches type               | `NavigationItem`                                                   |
-| CHECK hostname is lower-case, no port                     | `StoreDomain`                                                      |
-| Immutability trigger once published/released              | `PageVersion`, `ThemeVersion`                                      |
-| `UPDATE`/`DELETE` revoked from app role                   | `AuditLog`, `InventoryMovement`, `SubscriptionEvent`, `OrderEvent` |
-| `tsvector` generated columns + GIN                        | `Product`, `Collection`, `Customer`                                |
+| Constraint                                                                                         | Table(s)                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| RLS enabled + `FORCE ROW LEVEL SECURITY` + tenant policy                                           | every Organisation- and Store-scoped table                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Immutable `organisationId` / `storeId` (update trigger)                                            | every Organisation- and Store-scoped table                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `citext` email columns                                                                             | `User`, `Invitation`, `Customer`                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Partial unique: one `OWNER` per organisation                                                       | `Membership`                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Partial unique: one pending invitation per org+email                                               | `Invitation`                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Partial unique: one live subscription per organisation                                             | `Subscription`                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Partial unique: one primary domain per store                                                       | `StoreDomain`                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Partial unique: handle among non-deleted rows                                                      | `Product`, `Collection`, `Page`                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Partial unique: SKU among non-deleted variants                                                     | `ProductVariant`                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Partial unique: customer email among non-deleted                                                   | `Customer`                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Partial unique: one DRAFT, one PUBLISHED version per page                                          | `PageVersion`                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Partial unique: one special page per kind                                                          | `Page` (kind ≠ `STANDARD`)                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Partial unique: one LIVE theme per store                                                           | `StoreTheme`                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| CHECK money ≥ 0; compare-at > price                                                                | variants, orders, payments, refunds                                                                                                                                                                                                                                                                                                                                                                                                           |
+| CHECK quantity > 0                                                                                 | cart/order/refund/fulfilment lines                                                                                                                                                                                                                                                                                                                                                                                                            |
+| CHECK `reserved >= 0`, `incoming >= 0`                                                             | `InventoryLevel`                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| CHECK discount value matches type                                                                  | `Discount`                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| CHECK navigation target column matches type                                                        | `NavigationItem`                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| CHECK hostname is lower-case, no port                                                              | `StoreDomain`                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Immutability trigger once published/released                                                       | `PageVersion`, `ThemeVersion`                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `UPDATE`/`DELETE` revoked from app role                                                            | `AuditLog`, `InventoryMovement`, `SubscriptionEvent`, `OrderEvent`. Only the `storevia_retention` role (worker purge jobs) may delete, e.g. by detaching and dropping expired `AuditLog` partitions. `OrderEvent` and `AuditLog` metadata never contain shopper PII, so erasure never needs to edit them                                                                                                                                      |
+| `tsvector` generated columns + GIN                                                                 | `Product`, `Collection`, `Customer`, `Order` (email, number)                                                                                                                                                                                                                                                                                                                                                                                  |
+| Composite same-store FKs for optional references (rule 5), `ON DELETE SET NULL (col)` unless noted | `Cart.customerId`, `Checkout.customerId`, `Order.customerId`, `Payment.checkoutId`, `Payment.orderId` (RESTRICT), `InventoryReservation.checkoutId`, `InventoryReservation.orderId` (RESTRICT), `DiscountRedemption.discountCodeId`, `DiscountRedemption.customerId`, `OrderLine.productId`, `OrderLine.variantId`, `OrderTaxLine.orderLineId` (RESTRICT), `NavigationItem.pageId`, `NavigationItem.productId`, `NavigationItem.collectionId` |
+| Composite FK to a parent-scoped key                                                                | `Page.publishedVersionId` → `PageVersion(id, pageId)`; `NavigationItem.parentId` → `NavigationItem(id, navigationId)` (CASCADE)                                                                                                                                                                                                                                                                                                               |
 
 ## 7. Deliberately deferred
 
@@ -374,4 +398,5 @@ table and are covered by integration tests.
 | Custom roles (`Role`, `RolePermission`)                                   | System roles cover launch; `advanced_permissions` entitlement gates custom roles later                                                                                | Post-M8       |
 | Multi-currency price lists, markets                                       | `ProductVariant.currency` is explicit so price lists can be added without rewriting                                                                                   | Later         |
 | Store slug history (prevent immediate reuse of released slugs)            | Anti-phishing; small table                                                                                                                                            | M4            |
+| Private (organisation-owned) custom themes                                | Needs a tenant-scoped availability table so `Theme` stays platform data                                                                                               | Revisit in M7 |
 | Theme-level template overrides                                            | Not needed while pages are store-level                                                                                                                                | Revisit in M7 |

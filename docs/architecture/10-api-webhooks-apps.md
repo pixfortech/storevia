@@ -66,8 +66,7 @@ flowchart LR
 
 - **Transactional outbox:** the event row commits atomically with the change,
   so no event is lost or phantom.
-- **Signing:** `Storevia-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret,
-t + "." + body)>` plus `Storevia-Webhook-Id` (delivery ID, for receiver
+- **Signing:** `Storevia-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, t + "." + body)>` plus `Storevia-Webhook-Id` (delivery ID, for receiver
   idempotency) and `Storevia-Event-Type`. Receivers reject timestamps older
   than 5 minutes. During secret rotation both secrets sign (two `v1` values)
   until the old one expires.

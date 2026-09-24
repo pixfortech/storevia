@@ -68,17 +68,18 @@ docs/
 A package is created **only when its first real code lands**. Empty packages
 are not scaffolded.
 
-| Package                                                                  | Milestone | Depends on                                             |
-| ------------------------------------------------------------------------ | --------- | ------------------------------------------------------ |
-| `config`, `types`, `validation`, `database`, `security`, `observability` | M1        | — / each other (foundation only)                       |
-| `auth`, `tenancy`, `ui`, `email`                                         | M1        | foundation                                             |
-| `entitlements`, `billing`, `jobs`                                        | M2        | foundation, tenancy                                    |
-| `commerce` (catalogue + inventory), `media`                              | M3        | foundation, tenancy, entitlements                      |
-| `storefront-engine`, `domains`                                           | M4        | foundation, commerce (read models), editor (renderers) |
-| `editor`                                                                 | M5        | foundation, validation, ui                             |
-| `payments`, `commerce` (checkout/orders)                                 | M6        | foundation, commerce                                   |
-| `themes`                                                                 | M7        | foundation, editor                                     |
-| `analytics`                                                              | later     | foundation                                             |
+| Package                                                                          | Milestone | Depends on                                             |
+| -------------------------------------------------------------------------------- | --------- | ------------------------------------------------------ |
+| `config`, `types`, `validation`, `database`, `security`, `observability`         | M1        | — / each other (foundation only)                       |
+| `auth`, `tenancy`, `ui`, `email`                                                 | M1        | foundation                                             |
+| `entitlements`, `billing`, `jobs`                                                | M2        | foundation, tenancy                                    |
+| `commerce` (catalogue + inventory), `media`                                      | M3        | foundation, tenancy, entitlements                      |
+| `editor` (document schema, registry, base renderers: `/document`, `/components`) | M4        | foundation, validation                                 |
+| `storefront-engine`, `domains`                                                   | M4        | foundation, commerce (read models), editor (renderers) |
+| `editor` (editor UI `/ui`, full component set)                                   | M5        | foundation, validation, ui                             |
+| `payments`, `commerce` (checkout/orders)                                         | M6        | foundation, commerce                                   |
+| `themes`                                                                         | M7        | foundation, editor                                     |
+| `analytics`                                                                      | later     | foundation                                             |
 
 ## 4. Dependency rules
 
@@ -97,9 +98,13 @@ Enforced by lint (`eslint-plugin-boundaries` or equivalent) and a CI check:
 4. **Only `packages/database` imports `@prisma/client`/the generated client.**
    Domain packages obtain a transaction-scoped, tenant-scoped client through
    `withTenant(ctx, fn)`. The unscoped client is exported from a separate
-   entry point (`@storevia/database/system`) whose importers are allow-listed
-   (migrations, seeds, platform-admin read models, the worker's
-   tenant-iterating schedulers).
+   entry point (`@storevia/database/system`, `storevia_system` role) whose
+   importers are allow-listed: `packages/auth` (identity tables), the
+   invitation-token lookup in `packages/tenancy`, and later the storefront
+   hostname resolver (M4), inbound webhook ingestion (M2/M6) and the worker's
+   tenant-iterating schedulers. Platform-admin uses its own read-only entry
+   point (`@storevia/database/platform`). Migrations and reference seeds use
+   the migrator connection through the Prisma CLI and seed scripts.
 5. Domain packages do not import each other in cycles. Cross-domain calls go
    through the public `index.ts` of the other package; when two domains need
    each other, the shared piece moves down a layer or communicates through
