@@ -1,0 +1,9 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Prisma's install scripts are not needed for schema validation (the only
+# Prisma use until Milestone 1). Revisit when packages/database is created.
+ignoredBuiltDependencies:
+  - "@prisma/engines"
+  - prisma
