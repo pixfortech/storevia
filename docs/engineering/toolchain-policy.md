@@ -100,6 +100,17 @@ reviewable PRs. Each major update gets its own PR. The cooldown lets fresh
 releases settle before they're proposed, which limits exposure to
 compromised or quickly retracted releases.
 
+Dependabot enforces the cooldown with pnpm's `minimumReleaseAge` when it
+re-resolves the workspace, and that applies to the versions the repository
+already pins as well. If a direct dependency is pinned to a release younger
+than the cooldown (for example straight after a manual upgrade or a security
+fix), update jobs fail with `ERR_PNPM_NO_MATURE_MATCHING_VERSION` naming that
+package, and the Dependabot summary may report the error against a different
+dependency. Nothing is wrong with the proposed update: the job succeeds once
+the pin is older than the cooldown, on the next scheduled run or a manual
+"Check for updates". Outside security fixes, don't pin releases younger than
+three days by hand.
+
 ## 5. Update classes and automatic merge
 
 Every update PR runs the **complete** CI: format, lint, typecheck, unit,
