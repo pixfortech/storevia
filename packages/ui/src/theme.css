@@ -1,0 +1,53 @@
+/*
+ * Storevia design tokens (Tailwind v4 theme). Calm, neutral surfaces with a
+ * single deep-teal accent; contrast ratios meet WCAG 2.2 AA.
+ */
+@theme {
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    "Noto Sans", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --color-brand-50: #effaf8;
+  --color-brand-100: #d7f2ec;
+  --color-brand-500: #14907d;
+  --color-brand-600: #0f766a;
+  --color-brand-700: #0d5f56;
+  --color-brand-900: #0a3b36;
+
+  --color-canvas: #f7f7f5;
+  --color-surface: #ffffff;
+  --color-subtle: #f1f1ee;
+  --color-line: #e4e4df;
+  --color-line-strong: #cfcfc8;
+  --color-ink: #16181d;
+  --color-ink-muted: #5b5f68;
+  --color-ink-faint: #8a8e96;
+
+  --color-danger-50: #fdf2f2;
+  --color-danger-600: #c0262d;
+  --color-danger-700: #a11d23;
+  --color-warning-50: #fdf8ec;
+  --color-warning-700: #8a5a00;
+  --color-success-50: #eef9f1;
+  --color-success-700: #1d6b35;
+  --color-info-50: #eef5fc;
+  --color-info-700: #1f5a96;
+
+  --radius-control: 0.5rem;
+  --radius-card: 0.875rem;
+  --shadow-card: 0 1px 2px rgb(22 24 29 / 0.04), 0 1px 1px rgb(22 24 29 / 0.03);
+  --shadow-popover: 0 12px 32px -8px rgb(22 24 29 / 0.18), 0 2px 6px rgb(22 24 29 / 0.06);
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    color: var(--color-ink);
+    background: var(--color-canvas);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+  }
+}
