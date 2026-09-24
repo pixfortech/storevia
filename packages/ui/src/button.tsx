@@ -5,17 +5,19 @@ export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 export type ButtonSize = "sm" | "md" | "lg";
 
 const VARIANTS: Record<ButtonVariant, string> = {
-  primary: "bg-brand-600 text-white hover:bg-brand-700 disabled:bg-brand-600/60",
+  primary:
+    "bg-brand-600 text-white shadow-xs hover:bg-brand-700 active:bg-brand-800 disabled:bg-brand-600/55",
   secondary:
-    "bg-surface text-ink border border-line-strong hover:bg-subtle disabled:text-ink-faint",
+    "bg-surface text-ink border border-line-strong shadow-xs hover:bg-subtle hover:border-stone-400 disabled:text-ink-faint",
   ghost: "text-ink-muted hover:bg-subtle hover:text-ink",
-  danger: "bg-danger-600 text-white hover:bg-danger-700 disabled:bg-danger-600/60",
+  danger: "bg-danger-600 text-white shadow-xs hover:bg-danger-700 disabled:bg-danger-600/55",
 };
 
+// Touch targets: md and lg meet 40–44 px; sm is for dense desktop toolbars.
 const SIZES: Record<ButtonSize, string> = {
   sm: "h-8 px-3 text-sm gap-1.5",
   md: "h-10 px-4 text-sm gap-2",
-  lg: "h-11 px-5 text-base gap-2",
+  lg: "h-12 px-5 text-base gap-2",
 };
 
 /** Class names for anything that should look like a button (e.g. links). */
@@ -25,7 +27,9 @@ export function buttonClasses(
   className?: string,
 ): string {
   return cn(
-    "inline-flex items-center justify-center rounded-control font-medium transition-colors",
+    "inline-flex items-center justify-center rounded-control font-medium",
+    "transition-[background-color,border-color,color,box-shadow,transform] duration-(--duration-fast) ease-(--ease-standard)",
+    "active:translate-y-px",
     "disabled:cursor-not-allowed select-none whitespace-nowrap",
     VARIANTS[variant],
     SIZES[size],

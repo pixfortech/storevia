@@ -93,7 +93,7 @@ export function Dialog({
   title: ReactNode;
   description?: ReactNode;
   children: ReactNode;
-  side?: "center" | "bottom";
+  side?: "center" | "bottom" | "right";
 }) {
   return (
     <DialogPrimitive.Root
@@ -102,13 +102,16 @@ export function Dialog({
     >
       {trigger ? <DialogPrimitive.Trigger asChild>{trigger}</DialogPrimitive.Trigger> : null}
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-40 bg-ink/40" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-40 animate-fade-in bg-stone-950/40" />
         <DialogPrimitive.Content
           className={cn(
             "fixed z-50 bg-surface shadow-[var(--shadow-popover)] focus:outline-none",
-            side === "center"
-              ? "left-1/2 top-1/2 max-h-[calc(100dvh-32px)] w-[calc(100vw-32px)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-card p-6"
-              : "inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-2xl p-4 pb-[max(1rem,env(safe-area-inset-bottom))]",
+            side === "center" &&
+              "left-1/2 top-1/2 max-h-[calc(100dvh-32px)] w-[calc(100vw-32px)] max-w-lg -translate-x-1/2 -translate-y-1/2 animate-rise-in overflow-y-auto rounded-card p-6",
+            side === "bottom" &&
+              "inset-x-0 bottom-0 max-h-[92dvh] animate-sheet-in overflow-y-auto rounded-t-panel p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]",
+            side === "right" &&
+              "inset-y-0 right-0 w-[min(28rem,100vw)] animate-fade-in overflow-y-auto border-l border-line p-6",
           )}
         >
           <DialogPrimitive.Title className="text-base font-semibold text-ink">

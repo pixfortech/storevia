@@ -5,15 +5,18 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./theme.css": "./src/theme.css"
+    "./theme.css": "./src/theme.css",
+    "./icons": "./src/icons.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "5.3.0",
     "@radix-ui/react-dialog": "1.1.23",
     "@radix-ui/react-dropdown-menu": "2.1.24",
-    "clsx": "2.1.1"
+    "clsx": "2.1.1",
+    "lucide-react": "1.47.0"
   },
   "devDependencies": {
     "@types/react": "19.3.0",
