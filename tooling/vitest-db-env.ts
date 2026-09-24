@@ -18,6 +18,7 @@ for (const key of [
   "DATABASE_PLATFORM_URL",
   "DATABASE_BILLING_URL",
   "DATABASE_WORKER_URL",
+  "DATABASE_MARKETING_URL",
 ]) {
   const value = process.env[key];
   if (!value) continue;

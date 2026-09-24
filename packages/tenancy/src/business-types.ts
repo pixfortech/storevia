@@ -172,7 +172,7 @@ export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
     segment: "/analytics",
     permission: "analytics.read",
     feature: "analytics",
-    availability: "Milestone 8",
+    availability: LATER,
     description: "Traffic, engagement and sales reports.",
   },
   settings: {

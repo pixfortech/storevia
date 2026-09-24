@@ -108,3 +108,36 @@ export function invitationMessage(
     html: layout(`Join ${organisationName}`, lines, { label: "View invitation", url }),
   };
 }
+
+export interface ContactRequest {
+  readonly name: string;
+  readonly email: string;
+  readonly company: string;
+  readonly topic: string;
+  readonly message: string;
+}
+
+/**
+ * A message from the public contact form, delivered to Storevia's inbox. All
+ * fields are visitor input: escaped in HTML, and line breaks are removed from
+ * everything that reaches a header.
+ */
+export function contactRequestMessage(to: string, request: ContactRequest): EmailMessage {
+  const oneLine = (value: string) => value.replace(/[\r\n]+/g, " ").trim();
+  const details = [
+    `From: ${oneLine(request.name)} <${oneLine(request.email)}>`,
+    `Company: ${oneLine(request.company) || "Not given"}`,
+    `Topic: ${oneLine(request.topic)}`,
+  ];
+  return {
+    to,
+    template: "contact-request",
+    subject: `Contact form: ${oneLine(request.topic)} from ${oneLine(request.name)}`.slice(0, 160),
+    text: `${details.join("\n")}\n\n${request.message}\n\nReply directly to ${oneLine(request.email)}. Sent from the storevia.com contact form.`,
+    html: layout("New contact request", [
+      ...details,
+      ...request.message.split(/\n{2,}/),
+      `Reply directly to ${oneLine(request.email)}. Sent from the storevia.com contact form.`,
+    ]),
+  };
+}

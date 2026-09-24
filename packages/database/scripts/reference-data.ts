@@ -95,7 +95,7 @@ export const PLANS: readonly SeedPlan[] = [
   {
     key: "enterprise",
     name: "Enterprise",
-    description: "Contracted plans. Limits beyond these are set with overrides.",
+    description: "For larger organisations, with terms and limits agreed with our team.",
     sortOrder: 30,
     trialDays: 30,
     isPublic: true,

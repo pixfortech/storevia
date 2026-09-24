@@ -136,6 +136,7 @@ export default defineConfig(
       "**/scripts/**",
       "packages/jobs/**",
       "apps/worker/**",
+      "apps/marketing/**",
     ],
     rules: {
       "no-restricted-imports": [
@@ -159,9 +160,48 @@ export default defineConfig(
               message: "The worker role is for packages/jobs and apps/worker only.",
             },
             {
+              name: "@storevia/database/marketing",
+              message: "The marketing role is for apps/marketing only (ADR-0025).",
+            },
+            {
               name: "@storevia/database/testing",
               message: "Test helpers must not be imported by application code.",
             },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // The public site holds only the marketing role (ADR-0025): no other
+    // database role, and no server services that would need one.
+    files: ["apps/marketing/src/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            ...[
+              "@storevia/database/system",
+              "@storevia/database/platform",
+              "@storevia/database/billing",
+              "@storevia/database/worker",
+              "@storevia/database/testing",
+              "@storevia/security/server",
+              "@storevia/auth",
+              "@storevia/billing",
+            ].map((name) => ({
+              name,
+              message: "The marketing site uses only its own role (ADR-0025).",
+            })),
+            ...["@storevia/database", "@storevia/tenancy", "@storevia/entitlements"].map(
+              (name) => ({
+                name,
+                allowTypeImports: true,
+                message:
+                  "Server services use other roles; import client-safe subpaths or types only (ADR-0025).",
+              }),
+            ),
           ],
         },
       ],

@@ -29,7 +29,10 @@ Accepted, Superseded by ADR-XXXX, Deprecated.
 | [0021](./0021-better-auth-integration.md)                         | Better Auth integration details                                    | Accepted |
 | [0022](./0022-provider-neutral-subscriptions-and-entitlements.md) | Provider-neutral subscriptions, manual assignment and mock billing | Accepted |
 | [0023](./0023-worker-scheduled-jobs.md)                           | Worker and scheduled jobs (spike outcome for M2-04)                | Accepted |
+| [0024](./0024-business-types-and-role-presets.md)                 | Business types and role presets                                    | Accepted |
+| [0025](./0025-marketing-site-catalogue-and-contact.md)            | Marketing site: public catalogue and contact form                  | Accepted |
 
 ADRs 0002–0019 were accepted with the Milestone 0 review on 2026-09-24.
 ADRs 0020–0021 were recorded during Milestone 1 and ADR-0022 for the Milestone 2
 revision (no real payment gateway; manual and mock subscription sources).
+ADRs 0023–0025 were recorded during Milestone 2.5.

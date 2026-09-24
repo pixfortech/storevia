@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { FileEmailSender } from "./sender";
-import { invitationMessage, verifyEmailMessage } from "./templates";
+import { invitationMessage, verifyEmailMessage, contactRequestMessage } from "./templates";
 
 describe("email templates", () => {
   it("escapes user-controlled values in HTML", () => {
@@ -33,5 +33,23 @@ describe("FileEmailSender", () => {
       to: string;
     };
     expect(parsed).toMatchObject({ template: "verify-email", to: "a@example.test" });
+  });
+});
+
+describe("contactRequestMessage", () => {
+  const message = contactRequestMessage("hello@storevia.test", {
+    name: "Ana\r\nBcc: victim@example.test",
+    email: "ana@example.test",
+    company: "",
+    topic: "Plans and pricing",
+    message: "<script>alert(1)</script>\n\nSecond paragraph",
+  });
+
+  it("keeps visitor input out of headers and escapes it in HTML", () => {
+    expect(message.subject).not.toMatch(/[\r\n]/);
+    expect(message.html).not.toContain("<script>");
+    expect(message.html).toContain("&lt;script&gt;");
+    expect(message.text).toContain("Company: Not given");
+    expect(message.template).toBe("contact-request");
   });
 });

@@ -9,7 +9,8 @@
     "./platform": "./src/platform.ts",
     "./testing": "./src/testing.ts",
     "./billing": "./src/billing.ts",
-    "./worker": "./src/worker.ts"
+    "./worker": "./src/worker.ts",
+    "./marketing": "./src/marketing.ts"
   },
   "scripts": {
     "generate": "prisma generate",

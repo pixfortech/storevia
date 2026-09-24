@@ -8,6 +8,7 @@ if (existsSync(rootEnv) && !process.env["CI"]) process.loadEnvFile(rootEnv);
 
 const baseURL = process.env["E2E_BASE_URL"] ?? "http://app.localhost:3001";
 const adminURL = process.env["E2E_ADMIN_URL"] ?? "http://admin.localhost:3003";
+const marketingURL = process.env["E2E_MARKETING_URL"] ?? "http://localhost:3000";
 // Node does not resolve *.localhost names (browsers do): probe via localhost.
 const probe = (url: string) =>
   `${new URL(url).protocol}//localhost:${new URL(url).port || "80"}/api/health`;
@@ -41,6 +42,14 @@ export default defineConfig({
       // Platform-admin (staff) app: plan assignment and mock billing (ADR-0022).
       command: "pnpm --filter @storevia/platform-admin start",
       url: probe(adminURL),
+      reuseExistingServer: !process.env["CI"],
+      timeout: 120_000,
+      stdout: "pipe",
+    },
+    {
+      // Public marketing site: pricing from the plan catalogue, contact form (ADR-0025).
+      command: "pnpm --filter @storevia/marketing start",
+      url: probe(marketingURL),
       reuseExistingServer: !process.env["CI"],
       timeout: 120_000,
       stdout: "pipe",

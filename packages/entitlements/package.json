@@ -5,7 +5,9 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./features": "./src/features.ts"
+    "./features": "./src/features.ts",
+    "./format": "./src/format.ts",
+    "./catalogue": "./src/catalogue.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -16,6 +16,7 @@ const others = [
   "DATABASE_PLATFORM_URL",
   "DATABASE_BILLING_URL",
   "DATABASE_WORKER_URL",
+  "DATABASE_MARKETING_URL",
 ].map((key) => `"${decodeURIComponent(new URL(requireEnv(key)).username)}"`);
 
 const admin = new pg.Client({ connectionString: requireEnv("DATABASE_ADMIN_URL") });

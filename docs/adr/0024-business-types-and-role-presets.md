@@ -18,11 +18,11 @@ of the other two.
 
 ### 1. Three independent dimensions
 
-| Dimension                     | Answers                          | Decided by                                         | Enforced by                                               |
-| ----------------------------- | -------------------------------- | -------------------------------------------------- | --------------------------------------------------------- |
-| **Plan** (entitlements)       | May this organisation have it?   | Subscription + overrides (ADR-0022)                | `assertFeature` / `consumeUsage` on every server path     |
-| **Role** (permissions)        | May this member do it?           | Membership role → permission primitives (ADR-0008) | `requirePermission` on every server path                  |
-| **Business type** (this ADR)  | Should we present it, and where? | The store's configuration                          | Nothing: presentation and defaults only                   |
+| Dimension                    | Answers                          | Decided by                                         | Enforced by                                           |
+| ---------------------------- | -------------------------------- | -------------------------------------------------- | ----------------------------------------------------- |
+| **Plan** (entitlements)      | May this organisation have it?   | Subscription + overrides (ADR-0022)                | `assertFeature` / `consumeUsage` on every server path |
+| **Role** (permissions)       | May this member do it?           | Membership role → permission primitives (ADR-0008) | `requirePermission` on every server path              |
+| **Business type** (this ADR) | Should we present it, and where? | The store's configuration                          | Nothing: presentation and defaults only               |
 
 - Business type is **never** an authorisation input. No server check reads
   it. Code like `if (businessType === "PUBLISHING") allow(...)` is
@@ -70,13 +70,13 @@ Presets are named suggestions that map onto `MemberRole` values, and each
 `MemberRole` maps onto the existing permission primitives in `rbac.ts`. Five
 system roles are added so the presets can be expressed precisely:
 
-| Role                | Permissions beyond base read                                                                                                  |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `INVENTORY_MANAGER` | `inventory.adjust`                                                                                                            |
+| Role                | Permissions beyond base read                                                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `INVENTORY_MANAGER` | `inventory.adjust`                                                                                                                                      |
 | `SITE_MANAGER`      | `member.read`, `store.update`, `settings.manage`, `media.manage`, `analytics.read`, `design.edit`, `page.publish`, `theme.publish`, `navigation.manage` |
-| `CONTENT_MANAGER`   | `media.manage`, `analytics.read`, `design.edit`, `page.publish`, `navigation.manage`                                          |
-| `EDITOR`            | `media.manage`, `design.edit`, `page.publish`                                                                                 |
-| `AUTHOR`            | `media.manage`, `design.edit` (can write, can't publish)                                                                      |
+| `CONTENT_MANAGER`   | `media.manage`, `analytics.read`, `design.edit`, `page.publish`, `navigation.manage`                                                                    |
+| `EDITOR`            | `media.manage`, `design.edit`, `page.publish`                                                                                                           |
+| `AUTHOR`            | `media.manage`, `design.edit` (can write, can't publish)                                                                                                |
 
 Presets per business type (label → role):
 

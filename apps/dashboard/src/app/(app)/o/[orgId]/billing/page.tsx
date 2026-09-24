@@ -1,6 +1,6 @@
 import { STATUS_LABELS } from "@storevia/billing/state-machine";
 import { getOrganisationBilling, hasPermission } from "@storevia/tenancy";
-import type { EntitlementValue } from "@storevia/entitlements";
+import { formatEntitlement } from "@storevia/entitlements/format";
 import { Alert, Badge, Card, CardBody, CardHeader } from "@storevia/ui";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
@@ -34,22 +34,6 @@ const MANAGED_BY = {
   PROVIDER: "Billed online",
 } as const;
 
-function valueLabel(value: EntitlementValue): string | null {
-  switch (value.kind) {
-    case "BOOLEAN":
-      return value.enabled ? "Included" : null;
-    case "LIMIT":
-      return value.limit > 0n ? `Up to ${value.limit.toLocaleString("en-GB")}` : null;
-    case "UNLIMITED":
-      return "Unlimited";
-    case "CONFIGURATION": {
-      if (!value.enabled) return null;
-      const days = value.config["retentionDays"];
-      return typeof days === "number" ? `${String(days)} days of history` : "Included";
-    }
-  }
-}
-
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex justify-between gap-4 py-2 text-sm">
@@ -75,7 +59,7 @@ export default async function BillingPage({ params }: { params: Promise<{ orgId:
   const billing = await getOrganisationBilling(ctx);
   const sub = billing.subscription;
   const included = billing.entitlements
-    .map((e) => ({ key: e.key, name: e.name, label: valueLabel(e.value) }))
+    .map((e) => ({ key: e.key, name: e.name, label: formatEntitlement(e.key, e.value) }))
     .filter((e) => e.label !== null);
   const over = billing.usage.filter((l) => l.overLimit);
 

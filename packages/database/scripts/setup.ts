@@ -22,6 +22,7 @@ const ROLES: readonly RoleSpec[] = [
   { urlVar: "DATABASE_PLATFORM_URL", attributes: "LOGIN BYPASSRLS" },
   { urlVar: "DATABASE_BILLING_URL", attributes: "LOGIN BYPASSRLS" },
   { urlVar: "DATABASE_WORKER_URL", attributes: "LOGIN BYPASSRLS" },
+  { urlVar: "DATABASE_MARKETING_URL", attributes: "LOGIN NOBYPASSRLS" },
 ];
 
 const ident = (value: string) => `"${value.replaceAll('"', '""')}"`;
