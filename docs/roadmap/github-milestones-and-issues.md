@@ -340,11 +340,11 @@ colleagues with roles, and **cannot** reach anyone else's data.
 
 ## Milestone 4 — Storefront engine
 
+- **M4-00** `@storevia/editor` document + render entry points: `PageDocument` v1 schema, validation and limits, component registry, base renderers (moved forward from M5-01/M5-02) — `area:editor`
 - **M4-01** `@storevia/domains`: hostname normalisation, reserved slugs, resolver with cache — `area:domains` `security`
 - **M4-02** Storefront app: proxy, internal routing guard, status pages, canonical redirects — `area:storefront` `security`
 - **M4-03** Storefront read models (public DTOs only) — `area:storefront` `tenant-isolation`
-- **M4-00** `@storevia/editor` document + render entry points: `PageDocument` v1 schema, validation and limits, component registry, base renderers (moved forward from M5-01/M5-02) — `area:editor`
-- **M4-04** Base renderer and default theme tokens: home, product, collection, search, 404 — `area:storefront`
+- **M4-04** Storefront routes (home, product, collection, search, 404) rendered with the M4-00 renderers and default theme tokens — `area:storefront`
 - **M4-05** Cart: token cookie, server actions, server-side subtotal — `area:storefront`
 - **M4-06** Caching with tags + outbox-driven invalidation — `area:storefront`
 - **M4-07** SEO: sitemap, robots, canonical URLs, JSON-LD — `area:storefront`

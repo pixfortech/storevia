@@ -24,7 +24,10 @@
   PR note explaining the rollout, and a reviewer from the database CODEOWNERS
   group.
 - CI runs every migration from zero against a fresh PostgreSQL and checks
-  that `prisma migrate diff` between migrations and schema is empty (no drift).
+  that `prisma migrate diff` between migrations and schema is empty for
+  everything Prisma models (no drift). Objects that exist only in raw SQL
+  (RLS policies, extra composite FKs, CHECKs, triggers, grants) are
+  invisible to that diff, so integration tests assert them directly.
 - Long-running locks: migrations set `lock_timeout` (e.g. 5s) so a blocked
   migration fails fast instead of queueing all traffic behind it.
 

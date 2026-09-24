@@ -187,7 +187,8 @@ Endpoint: `POST https://app.storevia.com/api/webhooks/billing/stripe`
      (`fetchSubscription`) instead of trusting the event payload, which
      makes out-of-order delivery harmless.
    - Syncs for one subscription are **serialised** (the job is keyed by the
-     subscription and takes a row lock). Each sync re-fetches current
+     subscription and takes a transaction-scoped advisory lock on the
+     provider subscription ID, which works before the row exists). Each sync re-fetches current
      provider state, so event order doesn't matter. `Subscription.providerSyncedAt`
      records when the applied snapshot was fetched, and a sync whose fetch
      started earlier is discarded. (Stripe objects carry no "updated at"

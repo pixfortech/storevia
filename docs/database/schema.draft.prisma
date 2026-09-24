@@ -2130,6 +2130,7 @@ model NavigationItem {
 enum ThemeOrigin {
   FIRST_PARTY
   MARKETPLACE
+  /// Reserved for private per-organisation themes (deferred, erd.md §7).
   CUSTOM
 }
 

@@ -176,7 +176,7 @@ interface ComponentDefinition<P extends JsonObject> {
   merchant sees is what shoppers get.
 - `editorControls` are declarative descriptors. The editor UI renders them, so
   adding a component needs no editor changes.
-- Initial components (M5): Section, Container, Columns/Column, Grid,
+- Initial components (base set in M4, the rest in M5): Section, Container, Columns/Column, Grid,
   Heading, Text, RichText, Image, Video, Button, Icon, Divider, Spacer, Hero,
   Banner, AnnouncementBar, Logo, Navigation, Product, ProductCard,
   ProductGrid, CollectionGrid, Price, AddToCart, Cart, Form, Newsletter,

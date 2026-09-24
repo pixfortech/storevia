@@ -150,7 +150,7 @@ verified.
 | ----------------------------------- | ---------------------------------------------------------------------------------------------- | ---- |
 | Rate abuse / scraping / DoS         | Edge WAF + rate limiting; app-level limits per IP/user/key/store; bounded queries and payloads | 1, 8 |
 | Noisy neighbour                     | Per-tenant quotas; storefront caching; query budgets                                           | 4, 8 |
-| Expensive builder documents         | Node/depth/size limits                                                                         | 5    |
+| Expensive builder documents         | Node/depth/size limits                                                                         | 4    |
 | Fraudulent stores (phishing, scams) | Abuse reporting, platform-admin review and suspension, signup risk checks                      | 8    |
 
 ### 4.9 Secrets and supply chain

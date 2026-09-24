@@ -110,7 +110,8 @@ Enforced by lint (`eslint-plugin-boundaries` or equivalent) and a CI check:
    each other, the shared piece moves down a layer or communicates through
    outbox events.
 6. `storefront` may import only the read-side entry points of domain packages
-   (`@storevia/commerce/storefront`, `@storevia/storefront-engine`), never
+   (`@storevia/commerce/storefront`, `@storevia/storefront-engine`,
+   `@storevia/editor/document`, `@storevia/editor/components`), never
    administrative mutations.
 
 ## 5. Conventions

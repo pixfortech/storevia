@@ -187,7 +187,7 @@ CREATE POLICY tenant_isolation ON "Product"
 | `storevia_retention` (M8) | worker purge jobs                                             | `BYPASSRLS`               | `DELETE` on expired rows and partitions, including append-only tables                                                                                                                                                                                                                              |
 
 Roles are cluster-level objects. Infrastructure (IaC in production;
-`pnpm db:setup` locally and in CI) creates them with credentials. Migrations
+`pnpm db:setup`, introduced in Milestone 1, locally and in CI) creates them with credentials. Migrations
 only `GRANT` to them and never embed passwords.
 
 Identity tables (`User`, `Account`, `Session`, `Verification`) are not tenant
