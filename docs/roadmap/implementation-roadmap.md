@@ -50,7 +50,25 @@ adds product → creates page → publishes page → storefront renders → prod
 added to cart → checkout completes with the test payment provider → order
 appears in the merchant dashboard.
 
-## Milestone 1 plan (next, after review)
+## Milestone 1 status
+
+Delivered: database infrastructure (staged first migration with RLS, roles,
+grants, test and reset workflows, dev seed), authentication (Better Auth,
+wrapped), organisations, memberships, invitations, RBAC, store creation,
+trusted tenant context, the dashboard shell (desktop, tablet and mobile
+layouts), and the security test suites in CI ([11-testing.md](../architecture/11-testing.md)).
+
+Moved out of Milestone 1, with the reason:
+
+| Issue                             | Now                           | Why                                                                                                                           |
+| --------------------------------- | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| M1-16 Platform-admin app shell    | M2 (with M2-12 billing tools) | Realm isolation (T11) is enforced and tested in `packages/auth`. The admin UI has no read models to show until billing exists |
+| M1-09 Google sign-in              | M8 (with MFA)                 | Optional; architecture unchanged                                                                                              |
+| M1-21 Marketing site skeleton     | M2 (with pricing)             | Excluded from M1 by the milestone brief                                                                                       |
+| `observability` package           | M2 (with the worker)          | First real consumer is the worker; M1 logs structured errors with request IDs                                                 |
+| docker compose for local services | M3 (with MinIO)               | M1 needs only PostgreSQL (`pnpm db:setup`)                                                                                    |
+
+## Milestone 1 plan (as scheduled at M0)
 
 Order of work, each step a vertical slice with tests:
 

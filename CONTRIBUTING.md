@@ -73,6 +73,10 @@ secret by accident, treat it as leaked: rotate it first, then clean up.
 
 ## Branch protection (to be configured on `main`)
 
-Required checks: `Format, lint, typecheck, test, build` and `Secret scan`.
+Required checks: `Format, lint, typecheck, test, build`,
+`Integration and tenant-isolation tests`, `End-to-end security tests
+(Playwright)` and `Secret scan`. The tenant-isolation and security suites
+must never be skipped or weakened to get a PR green
+([11-testing.md](docs/architecture/11-testing.md)).
 Required review: at least one approval, plus CODEOWNERS where applicable.
 No force-pushes; linear history.

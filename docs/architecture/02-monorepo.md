@@ -68,18 +68,25 @@ docs/
 A package is created **only when its first real code lands**. Empty packages
 are not scaffolded.
 
-| Package                                                                          | Milestone | Depends on                                             |
-| -------------------------------------------------------------------------------- | --------- | ------------------------------------------------------ |
-| `config`, `types`, `validation`, `database`, `security`, `observability`         | M1        | — / each other (foundation only)                       |
-| `auth`, `tenancy`, `ui`, `email`                                                 | M1        | foundation                                             |
-| `entitlements`, `billing`, `jobs`                                                | M2        | foundation, tenancy                                    |
-| `commerce` (catalogue + inventory), `media`                                      | M3        | foundation, tenancy, entitlements                      |
-| `editor` (document schema, registry, base renderers: `/document`, `/components`) | M4        | foundation, validation                                 |
-| `storefront-engine`, `domains`                                                   | M4        | foundation, commerce (read models), editor (renderers) |
-| `editor` (editor UI `/ui`, full component set)                                   | M5        | foundation, validation, ui                             |
-| `payments`, `commerce` (checkout/orders)                                         | M6        | foundation, commerce                                   |
-| `themes`                                                                         | M7        | foundation, editor                                     |
-| `analytics`                                                                      | later     | foundation                                             |
+Milestone 1 status: the shared TypeScript and ESLint configuration lives at the
+repository root (`tsconfig.base.json`, `eslint.config.mjs`) until a second app
+needs presets, so `config` has not been created. `observability` moves to M2
+with the worker, which is its first real consumer. In M1, server actions log
+unexpected errors as structured JSON with the request ID (`apps/dashboard/src/lib/action.ts`).
+
+| Package                                                                          | Milestone                              | Depends on                                             |
+| -------------------------------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------ |
+| `types`, `validation`, `database`, `security`, `email`                           | M1 ✔                                   | foundation only                                        |
+| `auth`, `tenancy`, `ui`                                                          | M1 ✔                                   | foundation                                             |
+| `observability`, `jobs`, `entitlements`, `billing`                               | M2                                     | foundation, tenancy                                    |
+| `config`                                                                         | when a second app needs shared presets | —                                                      |
+| `commerce` (catalogue + inventory), `media`                                      | M3                                     | foundation, tenancy, entitlements                      |
+| `editor` (document schema, registry, base renderers: `/document`, `/components`) | M4                                     | foundation, validation                                 |
+| `storefront-engine`, `domains`                                                   | M4                                     | foundation, commerce (read models), editor (renderers) |
+| `editor` (editor UI `/ui`, full component set)                                   | M5                                     | foundation, validation, ui                             |
+| `payments`, `commerce` (checkout/orders)                                         | M6                                     | foundation, commerce                                   |
+| `themes`                                                                         | M7                                     | foundation, editor                                     |
+| `analytics`                                                                      | later                                  | foundation                                             |
 
 ## 4. Dependency rules
 

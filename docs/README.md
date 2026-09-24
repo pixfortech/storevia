@@ -24,6 +24,7 @@ Supporting documents:
 - [Commerce domain rules](architecture/09-commerce.md) (money, inventory, pricing, checkout, orders, payments, discounts)
 - [API, webhooks and apps](architecture/10-api-webhooks-apps.md) and [API conventions](api/README.md)
 - [Architecture Decision Records](adr/README.md)
+- [Testing strategy and security test suites](architecture/11-testing.md) (Milestone 1)
 
 ## Status
 

@@ -143,15 +143,23 @@ release tag → manual approval → migrate production (expand-only) → rolling
 - Dashboards/alerts: error rate, p95 latency per surface, DB CPU/connections,
   slow queries (`pg_stat_statements`), queue lag, webhook failure rates,
   billing sync failures, certificate provisioning failures.
-- Health endpoints: `/healthz` (liveness), `/readyz` (DB reachable,
-  migrations at the expected version).
+- Health endpoints: `/api/health` (liveness, implemented in M1). Readiness
+  (DB reachable, migrations at the expected version) arrives in M8.
+- Multi-instance deployments must set `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`
+  (and a stable build ID) so every instance accepts the same Server Action
+  payloads. Next.js otherwise generates the key per build.
 - Status page and incident runbooks (M8).
 
 ## 9. Local development
 
-`docker compose up` provides PostgreSQL 17, MinIO (S3) and Mailpit (SMTP
-capture). Apps run with `pnpm dev`. Local hostnames use `*.localhost`, which
-browsers resolve to loopback:
+Milestone 1 needs only a local PostgreSQL (16+; CI uses 17) with a superuser
+for `DATABASE_ADMIN_URL`. `pnpm db:setup` creates the roles and databases,
+`pnpm db:reset` migrates, and `pnpm db:seed:dev` adds demo tenants. Emails go
+to JSON files (`EMAIL_TRANSPORT=file`) or any SMTP server such as Mailpit. A
+`docker compose` file with PostgreSQL, MinIO and Mailpit is planned with the
+media library (M3). Apps run with `pnpm dev`. Local hostnames use
+`*.localhost`, which browsers resolve to loopback (Node.js does not, so health
+probes use `localhost`):
 
 | URL                                  | App            |
 | ------------------------------------ | -------------- |
