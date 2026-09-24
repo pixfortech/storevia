@@ -1,5 +1,5 @@
 import "server-only";
-import { systemDb } from "@storevia/database/system";
+import { billingDb } from "@storevia/database/billing";
 import { isEntitling } from "@storevia/entitlements";
 import { createLogger } from "@storevia/observability";
 import { notifyEntitlementsChanged } from "./events";
@@ -18,7 +18,7 @@ const log = createLogger({ component: "billing.sweep" });
 export async function sweepSubscriptionExpiry(
   now: Date = new Date(),
 ): Promise<{ expired: number }> {
-  const db = systemDb();
+  const db = billingDb();
   const due = await db.subscription.findMany({
     where: {
       source: "MANUAL",

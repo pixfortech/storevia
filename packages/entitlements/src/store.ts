@@ -359,14 +359,31 @@ export async function canConsume(
 async function lockCounter(
   db: Db,
   organisationId: string,
+  key: FeatureKey,
   id: string,
   scopeKey: string,
   period: string,
 ): Promise<bigint> {
-  await db.$executeRaw`
-    INSERT INTO "UsageCounter" ("organisationId", "featureId", "scopeKey", period, value, "updatedAt")
-    VALUES (${organisationId}::uuid, ${id}::uuid, ${scopeKey}, ${period}, 0, now())
-    ON CONFLICT DO NOTHING`;
+  const existing = await db.usageCounter.findUnique({
+    where: {
+      organisationId_featureId_scopeKey_period: { organisationId, featureId: id, scopeKey, period },
+    },
+    select: { value: true },
+  });
+  if (!existing) {
+    // A missing organisation-wide gauge starts from the real row count, so
+    // resources created before the counter existed (e.g. during a rolling
+    // deploy) are never forgotten. Callers hold an organisation-wide scope.
+    const gauge = (GAUGE_FEATURES as readonly FeatureKey[]).includes(key);
+    const initial =
+      gauge && scopeKey === "" && period === "all"
+        ? await countSource(db, organisationId, key as GaugeFeature)
+        : 0n;
+    await db.$executeRaw`
+      INSERT INTO "UsageCounter" ("organisationId", "featureId", "scopeKey", period, value, "updatedAt")
+      VALUES (${organisationId}::uuid, ${id}::uuid, ${scopeKey}, ${period}, ${initial}, now())
+      ON CONFLICT DO NOTHING`;
+  }
   const rows = await db.$queryRaw<{ value: bigint }[]>`
     SELECT value FROM "UsageCounter"
     WHERE "organisationId" = ${organisationId}::uuid AND "featureId" = ${id}::uuid
@@ -395,7 +412,7 @@ export async function consumeUsage(
   const period = options.period ?? "all";
   const id = await featureId(db, key);
   // Lock first, then resolve, so the limit is read after concurrent creators.
-  const usage = await lockCounter(db, organisationId, id, scopeKey, period);
+  const usage = await lockCounter(db, organisationId, key, id, scopeKey, period);
   const resolved = await resolveEntitlement(db, organisationId, key);
   const limit = limitOf(resolved.value);
   if (!fitsLimit(limit, usage, amount)) {
@@ -468,7 +485,7 @@ export async function reconcileUsage(db: Db, organisationId: string): Promise<Dr
   const drift: Drift[] = [];
   for (const key of GAUGE_FEATURES) {
     const id = await featureId(db, key);
-    const recorded = await lockCounter(db, organisationId, id, "", "all");
+    const recorded = await lockCounter(db, organisationId, key, id, "", "all");
     const actual = await countSource(db, organisationId, key);
     if (recorded !== actual) {
       drift.push({ key, recorded, actual });

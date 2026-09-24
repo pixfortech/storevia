@@ -1,6 +1,7 @@
 import "server-only";
 import type { TenantTx } from "@storevia/database";
 import { recordActorAudit, type AuditMetadata, type RequestInfo } from "@storevia/tenancy";
+import { isEntitling } from "@storevia/entitlements";
 import { DomainError } from "@storevia/types";
 import { canTransition, type SubscriptionStatus } from "./state-machine";
 
@@ -42,6 +43,7 @@ export interface StoredSubscription extends SubscriptionState {
   readonly provider: BillingProviderKey | null;
   readonly providerSubscriptionId: string | null;
   readonly providerSyncedAt: Date | null;
+  readonly updatedAt: Date;
 }
 
 /** Who made a change. Recorded on the event and the audit row. */
@@ -62,6 +64,13 @@ export interface SubscriptionChange {
   readonly next: SubscriptionState;
   /** Version of the provider snapshot applied (provider sources only). */
   readonly providerSyncedAt?: Date;
+  /**
+   * First observation of a provider-managed subscription: it is recorded in
+   * whatever state the provider reports (e.g. already CANCELLED or EXPIRED),
+   * so the row can order later deliveries (ADR-0022 amendment A1). Never for
+   * MANUAL subscriptions.
+   */
+  readonly mirror?: boolean;
   readonly eventType: string;
   readonly auditAction: string;
   readonly actor: ChangeActor;
@@ -72,6 +81,23 @@ export interface SubscriptionChange {
   /** Human-readable plan keys for the audit trail (never used for decisions). */
   readonly planKeys: { readonly before: string | null; readonly after: string };
   readonly extraAudit?: AuditMetadata;
+}
+
+/**
+ * The state machine plus the rules that depend on dates: a CANCELLED
+ * subscription can be reactivated only while its access hasn't ended.
+ */
+export function transitionAllowed(
+  current: Pick<StoredSubscription, "status" | "trialEndsAt" | "expiresAt" | "graceEndsAt"> | null,
+  next: SubscriptionStatus,
+  at: Date,
+  options: { readonly mirror?: boolean } = {},
+): boolean {
+  if (!current) return options.mirror === true || canTransition(null, next);
+  if (!canTransition(current.status, next)) return false;
+  if (current.status === "CANCELLED" && next === "ACTIVE" && !isEntitling(current, at))
+    return false;
+  return true;
 }
 
 export class IllegalTransitionError extends DomainError {
@@ -87,6 +113,7 @@ const subscriptionColumns = {
   provider: true,
   providerSubscriptionId: true,
   providerSyncedAt: true,
+  updatedAt: true,
   planId: true,
   status: true,
   billingInterval: true,
@@ -179,7 +206,8 @@ export async function applySubscriptionChange(
   if (current && current.organisationId !== change.organisationId) {
     throw new Error("subscription belongs to another organisation");
   }
-  if (!canTransition(current?.status ?? null, next.status)) {
+  const mirror = change.mirror === true && !current && change.origin?.source !== "MANUAL";
+  if (!transitionAllowed(current, next.status, change.occurredAt, { mirror })) {
     throw new IllegalTransitionError(current?.status ?? null, next.status);
   }
   assertStateInvariants(next);

@@ -10,9 +10,12 @@ if (process.env["STOREVIA_ENV"] === "production") {
 }
 const { target, database } = applyTarget();
 const migrator = decodeURIComponent(new URL(requireEnv("DATABASE_MIGRATOR_URL")).username);
-const others = ["DATABASE_URL", "DATABASE_SYSTEM_URL", "DATABASE_PLATFORM_URL"].map(
-  (key) => `"${decodeURIComponent(new URL(requireEnv(key)).username)}"`,
-);
+const others = [
+  "DATABASE_URL",
+  "DATABASE_SYSTEM_URL",
+  "DATABASE_PLATFORM_URL",
+  "DATABASE_BILLING_URL",
+].map((key) => `"${decodeURIComponent(new URL(requireEnv(key)).username)}"`);
 
 const admin = new pg.Client({ connectionString: requireEnv("DATABASE_ADMIN_URL") });
 await admin.connect();

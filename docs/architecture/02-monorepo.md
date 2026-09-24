@@ -109,12 +109,14 @@ Enforced by lint (`eslint-plugin-boundaries` or equivalent) and a CI check:
    entry point (`@storevia/database/system`, `storevia_system` role) whose
    importers are allow-listed: `packages/auth` (identity tables), the
    rate limiter in `packages/security`, the invitation-token lookup in
-   `packages/tenancy`, `packages/billing` (webhook ledger, expiry sweep; M2),
-   and later the storefront hostname resolver (M4), merchant payment webhooks
+   `packages/tenancy`, and later the storefront hostname resolver (M4), merchant payment webhooks
    (M6) and the worker's tenant-iterating schedulers. Platform-admin uses its
    own entry point (`@storevia/database/platform`: reads plus the specific
    audited writes its staff actions need), shared only with `packages/billing`
-   and the platform-staff resolver in `packages/tenancy`. ESLint
+   and the platform-staff resolver in `packages/tenancy`. The billing role
+   (`@storevia/database/billing`: webhook ledger, mock provider, expiry sweep)
+   is imported only by `packages/billing`, which may not import the system
+   entry point. ESLint
    (`no-restricted-imports`) enforces both allow-lists. Migrations and reference seeds use
    the migrator connection through the Prisma CLI and seed scripts.
 5. Domain packages do not import each other in cycles. Cross-domain calls go

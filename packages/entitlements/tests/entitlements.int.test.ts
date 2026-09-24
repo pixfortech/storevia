@@ -299,8 +299,37 @@ describe("usage consumption", () => {
     const db = migratorDb();
     const user = await db.user.create({ data: { email: "owner@example.test", name: "Owner" } });
     await db.membership.create({ data: { organisationId: ORG_A, userId: user.id, role: "OWNER" } });
+    // A counter that drifted (e.g. written by a path that forgot to count).
+    await db.usageCounter.create({
+      data: { organisationId: ORG_A, featureId: await featureId("staff_accounts"), value: 0n },
+    });
     const drift = await withTenant(scope(ORG_A), (tx) => reconcileUsage(tx, ORG_A));
     expect(drift).toEqual([{ key: "staff_accounts", recorded: 0n, actual: 1n }]);
     expect(await withTenant(scope(ORG_A), (tx) => reconcileUsage(tx, ORG_A))).toEqual([]);
+  });
+
+  it("a missing gauge counter starts from the real row count (rolling deploys)", async () => {
+    await subscribe(ORG_A, "business"); // 3 stores
+    const db = migratorDb();
+    for (const slug of ["legacy-one", "legacy-two"]) {
+      // Stores written by code that predates the counters.
+      await db.store.create({
+        data: {
+          organisationId: ORG_A,
+          name: slug,
+          slug,
+          currency: "INR",
+          country: "IN",
+          locale: "en-IN",
+          timezone: "Asia/Kolkata",
+        },
+      });
+    }
+    await withTenant(scope(ORG_A), (tx) => consumeUsage(tx, ORG_A, "store_count"));
+    expect(await withTenant(scope(ORG_A), (tx) => getUsage(tx, ORG_A, "store_count"))).toBe(3n);
+    await expectCode(
+      withTenant(scope(ORG_A), (tx) => consumeUsage(tx, ORG_A, "store_count")),
+      "LIMIT_REACHED",
+    );
   });
 });

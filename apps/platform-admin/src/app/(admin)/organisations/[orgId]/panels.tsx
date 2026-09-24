@@ -500,6 +500,7 @@ function OverrideFields({
         required
         hint="Required. Recorded in the audit log."
       />
+      <OverLimitAck state={state} />
     </>
   );
 }
@@ -604,6 +605,7 @@ export function OverrideManager({
                                 rows={2}
                                 required
                               />
+                              <OverLimitAck state={state} />
                             </>
                           )}
                         </ActionDialog>
@@ -692,19 +694,41 @@ export function SimulationPanel({
           defaultValue="0"
         />
       </div>
+      <TextAreaField
+        label="Reason"
+        name="reason"
+        state={state}
+        rows={2}
+        required
+        hint="Simulated events change real subscription state. Recorded in the audit log."
+      />
       <SubmitButton variant="secondary">Send event</SubmitButton>
     </form>
   );
 }
 
-export function ReconcileButton({ action }: { action: (prev: FormState) => Promise<FormState> }) {
-  const [state, formAction] = useActionState(action, { ok: false });
+export function ReconcileButton({ action }: { action: Action }) {
   return (
-    <form action={formAction} className="space-y-3">
-      <FormMessage state={state} />
-      <SubmitButton size="sm" variant="ghost">
-        Recalculate usage
-      </SubmitButton>
-    </form>
+    <div className="flex flex-wrap gap-2">
+      <ActionDialog
+        label="Recalculate usage"
+        title="Recalculate usage"
+        description="Recounts stores and team members from the database and corrects the usage counters."
+        action={action}
+        submitLabel="Recalculate"
+        variant="ghost"
+      >
+        {(state) => (
+          <TextAreaField
+            label="Reason"
+            name="reason"
+            state={state}
+            rows={2}
+            required
+            hint="Recorded in the audit log."
+          />
+        )}
+      </ActionDialog>
+    </div>
   );
 }

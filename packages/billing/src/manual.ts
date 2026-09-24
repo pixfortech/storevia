@@ -2,7 +2,9 @@ import "server-only";
 import { Prisma, type TenantTx } from "@storevia/database";
 import { platformDb } from "@storevia/database/platform";
 import {
+  isEntitling,
   isFeatureKey,
+  loadLiveSubscription,
   previewUsageForPlan,
   reconcileUsage,
   type UsageLine,
@@ -125,9 +127,16 @@ export const setOverrideSchema = z.object({
     .refine((v) => !v || /^\d{1,15}$/.test(v), "Enter a whole number."),
   config: z.string().trim().max(2000).optional(),
   expiresAt: optionalDate,
+  acknowledgeOverLimit: checkbox,
 });
 
-export const removeOverrideSchema = z.object({ ...base, featureKey: z.string() });
+export const removeOverrideSchema = z.object({
+  ...base,
+  featureKey: z.string(),
+  acknowledgeOverLimit: checkbox,
+});
+
+export const reconcileSchema = z.object({ organisationId: z.string(), reason: reasonSchema });
 
 function parse<T extends z.ZodType>(schema: T, input: unknown): z.output<T> {
   const result = schema.safeParse(input);
@@ -206,6 +215,7 @@ async function lockManual(
   tx: TenantTx,
   organisationId: string,
   subscriptionPublicId: unknown,
+  options: { readonly allowEndedProviderSubscription?: boolean } = {},
 ): Promise<StoredSubscription> {
   const subscriptionId = parsePublicId("subscription", subscriptionPublicId);
   const live = await lockLiveSubscription(tx, organisationId);
@@ -215,7 +225,10 @@ async function lockManual(
       "This subscription has changed. Reload the page and try again.",
     );
   }
-  if (live.source !== "MANUAL") {
+  // A provider-managed subscription whose entitlement has already ended can
+  // be expired by staff, so a lost final provider event can't leave it stuck.
+  const ended = !isEntitling(live, new Date());
+  if (live.source !== "MANUAL" && !(options.allowEndedProviderSubscription && ended)) {
     throw new DomainError(
       "CONFLICT",
       "This subscription is managed by a billing provider. Change it through the provider.",
@@ -247,6 +260,32 @@ async function precheck(
 
 async function overLimitNow(tx: TenantTx, organisationId: string, planId: string | null) {
   return (await previewUsageForPlan(tx, organisationId, planId)).filter((l) => l.overLimit);
+}
+
+/** The plan that grants entitlements right now (null when none does). */
+async function entitlingPlanId(tx: TenantTx, organisationId: string): Promise<string | null> {
+  const live = await loadLiveSubscription(tx, organisationId);
+  return live?.entitling ? live.planId : null;
+}
+
+/**
+ * Override changes that newly put the organisation over a limit need the same
+ * acknowledgement as a downgrade. Runs after the write inside the
+ * transaction: throwing rolls the change back.
+ */
+async function acknowledgeNewOverLimit(
+  tx: TenantTx,
+  organisationId: string,
+  before: readonly UsageLine[],
+  acknowledged: boolean,
+): Promise<UsageLine[]> {
+  const after = await overLimitNow(tx, organisationId, await entitlingPlanId(tx, organisationId));
+  const newly = after.filter((l) => !before.some((b) => b.key === l.key));
+  if (newly.length > 0 && !acknowledged) {
+    const message = `After this change the organisation is over its limit for ${describeOverLimit(newly)}. Nothing is deleted: existing resources keep working and new ones are blocked. Confirm to continue.`;
+    throw new DomainError("CONFLICT", message, { acknowledgeOverLimit: message });
+  }
+  return after;
 }
 
 function assertFuture(field: string, date: Date | null, message: string): void {
@@ -406,6 +445,11 @@ export async function activateSubscription(
     const current = await lockManual(tx, organisationId, data.subscriptionId);
     if (current.status === "ACTIVE")
       throw new DomainError("CONFLICT", "This subscription is already active.");
+    if (current.status === "CANCELLED" && !isEntitling(current, now))
+      throw new DomainError(
+        "CONFLICT",
+        "Access under this cancelled subscription has already ended. Expire it and assign a new plan instead.",
+      );
     const next: SubscriptionState = {
       ...stateOf(current),
       status: "ACTIVE",
@@ -499,7 +543,9 @@ export async function expireSubscription(
   const now = new Date();
   const result = await inTransaction(async (tx) => {
     const organisationId = await loadOrganisation(tx, data.organisationId);
-    const current = await lockManual(tx, organisationId, data.subscriptionId);
+    const current = await lockManual(tx, organisationId, data.subscriptionId, {
+      allowEndedProviderSubscription: true,
+    });
     const over = await precheck(tx, organisationId, null, data.acknowledgeOverLimit);
     const planKey = await planKeyOf(tx, current.planId);
     const applied = await applySubscriptionChange(tx, {
@@ -597,6 +643,11 @@ export async function setEntitlementOverride(
     });
     if (!feature) throw fieldError("featureKey", "Choose a feature.");
     const value = overrideValue(feature.type, data);
+    const overBefore = await overLimitNow(
+      tx,
+      organisationId,
+      await entitlingPlanId(tx, organisationId),
+    );
     const existing = await tx.organisationFeatureOverride.findUnique({
       where: { organisationId_featureId: { organisationId, featureId: feature.id } },
     });
@@ -639,13 +690,14 @@ export async function setEntitlementOverride(
       },
       request: ctx.request,
     });
-    const live = await tx.subscription.findFirst({
-      where: { organisationId, status: { not: "EXPIRED" } },
-      select: { planId: true },
-    });
     return {
       organisationId,
-      overLimit: await overLimitNow(tx, organisationId, live?.planId ?? null),
+      overLimit: await acknowledgeNewOverLimit(
+        tx,
+        organisationId,
+        overBefore,
+        data.acknowledgeOverLimit,
+      ),
     };
   });
   await notifyEntitlementsChanged(result.organisationId);
@@ -670,6 +722,11 @@ export async function removeEntitlementOverride(
       where: { organisationId_featureId: { organisationId, featureId: feature.id } },
     });
     if (!existing) throw notFound();
+    const overBefore = await overLimitNow(
+      tx,
+      organisationId,
+      await entitlingPlanId(tx, organisationId),
+    );
     await tx.organisationFeatureOverride.delete({
       where: { id: existing.id },
       select: { id: true },
@@ -688,13 +745,14 @@ export async function removeEntitlementOverride(
       },
       request: ctx.request,
     });
-    const live = await tx.subscription.findFirst({
-      where: { organisationId, status: { not: "EXPIRED" } },
-      select: { planId: true },
-    });
     return {
       organisationId,
-      overLimit: await overLimitNow(tx, organisationId, live?.planId ?? null),
+      overLimit: await acknowledgeNewOverLimit(
+        tx,
+        organisationId,
+        overBefore,
+        data.acknowledgeOverLimit,
+      ),
     };
   });
   await notifyEntitlementsChanged(result.organisationId);
@@ -704,11 +762,12 @@ export async function removeEntitlementOverride(
 /** Recomputes gauge counters from source tables (no step-up: it only corrects counts). */
 export async function reconcileOrganisationUsage(
   ctx: PlatformContext,
-  organisationPublicId: unknown,
+  input: unknown,
 ): Promise<{ readonly corrected: number }> {
   authorise(ctx, "platform.subscription.manage", false);
+  const data = parse(reconcileSchema, input);
   return inTransaction(async (tx) => {
-    const organisationId = await loadOrganisation(tx, organisationPublicId);
+    const organisationId = await loadOrganisation(tx, data.organisationId);
     const drift = await reconcileUsage(tx, organisationId);
     await recordActorAudit(tx, {
       organisationId,
@@ -720,6 +779,7 @@ export async function reconcileOrganisationUsage(
         drift:
           drift.map((d) => `${d.key}:${d.recorded.toString()}->${d.actual.toString()}`).join(",") ||
           null,
+        reason: data.reason,
       },
       request: ctx.request,
     });

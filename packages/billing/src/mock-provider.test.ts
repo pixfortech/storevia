@@ -28,6 +28,8 @@ const snapshot: ProviderSubscriptionSnapshot = {
   endedAt: null,
 };
 
+const b = (text: string) => Buffer.from(text, "utf8");
+
 const reason = (fn: () => void) => {
   try {
     fn();
@@ -46,12 +48,12 @@ describe("MockBillingProvider webhook verification", () => {
   it("accepts a correctly signed, fresh delivery", () => {
     expect(
       reason(() => {
-        provider.verifyWebhook(rawBody, headers, now);
+        provider.verifyWebhook(b(rawBody), headers, now);
       }),
     ).toBe("ok");
     expect(
       reason(() => {
-        provider.verifyWebhook(rawBody, headers, new Date(now.getTime() + 299_000));
+        provider.verifyWebhook(b(rawBody), headers, new Date(now.getTime() + 299_000));
       }),
     ).toBe("ok");
   });
@@ -59,12 +61,12 @@ describe("MockBillingProvider webhook verification", () => {
   it("rejects stale or future timestamps (replay window of 5 minutes)", () => {
     expect(
       reason(() => {
-        provider.verifyWebhook(rawBody, headers, new Date(now.getTime() + 301_000));
+        provider.verifyWebhook(b(rawBody), headers, new Date(now.getTime() + 301_000));
       }),
     ).toBe("stale_signature");
     expect(
       reason(() => {
-        provider.verifyWebhook(rawBody, headers, new Date(now.getTime() - 301_000));
+        provider.verifyWebhook(b(rawBody), headers, new Date(now.getTime() - 301_000));
       }),
     ).toBe("stale_signature");
   });
@@ -72,18 +74,18 @@ describe("MockBillingProvider webhook verification", () => {
   it("rejects tampered bodies, wrong secrets and malformed headers", () => {
     expect(
       reason(() => {
-        provider.verifyWebhook(`${rawBody} `, headers, now);
+        provider.verifyWebhook(b(`${rawBody} `), headers, now);
       }),
     ).toBe("invalid_signature");
     const other = new MockBillingProvider("another-secret-0123456789abcdef012345");
     expect(
       reason(() => {
-        other.verifyWebhook(rawBody, headers, now);
+        other.verifyWebhook(b(rawBody), headers, now);
       }),
     ).toBe("invalid_signature");
     expect(
       reason(() => {
-        provider.verifyWebhook(rawBody, new Headers(), now);
+        provider.verifyWebhook(b(rawBody), new Headers(), now);
       }),
     ).toBe("missing_signature");
     for (const value of [
@@ -95,7 +97,7 @@ describe("MockBillingProvider webhook verification", () => {
       const h = new Headers({ [MOCK_SIGNATURE_HEADER]: value });
       expect(
         reason(() => {
-          provider.verifyWebhook(rawBody, h, now);
+          provider.verifyWebhook(b(rawBody), h, now);
         }),
       ).toBe("invalid_signature");
     }
@@ -105,8 +107,10 @@ describe("MockBillingProvider webhook verification", () => {
 describe("MockBillingProvider payload parsing", () => {
   it("normalises the wire format", () => {
     const event = provider.parseWebhookEvent(
-      JSON.stringify(
-        toWire("mock_evt_0000-1111", "past_due", now, { ...snapshot, status: "PAST_DUE" }),
+      b(
+        JSON.stringify(
+          toWire("mock_evt_0000-1111", "past_due", now, { ...snapshot, status: "PAST_DUE" }),
+        ),
       ),
     );
     expect(event).toMatchObject({
@@ -140,6 +144,31 @@ describe("MockBillingProvider payload parsing", () => {
       }),
     ],
   ])("rejects %s", (_, body) => {
-    expect(() => provider.parseWebhookEvent(body)).toThrow(WebhookPayloadError);
+    expect(() => provider.parseWebhookEvent(b(body))).toThrow(WebhookPayloadError);
+  });
+});
+
+describe("raw bytes", () => {
+  it("verifies the exact bytes received, not decoded text", () => {
+    const body = Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), Buffer.from('{"a":1}')]); // BOM
+    const headers = new Headers({ [MOCK_SIGNATURE_HEADER]: provider.sign(body, nowSeconds) });
+    expect(
+      reason(() => {
+        provider.verifyWebhook(body, headers, now);
+      }),
+    ).toBe("ok");
+    // The decoded text (BOM stripped) is a different message.
+    const decoded = Buffer.from(new TextDecoder().decode(body));
+    expect(
+      reason(() => {
+        provider.verifyWebhook(decoded, headers, now);
+      }),
+    ).toBe("invalid_signature");
+  });
+
+  it("rejects bodies that are not valid UTF-8", () => {
+    expect(() => provider.parseWebhookEvent(Buffer.from([0x7b, 0xff, 0x7d]))).toThrow(
+      WebhookPayloadError,
+    );
   });
 });

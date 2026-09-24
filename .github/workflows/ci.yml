@@ -83,6 +83,7 @@ jobs:
       DATABASE_MIGRATOR_URL: postgresql://storevia_migrator:ci-migrator@localhost:5432/storevia
       DATABASE_SYSTEM_URL: postgresql://storevia_system:ci-system@localhost:5432/storevia
       DATABASE_PLATFORM_URL: postgresql://storevia_platform:ci-platform@localhost:5432/storevia
+      DATABASE_BILLING_URL: postgresql://storevia_billing:ci-billing@localhost:5432/storevia
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -158,6 +159,7 @@ jobs:
       DATABASE_MIGRATOR_URL: postgresql://storevia_migrator:ci-migrator@localhost:5432/storevia
       DATABASE_SYSTEM_URL: postgresql://storevia_system:ci-system@localhost:5432/storevia
       DATABASE_PLATFORM_URL: postgresql://storevia_platform:ci-platform@localhost:5432/storevia
+      DATABASE_BILLING_URL: postgresql://storevia_billing:ci-billing@localhost:5432/storevia
       DASHBOARD_URL: http://app.localhost:3001
       E2E_BASE_URL: http://app.localhost:3001
       PLATFORM_ADMIN_URL: http://admin.localhost:3003
@@ -167,6 +169,8 @@ jobs:
       AUTH_SECRET: ci-only-auth-secret-not-used-anywhere-else-0000
       AUTH_PLATFORM_SECRET: ci-only-platform-auth-secret-not-used-elsewhere-0000
       MOCK_BILLING_WEBHOOK_SECRET: ci-only-mock-billing-secret-not-used-elsewhere-0000
+      # Production builds must opt in to mock billing explicitly (ADR-0022).
+      BILLING_MOCK_ENABLED: "true"
       EMAIL_TRANSPORT: file
       EMAIL_FILE_DIR: /tmp/storevia-mail
       AUTH_BREACHED_PASSWORD_CHECK: "off"

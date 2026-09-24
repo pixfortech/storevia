@@ -229,7 +229,7 @@ interface BillingProvider {
   }): Promise<ProviderSubscriptionSnapshot>;
   reactivateSubscription(input: { subscriptionRef }): Promise<ProviderSubscriptionSnapshot>;
   getSubscription(subscriptionRef: string): Promise<ProviderSubscriptionSnapshot | null>;
-  verifyWebhook(rawBody: string, headers: Headers, now?: Date): void; // throws on bad/stale signature
+  verifyWebhook(rawBody: Uint8Array, headers: Headers, now?: Date): void; // exact raw bytes; throws on bad/stale signature
   parseWebhookEvent(rawBody: string): NormalisedBillingEvent; // throws on invalid schema
 }
 ```
@@ -270,10 +270,18 @@ enabled, and never in production.
    serialised):
    - Match the customer through `BillingCustomer`. If it's unknown, mark the
      event `IGNORED (unknown_subscription)`.
-   - If the snapshot version ≤ `Subscription.providerSyncedAt`, mark it
-     `IGNORED (stale)`. Out-of-order delivery converges to the newest state.
+   - If the snapshot version is older than `Subscription.providerSyncedAt`,
+     mark it `IGNORED (stale)`. Equal versions apply in arrival order
+     (ADR-0022 A3).
+   - A provider subscription seen for the first time is recorded in the state
+     the provider reports, even `CANCELLED` or `EXPIRED` (a tombstone). It
+     replaces the live subscription only if its snapshot is newer than the
+     live one's last change. So out-of-order delivery converges to the newest
+     state whichever event arrives first (A1, A2).
+   - Events for `ARCHIVED` plans are `IGNORED (archived_plan)` (A4).
    - Reject illegal transitions with `IGNORED (illegal_transition)` and log a
-     warning.
+     warning. This includes reactivating a cancelled subscription whose access
+     has ended (A5).
    - Otherwise call the Subscription Service. It writes `Subscription`,
      `SubscriptionEvent` and `AuditLog` (`actorType = SYSTEM`), and the ledger
      row becomes `PROCESSED`.
@@ -296,17 +304,17 @@ Staff manage `MANUAL` subscriptions and overrides in the platform-admin app
 including `OWNER`, have **no path** to assign or change plans. The dashboard
 billing page is informational.
 
-| Operation                           | Platform permission                    | Allowed from                     |
-| ----------------------------------- | -------------------------------------- | -------------------------------- |
-| Assign plan (new subscription)      | `platform.subscription.manage`         | no live subscription             |
-| Start trial                         | `platform.subscription.manage`         | no live subscription             |
-| Change plan / interval / expiry     | `platform.subscription.manage`         | live `MANUAL` subscription       |
-| Activate                            | `platform.subscription.manage`         | `TRIAL`, `PAST_DUE`, `CANCELLED` |
-| Cancel (access until a chosen date) | `platform.subscription.manage`         | `TRIAL`, `ACTIVE`, `PAST_DUE`    |
-| Expire now                          | `platform.subscription.manage`         | any live `MANUAL` subscription   |
-| Add / change / remove override      | `platform.entitlement_override.manage` | any organisation                 |
-| Recalculate usage                   | `platform.subscription.manage`         | any organisation                 |
-| Simulate mock provider events       | `platform.billing.simulate` + env gate | non-production only (§6)         |
+| Operation                           | Platform permission                                            | Allowed from                                                                                      |
+| ----------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Assign plan (new subscription)      | `platform.subscription.manage`                                 | no live subscription                                                                              |
+| Start trial                         | `platform.subscription.manage`                                 | no live subscription                                                                              |
+| Change plan / interval / expiry     | `platform.subscription.manage`                                 | live `MANUAL` subscription                                                                        |
+| Activate                            | `platform.subscription.manage`                                 | `TRIAL`, `PAST_DUE`, `CANCELLED`                                                                  |
+| Cancel (access until a chosen date) | `platform.subscription.manage`                                 | `TRIAL`, `ACTIVE`, `PAST_DUE`                                                                     |
+| Expire now                          | `platform.subscription.manage`                                 | any live `MANUAL` subscription, or a provider-managed one that no longer grants entitlements (A9) |
+| Add / change / remove override      | `platform.entitlement_override.manage`                         | any organisation                                                                                  |
+| Recalculate usage                   | `platform.subscription.manage`                                 | any organisation                                                                                  |
+| Simulate mock provider events       | `platform.billing.simulate` + env gate + step-up + reason (A6) | non-production only (§6)                                                                          |
 
 Platform roles: `SUPER_ADMIN` and `BILLING` hold the manage permissions.
 `OPERATIONS`, `SUPPORT` and `READ_ONLY` can read. `OPERATIONS` may also
@@ -325,7 +333,10 @@ Every manual operation requires:
 6. a `SubscriptionEvent` (for subscription changes);
 7. `onEntitlementsChanged(organisationId)` after commit.
 
-Steps 5 and 6 are written in the same transaction as the change.
+Steps 5 and 6 are written in the same transaction as the change. Usage
+recalculation also needs a reason, but no step-up (it only corrects counts).
+An override change that newly puts the organisation over a limit needs the
+same acknowledgement as a downgrade (A10).
 
 Manual fields: plan, status (`TRIAL` or `ACTIVE` on assignment), billing
 interval (monthly, annual or none), trial start and end, subscription start
@@ -343,8 +354,10 @@ and notes.
   every event to `ingestBillingWebhook`, the pipeline in §4. **The simulator
   never writes subscription or entitlement state.**
 - The provider registry enables the mock only when `STOREVIA_ENV` is
-  `development` or `test`, or `staging` with `BILLING_MOCK_ENABLED=true`. It
-  can't be enabled in `preview` or `production`. When the mock is disabled,
+  `development` or `test`, or `staging` with `BILLING_MOCK_ENABLED=true`.
+  Production builds (`NODE_ENV=production`) need `BILLING_MOCK_ENABLED=true`
+  in every stage (A7). The mock can't be enabled in `preview` or
+  `production`. When the mock is disabled,
   the simulation page, its server actions and the mock webhook route all
   answer 404 (a server-side check, not hidden UI).
 - `MOCK_BILLING_WEBHOOK_SECRET` signs mock events. It isn't a payment secret,

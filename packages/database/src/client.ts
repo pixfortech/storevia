@@ -1,12 +1,13 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./generated/prisma/client";
 
-export type DatabaseRole = "app" | "system" | "platform";
+export type DatabaseRole = "app" | "system" | "platform" | "billing";
 
 const URL_ENV: Record<DatabaseRole, string> = {
   app: "DATABASE_URL",
   system: "DATABASE_SYSTEM_URL",
   platform: "DATABASE_PLATFORM_URL",
+  billing: "DATABASE_BILLING_URL",
 };
 
 // One client (and pg pool) per role per process. Cached on globalThis so that

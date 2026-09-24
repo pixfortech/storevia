@@ -15,7 +15,7 @@ const B = {
   org: "0190f2a4-0000-7000-8000-0000000010b1",
 };
 
-const clients: Record<"app" | "platform" | "system", pg.Client> = {} as never;
+const clients: Record<"app" | "platform" | "system" | "billing", pg.Client> = {} as never;
 let starter: string;
 let storeCount: string;
 let customDomain: string;
@@ -59,11 +59,12 @@ const insertSubscription = (
 };
 
 beforeAll(async () => {
-  for (const role of ["app", "platform", "system"] as const) {
+  for (const role of ["app", "platform", "system", "billing"] as const) {
     const url = {
       app: "DATABASE_URL",
       platform: "DATABASE_PLATFORM_URL",
       system: "DATABASE_SYSTEM_URL",
+      billing: "DATABASE_BILLING_URL",
     }[role];
     clients[role] = new pg.Client({ connectionString: process.env[url] });
     await clients[role].connect();
@@ -276,6 +277,45 @@ describe("platform and system roles", () => {
       );
       await expectDbError(
         inTx(clients[role], (c) => c.query(`DELETE FROM "SubscriptionEvent"`)),
+        /permission denied/,
+      );
+    }
+  });
+
+  it("the system role (shared with the dashboard's auth path) can't read or write billing state", async () => {
+    await expectDbError(
+      inTx(clients.system, (c) => c.query(`SELECT id FROM "Subscription"`)),
+      /permission denied/,
+    );
+    await expectDbError(
+      inTx(clients.system, (c) =>
+        c.query(`UPDATE "Subscription" SET status = 'ACTIVE' WHERE id = $1`, [subA]),
+      ),
+      /permission denied/,
+    );
+    await expectDbError(
+      inTx(clients.system, (c) => c.query(`SELECT id FROM "BillingWebhookEvent"`)),
+      /permission denied/,
+    );
+  });
+
+  it("the billing role is limited to billing tables", async () => {
+    await inTx(clients.billing, (c) =>
+      c.query(`UPDATE "Subscription" SET "billingInterval" = 'YEAR' WHERE id = $1`, [subA]),
+    );
+    for (const sql of [
+      `SELECT id FROM "User"`,
+      `SELECT id FROM "Membership"`,
+      `SELECT id FROM "Store"`,
+      `SELECT id FROM "Session"`,
+      `SELECT id FROM "OrganisationFeatureOverride"`,
+      `UPDATE "Subscription" SET source = 'MOCK'`,
+      `UPDATE "Subscription" SET "organisationId" = "organisationId"`,
+      `UPDATE "SubscriptionEvent" SET reason = 'x'`,
+      `UPDATE "UsageCounter" SET value = 0`,
+    ]) {
+      await expectDbError(
+        inTx(clients.billing, (c) => c.query(sql)),
         /permission denied/,
       );
     }

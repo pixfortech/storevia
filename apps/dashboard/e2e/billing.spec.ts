@@ -220,11 +220,13 @@ test("mock billing events flow through the webhook pipeline", async () => {
   const form = staff.getByTestId("simulation-form");
   await form.getByLabel("Event").selectOption("created");
   await form.getByLabel(/^Plan/).selectOption("business");
+  await form.getByLabel("Reason").fill("E2E simulation");
   await form.getByRole("button", { name: "Send event" }).click();
   await expect(form).toContainText("Webhook processed");
   await expect(staff.getByTestId("subscription-source")).toHaveText("Mock billing");
 
   await form.getByLabel("Event").selectOption("past_due");
+  await form.getByLabel("Reason").fill("E2E simulation");
   await form.getByRole("button", { name: "Send event" }).click();
   await expect(staff.getByTestId("subscription-status")).toHaveText("Past due");
   await merchant.goto(`${A.orgPath}/billing`);
@@ -238,6 +240,7 @@ test("mock billing events flow through the webhook pipeline", async () => {
     ["out_of_order", "Webhook ignored (stale)"],
   ] as const) {
     await form.getByLabel("Event").selectOption(kind);
+    await form.getByLabel("Reason").fill("E2E simulation");
     await form.getByRole("button", { name: "Send event" }).click();
     await expect(form, kind).toContainText(expected);
   }

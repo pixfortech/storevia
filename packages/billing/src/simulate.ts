@@ -2,7 +2,13 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { platformDb } from "@storevia/database/platform";
 import { parsePublicId, recordActorAudit } from "@storevia/tenancy";
-import { requirePlatformPermission, type PlatformContext } from "@storevia/tenancy/platform";
+import {
+  hasPlatformPermission,
+  requirePlatformPermission,
+  requirePlatformStepUp,
+  type PlatformContext,
+} from "@storevia/tenancy/platform";
+import { fieldErrors } from "@storevia/validation";
 import { DomainError, notFound } from "@storevia/types";
 import { z } from "zod";
 import { MOCK_GRACE_DAYS, periodLength, toWire, type MockBillingProvider } from "./mock-provider";
@@ -46,6 +52,11 @@ export const simulationSchema = z.object({
   planKey: z.string().max(40).optional(),
   billingInterval: z.enum(["MONTH", "YEAR"]).default("MONTH"),
   trialDays: z.coerce.number().int().min(0).max(90).default(0),
+  reason: z
+    .string()
+    .trim()
+    .min(3, "Give a reason (at least 3 characters).")
+    .max(500, "Keep the reason under 500 characters."),
 });
 
 export interface SimulationResult extends IngestResult {
@@ -164,9 +175,29 @@ export async function simulateMockBillingEvent(
   requirePlatformPermission(ctx, "platform.billing.simulate");
   const mock = getMockProvider();
   if (!mock) throw notFound(); // never available in production
+  // Simulated events change real subscription state: same bar as manual changes.
+  requirePlatformStepUp(ctx);
   const parsed = simulationSchema.safeParse(input);
-  if (!parsed.success) throw new DomainError("VALIDATION_FAILED", "Choose a simulation.");
+  if (!parsed.success) {
+    throw new DomainError(
+      "VALIDATION_FAILED",
+      "Please correct the highlighted fields.",
+      fieldErrors(parsed.error),
+    );
+  }
   const data = parsed.data;
+  if (["created", "upgraded", "downgraded"].includes(data.kind)) {
+    const plan = data.planKey
+      ? await platformDb().plan.findUnique({
+          where: { key: data.planKey },
+          select: { status: true },
+        })
+      : null;
+    if (plan?.status !== "ACTIVE")
+      throw new DomainError("VALIDATION_FAILED", "Choose an available plan.", {
+        planKey: "Choose an available plan.",
+      });
+  }
   const organisationId = parsePublicId("organisation", data.organisationId);
   const org = await platformDb().organisation.findUnique({
     where: { id: organisationId },
@@ -177,6 +208,20 @@ export async function simulateMockBillingEvent(
   const requestId = ctx.request.requestId;
   let outcome: IngestResult;
 
+  // Who triggered the simulation is recorded before anything is delivered,
+  // so a state change can never exist without its staff attribution.
+  await platformDb().$transaction(async (tx) => {
+    await recordActorAudit(tx, {
+      organisationId,
+      actorType: "PLATFORM_STAFF",
+      actorId: ctx.userId,
+      action: "billing.simulation.requested",
+      entity: { type: "Organisation", id: organisationId },
+      metadata: { eventType: data.kind, plan: data.planKey ?? null, reason: data.reason },
+      request: ctx.request,
+    });
+  });
+
   switch (data.kind) {
     case "created": {
       const plan = data.planKey
@@ -185,7 +230,7 @@ export async function simulateMockBillingEvent(
             select: { key: true, status: true },
           })
         : null;
-      if (plan?.status !== "ACTIVE")
+      if (!plan)
         throw new DomainError("VALIDATION_FAILED", "Choose a plan.", { planKey: "Choose a plan." });
       const live = await platformDb().subscription.findFirst({
         where: { organisationId, status: { not: "EXPIRED" }, source: "MOCK" },
@@ -195,6 +240,17 @@ export async function simulateMockBillingEvent(
         throw new DomainError(
           "CONFLICT",
           "This organisation already has a live mock subscription.",
+        );
+      // A new provider subscription supersedes a live manual contract; only
+      // staff who may manage subscriptions can cause that.
+      const manual = await platformDb().subscription.findFirst({
+        where: { organisationId, status: { not: "EXPIRED" }, source: { not: "MOCK" } },
+        select: { id: true },
+      });
+      if (manual && !hasPlatformPermission(ctx, "platform.subscription.manage"))
+        throw new DomainError(
+          "FORBIDDEN",
+          "This organisation has a live manual subscription. Ask billing staff to expire it first.",
         );
       // The provider-side customer, recorded on our side (as a checkout would).
       let customer = await platformDb().billingCustomer.findUnique({
@@ -286,13 +342,13 @@ export async function simulateMockBillingEvent(
     }
   }
 
-  // Who triggered the simulation, and what the pipeline did with it.
+  // What the pipeline did with it.
   await platformDb().$transaction(async (tx) => {
     await recordActorAudit(tx, {
       organisationId,
       actorType: "PLATFORM_STAFF",
       actorId: ctx.userId,
-      action: "billing.simulation.sent",
+      action: "billing.simulation.delivered",
       entity: { type: "Organisation", id: organisationId },
       metadata: {
         eventType: data.kind,

@@ -1,6 +1,6 @@
 import "server-only";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import { systemDb } from "@storevia/database/system";
+import { billingDb } from "@storevia/database/billing";
 import { z } from "zod";
 import {
   WebhookPayloadError,
@@ -126,10 +126,8 @@ export class MockBillingProvider implements BillingProvider {
 
   // --- signing (the mock's "server side") ---------------------------------------
 
-  sign(rawBody: string, timestamp: number = Math.floor(Date.now() / 1000)): string {
-    const mac = createHmac("sha256", this.secret)
-      .update(`${String(timestamp)}.${rawBody}`)
-      .digest("hex");
+  sign(rawBody: string | Uint8Array, timestamp: number = Math.floor(Date.now() / 1000)): string {
+    const mac = this.mac(rawBody, timestamp).toString("hex");
     return `t=${String(timestamp)},v1=${mac}`;
   }
 
@@ -148,7 +146,14 @@ export class MockBillingProvider implements BillingProvider {
 
   // --- BillingProvider ----------------------------------------------------------
 
-  verifyWebhook(rawBody: string, headers: Headers, now: Date = new Date()): void {
+  private mac(rawBody: string | Uint8Array, timestamp: number): Buffer {
+    return createHmac("sha256", this.secret)
+      .update(`${String(timestamp)}.`)
+      .update(typeof rawBody === "string" ? Buffer.from(rawBody, "utf8") : rawBody)
+      .digest();
+  }
+
+  verifyWebhook(rawBody: Uint8Array, headers: Headers, now: Date = new Date()): void {
     const header = headers.get(MOCK_SIGNATURE_HEADER);
     if (!header) throw new WebhookVerificationError("missing_signature");
     const parts = new Map(
@@ -162,9 +167,7 @@ export class MockBillingProvider implements BillingProvider {
     if (!Number.isInteger(timestamp) || !/^[0-9a-f]{64}$/.test(given)) {
       throw new WebhookVerificationError("invalid_signature");
     }
-    const expected = createHmac("sha256", this.secret)
-      .update(`${String(timestamp)}.${rawBody}`)
-      .digest();
+    const expected = this.mac(rawBody, timestamp);
     if (!timingSafeEqual(expected, Buffer.from(given, "hex"))) {
       throw new WebhookVerificationError("invalid_signature");
     }
@@ -174,10 +177,10 @@ export class MockBillingProvider implements BillingProvider {
     }
   }
 
-  parseWebhookEvent(rawBody: string): NormalisedBillingEvent {
+  parseWebhookEvent(rawBody: Uint8Array): NormalisedBillingEvent {
     let json: unknown;
     try {
-      json = JSON.parse(rawBody);
+      json = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(rawBody));
     } catch {
       throw new WebhookPayloadError();
     }
@@ -257,7 +260,7 @@ export class MockBillingProvider implements BillingProvider {
   }
 
   async getSubscription(subscriptionRef: string): Promise<ProviderSubscriptionSnapshot | null> {
-    const db = systemDb();
+    const db = billingDb();
     const sub = await db.subscription.findUnique({
       where: {
         provider_providerSubscriptionId: {

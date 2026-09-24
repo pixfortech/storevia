@@ -100,7 +100,13 @@ const simulate = (
   kind: Simulation,
   extra: Record<string, unknown> = {},
   ctx: PlatformContext = admin,
-) => simulateMockBillingEvent(ctx, { organisationId: orgPublic(orgId), kind, ...extra });
+) =>
+  simulateMockBillingEvent(ctx, {
+    organisationId: orgPublic(orgId),
+    kind,
+    reason: "Simulation test",
+    ...extra,
+  });
 
 function storeInput(slug: string) {
   return {
@@ -455,11 +461,23 @@ describe("entitlement overrides", () => {
       where: { organisationId: orgId },
       data: { value: 7n },
     });
-    expect(await reconcileOrganisationUsage(admin, orgPublic(orgId))).toEqual({ corrected: 1 });
+    await expectCode(
+      reconcileOrganisationUsage(admin, { organisationId: orgPublic(orgId) }),
+      "VALIDATION_FAILED",
+    );
+    expect(
+      await reconcileOrganisationUsage(admin, {
+        organisationId: orgPublic(orgId),
+        reason: "Support ticket",
+      }),
+    ).toEqual({ corrected: 1 });
     const audit = await migratorDb().auditLog.findFirst({
       where: { action: "billing.usage.reconciled" },
     });
-    expect(audit?.metadata).toMatchObject({ drift: "staff_accounts:7->1" });
+    expect(audit?.metadata).toMatchObject({
+      drift: "staff_accounts:7->1",
+      reason: "Support ticket",
+    });
   });
 });
 
@@ -522,7 +540,7 @@ describe("mock billing through the webhook pipeline", () => {
     // Staff who triggered each simulation are on the audit trail.
     expect(
       await migratorDb().auditLog.count({
-        where: { action: "billing.simulation.sent", actorId: admin.userId },
+        where: { action: "billing.simulation.requested", actorId: admin.userId },
       }),
     ).toBe(10);
   });
@@ -757,11 +775,25 @@ describe("environment safety", () => {
     ["production", "true", false],
     [undefined, "true", false],
   ])("STOREVIA_ENV=%s BILLING_MOCK_ENABLED=%s → %s", (stage, flag, enabled) => {
-    const env: NodeJS.ProcessEnv = {};
+    const env: NodeJS.ProcessEnv = { NODE_ENV: "development" };
     if (stage) env["STOREVIA_ENV"] = stage;
     if (flag) env["BILLING_MOCK_ENABLED"] = flag;
     expect(isMockBillingEnabled(env)).toBe(enabled);
   });
+
+  it.each([
+    ["development", undefined, false],
+    ["test", undefined, false],
+    ["development", "true", true],
+    ["production", "true", false],
+  ])(
+    "a production build with STOREVIA_ENV=%s BILLING_MOCK_ENABLED=%s → %s",
+    (stage, flag, enabled) => {
+      const env: NodeJS.ProcessEnv = { NODE_ENV: "production", STOREVIA_ENV: stage };
+      if (flag) env["BILLING_MOCK_ENABLED"] = flag;
+      expect(isMockBillingEnabled(env)).toBe(enabled);
+    },
+  );
 
   it("in production the mock provider, its webhook route and the simulator do not exist", async () => {
     const mock = getMockProvider();
@@ -820,5 +852,230 @@ describe("expiry sweep", () => {
       },
     });
     expect(await sweepSubscriptionExpiry()).toEqual({ expired: 0 });
+  });
+});
+
+// Regressions for the Milestone 2 independent security review.
+describe("security review regressions", () => {
+  async function mockCustomer() {
+    const mock = getMockProvider();
+    if (!mock) throw new Error("mock disabled");
+    const customer = await mock.createCustomer({ organisationId: orgId, name: "Acme" });
+    await migratorDb().billingCustomer.create({
+      data: { organisationId: orgId, provider: "MOCK", providerCustomerId: customer.customerRef },
+    });
+    return { mock, customer };
+  }
+
+  async function deliverAll(
+    mock: NonNullable<ReturnType<typeof getMockProvider>>,
+    payloads: unknown[],
+  ): Promise<string[]> {
+    const outcomes: string[] = [];
+    for (const payload of payloads) {
+      const { rawBody, headers } = mock.deliver(payload);
+      const r = await ingestBillingWebhook("MOCK", rawBody, headers);
+      outcomes.push(`${r.outcome}${r.detail ? `:${r.detail}` : ""}`);
+    }
+    return outcomes;
+  }
+
+  it("expired delivered before created converges to EXPIRED (finding 1A)", async () => {
+    const { mock, customer } = await mockCustomer();
+    const t0 = Date.now() - 60_000;
+    const created = await mock.createSubscription({
+      ...customer,
+      planKey: "business",
+      interval: "MONTH",
+      trialDays: 0,
+    });
+    const expired = { ...created, status: "EXPIRED" as const, endedAt: new Date(t0 + 5000) };
+    const outcomes = await deliverAll(mock, [
+      toWire(mock.newEventId(), "expired", new Date(t0 + 5000), expired),
+      toWire(mock.newEventId(), "created", new Date(t0), created),
+    ]);
+    expect(outcomes).toEqual(["processed", "ignored:stale"]);
+    expect(await live()).toBeNull();
+    expect(await limit()).toBe(1n);
+  });
+
+  it("cancelled delivered before created keeps the cancellation (finding 1A)", async () => {
+    const { mock, customer } = await mockCustomer();
+    const t0 = Date.now() - 60_000;
+    const created = await mock.createSubscription({
+      ...customer,
+      planKey: "business",
+      interval: "MONTH",
+      trialDays: 0,
+    });
+    const cancelled = {
+      ...created,
+      status: "CANCELLED" as const,
+      cancelledAt: new Date(t0 + 5000),
+      accessEndsAt: new Date(Date.now() + 5 * DAY),
+    };
+    const outcomes = await deliverAll(mock, [
+      toWire(mock.newEventId(), "cancelled", new Date(t0 + 5000), cancelled),
+      toWire(mock.newEventId(), "created", new Date(t0), created),
+    ]);
+    expect(outcomes).toEqual(["processed", "ignored:stale"]);
+    expect((await live())?.status).toBe("CANCELLED");
+  });
+
+  it("a delayed event for an older provider subscription can't replace a newer one (finding 1B)", async () => {
+    const { mock, customer } = await mockCustomer();
+    const t0 = Date.now() - 60_000;
+    const older = await mock.createSubscription({
+      ...customer,
+      planKey: "starter",
+      interval: "MONTH",
+      trialDays: 0,
+    });
+    const newer = await mock.createSubscription({
+      ...customer,
+      planKey: "business",
+      interval: "MONTH",
+      trialDays: 0,
+    });
+    const outcomes = await deliverAll(mock, [
+      toWire(mock.newEventId(), "created", new Date(t0 + 5000), newer),
+      toWire(mock.newEventId(), "created", new Date(t0), older),
+    ]);
+    expect(outcomes).toEqual(["processed", "ignored:stale"]);
+    expect((await live())?.providerSubscriptionId).toBe(newer.subscriptionRef);
+    expect(await limit()).toBe(3n);
+  });
+
+  it("simulations need step-up and a reason (finding 2)", async () => {
+    await expectCode(
+      simulate("created", { planKey: "business" }, await staff("BILLING", { stepUp: false })),
+      "REAUTHENTICATION_REQUIRED",
+    );
+    await expectCode(simulate("created", { planKey: "business", reason: "" }), "VALIDATION_FAILED");
+    expect(await live()).toBeNull();
+    expect(
+      await migratorDb().auditLog.count({
+        where: { action: { startsWith: "billing.simulation" } },
+      }),
+    ).toBe(0);
+  });
+
+  it("OPERATIONS can't replace a manual subscription through the simulator (finding 2)", async () => {
+    await assign({ planKey: "enterprise" });
+    await expectCode(
+      simulate("created", { planKey: "starter" }, await staff("OPERATIONS")),
+      "FORBIDDEN",
+    );
+    expect(await live()).toMatchObject({ source: "MANUAL", status: "ACTIVE" });
+  });
+
+  it("simulated plan changes must use available plans; the pipeline refuses archived plans (finding 2)", async () => {
+    await simulate("created", { planKey: "business" });
+    await migratorDb().plan.update({ where: { key: "enterprise" }, data: { status: "ARCHIVED" } });
+    try {
+      await expectCode(simulate("upgraded", { planKey: "enterprise" }), "VALIDATION_FAILED");
+      const sub = await live();
+      const mock = getMockProvider();
+      const snapshot = await mock?.getSubscription(sub?.providerSubscriptionId ?? "");
+      if (!mock || !snapshot) throw new Error("setup");
+      const { rawBody, headers } = mock.deliver(
+        toWire(mock.newEventId(), "upgraded", new Date(), { ...snapshot, planKey: "enterprise" }),
+      );
+      expect(await ingestBillingWebhook("MOCK", rawBody, headers)).toMatchObject({
+        outcome: "ignored",
+        detail: "archived_plan",
+      });
+      expect(await limit()).toBe(3n);
+    } finally {
+      await migratorDb().plan.update({ where: { key: "enterprise" }, data: { status: "ACTIVE" } });
+    }
+  });
+
+  it("staff can expire a provider subscription that no longer grants anything (finding 4)", async () => {
+    await simulate("created", { planKey: "business" });
+    const sub = await live();
+    const input = {
+      organisationId: orgPublic(orgId),
+      subscriptionId: subPublic(sub?.id ?? ""),
+      reason: "Final event lost",
+    };
+    await expectCode(expireSubscription(admin, input), "CONFLICT"); // still entitling
+    await migratorDb().subscription.update({
+      where: { id: sub?.id ?? "" },
+      data: {
+        status: "CANCELLED",
+        cancelledAt: new Date(Date.now() - 40 * DAY),
+        expiresAt: new Date(Date.now() - 10 * DAY),
+      },
+    });
+    await expireSubscription(admin, input);
+    expect(await live()).toBeNull();
+    await assign(); // the organisation is no longer stuck
+  });
+
+  it("a cancelled subscription can't be reactivated after access ended (finding 9)", async () => {
+    await assign();
+    let sub = await live();
+    const base = {
+      organisationId: orgPublic(orgId),
+      subscriptionId: subPublic(sub?.id ?? ""),
+      reason: "Test",
+    };
+    await cancelSubscription(admin, {
+      ...base,
+      accessEndsAt: new Date(Date.now() + DAY).toISOString(),
+    });
+    await migratorDb().subscription.update({
+      where: { id: sub?.id ?? "" },
+      data: { expiresAt: new Date(Date.now() - 1000) },
+    });
+    await expectCode(activateSubscription(admin, base), "CONFLICT");
+
+    // The same rule applies to provider events.
+    await expireSubscription(admin, { ...base, acknowledgeOverLimit: true });
+    await simulate("created", { planKey: "business" });
+    await simulate("cancelled");
+    sub = await live();
+    await migratorDb().subscription.update({
+      where: { id: sub?.id ?? "" },
+      data: { expiresAt: new Date(Date.now() - 1000) },
+    });
+    expect(await simulate("reactivated")).toMatchObject({
+      outcome: "ignored",
+      detail: "illegal_transition",
+    });
+  });
+
+  it("an override that newly puts the organisation over a limit needs acknowledgement (finding 8)", async () => {
+    await assign();
+    const orgCtx = await requireOrganisationAccess(owner, orgPublic(orgId));
+    for (const slug of ["ovr-one", "ovr-two"]) await createStore(orgCtx, storeInput(slug));
+    const input = {
+      organisationId: orgPublic(orgId),
+      featureKey: "store_count",
+      mode: "limit",
+      limit: "1",
+      reason: "Contract",
+    };
+    await expectCode(setEntitlementOverride(admin, input), "CONFLICT");
+    expect(await limit()).toBe(3n); // rolled back
+    const result = await setEntitlementOverride(admin, { ...input, acknowledgeOverLimit: "on" });
+    expect(result.overLimit.map((l) => l.key)).toEqual(["store_count"]);
+    expect(await limit()).toBe(1n);
+    expect(await migratorDb().store.count({ where: { organisationId: orgId } })).toBe(2);
+  });
+
+  it("a simulation is attributed to its staff member before delivery (finding 8)", async () => {
+    await simulate("created", { planKey: "business" });
+    const actions = (
+      await migratorDb().auditLog.findMany({
+        where: { organisationId: orgId, action: { startsWith: "billing.simulation" } },
+        orderBy: { createdAt: "asc" },
+      })
+    ).map((a) => [a.action, a.actorId]);
+    expect(actions).toEqual([
+      ["billing.simulation.requested", admin.userId],
+      ["billing.simulation.delivered", admin.userId],
+    ]);
   });
 });

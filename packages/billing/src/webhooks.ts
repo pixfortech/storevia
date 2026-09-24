@@ -1,6 +1,6 @@
 import "server-only";
 import type { Prisma, TenantTx } from "@storevia/database";
-import { systemDb } from "@storevia/database/system";
+import { billingDb } from "@storevia/database/billing";
 import { createLogger, errorFields, recordMetric } from "@storevia/observability";
 import { isDomainError } from "@storevia/types";
 import { notifyEntitlementsChanged } from "./events";
@@ -11,13 +11,13 @@ import {
   type NormalisedBillingEvent,
 } from "./provider";
 import { getBillingProvider } from "./registry";
-import { canTransition } from "./state-machine";
 import {
   applySubscriptionChange,
   assertStateInvariants,
   lockLiveSubscription,
   lockSubscription,
   stateOf,
+  transitionAllowed,
   type BillingProviderKey,
   type SubscriptionState,
 } from "./subscriptions";
@@ -170,9 +170,11 @@ async function apply(
 
   const plan = await tx.plan.findUnique({
     where: { key: event.snapshot.planKey },
-    select: { id: true, key: true },
+    select: { id: true, key: true, status: true },
   });
   if (!plan) return ignore("unknown_plan", organisationId);
+  // LEGACY plans keep existing subscribers; ARCHIVED plans are retired.
+  if (plan.status === "ARCHIVED") return ignore("archived_plan", organisationId);
   const next = stateFromSnapshot(event, plan.id);
   // Validate before any write, so an invalid snapshot never half-applies
   // (e.g. superseding the live subscription and then failing).
@@ -196,32 +198,40 @@ async function apply(
   };
 
   if (!existing) {
-    if (next.status === "EXPIRED") return ignore("unknown_subscription", organisationId);
-    if (!canTransition(null, next.status)) return ignore("illegal_transition", organisationId);
-    // A new provider subscription supersedes whatever is live (e.g. a
-    // manual trial converting to a paid subscription). ADR-0022 §1.
-    const live = await lockLiveSubscription(tx, organisationId);
-    if (live) {
-      const livePlan = await tx.plan.findUniqueOrThrow({
-        where: { id: live.planId },
-        select: { key: true },
-      });
-      await applySubscriptionChange(tx, {
-        organisationId,
-        current: live,
-        next: { ...stateOf(live), status: "EXPIRED", endedAt: event.occurredAt },
-        eventType: "superseded",
-        auditAction: "billing.subscription.superseded",
-        actor,
-        reason: `Replaced by a ${event.provider.toLowerCase()} subscription`,
-        providerEventId: event.eventId,
-        occurredAt: event.occurredAt,
-        planKeys: { before: livePlan.key, after: livePlan.key },
-      });
+    // First observation of this provider subscription (ADR-0022 amendment
+    // A1): mirror it in whatever state the provider reports, so the row
+    // orders later deliveries. An EXPIRED first observation is a tombstone:
+    // an older "created" arriving afterwards is then ignored as stale.
+    if (next.status !== "EXPIRED") {
+      const live = await lockLiveSubscription(tx, organisationId);
+      if (live) {
+        // Only a newer snapshot may replace what is live (e.g. a manual
+        // trial converting to a paid subscription). A delayed event for an
+        // older provider subscription must not win.
+        const liveVersion = live.providerSyncedAt ?? live.updatedAt;
+        if (event.snapshotVersion <= liveVersion) return ignore("stale", organisationId);
+        const livePlan = await tx.plan.findUniqueOrThrow({
+          where: { id: live.planId },
+          select: { key: true },
+        });
+        await applySubscriptionChange(tx, {
+          organisationId,
+          current: live,
+          next: { ...stateOf(live), status: "EXPIRED", endedAt: event.occurredAt },
+          eventType: "superseded",
+          auditAction: "billing.subscription.superseded",
+          actor,
+          reason: `Replaced by a ${event.provider.toLowerCase()} subscription`,
+          providerEventId: event.eventId,
+          occurredAt: event.occurredAt,
+          planKeys: { before: livePlan.key, after: livePlan.key },
+        });
+      }
     }
     await applySubscriptionChange(tx, {
       ...common,
       current: null,
+      mirror: true,
       origin: {
         source: sourceOf(event.provider),
         provider: event.provider,
@@ -230,7 +240,7 @@ async function apply(
       planKeys: { before: null, after: plan.key },
     });
   } else {
-    if (!canTransition(existing.status, next.status))
+    if (!transitionAllowed(existing, next.status, event.occurredAt))
       return ignore("illegal_transition", organisationId);
     const before = await tx.plan.findUniqueOrThrow({
       where: { id: existing.planId },
@@ -253,12 +263,13 @@ async function apply(
  */
 export async function ingestBillingWebhook(
   providerKey: string,
-  rawBody: string,
+  body: string | Uint8Array,
   headers: Headers,
   options: { readonly now?: Date; readonly requestId?: string } = {},
 ): Promise<IngestResult> {
   const provider: BillingProvider | null = getBillingProvider(providerKey);
   if (!provider) return result("not_found");
+  const rawBody = typeof body === "string" ? Buffer.from(body, "utf8") : body;
 
   try {
     provider.verifyWebhook(rawBody, headers, options.now);
@@ -289,14 +300,14 @@ export async function ingestBillingWebhook(
     throw error;
   }
 
-  const db = systemDb();
+  const db = billingDb();
   await db.billingWebhookEvent.createMany({
     data: [
       {
         provider: event.provider,
         providerEventId: event.eventId,
         type: event.type,
-        payload: JSON.parse(rawBody) as Prisma.InputJsonValue,
+        payload: JSON.parse(new TextDecoder().decode(rawBody)) as Prisma.InputJsonValue,
       },
     ],
     skipDuplicates: true,

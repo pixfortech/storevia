@@ -15,12 +15,15 @@ import {
 import { revalidatePath } from "next/cache";
 import { formObject, runAction, type ActionState } from "@/lib/action";
 import { requireActionStaff } from "@/lib/auth";
+import { registerEntitlementListeners } from "@/lib/billing-events";
 import { formatLimit } from "@/lib/format";
 
 // Every action resolves the staff member again (PlatformStaff is re-read on
 // each request) and passes untrusted form input to the billing services,
 // which check the platform permission, step-up and reason themselves.
 // `orgId` is a bound argument from the page: untrusted, parsed by the service.
+
+registerEntitlementListeners();
 
 type Fields = Record<string, string>;
 
@@ -159,10 +162,14 @@ export async function removeOverrideAction(
 export async function reconcileUsageAction(
   orgId: string,
   _prev: ActionState,
+  formData: FormData,
 ): Promise<ActionState> {
   return runAction(async () => {
     const ctx = await requireActionStaff();
-    const { corrected } = await reconcileOrganisationUsage(ctx, orgId);
+    const { corrected } = await reconcileOrganisationUsage(ctx, {
+      ...formObject(formData),
+      organisationId: orgId,
+    });
     refresh(orgId);
     return {
       ok: true,

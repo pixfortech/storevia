@@ -181,13 +181,14 @@ CREATE POLICY tenant_isolation ON "Product"
 
 ### 5.3 Database roles
 
-| Role                      | Used by                                                       | RLS                       | Privileges                                                                                                                                                                                                                                                                                         |
-| ------------------------- | ------------------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `storevia_migrator`       | Migrations and reference seeds (CI/CD job, `pnpm db:migrate`) | `BYPASSRLS` (table owner) | Owns the schema; DDL. Owns the few `SECURITY DEFINER` helper functions                                                                                                                                                                                                                             |
-| `storevia_app`            | dashboard, storefront, worker tenant jobs                     | **`NOBYPASSRLS`**         | DML on tenant tables; column-level `SELECT` on `User`; **no** access to `Account`, `Session`, `Verification`; `UPDATE`/`DELETE` revoked on append-only tables                                                                                                                                      |
-| `storevia_system`         | the allow-listed `@storevia/database/system` entry point only | `BYPASSRLS`               | **Narrow `GRANT`s**, added per use case: identity tables (auth), invitation lookup by token hash (tenancy), later hostname resolution (M4), inbound webhook ledgers (M2/M6) and tenant-iterating schedulers. Because the role bypasses RLS, its grants and queries are reviewed like security code |
-| `storevia_platform`       | platform-admin                                                | `BYPASSRLS`               | `SELECT` grants only (BYPASSRLS cannot be limited to reads, so read-only access comes from the grants); each audited platform write gets its own specific grant when built                                                                                                                         |
-| `storevia_retention` (M8) | worker purge jobs                                             | `BYPASSRLS`               | `DELETE` on expired rows and partitions, including append-only tables                                                                                                                                                                                                                              |
+| Role                      | Used by                                                                         | RLS                       | Privileges                                                                                                                                                                                                                                                                                         |
+| ------------------------- | ------------------------------------------------------------------------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `storevia_migrator`       | Migrations and reference seeds (CI/CD job, `pnpm db:migrate`)                   | `BYPASSRLS` (table owner) | Owns the schema; DDL. Owns the few `SECURITY DEFINER` helper functions                                                                                                                                                                                                                             |
+| `storevia_app`            | dashboard, storefront, worker tenant jobs                                       | **`NOBYPASSRLS`**         | DML on tenant tables; column-level `SELECT` on `User`; **no** access to `Account`, `Session`, `Verification`; `UPDATE`/`DELETE` revoked on append-only tables                                                                                                                                      |
+| `storevia_system`         | the allow-listed `@storevia/database/system` entry point only                   | `BYPASSRLS`               | **Narrow `GRANT`s**, added per use case: identity tables (auth), invitation lookup by token hash (tenancy), later hostname resolution (M4), inbound webhook ledgers (M2/M6) and tenant-iterating schedulers. Because the role bypasses RLS, its grants and queries are reviewed like security code |
+| `storevia_platform`       | platform-admin                                                                  | `BYPASSRLS`               | `SELECT` grants only (BYPASSRLS cannot be limited to reads, so read-only access comes from the grants); each audited platform write gets its own specific grant when built                                                                                                                         |
+| `storevia_billing` (M2)   | `packages/billing` only: webhook pipeline, mock provider, expiry sweep (worker) | `BYPASSRLS`               | Billing tables and `AuditLog` inserts only (ADR-0022 A8)                                                                                                                                                                                                                                           |
+| `storevia_retention` (M8) | worker purge jobs                                                               | `BYPASSRLS`               | `DELETE` on expired rows and partitions, including append-only tables                                                                                                                                                                                                                              |
 
 Billing grants (migration `20260925000000_billing_entitlements`, ADR-0022 §8):
 `storevia_app` reads the plan catalogue and its own organisation's
@@ -195,10 +196,13 @@ subscription and override values (not staff reasons or authors) and maintains
 its own usage counters; it can't write subscriptions, events or overrides.
 `storevia_platform` gains exactly the writes that audited staff actions need
 (subscriptions except their source and owner columns, subscription events,
-overrides, usage counters, mock billing customers). `storevia_system` gains
-the webhook ledger, subscription writes for the pipeline and the expiry sweep,
-and read access to billing customers. `SubscriptionEvent` is append-only for
-every runtime role.
+overrides, usage counters, mock billing customers). A dedicated
+`storevia_billing` role (BYPASSRLS; migration `20260925010000_billing_role`,
+ADR-0022 A8) holds the webhook ledger, subscription writes for the pipeline
+and the expiry sweep, and read access to billing customers. It has nothing on
+identity, membership or store tables. `storevia_system` has no billing
+privileges, because the merchant dashboard's auth path shares it.
+`SubscriptionEvent` is append-only for every runtime role.
 
 Further database invariants (migration `20260924010000_harden_tenancy`):
 

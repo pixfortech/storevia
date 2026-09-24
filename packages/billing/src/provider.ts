@@ -103,8 +103,11 @@ export interface BillingProvider {
     readonly subscriptionRef: string;
   }): Promise<ProviderSubscriptionSnapshot>;
   getSubscription(subscriptionRef: string): Promise<ProviderSubscriptionSnapshot | null>;
-  /** Throws WebhookVerificationError. Must use the raw body, never re-serialised JSON. */
-  verifyWebhook(rawBody: string, headers: Headers, now?: Date): void;
-  /** Throws WebhookPayloadError. */
-  parseWebhookEvent(rawBody: string): NormalisedBillingEvent;
+  /**
+   * Throws WebhookVerificationError. Verifies the exact bytes received, never
+   * decoded or re-serialised text.
+   */
+  verifyWebhook(rawBody: Uint8Array, headers: Headers, now?: Date): void;
+  /** Throws WebhookPayloadError (including bodies that aren't valid UTF-8). */
+  parseWebhookEvent(rawBody: Uint8Array): NormalisedBillingEvent;
 }

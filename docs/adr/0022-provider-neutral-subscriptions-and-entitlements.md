@@ -249,3 +249,73 @@ invalidated.
   features (API calls, storage) need counters anyway. We keep one mechanism:
   counters under a row lock, backfilled by the migration and checked by
   reconciliation (`reconcileUsage`).
+
+## Amendments after the Milestone 2 security review (2026-09-24)
+
+An independent review of the implementation found no merchant-reachable
+bypass or cross-tenant leak, but did find gaps in webhook ordering,
+simulator privileges and role separation. These amendments refine the
+decisions above; the original text is kept for the record.
+
+- **A1 — First observation of a provider subscription** (refines §3 and §6).
+  A provider subscription seen for the first time is recorded in whatever
+  state the provider reports, including `CANCELLED`, `PAST_DUE` and
+  `EXPIRED`. An `EXPIRED` first observation is a tombstone. The row's
+  `providerSyncedAt` then orders later deliveries, so an older `created`
+  that arrives afterwards is ignored as stale. This applies only to provider
+  sources. Manual subscriptions still start as `TRIAL` or `ACTIVE`.
+- **A2 — Superseding needs a newer snapshot** (refines §1). A new provider
+  subscription replaces the live subscription only if its snapshot is newer
+  than the live one's last change (`providerSyncedAt`, or `updatedAt` for
+  manual subscriptions). A delayed event for an older provider subscription
+  can't win.
+- **A3 — Snapshot ordering rule** (clarifies §6). A snapshot is stale when
+  its version is strictly older than the last applied one. Equal versions
+  are applied in arrival order. Adapters for providers with coarse
+  timestamps must supply a monotonic version (for example the fetch time,
+  when they re-fetch).
+- **A4 — Plans in provider events.** Provider events may reference `ACTIVE`
+  or `LEGACY` plans. `ARCHIVED` plans are refused (`IGNORED archived_plan`).
+- **A5 — Reactivation needs remaining access** (refines §3).
+  `CANCELLED → ACTIVE` is allowed only while the cancelled subscription still
+  grants entitlements, whatever the source.
+- **A6 — Simulation has the same bar as manual changes** (refines §7). A
+  simulated event needs the simulate permission, step-up and a reason, and
+  is attributed in the audit log _before_ it is delivered. Simulating
+  `created` while a live non-mock subscription exists also needs
+  `platform.subscription.manage`. Simulated plan changes must use `ACTIVE`
+  plans.
+- **A7 — Mock enablement** (refines §7). Production builds
+  (`NODE_ENV=production`) need `BILLING_MOCK_ENABLED=true` even in
+  development or test, so a mis-set stage alone can't expose the mock. The
+  mock logs a warning when it is enabled.
+- **A8 — Dedicated billing database role** (replaces the system-role part of
+  §8). The webhook pipeline, the mock provider and the expiry sweep use a new
+  `storevia_billing` role (BYPASSRLS, billing tables and audit inserts only).
+  `storevia_system` loses every billing privilege, because the merchant
+  dashboard's auth path shares it. In production no real provider is
+  enabled in Milestone 2, so the dashboard doesn't need the billing
+  credential. Real providers get a dedicated webhook service at
+  commercialisation.
+- **A9 — Staff can close stuck provider subscriptions.** A provider-managed
+  subscription that no longer grants anything (for example because its final
+  provider event was lost) can be expired by staff, with the usual
+  permission, step-up, reason and audit.
+- **A10 — Overrides, reconciliation and entitlement hooks.**
+  - An override change that newly puts the organisation over a limit needs
+    the same acknowledgement as a downgrade.
+  - Usage recalculation needs a reason.
+  - Over-limit reporting uses the plan only while it grants entitlements.
+  - A missing gauge counter starts from the real row count, which covers
+    rolling deploys.
+  - `onEntitlementsChanged` listeners are per-process: platform-admin and the
+    webhook route register them (logging and page revalidation). Other
+    processes see changes on their next request because nothing caches
+    entitlements across requests.
+- **Not changed (documented risk).** The app role keeps direct `UPDATE` on
+  its own `UsageCounter` rows. SQL injection as the app role could reset a
+  counter, but that role can already insert the counted rows (stores,
+  memberships) directly. Database-enforced limits (for example triggers on
+  the resource tables) would close both. That is a candidate for M8
+  hardening. Parameterised queries and the lint ban on unsafe raw SQL are
+  the current mitigation.

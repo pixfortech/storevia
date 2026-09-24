@@ -80,6 +80,24 @@ export default defineConfig(
     },
   },
   {
+    // packages/billing: its own billing role and the platform role, never the
+    // system role (shared with the dashboard's auth path).
+    files: ["packages/billing/src/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@storevia/database/system",
+              message: "Billing uses @storevia/database/billing (M2 security review).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // Privileged database entry points are allow-listed (02-monorepo.md §4).
     files: ["{apps,packages}/**/*.{ts,tsx}"],
     ignores: [
@@ -106,6 +124,10 @@ export default defineConfig(
             {
               name: "@storevia/database/platform",
               message: "The platform role is for platform-admin and packages/billing only.",
+            },
+            {
+              name: "@storevia/database/billing",
+              message: "The billing role is for packages/billing only.",
             },
             {
               name: "@storevia/database/testing",

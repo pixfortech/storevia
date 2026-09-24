@@ -73,9 +73,30 @@ All Milestone 1 tenant-isolation and security suites still run unchanged in
 intent. Fixtures that need more than the system-default floor (a second
 store, invited members) are given a plan first.
 
+An independent security review of Milestone 2 found no merchant-reachable
+bypass or cross-tenant leak. It did produce regression tests (ADR-0022
+amendments) for:
+
+- out-of-order delivery when the first event is for an unknown provider
+  subscription (expired or cancelled before created; an older subscription's
+  delayed `created`);
+- simulator privileges (step-up, reason, no replacing manual contracts
+  without the manage permission, only available plans, archived plans
+  refused by the pipeline);
+- the dedicated billing database role, and the system role losing billing
+  access;
+- stuck provider subscriptions;
+- reactivation after access ended;
+- over-limit acknowledgement for overrides;
+- attribution of a simulation before delivery;
+- verification over raw bytes, and non-UTF-8 bodies;
+- gauge counters initialised from real rows;
+- stricter mock enablement for production builds.
+
 Mutation checks during development: removing the counter row lock lets 10
 concurrent creators through a limit of 3; granting the app role INSERT on
-`Subscription` fails the database suite.
+`Subscription` fails the database suite; removing the "only a newer snapshot
+supersedes" guard fails the out-of-order regression.
 
 ## Running locally
 
