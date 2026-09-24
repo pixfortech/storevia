@@ -2,7 +2,7 @@ import "server-only";
 import { withTenant } from "@storevia/database";
 import { systemDb } from "@storevia/database/system";
 import { getEmailSender, invitationMessage } from "@storevia/email";
-import { consumeRateLimit } from "@storevia/security/server";
+import { consumeRateLimits } from "@storevia/security/server";
 import { generateToken, hashToken } from "@storevia/security";
 import { DomainError, forbidden, notFound } from "@storevia/types";
 import { emailSchema } from "@storevia/validation";
@@ -19,6 +19,7 @@ import {
 } from "./context";
 import { parseInput } from "./errors";
 import { conflict } from "./internal";
+import { requireStepUpForRole } from "./members";
 import { canAssignRole, MEMBER_ROLES, permissionsFor, ROLE_LABELS, type MemberRole } from "./rbac";
 
 const INVITATION_TTL_MS = 7 * 24 * 3600 * 1000;
@@ -55,12 +56,21 @@ export async function createInvitation(
   requirePermission(ctx, "member.manage");
   const data = parseInput(createInvitationSchema, input);
   if (!canAssignRole(ctx.role, data.role)) throw forbidden();
-  const limit = await consumeRateLimit(
-    { name: "tenancy:invite", limit: 50, windowSeconds: 24 * 3600 },
-    ctx.organisationId,
-  );
-  if (!limit.allowed)
+  // Invitations grant access to all stores, so store-limited members can't
+  // send them (scoped invitations are a later enhancement).
+  if (!ctx.allStores) {
+    throw new DomainError("FORBIDDEN", "Only members with access to all stores can invite people.");
+  }
+  requireStepUpForRole(ctx, data.role);
+  const limits = await consumeRateLimits([
+    [{ name: "tenancy:invite:org", limit: 50, windowSeconds: 24 * 3600 }, ctx.organisationId],
+    // Per inviter across organisations, so creating more organisations
+    // doesn't multiply the invitation-email budget.
+    [{ name: "tenancy:invite:user", limit: 100, windowSeconds: 24 * 3600 }, ctx.userId],
+  ]);
+  if (!limits.allowed) {
     throw new DomainError("RATE_LIMITED", "Too many invitations today. Please try again tomorrow.");
+  }
 
   const token = generateToken();
   const invitationId = await withTenant(scopeOf(ctx), async (tx) => {
@@ -159,6 +169,7 @@ async function findByToken(token: unknown) {
       role: true,
       status: true,
       expiresAt: true,
+      invitedById: true,
       organisation: { select: { name: true, status: true } },
     },
   });
@@ -213,6 +224,19 @@ export async function acceptInvitation(
     });
     if (consumed.count !== 1)
       throw new DomainError("NOT_FOUND", "This invitation is invalid or has expired.");
+    // The inviter must still be entitled to grant this role now: an
+    // invitation doesn't outlive the inviter's own access.
+    const inviter = await tx.membership.findFirst({
+      where: { organisationId, userId: invitation.invitedById, status: "ACTIVE" },
+      select: { role: true, allStores: true },
+    });
+    if (
+      !inviter?.allStores ||
+      !permissionsFor(inviter.role).has("member.manage") ||
+      !canAssignRole(inviter.role, invitation.role)
+    ) {
+      throw new DomainError("NOT_FOUND", "This invitation is invalid or has expired.");
+    }
     const existing = await tx.membership.findFirst({
       where: { organisationId, userId: principal.userId },
       select: { id: true },

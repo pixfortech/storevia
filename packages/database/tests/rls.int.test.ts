@@ -280,3 +280,86 @@ describe("T14 composite foreign keys and invariants", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("hardening (security review)", () => {
+  it("inside an organisation scope, SELECT is limited to that organisation even for multi-org members", async () => {
+    // User A also joins Organisation B.
+    await migratorDb().membership.create({
+      data: { organisationId: B.org, userId: A.user, role: "VIEWER" },
+    });
+    try {
+      const inA = await asApp({ org: A.org, user: A.user }, (c) =>
+        rows(c, 'SELECT id FROM "Store"'),
+      );
+      expect(inA).toEqual([{ id: A.store }]);
+      const inAOrgs = await asApp({ org: A.org, user: A.user }, (c) =>
+        rows(c, 'SELECT id FROM "Organisation"'),
+      );
+      expect(inAOrgs).toEqual([{ id: A.org }]);
+      // Before an organisation is chosen, both are listed.
+      const unscoped = await asApp({ user: A.user }, (c) =>
+        rows(c, 'SELECT id FROM "Store" ORDER BY id'),
+      );
+      expect(unscoped.map((r) => r["id"]).sort()).toEqual([A.store, B.store].sort());
+    } finally {
+      await migratorDb().membership.deleteMany({
+        where: { organisationId: B.org, userId: A.user },
+      });
+    }
+  });
+
+  it("tenant code can't change platform-controlled columns", async () => {
+    await expect(
+      asApp({ org: A.org, user: A.user }, (c) =>
+        c.query(`UPDATE "Organisation" SET status = 'ACTIVE', "suspendedAt" = NULL`),
+      ),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      asApp({ org: A.org, user: A.user }, (c) =>
+        c.query(`UPDATE "Store" SET "suspendedAt" = NULL`),
+      ),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it("tenant code can't lift or impose a store suspension", async () => {
+    await migratorDb().store.update({ where: { id: A.store }, data: { status: "SUSPENDED" } });
+    try {
+      await expect(
+        asApp({ org: A.org, user: A.user }, (c) =>
+          c.query(`UPDATE "Store" SET status = 'ACTIVE' WHERE id = $1`, [A.store]),
+        ),
+      ).rejects.toThrow(/platform/);
+    } finally {
+      await migratorDb().store.update({ where: { id: A.store }, data: { status: "DRAFT" } });
+    }
+    await expect(
+      asApp({ org: A.org, user: A.user }, (c) =>
+        c.query(`UPDATE "Store" SET status = 'SUSPENDED' WHERE id = $1`, [A.store]),
+      ),
+    ).rejects.toThrow(/platform/);
+  });
+
+  it("an organisation always keeps exactly one active owner", async () => {
+    await expect(migratorDb().membership.delete({ where: { id: A.membership } })).rejects.toThrow(
+      /exactly one active owner/,
+    );
+    await expect(
+      migratorDb().membership.update({
+        where: { id: A.membership },
+        data: { status: "SUSPENDED" },
+      }),
+    ).rejects.toThrow(/exactly one active owner/);
+    await expect(
+      migratorDb().membership.update({ where: { id: A.membership }, data: { role: "ADMIN" } }),
+    ).rejects.toThrow(/exactly one active owner/);
+    expect(
+      (await migratorDb().membership.findUniqueOrThrow({ where: { id: A.membership } })).role,
+    ).toBe("OWNER");
+  });
+
+  it("PUBLIC can't create objects in the public schema", async () => {
+    await expect(asApp({}, (c) => c.query("CREATE TABLE pwned (id int)"))).rejects.toThrow(
+      /permission denied/,
+    );
+  });
+});

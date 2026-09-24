@@ -292,7 +292,11 @@ describe("T6 role permissions at the service layer", () => {
       contactEmail: "",
       supportEmail: "",
     });
-    await createInvitation(A.orgCtx, { email: "x@example.test", role: "ADMIN" }, acceptUrl);
+    const stepped = await requireOrganisationAccess(
+      { ...A.user, recentlyAuthenticated: true },
+      orgId(A.org),
+    );
+    await createInvitation(stepped, { email: "x@example.test", role: "ADMIN" }, acceptUrl);
   });
 
   it("VIEWER is read-only", async () => {
@@ -515,7 +519,7 @@ describe("T9 membership changes take effect on the next request", () => {
 describe("invitations", () => {
   it("an unaccepted invitation grants no access", async () => {
     const invitee = await makeUser("invitee");
-    await createInvitation(A.orgCtx, { email: invitee.email, role: "ADMIN" }, acceptUrl);
+    await createInvitation(A.orgCtx, { email: invitee.email, role: "STORE_MANAGER" }, acceptUrl);
     await expectCode(requireOrganisationAccess(invitee, orgId(A.org)), "NOT_FOUND");
     await expectCode(requireStoreAccess(invitee, storeId(A.store)), "NOT_FOUND");
   });
@@ -592,5 +596,111 @@ describe("audit", () => {
       where: { organisationId: B.org, actorId: A.user.userId },
     });
     expect(bLeak).toBe(0);
+  });
+});
+
+describe("security review regressions", () => {
+  it("granting ADMIN requires a recent password confirmation", async () => {
+    await expectCode(
+      createInvitation(A.orgCtx, { email: "adm@example.test", role: "ADMIN" }, acceptUrl),
+      "REAUTHENTICATION_REQUIRED",
+    );
+    const member = await makeUser("to-promote");
+    const membershipId = await addMember(A.orgCtx, member, "VIEWER");
+    await expectCode(
+      changeMemberRole(A.orgCtx, memId(membershipId), { role: "ADMIN" }),
+      "REAUTHENTICATION_REQUIRED",
+    );
+    const stepped = await requireOrganisationAccess(
+      { ...A.user, recentlyAuthenticated: true },
+      orgId(A.org),
+    );
+    await changeMemberRole(stepped, memId(membershipId), { role: "ADMIN" });
+    expect((await requireOrganisationAccess(member, orgId(A.org))).role).toBe("ADMIN");
+  });
+
+  it("a store-limited admin can't widen store access or invite", async () => {
+    const limitedAdmin = await makeUser("limited-admin");
+    const adminMembership = await addMember(A.orgCtx, limitedAdmin, "ADMIN");
+    await setMemberStoreAccess(A.orgCtx, memId(adminMembership), {
+      allStores: false,
+      storeIds: [storeId(A.store)],
+    });
+    const ctx = await requireOrganisationAccess(
+      { ...limitedAdmin, recentlyAuthenticated: true },
+      orgId(A.org),
+    );
+    const other = await makeUser("limited-target");
+    const otherMembership = await addMember(A.orgCtx, other, "SUPPORT");
+
+    await expectCode(
+      setMemberStoreAccess(ctx, memId(otherMembership), { allStores: true }),
+      "FORBIDDEN",
+    );
+    await expectCode(
+      setMemberStoreAccess(ctx, memId(otherMembership), {
+        allStores: false,
+        storeIds: [storeId(storeA2)],
+      }),
+      "NOT_FOUND",
+    );
+    await setMemberStoreAccess(ctx, memId(otherMembership), {
+      allStores: false,
+      storeIds: [storeId(A.store)],
+    });
+    await expectCode(
+      createInvitation(ctx, { email: "alt@example.test", role: "VIEWER" }, acceptUrl),
+      "FORBIDDEN",
+    );
+  });
+
+  it("an invitation dies with its inviter's access", async () => {
+    const admin = await makeUser("inviter-admin");
+    const adminMembership = await addMember(A.orgCtx, admin, "ADMIN");
+    const adminCtx = await requireOrganisationAccess(admin, orgId(A.org));
+    const invitee = await makeUser("orphan-invitee");
+    await createInvitation(adminCtx, { email: invitee.email, role: "STORE_MANAGER" }, acceptUrl);
+    const token = latestInviteToken(invitee.email);
+    await removeMember(A.orgCtx, memId(adminMembership));
+    await expectCode(acceptInvitation(invitee, token), "NOT_FOUND");
+    await expectCode(requireOrganisationAccess(invitee, orgId(A.org)), "NOT_FOUND");
+  });
+
+  it("an invitation isn't honoured if the inviter was demoted without the invitation being revoked", async () => {
+    const admin = await makeUser("demoted-inviter");
+    const adminMembership = await addMember(A.orgCtx, admin, "ADMIN");
+    const adminCtx = await requireOrganisationAccess(admin, orgId(A.org));
+    const invitee = await makeUser("stale-invitee");
+    await createInvitation(adminCtx, { email: invitee.email, role: "STORE_MANAGER" }, acceptUrl);
+    const token = latestInviteToken(invitee.email);
+    // Bypass the service (which also revokes) to prove the acceptance-time check.
+    await migratorDb().membership.update({
+      where: { id: adminMembership },
+      data: { role: "VIEWER" },
+    });
+    await expectCode(acceptInvitation(invitee, token), "NOT_FOUND");
+  });
+
+  it("concurrent ownership transfer and demotion can't leave the organisation without an owner", async () => {
+    const heir = await makeUser("heir-race");
+    const heirMembership = await addMember(A.orgCtx, heir, "ADMIN");
+    const otherAdmin = await makeUser("other-admin-race");
+    await addMember(A.orgCtx, otherAdmin, "ADMIN");
+    const ownerCtx = await requireOrganisationAccess(
+      { ...A.user, recentlyAuthenticated: true },
+      orgId(A.org),
+    );
+    const adminCtx = await requireOrganisationAccess(
+      { ...otherAdmin, recentlyAuthenticated: true },
+      orgId(A.org),
+    );
+    await Promise.allSettled([
+      transferOwnership(ownerCtx, memId(heirMembership)),
+      changeMemberRole(adminCtx, memId(heirMembership), { role: "VIEWER" }),
+    ]);
+    const owners = await migratorDb().membership.count({
+      where: { organisationId: A.org, role: "OWNER", status: "ACTIVE" },
+    });
+    expect(owners).toBe(1);
   });
 });

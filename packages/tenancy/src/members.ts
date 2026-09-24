@@ -56,30 +56,77 @@ export async function listMembers(ctx: OrganisationContext): Promise<MemberView[
   }));
 }
 
+type Tx = Parameters<Parameters<typeof withTenant>[1]>[0];
+
+interface ManagedMember {
+  readonly id: string;
+  readonly userId: string;
+  readonly role: MemberRole;
+  readonly status: "ACTIVE" | "SUSPENDED";
+}
+
 /**
- * Loads a membership of the context's organisation that the actor may manage:
- * not themself, not the OWNER, and holding a role within the actor's own
- * permissions (subset rule, docs 04 §7.4).
+ * Loads, inside the caller's transaction, a membership of the context's
+ * organisation that the actor may manage: not themself, not the OWNER, and
+ * holding a role within the actor's own permissions (subset rule, docs 04
+ * §7.4). Writes that follow must use `guard(target)` as their WHERE clause so
+ * a concurrent change (e.g. an ownership transfer to this member) makes them
+ * match nothing instead of overwriting the new state.
  */
-async function loadManageableMember(ctx: OrganisationContext, membershipPublicId: unknown) {
-  requirePermission(ctx, "member.manage");
-  const membershipId = parsePublicId("membership", membershipPublicId);
-  const target = await withTenant(scopeOf(ctx), (tx) =>
-    tx.membership.findFirst({
-      where: { id: membershipId, organisationId: ctx.organisationId },
-      select: { id: true, userId: true, role: true, status: true },
-    }),
-  );
+async function loadManageableMember(
+  tx: Tx,
+  ctx: OrganisationContext,
+  membershipId: string,
+): Promise<ManagedMember> {
+  const target = await tx.membership.findFirst({
+    where: { id: membershipId, organisationId: ctx.organisationId },
+    select: { id: true, userId: true, role: true, status: true },
+  });
   if (!target) throw notFound();
-  if (target.userId === ctx.userId)
+  if (target.userId === ctx.userId) {
     throw new DomainError("FORBIDDEN", "You can't change your own membership here.");
-  if (target.role === "OWNER")
+  }
+  if (target.role === "OWNER") {
     throw new DomainError(
       "FORBIDDEN",
       "The owner's membership can only change through an ownership transfer.",
     );
+  }
   if (!canAssignRole(ctx.role, target.role)) throw forbidden();
   return target;
+}
+
+const guard = (ctx: OrganisationContext, target: ManagedMember) => ({
+  id: target.id,
+  organisationId: ctx.organisationId,
+  role: target.role,
+  status: target.status,
+});
+
+function assertApplied(count: number): void {
+  if (count !== 1) throw conflict("This member changed in the meantime. Reload and try again.");
+}
+
+/** Invitations sent by someone who loses their membership or role no longer stand. */
+async function revokeInvitationsFrom(
+  tx: Tx,
+  ctx: OrganisationContext,
+  userId: string,
+): Promise<void> {
+  await tx.invitation.updateMany({
+    where: { organisationId: ctx.organisationId, invitedById: userId, status: "PENDING" },
+    data: { status: "REVOKED" },
+  });
+}
+
+/** Granting ADMIN needs a recent password confirmation (docs 04 §4 step-up). */
+export function requireStepUpForRole(ctx: OrganisationContext, role: MemberRole): void {
+  if (role === "ADMIN" && !ctx.principal.recentlyAuthenticated) {
+    throw new DomainError(
+      "REAUTHENTICATION_REQUIRED",
+      "Confirm your password before granting the Admin role.",
+    );
+  }
 }
 
 export async function changeMemberRole(
@@ -87,12 +134,17 @@ export async function changeMemberRole(
   membershipPublicId: unknown,
   input: unknown,
 ): Promise<void> {
+  requirePermission(ctx, "member.manage");
   const { role } = parseInput(z.object({ role: assignableRole }), input);
-  const target = await loadManageableMember(ctx, membershipPublicId);
+  const membershipId = parsePublicId("membership", membershipPublicId);
   if (!canAssignRole(ctx.role, role)) throw forbidden();
-  if (target.role === role) return;
+  requireStepUpForRole(ctx, role);
   await withTenant(scopeOf(ctx), async (tx) => {
-    await tx.membership.update({ where: { id: target.id }, data: { role }, select: { id: true } });
+    const target = await loadManageableMember(tx, ctx, membershipId);
+    if (target.role === role) return;
+    const { count } = await tx.membership.updateMany({ where: guard(ctx, target), data: { role } });
+    assertApplied(count);
+    await revokeInvitationsFrom(tx, ctx, target.userId);
     await recordAudit(
       tx,
       ctx,
@@ -112,15 +164,18 @@ export async function setMemberStatus(
   membershipPublicId: unknown,
   input: unknown,
 ): Promise<void> {
+  requirePermission(ctx, "member.manage");
   const { status } = parseInput(z.object({ status: z.enum(["ACTIVE", "SUSPENDED"]) }), input);
-  const target = await loadManageableMember(ctx, membershipPublicId);
-  if (target.status === status) return;
+  const membershipId = parsePublicId("membership", membershipPublicId);
   await withTenant(scopeOf(ctx), async (tx) => {
-    await tx.membership.update({
-      where: { id: target.id },
+    const target = await loadManageableMember(tx, ctx, membershipId);
+    if (target.status === status) return;
+    const { count } = await tx.membership.updateMany({
+      where: guard(ctx, target),
       data: { status },
-      select: { id: true },
     });
+    assertApplied(count);
+    if (status === "SUSPENDED") await revokeInvitationsFrom(tx, ctx, target.userId);
     await recordAudit(
       tx,
       ctx,
@@ -140,9 +195,13 @@ export async function removeMember(
   ctx: OrganisationContext,
   membershipPublicId: unknown,
 ): Promise<void> {
-  const target = await loadManageableMember(ctx, membershipPublicId);
+  requirePermission(ctx, "member.manage");
+  const membershipId = parsePublicId("membership", membershipPublicId);
   await withTenant(scopeOf(ctx), async (tx) => {
-    await tx.membership.delete({ where: { id: target.id }, select: { id: true } });
+    const target = await loadManageableMember(tx, ctx, membershipId);
+    await revokeInvitationsFrom(tx, ctx, target.userId);
+    const { count } = await tx.membership.deleteMany({ where: guard(ctx, target) });
+    assertApplied(count);
     await recordAudit(
       tx,
       ctx,
@@ -161,25 +220,43 @@ const storeAccessSchema = z.object({
   storeIds: z.array(z.string()).max(200).default([]),
 });
 
+/**
+ * Sets which stores a member can access. An actor can never grant more store
+ * access than they have themself: only members with all-store access can
+ * grant it, and store-limited actors can grant only their own stores.
+ */
 export async function setMemberStoreAccess(
   ctx: OrganisationContext,
   membershipPublicId: unknown,
   input: unknown,
 ): Promise<void> {
+  requirePermission(ctx, "member.manage");
   const data = parseInput(storeAccessSchema, input);
-  const target = await loadManageableMember(ctx, membershipPublicId);
+  const membershipId = parsePublicId("membership", membershipPublicId);
   const storeIds = [...new Set(data.storeIds.map((id) => parsePublicId("store", id)))];
   if (!data.allStores && storeIds.length === 0) {
     throw new DomainError("VALIDATION_FAILED", "Choose at least one store.", {
       storeIds: "Choose at least one store.",
     });
   }
+  if (data.allStores && !ctx.allStores) throw forbidden();
   await withTenant(scopeOf(ctx), async (tx) => {
+    const target = await loadManageableMember(tx, ctx, membershipId);
     if (!data.allStores) {
       const found = await tx.store.count({
         where: { id: { in: storeIds }, organisationId: ctx.organisationId },
       });
       if (found !== storeIds.length) throw notFound();
+      if (!ctx.allStores) {
+        const own = await tx.membershipStoreAccess.count({
+          where: {
+            membershipId: ctx.membershipId,
+            organisationId: ctx.organisationId,
+            storeId: { in: storeIds },
+          },
+        });
+        if (own !== storeIds.length) throw notFound();
+      }
     }
     await tx.membershipStoreAccess.deleteMany({
       where: { membershipId: target.id, organisationId: ctx.organisationId },
@@ -193,11 +270,11 @@ export async function setMemberStoreAccess(
         })),
       });
     }
-    await tx.membership.update({
-      where: { id: target.id },
+    const { count } = await tx.membership.updateMany({
+      where: guard(ctx, target),
       data: { allStores: data.allStores },
-      select: { id: true },
     });
+    assertApplied(count);
     await recordAudit(
       tx,
       ctx,
@@ -239,16 +316,23 @@ export async function transferOwnership(
     if (target.role !== "ADMIN" || target.status !== "ACTIVE") {
       throw conflict("Ownership can only be transferred to an active admin.");
     }
-    await tx.membership.update({
-      where: { id: ctx.membershipId },
+    // Conditional writes: if either membership changed concurrently, nothing
+    // is written and the transaction rolls back.
+    const demoted = await tx.membership.updateMany({
+      where: {
+        id: ctx.membershipId,
+        organisationId: ctx.organisationId,
+        role: "OWNER",
+        status: "ACTIVE",
+      },
       data: { role: "ADMIN", allStores: true },
-      select: { id: true },
     });
-    await tx.membership.update({
-      where: { id: target.id },
+    assertApplied(demoted.count);
+    const promoted = await tx.membership.updateMany({
+      where: { id: target.id, organisationId: ctx.organisationId, role: "ADMIN", status: "ACTIVE" },
       data: { role: "OWNER", allStores: true },
-      select: { id: true },
     });
+    assertApplied(promoted.count);
     await tx.membershipStoreAccess.deleteMany({
       where: { membershipId: target.id, organisationId: ctx.organisationId },
     });
