@@ -1,6 +1,16 @@
 import { defineConfig, devices } from "@playwright/test";
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+
+// Local runs read the repository root .env (CI injects variables directly).
+const rootEnv = resolve(import.meta.dirname, "../../.env");
+if (existsSync(rootEnv) && !process.env["CI"]) process.loadEnvFile(rootEnv);
 
 const baseURL = process.env["E2E_BASE_URL"] ?? "http://app.localhost:3001";
+const adminURL = process.env["E2E_ADMIN_URL"] ?? "http://admin.localhost:3003";
+// Node does not resolve *.localhost names (browsers do): probe via localhost.
+const probe = (url: string) =>
+  `${new URL(url).protocol}//localhost:${new URL(url).port || "80"}/api/health`;
 const executablePath = process.env["PLAYWRIGHT_CHROMIUM_EXECUTABLE"];
 
 export default defineConfig({
@@ -19,12 +29,21 @@ export default defineConfig({
     ...(executablePath ? { launchOptions: { executablePath } } : {}),
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: {
-    command: "pnpm start",
-    // Probe via localhost: Node does not resolve *.localhost names (browsers do).
-    url: `${new URL(baseURL).protocol}//localhost:${new URL(baseURL).port || "80"}/api/health`,
-    reuseExistingServer: !process.env["CI"],
-    timeout: 120_000,
-    stdout: "pipe",
-  },
+  webServer: [
+    {
+      command: "pnpm start",
+      url: probe(baseURL),
+      reuseExistingServer: !process.env["CI"],
+      timeout: 120_000,
+      stdout: "pipe",
+    },
+    {
+      // Platform-admin (staff) app: plan assignment and mock billing (ADR-0022).
+      command: "pnpm --filter @storevia/platform-admin start",
+      url: probe(adminURL),
+      reuseExistingServer: !process.env["CI"],
+      timeout: 120_000,
+      stdout: "pipe",
+    },
+  ],
 });

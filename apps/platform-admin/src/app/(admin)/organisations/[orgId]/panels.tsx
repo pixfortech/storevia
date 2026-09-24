@@ -104,6 +104,15 @@ function ActionDialog({
   const [open, setOpen] = useState(false);
   const [state, formAction] = useActionState(action, { ok: false });
   const [shown, setShown] = useState<FormState | null>(null);
+  // React resets a form after its action runs. Re-mount the fields for each
+  // new result so they take their values from what was submitted (e.g. the
+  // chosen plan survives an over-limit confirmation round trip).
+  const [seen, setSeen] = useState(state);
+  const [version, setVersion] = useState(0);
+  if (seen !== state) {
+    setSeen(state);
+    setVersion(version + 1);
+  }
   useEffect(() => {
     if (state.ok) {
       setOpen(false);
@@ -126,7 +135,7 @@ function ActionDialog({
           </Button>
         }
       >
-        <form action={formAction} className="space-y-4" noValidate>
+        <form key={version} action={formAction} className="space-y-4" noValidate>
           {state.ok ? null : <FormMessage state={state} />}
           {children(state)}
           <div className="flex justify-end gap-2 pt-2">

@@ -160,9 +160,13 @@ jobs:
       DATABASE_PLATFORM_URL: postgresql://storevia_platform:ci-platform@localhost:5432/storevia
       DASHBOARD_URL: http://app.localhost:3001
       E2E_BASE_URL: http://app.localhost:3001
+      PLATFORM_ADMIN_URL: http://admin.localhost:3003
+      E2E_ADMIN_URL: http://admin.localhost:3003
       STOREFRONT_ROOT_DOMAIN: store.localhost
-      # CI-only throwaway value; real secrets come from the secrets manager.
+      # CI-only throwaway values; real secrets come from the secrets manager.
       AUTH_SECRET: ci-only-auth-secret-not-used-anywhere-else-0000
+      AUTH_PLATFORM_SECRET: ci-only-platform-auth-secret-not-used-elsewhere-0000
+      MOCK_BILLING_WEBHOOK_SECRET: ci-only-mock-billing-secret-not-used-elsewhere-0000
       EMAIL_TRANSPORT: file
       EMAIL_FILE_DIR: /tmp/storevia-mail
       AUTH_BREACHED_PASSWORD_CHECK: "off"
@@ -187,11 +191,11 @@ jobs:
       - name: Create database roles and databases
         run: pnpm db:setup
 
-      - name: Apply migrations
-        run: pnpm db:migrate
+      - name: Apply migrations and load reference data (plans)
+        run: pnpm db:migrate && pnpm db:seed
 
-      - name: Build the dashboard
-        run: pnpm --filter @storevia/dashboard build
+      - name: Build the dashboard and platform-admin
+        run: pnpm --filter @storevia/dashboard --filter @storevia/platform-admin build
 
       - name: Install Playwright Chromium
         run: pnpm --filter @storevia/dashboard exec playwright install --with-deps chromium

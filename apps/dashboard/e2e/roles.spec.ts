@@ -10,6 +10,7 @@ import {
   uniqueEmail,
   type Tenant,
 } from "./helpers";
+import { grantPlan } from "./admin";
 
 test.describe.configure({ mode: "serial" });
 
@@ -26,6 +27,8 @@ test.beforeAll(async ({ browser }) => {
   owner = await ownerContext.newPage();
   member = await memberContext.newPage();
   A = await createTenant(owner, "roles");
+  // Inviting staff needs seats beyond the owner (ADR-0022): staff assign a plan.
+  await grantPlan(browser, A.orgId);
 });
 
 test.afterAll(async () => {

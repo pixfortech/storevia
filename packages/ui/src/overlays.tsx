@@ -107,7 +107,7 @@ export function Dialog({
           className={cn(
             "fixed z-50 bg-surface shadow-[var(--shadow-popover)] focus:outline-none",
             side === "center"
-              ? "left-1/2 top-1/2 w-[calc(100vw-32px)] max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-card p-6"
+              ? "left-1/2 top-1/2 max-h-[calc(100dvh-32px)] w-[calc(100vw-32px)] max-w-lg -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-card p-6"
               : "inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-2xl p-4 pb-[max(1rem,env(safe-area-inset-bottom))]",
           )}
         >

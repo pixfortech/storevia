@@ -2,6 +2,7 @@
 // parameter tampering, malformed identifiers and crafted Server Action
 // requests. Service- and database-level proofs live in the integration suites.
 import { expect, test, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { grantPlan } from "./admin";
 import { captureServerAction, createTenant, replay, type Tenant } from "./helpers";
 
 test.describe.configure({ mode: "serial" });
@@ -20,6 +21,7 @@ test.beforeAll(async ({ browser }: { browser: Browser }) => {
   pageB = await contextB.newPage();
   A = await createTenant(pageA, "tenant-a");
   B = await createTenant(pageB, "tenant-b");
+  await grantPlan(browser, A.orgId); // seats for the invitation tests (ADR-0022)
 });
 
 test.afterAll(async () => {
