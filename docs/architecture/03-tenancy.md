@@ -209,7 +209,7 @@ connection.
 ## 7. Platform administration isolation
 
 - Separate app, host (`admin.storevia.com`), session realm and cookie
-  (`__Host-storevia-admin.session`). A dashboard session is **not valid** on the
+  (`__Host-storevia-admin.session_token`). A dashboard session is **not valid** on the
   admin surface and the reverse.
 - Access requires an active `PlatformStaff` row. Merchant roles (even
   `OWNER`) grant nothing on the platform surface.

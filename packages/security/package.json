@@ -1,0 +1,23 @@
+{
+  "name": "@storevia/security",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./server": "./src/server.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests --exclude 'tests/**'",
+    "test:integration": "vitest run --config vitest.int.config.ts"
+  },
+  "dependencies": {
+    "@storevia/database": "workspace:*",
+    "@storevia/types": "workspace:*",
+    "server-only": "0.0.1"
+  },
+  "devDependencies": {
+    "vitest": "4.1.11"
+  }
+}

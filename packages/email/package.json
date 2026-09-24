@@ -1,5 +1,5 @@
 {
-  "name": "@storevia/types",
+  "name": "@storevia/email",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,11 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
+  "dependencies": {
+    "nodemailer": "10.0.10"
+  },
   "devDependencies": {
+    "@types/nodemailer": "8.0.2",
     "vitest": "4.1.11"
   }
 }

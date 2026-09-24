@@ -23,12 +23,23 @@ OAuth providers, rate limiting, and plugins for TOTP 2FA, passkeys and
 SSO. It is used **only inside `packages/auth`**. Apps call Storevia's own API:
 
 ```ts
-getSession(headers): Promise<SessionInfo | null>
-requireSession(headers): Promise<SessionInfo>                  // 401/redirect
-requireRecentAuth(session, maxAgeSeconds): void                 // step-up
-signUp / signIn / signOut / requestPasswordReset / resetPassword / verifyEmail
-listSessions / revokeSession / revokeOtherSessions
+// packages/auth: one AuthService per realm (DASHBOARD, PLATFORM)
+service.getSession(headers): Promise<AuthSession | null>     // realm, lifetime and status checks
+service.refreshSession(headers)                              // sliding expiry, used by the proxy
+service.signUp / signIn / signOut / verifyEmail / resendVerification
+service.requestPasswordReset / resetPassword / changePassword
+service.listSessions / revokeSession / revokeOtherSessions
+service.confirmPassword(session, password)                   // step-up: stamps reauthenticatedAt
+hasRecentAuth(session, maxAgeSeconds = 600): boolean
 ```
+
+Apps wrap these in `requireSession()` helpers that redirect to sign-in.
+
+Better Auth's catch-all HTTP handler is **not mounted**. Every flow goes
+through `AuthService` from server actions, so validation, rate limiting and
+auditing can't be bypassed by calling Better Auth endpoints directly.
+Sessions are refreshed (sliding expiry) in the Next.js request proxy, where
+cookies can be written.
 
 If Better Auth has to be replaced, only `packages/auth` changes (ADR-0007).
 The organisation/membership model is Storevia's own (`packages/tenancy`), not
@@ -37,24 +48,24 @@ be under our control.
 
 ## 3. Credential security
 
-| Control                           | Decision                                                                                                                                                                                                                        |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Password hashing                  | **Argon2id** (`@node-rs/argon2`) at OWASP parameters (m = 19 MiB, t = 2, p = 1), tuned so a hash takes ~50 ms on production hardware; parameters are encoded in the hash so they can be raised later with rehash-on-login       |
-| Password policy                   | 10–128 characters, no composition rules, blocked if it appears in a breached-password corpus (HIBP k-anonymity API, fail-open with logging if unavailable), not equal to the email                                              |
-| Email verification                | Required before a user can create an organisation or accept an invitation. Token: 32 random bytes, stored as SHA-256 hash, single-use, 24 h TTL                                                                                 |
-| Password reset                    | Same token properties, 30 min TTL, single-use; **all sessions revoked** on reset; the response is identical whether or not the email exists; notification email sent to the account                                             |
-| Account enumeration               | Sign-up, sign-in and reset responses and timings do not reveal whether an email is registered (sign-up of an existing address sends a "you already have an account" email instead)                                              |
-| Brute force / credential stuffing | Rate limits per IP, per email and globally (sliding window); progressive delays; after N failures for an account, require a CAPTCHA/challenge (Turnstile) rather than locking the victim out; edge WAF bot rules in front       |
-| Reset/verification token abuse    | Per-email and per-IP limits on token issuance; old tokens invalidated when a new one is issued                                                                                                                                  |
-| Google sign-in                    | OAuth 2.0 / OIDC with PKCE + `state` + `nonce`; accounts are linked only when the Google email is verified **and** matches a verified Storevia email, otherwise the user must sign in with a password first and link explicitly |
+| Control                           | Decision                                                                                                                                                                                                                                                     |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Password hashing                  | **Argon2id** (`@node-rs/argon2`) at OWASP parameters (m = 19 MiB, t = 2, p = 1), tuned so a hash takes ~50 ms on production hardware; parameters are encoded in the hash so they can be raised later with rehash-on-login                                    |
+| Password policy                   | 10–128 characters, no composition rules, blocked if it appears in a breached-password corpus (HIBP k-anonymity API, fail-open with logging if unavailable), not equal to the email                                                                           |
+| Email verification                | Required **before sign-in** (ADR-0021). The link carries a signed token issued by Better Auth that expires after 24 h. Verifying twice is harmless. Resends are rate-limited per email                                                                       |
+| Password reset                    | Random token, stored **hashed** (`Verification.identifier`), 30 min TTL, single-use; **all sessions revoked** on reset; the response is identical whether or not the email exists; a "password changed" email is sent                                        |
+| Account enumeration               | Sign-up, sign-in and reset responses and timings do not reveal whether an email is registered (sign-up of an existing address sends a "you already have an account" email instead)                                                                           |
+| Brute force / credential stuffing | Fixed-window limits in PostgreSQL (`RateLimit`) per IP (only from the trusted edge header) and per account, on sign-in, sign-up, reset, verification and step-up; edge WAF bot rules in front. A CAPTCHA challenge after repeated failures is planned for M8 |
+| Reset/verification token abuse    | Per-email and per-IP limits on issuance and redemption; reset tokens are single-use                                                                                                                                                                          |
+| Google sign-in                    | Not enabled in Milestone 1 (issue M1-09). When added: OAuth 2.0 / OIDC with PKCE + `state` + `nonce`; accounts are linked only when the Google email is verified **and** matches a verified Storevia email                                                   |
 
 ## 4. Sessions and cookies
 
 | Property        | Value                                                                                                                                                                                        |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Storage         | Server-side `Session` rows; cookie holds a random 256-bit token; the DB stores only its SHA-256 hash                                                                                         |
-| Cookie          | `__Host-storevia.session`: `Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/`, no `Domain` (host-only)                                                                                           |
-| Platform cookie | `__Host-storevia-admin.session` on the admin host, `SameSite=Strict`                                                                                                                         |
+| Storage         | Server-side `Session` rows. The cookie holds the session token plus an HMAC-SHA256 signature made with the realm secret. Only the system role can read `Session` (ADR-0021)                  |
+| Cookie          | `__Host-storevia.session_token`: `Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/`, no `Domain` (host-only). Local HTTP development uses `storevia.session_token`                               |
+| Platform cookie | `__Host-storevia-admin.session_token` on the admin host, `SameSite=Strict`, separate secret                                                                                                  |
 | Lifetime        | 30 days absolute; 7 days idle (sliding refresh at most once per hour); platform realm: 12 h absolute, 30 min idle                                                                            |
 | Fixation        | A new session token is issued on every sign-in, privilege change (MFA completed) and password change; pre-auth tokens are never promoted                                                     |
 | Revocation      | Users can see and revoke sessions (device, IP, last seen) on the account security page; sign-out deletes the row                                                                             |

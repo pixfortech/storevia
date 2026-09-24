@@ -2,8 +2,10 @@ packages:
   - "apps/*"
   - "packages/*"
 
-# Prisma's install scripts are not needed for schema validation (the only
-# Prisma use until Milestone 1). Revisit when packages/database is created.
+# Dependency install scripts are blocked by default (pnpm 10). These are known
+# and not needed: Prisma 7's client needs no engine download (the root
+# postinstall runs `prisma generate`), and esbuild ships its binary as an
+# optional platform package.
 ignoredBuiltDependencies:
   - "@prisma/engines"
   - prisma
