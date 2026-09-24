@@ -1,0 +1,347 @@
+// Storevia live database schema.
+//
+// Models are promoted here from docs/database/schema.draft.prisma one milestone
+// at a time (ADR-0020). Column names, types and attributes must match the
+// draft; CI (scripts/check-schema-agreement.mjs) enforces this. Back-relations
+// to models that are not promoted yet are intentionally omitted.
+//
+// Constraints Prisma cannot express (RLS, grants, triggers, partial unique
+// indexes, CHECKs, SECURITY DEFINER helpers) live in the SQL of each migration.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = ""
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// --- Identity (Milestone 1) ---------------------------------------------------
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+model User {
+  id            String     @id @default(uuid(7)) @db.Uuid
+  email         String     @unique @db.Citext
+  emailVerified Boolean    @default(false)
+  name          String
+  image         String?
+  locale        String     @default("en")
+  timezone      String     @default("UTC")
+  status        UserStatus @default(ACTIVE)
+  createdAt     DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime   @updatedAt @db.Timestamptz(3)
+  deletedAt     DateTime?  @db.Timestamptz(3)
+
+  accounts             Account[]
+  sessions             Session[]
+  memberships          Membership[]
+  invitationsSent      Invitation[]   @relation("InvitationInvitedBy")
+  invitationsAccepted  Invitation[]   @relation("InvitationAcceptedBy")
+  platformStaff        PlatformStaff?
+  organisationsCreated Organisation[] @relation("OrganisationCreatedBy")
+}
+
+model Account {
+  id                    String    @id @default(uuid(7)) @db.Uuid
+  userId                String    @db.Uuid
+  providerId            String
+  accountId             String
+  passwordHash          String?
+  accessTokenEnc        String?
+  refreshTokenEnc       String?
+  idTokenEnc            String?
+  accessTokenExpiresAt  DateTime? @db.Timestamptz(3)
+  refreshTokenExpiresAt DateTime? @db.Timestamptz(3)
+  scope                 String?
+  createdAt             DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime  @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+}
+
+enum SessionRealm {
+  DASHBOARD
+  PLATFORM
+}
+
+model Session {
+  id                String       @id @default(uuid(7)) @db.Uuid
+  userId            String       @db.Uuid
+  token             String       @unique
+  realm             SessionRealm @default(DASHBOARD)
+  expiresAt         DateTime     @db.Timestamptz(3)
+  ipAddress         String?
+  userAgent         String?
+  mfaVerifiedAt     DateTime?    @db.Timestamptz(3)
+  reauthenticatedAt DateTime?    @db.Timestamptz(3)
+  createdAt         DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime     @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Verification {
+  id         String   @id @default(uuid(7)) @db.Uuid
+  identifier String
+  value      String
+  expiresAt  DateTime @db.Timestamptz(3)
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([identifier])
+  @@index([expiresAt])
+}
+
+model RateLimit {
+  id          String @id @default(uuid(7)) @db.Uuid
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+}
+
+enum PlatformRole {
+  SUPER_ADMIN
+  OPERATIONS
+  SUPPORT
+  BILLING
+  READ_ONLY
+}
+
+model PlatformStaff {
+  userId    String       @id @db.Uuid
+  role      PlatformRole
+  active    Boolean      @default(true)
+  createdAt DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime     @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+}
+
+// --- Tenancy (Milestone 1) ----------------------------------------------------
+
+enum OrganisationStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING_DELETION
+  DELETED
+}
+
+model Organisation {
+  id           String             @id @default(uuid(7)) @db.Uuid
+  name         String
+  status       OrganisationStatus @default(ACTIVE)
+  billingEmail String?
+  country      String?            @db.Char(2)
+  createdById  String?            @db.Uuid
+  createdAt    DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime           @updatedAt @db.Timestamptz(3)
+  suspendedAt  DateTime?          @db.Timestamptz(3)
+  deletedAt    DateTime?          @db.Timestamptz(3)
+
+  createdBy   User?        @relation("OrganisationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  memberships Membership[]
+  invitations Invitation[]
+  stores      Store[]
+  auditLogs   AuditLog[]
+
+  @@index([createdById])
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  STORE_MANAGER
+  DESIGNER
+  CATALOGUE_MANAGER
+  ORDER_MANAGER
+  MARKETING
+  SUPPORT
+  VIEWER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model Membership {
+  id             String           @id @default(uuid(7)) @db.Uuid
+  organisationId String           @db.Uuid
+  userId         String           @db.Uuid
+  role           MemberRole
+  status         MembershipStatus @default(ACTIVE)
+  allStores      Boolean          @default(true)
+  createdAt      DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @db.Timestamptz(3)
+
+  organisation Organisation            @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  user         User                    @relation(fields: [userId], references: [id], onDelete: Restrict)
+  storeAccess  MembershipStoreAccess[]
+
+  @@unique([organisationId, userId])
+  @@unique([id, organisationId])
+  @@index([userId])
+}
+
+model MembershipStoreAccess {
+  membershipId   String   @db.Uuid
+  storeId        String   @db.Uuid
+  organisationId String   @db.Uuid
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+
+  membership Membership @relation(fields: [membershipId, organisationId], references: [id, organisationId], onDelete: Cascade)
+  store      Store      @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+
+  @@id([membershipId, storeId])
+  @@index([storeId])
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+  EXPIRED
+}
+
+model Invitation {
+  id             String           @id @default(uuid(7)) @db.Uuid
+  organisationId String           @db.Uuid
+  email          String           @db.Citext
+  role           MemberRole
+  tokenHash      String           @unique
+  status         InvitationStatus @default(PENDING)
+  expiresAt      DateTime         @db.Timestamptz(3)
+  invitedById    String           @db.Uuid
+  acceptedById   String?          @db.Uuid
+  acceptedAt     DateTime?        @db.Timestamptz(3)
+  createdAt      DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @db.Timestamptz(3)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  invitedBy    User         @relation("InvitationInvitedBy", fields: [invitedById], references: [id], onDelete: Restrict)
+  acceptedBy   User?        @relation("InvitationAcceptedBy", fields: [acceptedById], references: [id], onDelete: SetNull)
+
+  @@index([organisationId, status])
+  @@index([invitedById])
+  @@index([acceptedById])
+}
+
+// --- Stores (Milestone 1) -----------------------------------------------------
+
+enum StoreStatus {
+  DRAFT
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+model Store {
+  id               String      @id @default(uuid(7)) @db.Uuid
+  organisationId   String      @db.Uuid
+  name             String
+  slug             String      @unique
+  status           StoreStatus @default(DRAFT)
+  currency         String      @db.Char(3)
+  locale           String
+  timezone         String
+  country          String      @db.Char(2)
+  logoMediaId      String?     @db.Uuid
+  faviconMediaId   String?     @db.Uuid
+  contactEmail     String?
+  supportEmail     String?
+  nextOrderNumber  Int         @default(1001)
+  suspendedAt      DateTime?   @db.Timestamptz(3)
+  suspensionReason String?
+  archivedAt       DateTime?   @db.Timestamptz(3)
+  createdAt        DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime    @updatedAt @db.Timestamptz(3)
+
+  organisation Organisation            @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  memberAccess MembershipStoreAccess[]
+  domains      StoreDomain[]
+
+  @@unique([id, organisationId])
+  @@index([organisationId])
+}
+
+enum DomainType {
+  PLATFORM_SUBDOMAIN
+  CUSTOM
+}
+
+enum DomainStatus {
+  PENDING
+  VERIFYING
+  ACTIVE
+  FAILED
+}
+
+model StoreDomain {
+  id                String       @id @default(uuid(7)) @db.Uuid
+  organisationId    String       @db.Uuid
+  storeId           String       @db.Uuid
+  hostname          String       @unique
+  type              DomainType
+  status            DomainStatus @default(PENDING)
+  verificationToken String
+  isPrimary         Boolean      @default(false)
+  verifiedAt        DateTime?    @db.Timestamptz(3)
+  lastCheckedAt     DateTime?    @db.Timestamptz(3)
+  failureReason     String?
+  providerRef       String?
+  createdAt         DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime     @updatedAt @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+
+  @@index([storeId])
+  @@index([status, lastCheckedAt])
+}
+
+// --- Audit (Milestone 1) ------------------------------------------------------
+
+enum AuditActorType {
+  USER
+  PLATFORM_STAFF
+  API_KEY
+  APP
+  SYSTEM
+}
+
+model AuditLog {
+  id               String         @default(uuid(7)) @db.Uuid
+  organisationId   String?        @db.Uuid
+  storeId          String?        @db.Uuid
+  actorType        AuditActorType
+  actorId          String?        @db.Uuid
+  onBehalfOfUserId String?        @db.Uuid
+  action           String
+  entityType       String?
+  entityId         String?        @db.Uuid
+  metadata         Json?
+  ipAddress        String?
+  userAgent        String?
+  requestId        String?
+  createdAt        DateTime       @default(now()) @db.Timestamptz(3)
+
+  organisation Organisation? @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  @@id([id, createdAt])
+  @@index([organisationId, createdAt])
+  @@index([storeId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([entityType, entityId])
+}

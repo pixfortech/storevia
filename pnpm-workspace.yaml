@@ -7,3 +7,4 @@ packages:
 ignoredBuiltDependencies:
   - "@prisma/engines"
   - prisma
+  - esbuild

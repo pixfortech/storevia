@@ -58,8 +58,8 @@ enum UserStatus {
 /// through PlatformStaff). Never a storefront shopper — see Customer.
 model User {
   id            String     @id @default(uuid(7)) @db.Uuid
-  /// Stored lower-cased; citext + unique index in SQL.
-  email         String     @unique
+  /// Case-insensitive (citext; the extension is created in the first migration).
+  email         String     @unique @db.Citext
   emailVerified Boolean    @default(false)
   name          String
   image         String?
@@ -108,12 +108,14 @@ enum SessionRealm {
   PLATFORM
 }
 
-/// Server-side session. The cookie carries an opaque token; only its SHA-256
-/// hash is stored, so a database leak does not yield usable sessions.
+/// Server-side session (ADR-0021). The cookie carries the token plus an
+/// HMAC-SHA256 signature made with the realm secret; a token read from the
+/// database is useless without that secret. Only the system role (auth
+/// package) has privileges on this table.
 model Session {
   id                String       @id @default(uuid(7)) @db.Uuid
   userId            String       @db.Uuid
-  tokenHash         String       @unique
+  token             String       @unique
   realm             SessionRealm @default(DASHBOARD)
   expiresAt         DateTime     @db.Timestamptz(3)
   ipAddress         String?
@@ -132,17 +134,26 @@ model Session {
 }
 
 /// Single-use verification secrets (email verification, password reset).
-/// Only hashes are stored.
+/// Better Auth stores `identifier` hashed (storeIdentifier: "hashed",
+/// ADR-0021); `value` holds the non-secret payload (e.g. the user ID).
 model Verification {
   id         String   @id @default(uuid(7)) @db.Uuid
   identifier String
-  valueHash  String   @unique
+  value      String
   expiresAt  DateTime @db.Timestamptz(3)
   createdAt  DateTime @default(now()) @db.Timestamptz(3)
   updatedAt  DateTime @updatedAt @db.Timestamptz(3)
 
   @@index([identifier])
   @@index([expiresAt])
+}
+
+/// Better Auth database-backed rate limiter (ADR-0021). Identity scope.
+model RateLimit {
+  id          String @id @default(uuid(7)) @db.Uuid
+  key         String @unique
+  count       Int
+  lastRequest BigInt
 }
 
 enum PlatformRole {
@@ -266,7 +277,7 @@ enum InvitationStatus {
 model Invitation {
   id             String           @id @default(uuid(7)) @db.Uuid
   organisationId String           @db.Uuid
-  email          String
+  email          String           @db.Citext
   role           MemberRole
   tokenHash      String           @unique
   status         InvitationStatus @default(PENDING)
@@ -1152,7 +1163,7 @@ model Customer {
   id                 String               @id @default(uuid(7)) @db.Uuid
   organisationId     String               @db.Uuid
   storeId            String               @db.Uuid
-  email              String?
+  email              String?              @db.Citext
   phone              String?
   firstName          String?
   lastName           String?
