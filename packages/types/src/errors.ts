@@ -9,7 +9,11 @@ export type ErrorCode =
   | "VALIDATION_FAILED"
   | "CONFLICT"
   | "RATE_LIMITED"
-  | "REAUTHENTICATION_REQUIRED";
+  | "REAUTHENTICATION_REQUIRED"
+  /** The organisation's plan doesn't include this feature (ADR-0022). */
+  | "ENTITLEMENT_REQUIRED"
+  /** A plan limit (e.g. store_count) has been reached. */
+  | "LIMIT_REACHED";
 
 export class DomainError extends Error {
   readonly code: ErrorCode;

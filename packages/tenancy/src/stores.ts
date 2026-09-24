@@ -1,5 +1,6 @@
 import "server-only";
 import { withTenant } from "@storevia/database";
+import { consumeUsage, releaseUsage } from "@storevia/entitlements";
 import { notFound } from "@storevia/types";
 import { conflict, generateTokenSafe } from "./internal";
 import { createStoreSchema, updateStoreSchema } from "@storevia/validation";
@@ -47,8 +48,8 @@ export function storefrontRootDomain(): string {
 
 /**
  * Creates a store in the context's organisation, plus its platform subdomain
- * (`{slug}.storevia.site`) as the primary domain. Plan limits on store_count
- * are enforced from Milestone 2 (entitlements).
+ * (`{slug}.storevia.site`) as the primary domain. The store_count limit is
+ * consumed atomically in the same transaction (LIMIT_REACHED when full).
  */
 export async function createStore(
   ctx: OrganisationContext,
@@ -58,6 +59,7 @@ export async function createStore(
   const data = parseInput(createStoreSchema, input);
   try {
     return await withTenant(scopeOf(ctx), async (tx) => {
+      await consumeUsage(tx, ctx.organisationId, "store_count");
       const store = await tx.store.create({
         data: {
           organisationId: ctx.organisationId,
@@ -187,6 +189,8 @@ export async function archiveStore(ctx: StoreContext): Promise<void> {
       data: { status: "ARCHIVED", archivedAt: new Date() },
     });
     if (count === 0) throw conflict("This store is already archived.");
+    // Archived stores don't count towards store_count (data is kept).
+    await releaseUsage(tx, ctx.organisationId, "store_count");
     await recordAudit(tx, ctx, "store.archived", { type: "Store", id: ctx.storeId });
   });
 }

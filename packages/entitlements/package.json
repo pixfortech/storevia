@@ -1,28 +1,23 @@
 {
-  "name": "@storevia/tenancy",
+  "name": "@storevia/entitlements",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./rbac": "./src/rbac.ts"
+    "./features": "./src/features.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests --exclude 'tests/**'",
     "test:integration": "vitest run --config vitest.int.config.ts"
   },
-  "devDependencies": {
-    "vitest": "4.1.11"
-  },
   "dependencies": {
     "@storevia/database": "workspace:*",
-    "@storevia/email": "workspace:*",
-    "@storevia/entitlements": "workspace:*",
-    "@storevia/security": "workspace:*",
     "@storevia/types": "workspace:*",
-    "@storevia/validation": "workspace:*",
-    "server-only": "0.0.1",
-    "zod": "4.6.5"
+    "server-only": "0.0.1"
+  },
+  "devDependencies": {
+    "vitest": "4.1.11"
   }
 }

@@ -1,5 +1,6 @@
 import "server-only";
 import { withTenant } from "@storevia/database";
+import { consumeUsage } from "@storevia/entitlements";
 import { consumeRateLimit } from "@storevia/security/server";
 import { DomainError, notFound, uuidv7 } from "@storevia/types";
 import { countrySchema, displayNameSchema } from "@storevia/validation";
@@ -64,6 +65,8 @@ export async function createOrganisation(
       },
       select: { id: true },
     });
+    // The owner holds the first team seat (the system default allows it).
+    await consumeUsage(tx, organisationId, "staff_accounts");
     const membership = await tx.membership.create({
       data: { organisationId, userId: principal.userId, role: "OWNER", allStores: true },
       select: { id: true },

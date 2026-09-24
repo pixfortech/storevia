@@ -1,5 +1,6 @@
 import "server-only";
 import { withTenant } from "@storevia/database";
+import { assertFeature, releaseUsage } from "@storevia/entitlements";
 import { DomainError, forbidden, notFound } from "@storevia/types";
 import { z } from "zod";
 import { recordAudit } from "./audit";
@@ -202,6 +203,7 @@ export async function removeMember(
     await revokeInvitationsFrom(tx, ctx, target.userId);
     const { count } = await tx.membership.deleteMany({ where: guard(ctx, target) });
     assertApplied(count);
+    await releaseUsage(tx, ctx.organisationId, "staff_accounts");
     await recordAudit(
       tx,
       ctx,
@@ -243,6 +245,9 @@ export async function setMemberStoreAccess(
   await withTenant(scopeOf(ctx), async (tx) => {
     const target = await loadManageableMember(tx, ctx, membershipId);
     if (!data.allStores) {
+      // Store-limited staff access is a plan feature. Removing a restriction
+      // (back to all stores) is always allowed.
+      await assertFeature(tx, ctx.organisationId, "advanced_permissions");
       const found = await tx.store.count({
         where: { id: { in: storeIds }, organisationId: ctx.organisationId },
       });
@@ -355,6 +360,7 @@ export async function leaveOrganisation(ctx: OrganisationContext): Promise<void>
   if (ctx.role === "OWNER") throw conflict("Transfer ownership before leaving this organisation.");
   await withTenant(scopeOf(ctx), async (tx) => {
     await tx.membership.delete({ where: { id: ctx.membershipId }, select: { id: true } });
+    await releaseUsage(tx, ctx.organisationId, "staff_accounts");
     await recordAudit(tx, ctx, "member.left", { type: "Membership", id: ctx.membershipId });
   });
 }

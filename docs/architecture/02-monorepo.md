@@ -107,10 +107,14 @@ Enforced by lint (`eslint-plugin-boundaries` or equivalent) and a CI check:
    `withTenant(ctx, fn)`. The unscoped client is exported from a separate
    entry point (`@storevia/database/system`, `storevia_system` role) whose
    importers are allow-listed: `packages/auth` (identity tables), the
-   invitation-token lookup in `packages/tenancy`, and later the storefront
-   hostname resolver (M4), inbound webhook ingestion (M2/M6) and the worker's
-   tenant-iterating schedulers. Platform-admin uses its own read-only entry
-   point (`@storevia/database/platform`). Migrations and reference seeds use
+   rate limiter in `packages/security`, the invitation-token lookup in
+   `packages/tenancy`, `packages/billing` (webhook ledger, expiry sweep; M2),
+   and later the storefront hostname resolver (M4), merchant payment webhooks
+   (M6) and the worker's tenant-iterating schedulers. Platform-admin uses its
+   own entry point (`@storevia/database/platform`: reads plus the specific
+   audited writes its staff actions need), shared only with `packages/billing`
+   and the platform-staff resolver in `packages/tenancy`. ESLint
+   (`no-restricted-imports`) enforces both allow-lists. Migrations and reference seeds use
    the migrator connection through the Prisma CLI and seed scripts.
 5. Domain packages do not import each other in cycles. Cross-domain calls go
    through the public `index.ts` of the other package; when two domains need

@@ -105,6 +105,25 @@ function latestInviteToken(email: string): string {
 
 const acceptUrl = (token: string) => `http://app.localhost:3001/invitations/${token}`;
 
+/**
+ * Gives an organisation a live MANUAL subscription as a real row, as the
+ * platform-admin Subscription Service would. The entitlement engine and
+ * enforcement under test are unchanged (no bypass; ADR-0022).
+ */
+async function subscribe(organisationId: string, planKey: string): Promise<void> {
+  const db = migratorDb();
+  const plan = await db.plan.findUniqueOrThrow({ where: { key: planKey } });
+  await db.subscription.create({
+    data: {
+      organisationId,
+      planId: plan.id,
+      status: "ACTIVE",
+      source: "MANUAL",
+      startedAt: new Date(),
+    },
+  });
+}
+
 interface Tenant {
   user: Principal;
   org: string;
@@ -122,6 +141,7 @@ beforeEach(async () => {
     const user = await makeUser(label);
     const { organisationId } = await createOrganisation(user, { name: `Organisation ${label}` });
     const orgCtx = await requireOrganisationAccess(user, orgId(organisationId));
+    await subscribe(organisationId, "business"); // 3 stores, 10 seats, store-limited staff
     const { storeId: sid } = await createStore(orgCtx, storeInput(slug));
     return { user, org: organisationId, store: sid, orgCtx };
   };

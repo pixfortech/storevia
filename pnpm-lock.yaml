@@ -184,6 +184,22 @@ importers:
         specifier: 4.1.11
         version: 4.1.11(@types/node@22.19.1)(vite@8.3.0(@types/node@22.19.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
+  packages/entitlements:
+    dependencies:
+      '@storevia/database':
+        specifier: workspace:*
+        version: link:../database
+      '@storevia/types':
+        specifier: workspace:*
+        version: link:../types
+      server-only:
+        specifier: 0.0.1
+        version: 0.0.1
+    devDependencies:
+      vitest:
+        specifier: 4.1.11
+        version: 4.1.11(@types/node@22.19.1)(vite@8.3.0(@types/node@22.19.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+
   packages/security:
     dependencies:
       '@storevia/database':
@@ -208,6 +224,9 @@ importers:
       '@storevia/email':
         specifier: workspace:*
         version: link:../email
+      '@storevia/entitlements':
+        specifier: workspace:*
+        version: link:../entitlements
       '@storevia/security':
         specifier: workspace:*
         version: link:../security

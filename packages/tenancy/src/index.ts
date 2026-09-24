@@ -35,3 +35,5 @@ export {
   revokeInvitation,
 } from "./invitations";
 export type { InvitationPreview, InvitationView } from "./invitations";
+export { getAllowance, getOrganisationBilling } from "./billing";
+export type { OrganisationBilling } from "./billing";

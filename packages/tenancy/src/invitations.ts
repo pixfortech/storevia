@@ -1,5 +1,12 @@
 import "server-only";
-import { withTenant } from "@storevia/database";
+import { withTenant, type TenantTx } from "@storevia/database";
+import {
+  consumeUsage,
+  getFeatureLimit,
+  getUsage,
+  limitReached,
+  resolveEntitlement,
+} from "@storevia/entitlements";
 import { systemDb } from "@storevia/database/system";
 import { getEmailSender, invitationMessage } from "@storevia/email";
 import { consumeRateLimits } from "@storevia/security/server";
@@ -80,6 +87,7 @@ export async function createInvitation(
     });
     if (existingMember)
       throw conflict("That person is already a member.", { email: "Already a member." });
+    await assertSeatAvailable(tx, ctx.organisationId, data.email);
     // A new invitation replaces any pending one for the same email.
     await tx.invitation.updateMany({
       where: { organisationId: ctx.organisationId, email: data.email, status: "PENDING" },
@@ -117,6 +125,33 @@ export async function createInvitation(
     ),
   );
   return { invitationId };
+}
+
+/**
+ * Pre-check for invitations: members plus other pending invitations must stay
+ * within staff_accounts, so an organisation can't hand out more invitations
+ * than it has seats. Acceptance consumes the seat atomically (the enforcement).
+ */
+async function assertSeatAvailable(tx: TenantTx, organisationId: string, email: string) {
+  const limit = await getFeatureLimit(tx, organisationId, "staff_accounts");
+  if (limit === "unlimited") return;
+  const members = await getUsage(tx, organisationId, "staff_accounts");
+  const pending = await tx.invitation.count({
+    where: {
+      organisationId,
+      status: "PENDING",
+      expiresAt: { gt: new Date() },
+      email: { not: email }, // a re-invite replaces the pending one
+    },
+  });
+  if (members + BigInt(pending) + 1n > limit) {
+    const { name } = await resolveEntitlement(tx, organisationId, "staff_accounts");
+    const error = limitReached(name, limit);
+    throw new DomainError(
+      "LIMIT_REACHED",
+      `${error.message} Pending invitations count towards the limit.`,
+    );
+  }
 }
 
 export async function listInvitations(ctx: OrganisationContext): Promise<InvitationView[]> {
@@ -242,6 +277,17 @@ export async function acceptInvitation(
       select: { id: true },
     });
     if (existing) throw conflict("You're already a member of this organisation.");
+    try {
+      await consumeUsage(tx, organisationId, "staff_accounts");
+    } catch (error) {
+      if (error instanceof DomainError && error.code === "LIMIT_REACHED") {
+        throw new DomainError(
+          "LIMIT_REACHED",
+          "This organisation has no free team seats on its plan. Ask the person who invited you to free a seat or change the plan.",
+        );
+      }
+      throw error;
+    }
     const membership = await tx.membership.create({
       data: { organisationId, userId: principal.userId, role: invitation.role, allStores: true },
       select: { id: true },

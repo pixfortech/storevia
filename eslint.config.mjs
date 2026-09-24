@@ -1,6 +1,6 @@
 // Root ESLint flat config for the whole monorepo.
-// Package-boundary rules (docs/architecture/02-monorepo.md §4) are added in
-// Milestone 1 together with the first packages.
+// Package-boundary rules (docs/architecture/02-monorepo.md §4): privileged
+// database entry points are allow-listed below.
 import js from "@eslint/js";
 import { defineConfig, globalIgnores } from "eslint/config";
 import globals from "globals";
@@ -53,6 +53,65 @@ export default defineConfig(
         {
           property: "$executeRawUnsafe",
           message: "Use the $executeRaw tagged template so parameters are bound.",
+        },
+      ],
+    },
+  },
+  {
+    // ADR-0022: code never branches on plan keys; it asks the entitlement
+    // engine. Plan keys may appear only in seeds, tests and platform-admin.
+    files: ["{apps,packages}/**/*.{ts,tsx}"],
+    ignores: [
+      "packages/database/scripts/**",
+      "apps/dashboard/scripts/**",
+      "apps/platform-admin/**",
+      "**/tests/**",
+      "**/e2e/**",
+      "**/*.test.ts",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "Literal[value=/^(starter|business|enterprise)$/]",
+          message: "Don't reference plan keys; use hasFeature/assertFeature/consumeUsage.",
+        },
+      ],
+    },
+  },
+  {
+    // Privileged database entry points are allow-listed (02-monorepo.md §4).
+    files: ["{apps,packages}/**/*.{ts,tsx}"],
+    ignores: [
+      "packages/database/**",
+      "packages/auth/**",
+      "packages/billing/**",
+      "packages/security/src/rate-limit.ts",
+      "packages/tenancy/src/invitations.ts",
+      "packages/tenancy/src/platform.ts",
+      "apps/platform-admin/**",
+      "**/tests/**",
+      "**/e2e/**",
+      "**/scripts/**",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@storevia/database/system",
+              message: "The system role is allow-listed (docs/architecture/02-monorepo.md §4).",
+            },
+            {
+              name: "@storevia/database/platform",
+              message: "The platform role is for platform-admin and packages/billing only.",
+            },
+            {
+              name: "@storevia/database/testing",
+              message: "Test helpers must not be imported by application code.",
+            },
+          ],
         },
       ],
     },
