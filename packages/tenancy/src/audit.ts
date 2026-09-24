@@ -37,6 +37,8 @@ const ALLOWED_METADATA_KEYS = new Set([
   "providerEventId",
   "overLimit",
   "drift",
+  "businessType",
+  "previousBusinessType",
 ]);
 
 /** Longer free text allowed for these keys (staff-entered reasons). */

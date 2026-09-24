@@ -80,6 +80,29 @@ export default defineConfig(
     },
   },
   {
+    // ADR-0024: business type is presentation only. The code that enforces
+    // permissions and entitlements must never branch on it. (Repeats the
+    // plan-key selector: flat config replaces, not merges, a rule's options.)
+    files: [
+      "packages/{auth,billing,entitlements,jobs,security}/src/**/*.ts",
+      "packages/tenancy/src/{context,rbac,members,invitations,organisations,platform,billing,audit}.ts",
+    ],
+    ignores: ["**/*.test.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "Literal[value=/^(starter|business|enterprise)$/]",
+          message: "Don't reference plan keys; use hasFeature/assertFeature/consumeUsage.",
+        },
+        {
+          selector: "Literal[value=/^(ECOMMERCE|BUSINESS|PUBLISHING|PORTFOLIO)$/]",
+          message: "Business type is never an authorisation or entitlement input (ADR-0024).",
+        },
+      ],
+    },
+  },
+  {
     // packages/billing: its own billing role and the platform role, never the
     // system role (shared with the dashboard's auth path).
     files: ["packages/billing/src/**/*.ts"],

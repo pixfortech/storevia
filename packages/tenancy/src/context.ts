@@ -1,6 +1,7 @@
 import "server-only";
 import { withTenant, type TenantScope } from "@storevia/database";
 import { forbidden, notFound, parseTypeId, unauthenticated, type IdKind } from "@storevia/types";
+import type { BusinessType } from "./business-types";
 import { permissionsFor, type MemberRole, type Permission } from "./rbac";
 
 /**
@@ -46,6 +47,8 @@ export interface StoreContext extends Omit<OrganisationContext, "kind"> {
   readonly storeName: string;
   readonly storeSlug: string;
   readonly storeStatus: "DRAFT" | "ACTIVE" | "SUSPENDED" | "ARCHIVED";
+  /** Presentation only (ADR-0024); never used for authorisation. */
+  readonly storeBusinessType: BusinessType;
 }
 
 export type TenantContext = OrganisationContext | StoreContext;
@@ -159,7 +162,14 @@ export async function requireStoreAccess(
     (tx) =>
       tx.store.findFirst({
         where: { id: storeId },
-        select: { id: true, organisationId: true, name: true, slug: true, status: true },
+        select: {
+          id: true,
+          organisationId: true,
+          name: true,
+          slug: true,
+          status: true,
+          businessType: true,
+        },
       }),
   );
   if (!store) throw notFound();
@@ -200,6 +210,7 @@ export async function requireStoreAccess(
     storeName: store.name,
     storeSlug: store.slug,
     storeStatus: store.status,
+    storeBusinessType: store.businessType,
     request,
   });
 }

@@ -175,6 +175,11 @@ enum MemberRole {
   MARKETING
   SUPPORT
   VIEWER
+  INVENTORY_MANAGER
+  SITE_MANAGER
+  CONTENT_MANAGER
+  EDITOR
+  AUTHOR
 }
 
 enum MembershipStatus {
@@ -253,26 +258,37 @@ enum StoreStatus {
   ARCHIVED
 }
 
+/// What a store is (ADR-0024). Controls onboarding, navigation emphasis and
+/// suggested roles; never permissions or entitlements.
+enum BusinessType {
+  ECOMMERCE
+  BUSINESS
+  PUBLISHING
+  PORTFOLIO
+}
+
 model Store {
-  id               String      @id @default(uuid(7)) @db.Uuid
-  organisationId   String      @db.Uuid
+  id               String       @id @default(uuid(7)) @db.Uuid
+  organisationId   String       @db.Uuid
   name             String
-  slug             String      @unique
-  status           StoreStatus @default(DRAFT)
-  currency         String      @db.Char(3)
+  slug             String       @unique
+  status           StoreStatus  @default(DRAFT)
+  /// Presentation only (ADR-0024): never an authorisation input.
+  businessType     BusinessType @default(ECOMMERCE)
+  currency         String       @db.Char(3)
   locale           String
   timezone         String
-  country          String      @db.Char(2)
-  logoMediaId      String?     @db.Uuid
-  faviconMediaId   String?     @db.Uuid
+  country          String       @db.Char(2)
+  logoMediaId      String?      @db.Uuid
+  faviconMediaId   String?      @db.Uuid
   contactEmail     String?
   supportEmail     String?
-  nextOrderNumber  Int         @default(1001)
-  suspendedAt      DateTime?   @db.Timestamptz(3)
+  nextOrderNumber  Int          @default(1001)
+  suspendedAt      DateTime?    @db.Timestamptz(3)
   suspensionReason String?
-  archivedAt       DateTime?   @db.Timestamptz(3)
-  createdAt        DateTime    @default(now()) @db.Timestamptz(3)
-  updatedAt        DateTime    @updatedAt @db.Timestamptz(3)
+  archivedAt       DateTime?    @db.Timestamptz(3)
+  createdAt        DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime     @updatedAt @db.Timestamptz(3)
 
   organisation Organisation            @relation(fields: [organisationId], references: [id], onDelete: Restrict)
   memberAccess MembershipStoreAccess[]

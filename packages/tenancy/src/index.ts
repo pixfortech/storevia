@@ -10,6 +10,7 @@ export type { OrganisationDetails } from "./organisations";
 export type { OrganisationSummary } from "./organisations";
 export {
   archiveStore,
+  changeStoreBusinessType,
   createStore,
   getStore,
   listStores,

@@ -55,6 +55,12 @@ export const MEMBER_ROLES = [
   "MARKETING",
   "SUPPORT",
   "VIEWER",
+  // Business-type role presets (ADR-0024).
+  "INVENTORY_MANAGER",
+  "SITE_MANAGER",
+  "CONTENT_MANAGER",
+  "EDITOR",
+  "AUTHOR",
 ] as const;
 
 export type MemberRole = (typeof MEMBER_ROLES)[number];
@@ -139,6 +145,29 @@ const ROLE_GRANTS: Record<MemberRole, readonly Permission[]> = {
   ],
   SUPPORT: [...BASE_READ, "order.read", "customer.read", "customer.manage", "discount.read"],
   VIEWER: [...BASE_READ, "discount.read", "analytics.read"],
+  INVENTORY_MANAGER: [...BASE_READ, "inventory.adjust"],
+  SITE_MANAGER: [
+    ...BASE_READ,
+    "member.read",
+    "store.update",
+    "settings.manage",
+    "media.manage",
+    "analytics.read",
+    "design.edit",
+    "page.publish",
+    "theme.publish",
+    "navigation.manage",
+  ],
+  CONTENT_MANAGER: [
+    ...BASE_READ,
+    "media.manage",
+    "analytics.read",
+    "design.edit",
+    "page.publish",
+    "navigation.manage",
+  ],
+  EDITOR: [...BASE_READ, "media.manage", "design.edit", "page.publish"],
+  AUTHOR: [...BASE_READ, "media.manage", "design.edit"],
 };
 
 const toSet = (role: MemberRole): ReadonlySet<Permission> => new Set<Permission>(ROLE_GRANTS[role]);
@@ -153,6 +182,11 @@ export const ROLE_PERMISSIONS: Readonly<Record<MemberRole, ReadonlySet<Permissio
   MARKETING: toSet("MARKETING"),
   SUPPORT: toSet("SUPPORT"),
   VIEWER: toSet("VIEWER"),
+  INVENTORY_MANAGER: toSet("INVENTORY_MANAGER"),
+  SITE_MANAGER: toSet("SITE_MANAGER"),
+  CONTENT_MANAGER: toSet("CONTENT_MANAGER"),
+  EDITOR: toSet("EDITOR"),
+  AUTHOR: toSet("AUTHOR"),
 };
 
 export function permissionsFor(role: MemberRole): ReadonlySet<Permission> {
@@ -189,4 +223,9 @@ export const ROLE_LABELS: Record<MemberRole, string> = {
   MARKETING: "Marketing",
   SUPPORT: "Support",
   VIEWER: "Viewer",
+  INVENTORY_MANAGER: "Inventory manager",
+  SITE_MANAGER: "Site manager",
+  CONTENT_MANAGER: "Content manager",
+  EDITOR: "Editor",
+  AUTHOR: "Author",
 };

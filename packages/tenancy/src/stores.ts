@@ -3,7 +3,11 @@ import { withTenant } from "@storevia/database";
 import { consumeUsage, releaseUsage } from "@storevia/entitlements";
 import { notFound } from "@storevia/types";
 import { conflict, generateTokenSafe } from "./internal";
-import { createStoreSchema, updateStoreSchema } from "@storevia/validation";
+import {
+  changeBusinessTypeSchema,
+  createStoreSchema,
+  updateStoreSchema,
+} from "@storevia/validation";
 import { recordAudit } from "./audit";
 import {
   requirePermission,
@@ -19,6 +23,7 @@ export interface StoreSummary {
   readonly name: string;
   readonly slug: string;
   readonly status: "DRAFT" | "ACTIVE" | "SUSPENDED" | "ARCHIVED";
+  readonly businessType: "ECOMMERCE" | "BUSINESS" | "PUBLISHING" | "PORTFOLIO";
   readonly primaryHostname: string | null;
 }
 
@@ -37,6 +42,7 @@ const summarySelect = {
   name: true,
   slug: true,
   status: true,
+  businessType: true,
   domains: { where: { isPrimary: true }, select: { hostname: true }, take: 1 },
 } as const;
 
@@ -63,6 +69,7 @@ export async function createStore(
       const store = await tx.store.create({
         data: {
           organisationId: ctx.organisationId,
+          businessType: data.businessType,
           name: data.name,
           slug: data.slug,
           currency: data.currency,
@@ -100,7 +107,7 @@ export async function createStore(
         ctx,
         "store.created",
         { type: "Store", id: store.id },
-        { slug: data.slug, name: data.name },
+        { slug: data.slug, name: data.name, businessType: data.businessType },
       );
       return { storeId: store.id };
     });
@@ -134,6 +141,7 @@ export async function listStores(ctx: TenantContext): Promise<StoreSummary[]> {
     name: row.name,
     slug: row.slug,
     status: row.status,
+    businessType: row.businessType,
     primaryHostname: row.domains[0]?.hostname ?? null,
   }));
 }
@@ -192,5 +200,40 @@ export async function archiveStore(ctx: StoreContext): Promise<void> {
     // Archived stores don't count towards store_count (data is kept).
     await releaseUsage(tx, ctx.organisationId, "store_count");
     await recordAudit(tx, ctx, "store.archived", { type: "Store", id: ctx.storeId });
+  });
+}
+
+/**
+ * Changes what the store is presented as (ADR-0024). Presentation only: no
+ * data is deleted or hidden, and nothing about permissions or the plan
+ * changes. Audited.
+ */
+export async function changeStoreBusinessType(ctx: StoreContext, input: unknown): Promise<void> {
+  requirePermission(ctx, "store.update");
+  const { businessType } = parseInput(changeBusinessTypeSchema, input);
+  await withTenant(scopeOf(ctx), async (tx) => {
+    const current = await tx.store.findFirst({
+      where: { id: ctx.storeId, organisationId: ctx.organisationId },
+      select: { businessType: true, status: true },
+    });
+    if (!current) throw notFound();
+    if (current.status === "ARCHIVED") throw conflict("Archived stores can't be edited.");
+    if (current.businessType === businessType) return;
+    const { count } = await tx.store.updateMany({
+      where: {
+        id: ctx.storeId,
+        organisationId: ctx.organisationId,
+        businessType: current.businessType,
+      },
+      data: { businessType },
+    });
+    if (count === 0) throw conflict("This store changed at the same time. Reload and try again.");
+    await recordAudit(
+      tx,
+      ctx,
+      "store.business_type_changed",
+      { type: "Store", id: ctx.storeId },
+      { businessType, previousBusinessType: current.businessType },
+    );
   });
 }

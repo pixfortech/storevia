@@ -84,7 +84,13 @@ export const storeSlugSchema = z
   .refine((slug) => !RESERVED_STORE_SLUGS.has(slug), "That address is reserved.")
   .refine((slug) => !slug.includes("storevia"), "That address is reserved.");
 
+/** ADR-0024. Kept in sync with @storevia/tenancy/business-types (test). */
+export const businessTypeSchema = z.enum(["ECOMMERCE", "BUSINESS", "PUBLISHING", "PORTFOLIO"], {
+  error: "Choose what you're creating.",
+});
+
 export const createStoreSchema = z.object({
+  businessType: businessTypeSchema.default("ECOMMERCE"),
   name: displayNameSchema("store"),
   slug: storeSlugSchema,
   currency: currencySchema,
@@ -102,3 +108,5 @@ export const updateStoreSchema = z.object({
   supportEmail: z.union([z.literal(""), emailSchema]).transform((v) => v || null),
 });
 export type UpdateStoreInput = z.infer<typeof updateStoreSchema>;
+
+export const changeBusinessTypeSchema = z.object({ businessType: businessTypeSchema });
