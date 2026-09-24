@@ -18,6 +18,12 @@ describe("safeRedirectPath", () => {
     "javascript:alert(1)",
     "evil.test",
     "/\tevil",
+    "/.//evil.com",
+    "/..//evil.com",
+    "/%2e//evil.com",
+    "/./\\evil.com",
+    "/%2F/evil.com",
+    "/%5Cevil.com",
     "",
     null,
   ])("rejects %s", (input) => {
@@ -45,6 +51,10 @@ describe("clientIp", () => {
     process.env["TRUSTED_CLIENT_IP_HEADER"] = "x-forwarded-for";
     expect(clientIp(headers)).toBe("203.0.113.9");
     expect(clientIp(new Headers({ "x-forwarded-for": "not-an-ip" }))).toBeNull();
+    // The client-controlled left-most entries are ignored.
+    expect(clientIp(new Headers({ "x-forwarded-for": "1.2.3.4, 203.0.113.9" }))).toBe(
+      "203.0.113.9",
+    );
     delete process.env["TRUSTED_CLIENT_IP_HEADER"];
   });
 });

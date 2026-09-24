@@ -273,6 +273,13 @@ describe("sessions", () => {
     ).toMatchObject({ code: "INVALID_CREDENTIALS" });
   });
 
+  it("invalidates sessions of soft-deleted users", async () => {
+    await registerVerified("deleted@example.test");
+    const headers = await signedIn(dashboard, "deleted@example.test");
+    await migratorDb().user.updateMany({ data: { deletedAt: new Date() } });
+    expect(await dashboard.getSession(headers)).toBeNull();
+  });
+
   it("step-up re-authentication stamps the session", async () => {
     await registerVerified("step@example.test");
     const headers = await signedIn(dashboard, "step@example.test");

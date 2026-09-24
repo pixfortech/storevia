@@ -6,12 +6,34 @@ import { requestId } from "./request";
 export interface ActionState {
   readonly ok: boolean;
   readonly message?: string | undefined;
+  /** Machine-readable error code (e.g. REAUTHENTICATION_REQUIRED). */
+  readonly code?: string | undefined;
   readonly fieldErrors?: Readonly<Record<string, string>> | undefined;
   /** Echoed form values so fields keep their input after a failed submit. */
   readonly values?: Readonly<Record<string, string>> | undefined;
 }
 
 export const initialActionState: ActionState = { ok: false };
+
+/**
+ * Log shape for unexpected errors: type, code and stack frames only. Error
+ * messages are omitted because some (e.g. database validation errors) echo
+ * argument values such as emails.
+ */
+function describeError(error: unknown, requestId: string | undefined) {
+  const base = { level: "error", msg: "server action failed", requestId };
+  if (!(error instanceof Error)) return { ...base, errorType: typeof error };
+  const code = (error as { code?: unknown }).code;
+  return {
+    ...base,
+    errorName: error.name,
+    ...(typeof code === "string" ? { errorCode: code } : {}),
+    stack: error.stack
+      ?.split("\n")
+      .slice(1, 8)
+      .map((line) => line.trim()),
+  };
+}
 
 export function formValues(formData: FormData): Record<string, string> {
   const values: Record<string, string> = {};
@@ -37,17 +59,16 @@ export async function runAction(
     unstable_rethrow(error); // let redirect()/notFound() propagate
     const values = formData ? formValues(formData) : undefined;
     if (isDomainError(error)) {
-      return { ok: false, message: error.message, fieldErrors: error.fieldErrors, values };
+      return {
+        ok: false,
+        code: error.code,
+        message: error.message,
+        fieldErrors: error.fieldErrors,
+        values,
+      };
     }
     const id = await requestId();
-    console.error(
-      JSON.stringify({
-        level: "error",
-        msg: "server action failed",
-        requestId: id,
-        error: String(error),
-      }),
-    );
+    console.error(JSON.stringify(describeError(error, id)));
     return {
       ok: false,
       message: `Something went wrong on our side. Please try again.${id ? ` (Reference: ${id})` : ""}`,

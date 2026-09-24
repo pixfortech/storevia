@@ -73,6 +73,8 @@ const RATE_LIMITS = {
   signInIp: { name: "auth:sign-in:ip", limit: 30, windowSeconds: 5 * 60 },
   signInEmail: { name: "auth:sign-in:email", limit: 10, windowSeconds: 15 * 60 },
   signUpIp: { name: "auth:sign-up:ip", limit: 10, windowSeconds: HOUR },
+  // Bounds "account already exists" emails to one address (email bombing).
+  signUpEmail: { name: "auth:sign-up:email", limit: 3, windowSeconds: HOUR },
   resetRequestEmail: { name: "auth:reset-request:email", limit: 3, windowSeconds: HOUR },
   resetRequestIp: { name: "auth:reset-request:ip", limit: 10, windowSeconds: HOUR },
   resetSubmitIp: { name: "auth:reset-submit:ip", limit: 20, windowSeconds: HOUR },
@@ -174,6 +176,7 @@ function buildBetterAuth(options: AuthServiceOptions) {
         locale: { type: "string", required: false, input: false, defaultValue: "en" },
         timezone: { type: "string", required: false, input: false, defaultValue: "UTC" },
         status: { type: "string", required: false, input: false, defaultValue: "ACTIVE" },
+        deletedAt: { type: "date", required: false, input: false },
       },
     },
     session: {
@@ -301,7 +304,10 @@ export class AuthService {
     const parsed = signUpSchema.safeParse(input);
     if (!parsed.success)
       return authFail("INVALID_INPUT", parsed.error.issues[0]?.message ?? "Invalid input.");
-    const blocked = await this.limited([[RATE_LIMITS.signUpIp, clientIp(headers)]]);
+    const blocked = await this.limited([
+      [RATE_LIMITS.signUpIp, clientIp(headers)],
+      [RATE_LIMITS.signUpEmail, parsed.data.email],
+    ]);
     if (blocked) return blocked;
     if (await isBreachedPassword(parsed.data.password)) {
       return authFail(
@@ -497,7 +503,8 @@ export class AuthService {
       return null;
     }
     const status = (user as { status?: string }).status;
-    if (status !== "ACTIVE" || !user.emailVerified) return null;
+    const deletedAt = (user as { deletedAt?: Date | string | null }).deletedAt;
+    if (status !== "ACTIVE" || deletedAt || !user.emailVerified) return null;
     if (this.realm === "PLATFORM" && !(await sessionAllowed("PLATFORM", user.id))) return null;
     const reauth = (session as { reauthenticatedAt?: Date | string | null }).reauthenticatedAt;
     return {
