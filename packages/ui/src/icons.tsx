@@ -184,7 +184,10 @@ export function GlyphTile({
   );
 }
 
-/** Storevia logo: monogram tile + wordmark. `variant="admin"` marks the staff tool. */
+/**
+ * Storevia logo: monogram tile + wordmark. `variant="admin"` is for the dark
+ * staff-tool bar: white wordmark and an "Internal" tag.
+ */
 export function Logo({
   className,
   variant = "default",
@@ -197,12 +200,7 @@ export function Logo({
   return (
     <span className={cn("inline-flex items-center gap-2 font-semibold tracking-tight", className)}>
       <svg aria-hidden="true" viewBox="0 0 24 24" className="size-7 shrink-0">
-        <rect
-          width="24"
-          height="24"
-          rx="7"
-          className={variant === "admin" ? "fill-admin" : "fill-brand-600"}
-        />
+        <rect width="24" height="24" rx="7" className="fill-brand-600" />
         <path
           d="M7.2 15.3c1.2 1.15 2.8 1.75 4.6 1.75 2.3 0 3.9-1.1 3.9-2.8 0-1.6-1.2-2.3-3.6-2.8-2.1-.4-2.9-.8-2.9-1.6 0-.8.8-1.35 2-1.35 1.3 0 2.4.5 3.2 1.2"
           fill="none"
@@ -214,11 +212,11 @@ export function Logo({
       {monogramOnly ? (
         <span className="sr-only">Storevia</span>
       ) : (
-        <span className={variant === "inverse" ? "text-white" : "text-ink"}>Storevia</span>
+        <span className={variant === "default" ? "text-ink" : "text-white"}>Storevia</span>
       )}
       {variant === "admin" ? (
-        <span className="rounded-pill bg-admin px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
-          Admin
+        <span className="rounded-xs bg-warning-500 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-stone-950">
+          Internal
         </span>
       ) : null}
     </span>

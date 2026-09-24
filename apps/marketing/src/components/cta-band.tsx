@@ -25,14 +25,7 @@ export function CtaBand({
             <a href={appLinks().signUp} className={buttonClasses("primary", "lg")}>
               Start free
             </a>
-            <Link
-              href="/contact"
-              className={buttonClasses(
-                "secondary",
-                "lg",
-                "border-stone-700 bg-transparent text-white hover:bg-stone-800",
-              )}
-            >
+            <Link href="/contact" className={buttonClasses("inverse", "lg")}>
               Talk to us
             </Link>
           </div>

@@ -187,7 +187,7 @@ export function MemberRow({
                 title={`Remove ${member.name}?`}
                 description="They lose access immediately. Anything they created stays."
                 trigger={
-                  <Button size="sm" variant="ghost" className="text-danger-700">
+                  <Button size="sm" variant="danger-outline">
                     Remove
                   </Button>
                 }

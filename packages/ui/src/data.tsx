@@ -109,13 +109,15 @@ export function DataList<T>({
   rows: readonly T[];
   columns: readonly DataColumn<T>[];
   rowKey: (row: T) => string;
-  rowTestId?: string;
+  /** data-testid for each row: a fixed string or one per row. Phone cards get "-mobile". */
+  rowTestId?: string | ((row: T) => string);
   empty?: ReactNode;
   caption?: string;
 }) {
   if (rows.length === 0) return <>{empty ?? null}</>;
   const primary = columns.find((c) => c.primary) ?? columns[0];
   const secondary = columns.filter((c) => c !== primary && !c.hideOnMobile);
+  const testId = (row: T) => (typeof rowTestId === "function" ? rowTestId(row) : rowTestId);
   return (
     <>
       <div className="hidden overflow-x-auto md:block">
@@ -141,7 +143,7 @@ export function DataList<T>({
             {rows.map((row) => (
               <tr
                 key={rowKey(row)}
-                data-testid={rowTestId}
+                data-testid={testId(row)}
                 className="align-middle hover:bg-stone-25"
               >
                 {columns.map((c) => (
@@ -161,7 +163,7 @@ export function DataList<T>({
         {rows.map((row) => (
           <li
             key={rowKey(row)}
-            data-testid={rowTestId ? `${rowTestId}-mobile` : undefined}
+            data-testid={rowTestId ? `${testId(row) ?? ""}-mobile` : undefined}
             className="px-4 py-3.5"
           >
             <div className="text-[15px] font-medium text-ink">{primary?.cell(row)}</div>

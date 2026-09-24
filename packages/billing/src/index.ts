@@ -54,6 +54,8 @@ export {
 export type { Simulation, SimulationResult } from "./simulate";
 export { sweepSubscriptionExpiry } from "./sweep";
 export { getOrganisationBillingDetail, listOrganisationsForAdmin } from "./admin";
+export { getJobsOverview } from "./operations";
+export type { JobHealth, JobRunSummary, JobsOverview } from "./operations";
 export type {
   AdminFeature,
   AdminOverride,

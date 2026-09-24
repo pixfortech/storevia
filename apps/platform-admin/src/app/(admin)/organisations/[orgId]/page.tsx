@@ -4,10 +4,11 @@ import {
   type AdminOverride,
   type SubscriptionStatus,
 } from "@storevia/billing";
-import { isEntitling, type EntitlementValue } from "@storevia/entitlements";
+import { isEntitling, type EntitlementValue, type FeatureKey } from "@storevia/entitlements";
+import { formatEntitlement } from "@storevia/entitlements/format";
 import { hasPlatformPermission } from "@storevia/tenancy/platform";
 import { toTypeId } from "@storevia/types";
-import { Alert, Badge, Card, CardBody, CardHeader } from "@storevia/ui";
+import { Alert, Badge, Card, CardBody, CardHeader, DataList, Meter } from "@storevia/ui";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
@@ -42,16 +43,18 @@ import {
 
 export const metadata: Metadata = { title: "Organisation" };
 
-function describe(value: EntitlementValue): string {
+/** Human-readable value plus the exact stored value for staff. */
+function describe(key: FeatureKey, value: EntitlementValue): { label: string; raw?: string } {
+  const label = formatEntitlement(key, value) ?? "Not included";
   switch (value.kind) {
-    case "BOOLEAN":
-      return value.enabled ? "Enabled" : "Disabled";
     case "LIMIT":
-      return value.limit === 0n ? "Not included (0)" : formatLimit(value.limit);
-    case "UNLIMITED":
-      return "Unlimited";
+      return label.startsWith("Up to") || value.limit === 0n
+        ? { label }
+        : { label, raw: value.limit.toLocaleString("en-GB") };
     case "CONFIGURATION":
-      return value.enabled ? JSON.stringify(value.config) : "Disabled";
+      return value.enabled ? { label, raw: JSON.stringify(value.config) } : { label };
+    default:
+      return { label };
   }
 }
 
@@ -101,6 +104,46 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
+function RiskSummary({
+  items,
+}: {
+  items: readonly { tone: "danger" | "warning" | "info"; text: string }[];
+}) {
+  if (items.length === 0) {
+    return (
+      <p
+        data-testid="risk-summary"
+        className="rounded-control border border-line bg-surface px-4 py-2.5 text-sm text-ink-muted"
+      >
+        Nothing needs attention: subscription, limits and overrides are in order.
+      </p>
+    );
+  }
+  const dot = { danger: "bg-danger-600", warning: "bg-warning-500", info: "bg-info-500" } as const;
+  return (
+    <section
+      aria-label="Needs attention"
+      data-testid="risk-summary"
+      className="rounded-control border border-line bg-surface px-4 py-3"
+    >
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
+        Needs attention
+      </h2>
+      <ul className="mt-2 space-y-1.5 text-sm">
+        {items.map((item) => (
+          <li key={item.text} className="flex items-start gap-2.5">
+            <span
+              aria-hidden="true"
+              className={`mt-1.5 size-2 shrink-0 rounded-full ${dot[item.tone]}`}
+            />
+            {item.text}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export default async function OrganisationPage({ params }: { params: Promise<{ orgId: string }> }) {
   const { orgId } = await params;
   const ctx = await requireStaff(`/organisations/${orgId}`);
@@ -139,6 +182,60 @@ export default async function OrganisationPage({ params }: { params: Promise<{ o
           <code className="font-mono text-xs">{toTypeId("organisation", org.id)}</code>
         </p>
       </div>
+
+      <RiskSummary
+        items={[
+          ...(org.status !== "ACTIVE"
+            ? [
+                {
+                  tone: "danger" as const,
+                  text: `Organisation is ${humanise(org.status).toLowerCase()}.`,
+                },
+              ]
+            : []),
+          ...(sub && !entitling
+            ? [
+                {
+                  tone: "danger" as const,
+                  text: "Subscription no longer grants its plan: system defaults apply.",
+                },
+              ]
+            : []),
+          ...(sub?.status === "PAST_DUE"
+            ? [
+                {
+                  tone: "warning" as const,
+                  text: `Payment overdue. Grace ends ${formatDateTime(sub.graceEndsAt)}.`,
+                },
+              ]
+            : []),
+          ...(sub?.status === "CANCELLED"
+            ? [
+                {
+                  tone: "warning" as const,
+                  text: `Cancelled. Access ends ${formatDateTime(sub.expiresAt)}.`,
+                },
+              ]
+            : []),
+          ...detail.usage
+            .filter((l) => l.overLimit)
+            .map((l) => ({
+              tone: "danger" as const,
+              text: `Over the ${l.name.toLowerCase()} limit.`,
+            })),
+          ...(detail.overrides.some((o) => o.expiresAt === null || o.expiresAt > now)
+            ? [
+                {
+                  tone: "info" as const,
+                  text: `${String(detail.overrides.filter((o) => o.expiresAt === null || o.expiresAt > now).length)} active entitlement override(s).`,
+                },
+              ]
+            : []),
+          ...(sub?.source === "MOCK"
+            ? [{ tone: "info" as const, text: "Subscription comes from mock billing (test only)." }]
+            : []),
+        ]}
+      />
 
       {stepUpNeeded ? (
         <Alert tone="info">
@@ -249,31 +346,25 @@ export default async function OrganisationPage({ params }: { params: Promise<{ o
             description="Over a limit, existing resources keep working and new ones are blocked."
           />
           <CardBody className="space-y-4">
-            {detail.usage.map((line) => {
-              const pct =
-                line.limit === "unlimited" || line.limit === 0n
-                  ? 0
-                  : Math.min(100, Number((line.usage * 100n) / line.limit));
-              return (
-                <div key={line.key} data-testid={`usage-${line.key}`}>
-                  <div className="flex justify-between text-sm">
-                    <span className="font-medium">{line.name}</span>
-                    <span>
-                      {line.usage.toString()} of {formatLimit(line.limit)}{" "}
-                      {line.overLimit ? <Badge tone="danger">Over limit</Badge> : null}
-                    </span>
-                  </div>
-                  <div className="mt-1.5 h-2 rounded-full bg-subtle" aria-hidden="true">
-                    <div
-                      className={`h-2 rounded-full ${line.overLimit ? "bg-danger-600" : "bg-brand-600"}`}
-                      style={{
-                        width: `${String(line.limit === "unlimited" ? 0 : line.overLimit ? 100 : pct)}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+            {detail.usage.map((line) => (
+              <div key={line.key} data-testid={`usage-${line.key}`}>
+                <Meter
+                  label={line.name}
+                  value={Number(line.usage)}
+                  max={line.limit === "unlimited" ? null : Number(line.limit)}
+                  valueLabel={
+                    <>
+                      {line.usage.toString()} of {formatLimit(line.limit)}
+                      {line.overLimit ? (
+                        <Badge tone="danger" className="ml-2">
+                          Over limit
+                        </Badge>
+                      ) : null}
+                    </>
+                  }
+                />
+              </div>
+            ))}
             {canManage ? <ReconcileButton action={bind(reconcileUsageAction)} /> : null}
           </CardBody>
         </Card>
@@ -284,49 +375,67 @@ export default async function OrganisationPage({ params }: { params: Promise<{ o
           title="Effective entitlements"
           description="Resolved now: override → plan of an entitling subscription → system default."
         />
-        <CardBody className="overflow-x-auto p-0">
-          <table className="w-full min-w-[560px] text-left text-sm">
-            <thead className="border-b border-line text-xs uppercase tracking-wide text-ink-muted">
-              <tr>
-                <th className="px-5 py-2.5 font-medium">Feature</th>
-                <th className="px-5 py-2.5 font-medium">Value</th>
-                <th className="px-5 py-2.5 font-medium">From</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {detail.entitlements.entitlements.map((e) => (
-                <tr key={e.key} data-testid={`entitlement-${e.key}`}>
-                  <td className="px-5 py-2">
-                    {e.name} <span className="text-xs text-ink-faint">{e.key}</span>
-                  </td>
-                  <td className="px-5 py-2">{describe(e.value)}</td>
-                  <td className="px-5 py-2">
-                    <Badge
-                      tone={
-                        e.origin === "OVERRIDE"
-                          ? "warning"
-                          : e.origin === "PLAN"
-                            ? "brand"
-                            : "neutral"
-                      }
-                    >
-                      {e.origin === "OVERRIDE"
-                        ? "Override"
-                        : e.origin === "PLAN"
-                          ? "Plan"
-                          : "System default"}
-                    </Badge>
-                    {e.overrideExpiresAt ? (
-                      <span className="ml-2 text-xs text-ink-muted">
-                        until {formatDate(e.overrideExpiresAt)}
-                      </span>
+        <DataList
+          caption="Effective entitlements"
+          rows={detail.entitlements.entitlements}
+          rowKey={(e) => e.key}
+          rowTestId={(e) => `entitlement-${e.key}`}
+          columns={[
+            {
+              key: "feature",
+              header: "Feature",
+              primary: true,
+              cell: (e) => (
+                <>
+                  {e.name} <span className="font-mono text-xs text-ink-faint">{e.key}</span>
+                </>
+              ),
+            },
+            {
+              key: "value",
+              header: "Value",
+              cell: (e) => {
+                const value = describe(e.key, e.value);
+                return (
+                  <>
+                    {value.label}
+                    {value.raw ? (
+                      <span className="block font-mono text-xs text-ink-faint">{value.raw}</span>
                     ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </CardBody>
+                  </>
+                );
+              },
+            },
+            {
+              key: "origin",
+              header: "From",
+              cell: (e) => (
+                <>
+                  <Badge
+                    tone={
+                      e.origin === "OVERRIDE"
+                        ? "warning"
+                        : e.origin === "PLAN"
+                          ? "brand"
+                          : "neutral"
+                    }
+                  >
+                    {e.origin === "OVERRIDE"
+                      ? "Override"
+                      : e.origin === "PLAN"
+                        ? "Plan"
+                        : "System default"}
+                  </Badge>
+                  {e.overrideExpiresAt ? (
+                    <span className="ml-2 text-xs text-ink-muted">
+                      until {formatDate(e.overrideExpiresAt)}
+                    </span>
+                  ) : null}
+                </>
+              ),
+            },
+          ]}
+        />
       </Card>
 
       <Card data-testid="overrides-card">
@@ -358,63 +467,76 @@ export default async function OrganisationPage({ params }: { params: Promise<{ o
 
       <Card data-testid="history-card">
         <CardHeader title="Subscription history" description="Every change, whatever its source." />
-        <CardBody className="overflow-x-auto p-0">
-          {detail.events.length === 0 ? (
-            <p className="px-5 py-4 text-sm text-ink-muted">No subscription events yet.</p>
-          ) : (
-            <table className="w-full min-w-[760px] text-left text-sm">
-              <thead className="border-b border-line text-xs uppercase tracking-wide text-ink-muted">
-                <tr>
-                  <th className="px-5 py-2.5 font-medium">When</th>
-                  <th className="px-5 py-2.5 font-medium">Event</th>
-                  <th className="px-5 py-2.5 font-medium">Status</th>
-                  <th className="px-5 py-2.5 font-medium">Plan</th>
-                  <th className="px-5 py-2.5 font-medium">By</th>
-                  <th className="px-5 py-2.5 font-medium">Reason</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {detail.events.map((e) => (
-                  <tr key={e.id} data-testid="history-row" className="align-top">
-                    <td className="whitespace-nowrap px-5 py-2 text-ink-muted">
-                      {formatDateTime(e.occurredAt)}
-                    </td>
-                    <td className="px-5 py-2">
-                      <span className="font-medium">{humanise(e.type)}</span>
-                      <span className="block text-xs text-ink-muted">
-                        {SOURCE_LABELS[e.source] ?? e.source}
-                      </span>
-                    </td>
-                    <td className="whitespace-nowrap px-5 py-2">
-                      {e.fromStatus ? `${humanise(e.fromStatus)} → ` : ""}
-                      {e.toStatus ? humanise(e.toStatus) : ""}
-                    </td>
-                    <td className="px-5 py-2">
-                      {e.fromPlanName && e.fromPlanName !== e.toPlanName
-                        ? `${e.fromPlanName} → `
-                        : ""}
-                      {e.toPlanName}
-                    </td>
-                    <td className="px-5 py-2">
-                      {e.actorType === "SYSTEM" ? "System" : (e.actorName ?? "Staff")}
-                    </td>
-                    <td className="px-5 py-2">
-                      {e.reason}
-                      {e.note ? (
-                        <span className="block text-xs text-ink-muted">Note: {e.note}</span>
-                      ) : null}
-                      {e.providerEventId ? (
-                        <code className="block font-mono text-[11px] text-ink-faint">
-                          {e.providerEventId}
-                        </code>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </CardBody>
+        <DataList
+          caption="Subscription history"
+          rows={detail.events}
+          rowKey={(e) => e.id}
+          rowTestId="history-row"
+          empty={<p className="px-5 py-4 text-sm text-ink-muted">No subscription events yet.</p>}
+          columns={[
+            {
+              key: "when",
+              header: "When",
+              className: "whitespace-nowrap text-ink-muted",
+              cell: (e) => formatDateTime(e.occurredAt),
+            },
+            {
+              key: "event",
+              header: "Event",
+              primary: true,
+              cell: (e) => (
+                <>
+                  <span className="font-medium">{humanise(e.type)}</span>
+                  <span className="block text-xs text-ink-muted">
+                    {SOURCE_LABELS[e.source] ?? e.source}
+                  </span>
+                </>
+              ),
+            },
+            {
+              key: "status",
+              header: "Status",
+              cell: (e) => (
+                <>
+                  {e.fromStatus ? `${humanise(e.fromStatus)} → ` : ""}
+                  {e.toStatus ? humanise(e.toStatus) : ""}
+                </>
+              ),
+            },
+            {
+              key: "plan",
+              header: "Plan",
+              cell: (e) => (
+                <>
+                  {e.fromPlanName && e.fromPlanName !== e.toPlanName ? `${e.fromPlanName} → ` : ""}
+                  {e.toPlanName}
+                </>
+              ),
+            },
+            {
+              key: "by",
+              header: "By",
+              cell: (e) => (e.actorType === "SYSTEM" ? "System" : (e.actorName ?? "Staff")),
+            },
+            {
+              key: "reason",
+              header: "Reason",
+              cell: (e) => (
+                <>
+                  {e.reason}
+                  {e.note ? (
+                    <span className="block text-xs text-ink-muted">Note: {e.note}</span>
+                  ) : null}
+                  {e.providerEventId ? (
+                    <code className="block font-mono text-[11px] text-ink-faint">
+                      {e.providerEventId}
+                    </code>
+                  ) : null}
+                </>
+              ),
+            },
+          ]}
+        />
       </Card>
 
       {detail.webhookEvents.length > 0 ? (

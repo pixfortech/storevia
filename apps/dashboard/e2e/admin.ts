@@ -80,6 +80,12 @@ export async function submitDialog(
   const dialog = page.getByRole("dialog");
   if (fields.plan) await dialog.getByLabel("Plan", { exact: true }).selectOption(fields.plan);
   await dialog.getByLabel("Reason").fill(fields.reason);
+  // High-risk actions need an explicit acknowledgement before submitting.
+  const acknowledge = dialog.getByLabel("I understand the consequence for this merchant.");
+  if ((await acknowledge.count()) > 0) {
+    await expect(dialog.getByRole("button", { name: submit })).toBeDisabled();
+    await acknowledge.check();
+  }
   await dialog.getByRole("button", { name: submit }).click();
 }
 

@@ -90,6 +90,7 @@ function ActionDialog({
   submitLabel,
   variant = "secondary",
   testId,
+  risk,
   children,
 }: {
   label: string;
@@ -99,9 +100,17 @@ function ActionDialog({
   submitLabel: string;
   variant?: ButtonProps["variant"];
   testId?: string;
+  /**
+   * High-risk actions end or reduce a merchant's access. They get a danger
+   * style, a stated consequence and an explicit acknowledgement before the
+   * submit button enables. The server still enforces permission, step-up,
+   * reason and audit for every action.
+   */
+  risk?: { consequence: string };
   children: (state: FormState) => ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const [acknowledged, setAcknowledged] = useState(false);
   const [state, formAction] = useActionState(action, { ok: false });
   const [shown, setShown] = useState<FormState | null>(null);
   // React resets a form after its action runs. Re-mount the fields for each
@@ -125,26 +134,53 @@ function ActionDialog({
         open={open}
         onOpenChange={(next) => {
           setOpen(next);
+          setAcknowledged(false);
           if (next) setShown(null);
         }}
         title={title}
         {...(description ? { description } : {})}
         trigger={
-          <Button type="button" size="sm" variant={variant} data-testid={testId}>
+          <Button
+            type="button"
+            size="sm"
+            variant={risk ? "danger-outline" : variant}
+            data-testid={testId}
+          >
             {label}
           </Button>
         }
       >
         <form key={version} action={formAction} className="space-y-4" noValidate>
           {state.ok ? null : <FormMessage state={state} />}
+          {risk ? (
+            <Alert tone="danger" title="High-risk action">
+              {risk.consequence}
+            </Alert>
+          ) : null}
           {children(state)}
+          {risk ? (
+            <label className="flex items-start gap-2.5 rounded-control border border-line p-3 text-sm">
+              <input
+                type="checkbox"
+                checked={acknowledged}
+                onChange={(event) => {
+                  setAcknowledged(event.currentTarget.checked);
+                }}
+                className="mt-0.5 size-4 accent-danger-600"
+              />
+              I understand the consequence for this merchant.
+            </label>
+          ) : null}
           <div className="flex justify-end gap-2 pt-2">
             <DialogClose asChild>
               <Button type="button" variant="ghost">
                 Close
               </Button>
             </DialogClose>
-            <SubmitButton variant={variant === "danger" ? "danger" : "primary"}>
+            <SubmitButton
+              variant={risk || variant === "danger" ? "danger" : "primary"}
+              disabled={risk ? !acknowledged : undefined}
+            >
               {submitLabel}
             </SubmitButton>
           </div>
@@ -337,8 +373,15 @@ export function SubscriptionActions({
         </ActionDialog>
       ) : null}
 
+      <span className="basis-full pt-2 text-xs font-semibold uppercase tracking-wide text-danger-700">
+        Ends access
+      </span>
       {status === "TRIAL" || status === "ACTIVE" || status === "PAST_DUE" ? (
         <ActionDialog
+          risk={{
+            consequence:
+              "The merchant keeps its plan until the access end date, then drops to the system defaults. Resources over the default limits stop accepting additions.",
+          }}
           label="Cancel"
           title="Cancel the subscription"
           description="The organisation keeps its plan until access ends, then falls back to system defaults."
@@ -363,6 +406,10 @@ export function SubscriptionActions({
       ) : null}
 
       <ActionDialog
+        risk={{
+          consequence:
+            "Paid features end immediately for every store in this organisation. Nothing is deleted, but anything over the system defaults stops accepting additions.",
+        }}
         label="Expire now"
         title="Expire the subscription now"
         description="Entitlements end immediately and system defaults apply. Data is never deleted."

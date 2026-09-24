@@ -1,7 +1,15 @@
 import { forwardRef, type ButtonHTMLAttributes } from "react";
 import { cn } from "./cn";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+export type ButtonVariant =
+  | "primary"
+  | "secondary"
+  | "ghost"
+  | "danger"
+  /** Opens a high-risk flow: quiet, but visibly destructive. */
+  | "danger-outline"
+  /** Secondary action on a dark surface. */
+  | "inverse";
 export type ButtonSize = "sm" | "md" | "lg";
 
 const VARIANTS: Record<ButtonVariant, string> = {
@@ -11,6 +19,9 @@ const VARIANTS: Record<ButtonVariant, string> = {
     "bg-surface text-ink border border-line-strong shadow-xs hover:bg-subtle hover:border-stone-400 disabled:text-ink-faint",
   ghost: "text-ink-muted hover:bg-subtle hover:text-ink",
   danger: "bg-danger-600 text-white shadow-xs hover:bg-danger-700 disabled:bg-danger-600/55",
+  "danger-outline":
+    "bg-surface text-danger-700 border border-danger-600/40 shadow-xs hover:bg-danger-50 hover:border-danger-600/70",
+  inverse: "border border-white/25 text-white hover:bg-white/10",
 };
 
 // Touch targets: md and lg meet 40–44 px; sm is for dense desktop toolbars.

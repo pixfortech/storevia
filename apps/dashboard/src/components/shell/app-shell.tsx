@@ -23,12 +23,6 @@ import type { ShellData } from "./types";
 export function AppShell({ data, children }: { data: ShellData; children: ReactNode }) {
   return (
     <CommandProvider data={data}>
-      <a
-        href="#main"
-        className="sr-only z-50 rounded-control bg-surface px-3 py-2 text-sm font-medium focus:not-sr-only focus:fixed focus:left-3 focus:top-3"
-      >
-        Skip to content
-      </a>
       <div className="min-h-dvh md:flex">
         {/* Desktop sidebar + tablet rail */}
         <aside className="sticky top-0 hidden h-dvh shrink-0 flex-col border-r border-line bg-surface md:flex md:w-[72px] lg:w-64">

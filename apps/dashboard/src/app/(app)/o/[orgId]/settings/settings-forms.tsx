@@ -43,11 +43,7 @@ export function LeaveOrganisationForm({ orgId }: { orgId: string }) {
     <Dialog
       title="Leave this organisation?"
       description="You'll need a new invitation to come back."
-      trigger={
-        <Button variant="secondary" className="text-danger-700">
-          Leave organisation
-        </Button>
-      }
+      trigger={<Button variant="danger-outline">Leave organisation</Button>}
     >
       <form action={action} className="space-y-3">
         <FormMessage state={state} />

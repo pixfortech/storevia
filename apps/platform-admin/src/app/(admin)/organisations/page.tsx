@@ -4,7 +4,7 @@ import {
   type SubscriptionStatus,
 } from "@storevia/billing";
 import { toTypeId } from "@storevia/types";
-import { Badge, Button, Card, EmptyState, Input } from "@storevia/ui";
+import { Badge, Button, Card, DataList, EmptyState, Input } from "@storevia/ui";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireStaff } from "@/lib/auth";
@@ -46,61 +46,66 @@ export default async function OrganisationsPage({
         </form>
       </div>
       <Card>
-        {organisations.length === 0 ? (
-          <EmptyState
-            title="No organisations found"
-            description={query ? "Try another search." : undefined}
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="border-b border-line text-xs uppercase tracking-wide text-ink-muted">
-                <tr>
-                  <th className="px-5 py-3 font-medium">Organisation</th>
-                  <th className="px-5 py-3 font-medium">Plan</th>
-                  <th className="px-5 py-3 font-medium">Subscription</th>
-                  <th className="px-5 py-3 font-medium">Created</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {organisations.map((org) => {
-                  const status = org.subscriptionStatus as SubscriptionStatus | null;
-                  return (
-                    <tr key={org.id} data-testid="organisation-row">
-                      <td className="px-5 py-3">
-                        <Link
-                          href={`/organisations/${toTypeId("organisation", org.id)}`}
-                          className="font-medium text-ink hover:underline"
-                        >
-                          {org.name}
-                        </Link>
-                        {org.status !== "ACTIVE" ? (
-                          <Badge tone="danger" className="ml-2">
-                            {org.status.toLowerCase()}
-                          </Badge>
-                        ) : null}
-                      </td>
-                      <td className="px-5 py-3">
-                        {org.planName ?? <span className="text-ink-muted">System default</span>}
-                      </td>
-                      <td className="px-5 py-3">
-                        {status ? (
-                          <span className="flex flex-wrap gap-1.5">
-                            <Badge tone={STATUS_TONES[status]}>{STATUS_LABELS[status]}</Badge>
-                            <Badge>{SOURCE_LABELS[org.source ?? ""] ?? org.source}</Badge>
-                          </span>
-                        ) : (
-                          <span className="text-ink-muted">None</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3 text-ink-muted">{formatDate(org.createdAt)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <DataList
+          caption="Organisations"
+          rows={organisations}
+          rowKey={(org) => org.id}
+          rowTestId="organisation-row"
+          empty={
+            <EmptyState
+              title="No organisations found"
+              description={query ? "Try another search." : undefined}
+            />
+          }
+          columns={[
+            {
+              key: "name",
+              header: "Organisation",
+              primary: true,
+              cell: (org) => (
+                <>
+                  <Link
+                    href={`/organisations/${toTypeId("organisation", org.id)}`}
+                    className="font-medium text-ink hover:underline"
+                  >
+                    {org.name}
+                  </Link>
+                  {org.status !== "ACTIVE" ? (
+                    <Badge tone="danger" className="ml-2">
+                      {org.status.toLowerCase()}
+                    </Badge>
+                  ) : null}
+                </>
+              ),
+            },
+            {
+              key: "plan",
+              header: "Plan",
+              cell: (org) => org.planName ?? <span className="text-ink-muted">System default</span>,
+            },
+            {
+              key: "subscription",
+              header: "Subscription",
+              cell: (org) => {
+                const status = org.subscriptionStatus as SubscriptionStatus | null;
+                return status ? (
+                  <span className="flex flex-wrap gap-1.5">
+                    <Badge tone={STATUS_TONES[status]}>{STATUS_LABELS[status]}</Badge>
+                    <Badge>{SOURCE_LABELS[org.source ?? ""] ?? org.source}</Badge>
+                  </span>
+                ) : (
+                  <span className="text-ink-muted">None</span>
+                );
+              },
+            },
+            {
+              key: "created",
+              header: "Created",
+              className: "text-ink-muted",
+              cell: (org) => formatDate(org.createdAt),
+            },
+          ]}
+        />
       </Card>
     </div>
   );

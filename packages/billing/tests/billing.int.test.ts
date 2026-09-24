@@ -29,6 +29,7 @@ import {
   sweepSubscriptionExpiry,
   toWire,
   type Simulation,
+  getJobsOverview,
 } from "../src";
 
 process.env["MOCK_BILLING_WEBHOOK_SECRET"] = "test-only-mock-billing-secret-0123456789abcdef";
@@ -1077,5 +1078,50 @@ describe("security review regressions", () => {
       ["billing.simulation.requested", admin.userId],
       ["billing.simulation.delivered", admin.userId],
     ]);
+  });
+});
+
+describe("job health (read-only, ADR-0023)", () => {
+  it("shows stalled and failing jobs to staff with audit access only", async () => {
+    const now = new Date("2026-09-24T12:00:00Z");
+    const db = migratorDb();
+    await db.scheduledJob.createMany({
+      data: [
+        {
+          name: "test.healthy",
+          intervalSeconds: 300,
+          slot: now,
+          nextRunAt: new Date(now.getTime() + 60_000),
+          lastStatus: "SUCCEEDED",
+        },
+        {
+          name: "test.stalled",
+          intervalSeconds: 300,
+          slot: now,
+          nextRunAt: new Date(now.getTime() - 3_600_000),
+          lastStatus: "FAILED",
+          consecutiveFailures: 4,
+        },
+      ],
+    });
+    await db.jobRun.create({
+      data: {
+        id: uuidv7(),
+        jobName: "test.stalled",
+        slot: now,
+        attempt: 1,
+        workerId: "w1",
+        status: "FAILED",
+        startedAt: now,
+        error: "TypeError",
+      },
+    });
+    const overview = await getJobsOverview(await staff("SUPPORT"), now);
+    expect(overview.jobs.map((j) => [j.name, j.stalled, j.consecutiveFailures])).toEqual([
+      ["test.healthy", false, 0],
+      ["test.stalled", true, 4],
+    ]);
+    expect(overview.recentRuns[0]?.error).toBe("TypeError");
+    await expectCode(getJobsOverview(await staff("READ_ONLY"), now), "FORBIDDEN");
   });
 });

@@ -114,11 +114,7 @@ export function ArchiveStoreForm({ storeId, storeName }: { storeId: string; stor
     <Dialog
       title={`Archive ${storeName}?`}
       description="The store disappears from your list. Its data is kept."
-      trigger={
-        <Button variant="secondary" className="text-danger-700">
-          Archive store
-        </Button>
-      }
+      trigger={<Button variant="danger-outline">Archive store</Button>}
     >
       <form action={action} className="space-y-3">
         <FormMessage state={state} />
