@@ -1,7 +1,10 @@
 import "server-only";
+import { createLogger } from "@storevia/observability";
 import { isDomainError } from "@storevia/types";
 import { unstable_rethrow } from "next/navigation";
 import { requestId } from "./request";
+
+const log = createLogger({ app: "dashboard" });
 
 export interface ActionState {
   readonly ok: boolean;
@@ -14,26 +17,6 @@ export interface ActionState {
 }
 
 export const initialActionState: ActionState = { ok: false };
-
-/**
- * Log shape for unexpected errors: type, code and stack frames only. Error
- * messages are omitted because some (e.g. database validation errors) echo
- * argument values such as emails.
- */
-function describeError(error: unknown, requestId: string | undefined) {
-  const base = { level: "error", msg: "server action failed", requestId };
-  if (!(error instanceof Error)) return { ...base, errorType: typeof error };
-  const code = (error as { code?: unknown }).code;
-  return {
-    ...base,
-    errorName: error.name,
-    ...(typeof code === "string" ? { errorCode: code } : {}),
-    stack: error.stack
-      ?.split("\n")
-      .slice(1, 8)
-      .map((line) => line.trim()),
-  };
-}
 
 export function formValues(formData: FormData): Record<string, string> {
   const values: Record<string, string> = {};
@@ -68,7 +51,8 @@ export async function runAction(
       };
     }
     const id = await requestId();
-    console.error(JSON.stringify(describeError(error, id)));
+    // Redacted; error messages are never logged (some echo input values).
+    log.error("server action failed", { requestId: id, error });
     return {
       ok: false,
       message: `Something went wrong on our side. Please try again.${id ? ` (Reference: ${id})` : ""}`,
