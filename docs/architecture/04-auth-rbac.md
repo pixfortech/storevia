@@ -185,7 +185,17 @@ Notes:
   role.
 - Invitations carry a role and are accepted only by a signed-in user whose
   verified email matches the invitation email. Tokens are hashed, single-use
-  and expire after 7 days.
+  and expire after 7 days. When an invitation is accepted, the inviter must
+  **still** be an active member entitled to grant that role. Removing,
+  suspending or changing the role of an inviter revokes their pending
+  invitations.
+- Granting the ADMIN role (by invitation or role change) requires step-up
+  re-authentication.
+- Store scope never widens: only members with all-store access can grant
+  all-store access or send invitations (which grant all stores). A
+  store-limited member can grant only stores they can access themselves.
+- Membership changes are conditional writes on the state that was checked
+  (race-safe), and the database enforces one active OWNER per organisation.
 - Every membership change (invite, accept, role change, removal, ownership
   transfer) writes an audit event.
 

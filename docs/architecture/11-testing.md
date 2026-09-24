@@ -38,6 +38,13 @@ User B → Organisation B → Store B) are created in every suite.
 | Platform admin isolation (T11)   | platform role separate                                             | —                                                                            | auth suite: realm cookies, secrets and staff gate                   |
 | RLS coverage (T13)               | every `organisationId` table has RLS enabled, forced, and a policy | —                                                                            | —                                                                   |
 
+An independent security review of Milestone 1 found no cross-tenant IDOR. It
+did produce regression tests for: normalised open-redirect bypasses; step-up
+before granting ADMIN; store-scope escalation by store-limited admins;
+invitations outliving the inviter; ownership races (the database owner
+invariant); read policies scoped to the selected organisation; column-level
+grants and the store-suspension guard; and sessions of soft-deleted users.
+
 The suites were mutation-checked during development: disabling RLS on one
 table, or removing the store-access guard, makes them fail.
 

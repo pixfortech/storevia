@@ -1,7 +1,6 @@
 "use client";
 
-import { Alert, Avatar, Badge, Button, Dialog, DialogClose, Select } from "@storevia/ui";
-import Link from "next/link";
+import { Avatar, Badge, Button, Dialog, DialogClose, Select } from "@storevia/ui";
 import { useActionState } from "react";
 import { FormMessage, SelectField, SubmitButton, TextField } from "@/components/forms";
 import {
@@ -158,14 +157,6 @@ export function MemberRow({
             >
               <form action={transferAction} className="space-y-3">
                 <FormMessage state={transferState} />
-                {transferState.message?.includes("password") ? (
-                  <Alert tone="info">
-                    <Link href="/account/security#confirm" className="font-medium underline">
-                      Confirm your password
-                    </Link>{" "}
-                    first, then try again.
-                  </Alert>
-                ) : null}
                 <div className="flex justify-end gap-2">
                   <DialogClose asChild>
                     <Button variant="secondary">Cancel</Button>

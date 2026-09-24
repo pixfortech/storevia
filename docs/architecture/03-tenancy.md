@@ -163,8 +163,11 @@ CREATE POLICY tenant_isolation ON "Product"
     memberships. This clause doesn't query `Membership`, so it cannot
     recurse (a policy on `Membership` that queried `Membership` would fail
     with "infinite recursion detected in policy").
-  - `Organisation` and `Store`: the row's organisation is in
-    `app_member_organisation_ids()`. This is a `STABLE SECURITY DEFINER` SQL
+  - `Organisation` and `Store`: **only while no organisation is selected**
+    (`app.organisation_id` unset), the row's organisation is in
+    `app_member_organisation_ids()`. Inside an organisation or store scope,
+    only the strict tenant policy applies, so a query that forgets its
+    predicate can't return rows from the user's other organisations. This is a `STABLE SECURITY DEFINER` SQL
     function returning the `organisationId`s of the current user's `ACTIVE`
     memberships. It runs as the table owner (which has `BYPASSRLS`), so it
     doesn't re-enter the policies.
@@ -185,6 +188,17 @@ CREATE POLICY tenant_isolation ON "Product"
 | `storevia_system`         | the allow-listed `@storevia/database/system` entry point only | `BYPASSRLS`               | **Narrow `GRANT`s**, added per use case: identity tables (auth), invitation lookup by token hash (tenancy), later hostname resolution (M4), inbound webhook ledgers (M2/M6) and tenant-iterating schedulers. Because the role bypasses RLS, its grants and queries are reviewed like security code |
 | `storevia_platform`       | platform-admin                                                | `BYPASSRLS`               | `SELECT` grants only (BYPASSRLS cannot be limited to reads, so read-only access comes from the grants); each audited platform write gets its own specific grant when built                                                                                                                         |
 | `storevia_retention` (M8) | worker purge jobs                                             | `BYPASSRLS`               | `DELETE` on expired rows and partitions, including append-only tables                                                                                                                                                                                                                              |
+
+Further database invariants (migration `20260924010000_harden_tenancy`):
+
+- `storevia_app` has **column-level** `UPDATE` grants only. Platform-controlled
+  columns (organisation status and suspension, store suspension) are not
+  writable, and a trigger stops tenant code from moving a store into or out of
+  `SUSPENDED`.
+- A deferred constraint trigger guarantees that, at commit, every
+  non-deleted organisation has **exactly one ACTIVE OWNER**. That makes
+  owner-removal races impossible, even under concurrent requests.
+- `CREATE` on the `public` schema is revoked from `PUBLIC`.
 
 Roles are cluster-level objects. Infrastructure (IaC in production;
 `pnpm db:setup`, introduced in Milestone 1, locally and in CI) creates them with credentials. Migrations

@@ -2,11 +2,13 @@
 
 import { Alert, Button, Field, Input, Select, type ButtonProps } from "@storevia/ui";
 import type { InputHTMLAttributes, ReactNode } from "react";
+import Link from "next/link";
 import { useFormStatus } from "react-dom";
 
 export interface FormState {
   readonly ok: boolean;
   readonly message?: string | undefined;
+  readonly code?: string | undefined;
   readonly fieldErrors?: Readonly<Record<string, string>> | undefined;
   readonly values?: Readonly<Record<string, string>> | undefined;
 }
@@ -22,7 +24,20 @@ export function SubmitButton({ children, ...props }: ButtonProps) {
 
 export function FormMessage({ state }: { state: FormState }) {
   if (!state.message) return null;
-  return <Alert tone={state.ok ? "success" : "danger"}>{state.message}</Alert>;
+  return (
+    <Alert tone={state.ok ? "success" : "danger"}>
+      {state.message}
+      {state.code === "REAUTHENTICATION_REQUIRED" ? (
+        <>
+          {" "}
+          <Link href="/account/security#confirm" className="font-medium underline">
+            Confirm your password
+          </Link>
+          , then try again.
+        </>
+      ) : null}
+    </Alert>
+  );
 }
 
 export function TextField({

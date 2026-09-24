@@ -2,6 +2,7 @@ import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import {
   captureServerAction,
   createTenant,
+  PASSWORD,
   replay,
   signIn,
   signUpAndVerify,
@@ -101,6 +102,27 @@ test("a role change applies on the next request", async () => {
   // Still no owner-only powers.
   await member.goto(`${A.orgPath}/stores/new`);
   await expect(member.getByText("You can't create stores")).toBeVisible();
+});
+
+test("granting Admin requires a recent password confirmation", async () => {
+  await owner.goto(`${A.orgPath}/members`);
+  const row = owner.getByTestId("member-row").filter({ hasText: memberEmail });
+  await row.getByLabel(/Role for/).selectOption("ADMIN");
+  await row.getByRole("button", { name: "Save" }).click();
+  await expect(
+    owner.getByText("Confirm your password before granting the Admin role."),
+  ).toBeVisible();
+  await owner.getByRole("link", { name: "Confirm your password" }).click();
+  await owner.waitForURL(/\/account\/security/);
+  await owner.getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await owner.getByRole("button", { name: "Confirm password" }).click();
+  await expect(owner.getByText(/Confirmed\./)).toBeVisible();
+
+  await owner.goto(`${A.orgPath}/members`);
+  const again = owner.getByTestId("member-row").filter({ hasText: memberEmail });
+  await again.getByLabel(/Role for/).selectOption("ADMIN");
+  await again.getByRole("button", { name: "Save" }).click();
+  await expect(owner.getByText("Role updated.")).toBeVisible();
 });
 
 test("a removed member loses access immediately", async () => {

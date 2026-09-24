@@ -20,10 +20,19 @@ test("an open redirect in ?next is neutralised after sign-in", async ({ page }) 
   await page.getByRole("button", { name: "Account menu" }).first().click();
   await page.getByRole("menuitem", { name: "Sign out" }).click();
   await page.waitForURL(/\/sign-in/);
-  await signIn(page, tenant.email, "https://evil.example/steal");
-  expect(new URL(page.url()).host).toBe(
-    new URL(test.info().project.use.baseURL ?? "http://app.localhost:3001").host,
-  );
+  const appHost = new URL(test.info().project.use.baseURL ?? "http://app.localhost:3001").host;
+  for (const next of [
+    "https://evil.example/steal",
+    "/.//evil.example",
+    "/%2e//evil.example",
+    "/./\\evil.example",
+  ]) {
+    await signIn(page, tenant.email, next);
+    expect(new URL(page.url()).host, next).toBe(appHost);
+    await page.getByRole("button", { name: "Account menu" }).first().click();
+    await page.getByRole("menuitem", { name: "Sign out" }).click();
+    await page.waitForURL(/\/sign-in/);
+  }
 });
 
 test("signing out and revoking sessions end access", async ({ browser }) => {
