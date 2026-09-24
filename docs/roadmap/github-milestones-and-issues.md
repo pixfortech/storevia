@@ -238,89 +238,97 @@ colleagues with roles, and **cannot** reach anyone else's data.
 
 ---
 
-## Milestone 2 — SaaS billing
+## Milestone 2 — SaaS billing (revised by ADR-0022)
 
-**Goal:** organisations subscribe to plans; limits are enforced server-side.
+**Goal:** plans limit usage; subscriptions come from manual staff assignment
+or the mock provider, through one Subscription Service. No real payment
+gateway in this milestone.
 
-#### M2-01 Plans and features reference data
+#### M2-01 Plans and features reference data ✔
 
 `area:billing` `type:feature` `priority:p0`
 
-- [ ] Migration: Plan, PlanPrice, Feature, PlanFeature, OrganisationFeatureOverride, UsageCounter, BillingCustomer, Subscription, SubscriptionEvent, BillingWebhookEvent, Invoice
-- [ ] `seed:reference` idempotent; `FeatureKey` ↔ DB parity test
+- [x] Migration: Plan, PlanPrice, Feature, PlanFeature, OrganisationFeatureOverride, UsageCounter, BillingCustomer, Subscription, SubscriptionEvent, BillingWebhookEvent (Invoice and PlanPriceProviderRef stay in the draft until a real provider)
+- [x] Features inserted by the migration; plans by the idempotent `db:seed`; `FeatureKey` ↔ DB parity test
 
-#### M2-02 Entitlements package
+#### M2-02 Entitlements package ✔
 
 `area:billing` `type:feature` `security` `priority:p0`
 
-- [ ] `getEntitlements`, `hasFeature`, `getFeatureLimit`, `assertFeature`, `getUsage`, `canConsume`, `consumeUsage`, `releaseUsage`
-- [ ] Resolution tests (override > plan > deny; per subscription status)
-- [ ] Lint rule: no plan-code comparisons outside seeds/platform-admin
+- [x] `loadEntitlements`, `hasFeature`, `getFeatureLimit`, `assertFeature`, `getUsage`, `canConsume`, `consumeUsage`, `releaseUsage`
+- [x] Resolution tests (override > plan > system default; per subscription status, time-aware)
+- [x] Lint rule: no plan-key literals outside seeds, tests and platform-admin
 
-#### M2-03 Usage counters and reconciliation
+#### M2-03 Usage counters and reconciliation ✔ (nightly job → M3)
 
 `area:billing` `type:feature` `priority:p0`
 
-- [ ] Row-locked consume; concurrency test (N parallel creates vs limit L → exactly L)
-- [ ] Nightly reconciliation job with drift metric
+- [x] Row-locked consume; concurrency test (N parallel creates vs limit L → exactly L)
+- [x] `reconcileUsage` with drift report; staff action in platform-admin
+- [ ] Nightly reconciliation job with drift metric (with the worker, M3)
 
-#### M2-04 Worker and job queue
+#### M2-04 Worker and job queue → M3
 
-`area:infra` `type:spike` `priority:p0`
+`area:infra` `type:spike` `priority:p1`
 
 - [ ] Spike pg-boss vs Graphile Worker → ADR
-- [ ] `apps/worker` + `@storevia/jobs`; idempotent jobs, retries, metrics, health endpoint
+- [ ] `apps/worker` + `@storevia/jobs`; the webhook pipeline and expiry sweep become jobs
 
-#### M2-05 Billing provider abstraction + Stripe
-
-`area:billing` `type:feature` `security` `priority:p0`
-
-- [ ] `BillingProvider` interface; Stripe implementation (customers, checkout, portal, change plan, cancel/resume, fetch)
-- [ ] Contract tests against Stripe test mode (tagged, run on schedule)
-
-#### M2-06 Subscribe and trial
-
-`area:billing` `type:feature` `priority:p0`
-
-- [ ] Plan selection after organisation creation; trial start; Stripe Checkout for paid plans
-
-#### M2-07 Billing webhooks
+#### M2-05 Billing provider abstraction + mock provider ✔
 
 `area:billing` `type:feature` `security` `priority:p0`
 
-- [ ] Raw-body signature verification; unique event ledger; async processing via re-fetch; out-of-order guard; retries; reconciliation job
-- [ ] Tests: invalid signature, duplicate, out-of-order, failure/retry
+- [x] Provider-neutral `BillingProvider`; `MockBillingProvider` (signed webhooks); environment-gated registry
+- [ ] Stripe / Razorpay adapters (commercialisation phase; Q3)
 
-#### M2-08 Lifecycle behaviour
+#### M2-06 Manual plan assignment ✔
+
+`area:billing` `area:platform-admin` `type:feature` `security` `priority:p0`
+
+- [x] Assign plan, start trial, change, activate, cancel, expire; permission + step-up + reason + audit + event
+- [x] Over-limit pre-check with acknowledgement; never deletes data
+
+#### M2-07 Billing webhooks ✔
+
+`area:billing` `type:feature` `security` `priority:p0`
+
+- [x] Raw-body signature verification with replay window; unique event ledger; per-subscription lock; stale-snapshot guard; retries of failed deliveries
+- [x] Tests: invalid signature, replay, invalid schema, duplicate (incl. concurrent), out-of-order, unknown subscription, illegal transition, failure/retry
+
+#### M2-08 Lifecycle behaviour (dashboard ✔, storefront → M4)
 
 `area:billing` `type:feature` `priority:p1`
 
-- [ ] TRIAL/ACTIVE/PAST_DUE/CANCELLED/EXPIRED effects on dashboard (banners, read-only) and storefront availability flag
+- [x] Source-independent state machine; time-aware entitlement rule; expiry sweep
+- [x] Dashboard banners for past-due, cancelled and over-limit states
+- [ ] Storefront availability per status (M4)
 
-#### M2-09 Billing page
+#### M2-09 Billing page (informational) ✔
 
 `area:billing` `type:feature` `priority:p0`
 
-- [ ] Current plan, usage meters, upgrade, downgrade with pre-check, cancel/resume, billing portal, invoice history
-- [ ] OWNER-only management (`billing.manage`), ADMIN read; step-up auth
+- [x] Current plan, status, usage meters, limits, included features; no payment/checkout controls
+- [ ] Upgrade/downgrade/cancel/resume, billing portal, invoice history (commercialisation phase)
 
-#### M2-10 Plan enforcement for stores and staff
+#### M2-10 Plan enforcement for stores and staff ✔
 
 `area:billing` `type:feature` `tenant-isolation` `priority:p0`
 
-- [ ] `store_count` on store creation, `staff_accounts` on invitation acceptance; typed errors surfaced in UI with upgrade path
+- [x] `store_count` on store creation (archive frees a slot); `staff_accounts` on organisation creation, invitation (pending count) and acceptance; `advanced_permissions` on store-limited access; typed errors in the UI
 
-#### M2-11 Pricing page
+#### M2-11 Pricing page → M3
 
 `area:ui` `type:feature` `priority:p2`
 
 - [ ] Marketing pricing page renders public plans and features from the database (cached)
 
-#### M2-12 Platform-admin billing tools
+#### M2-12 Platform-admin billing tools ✔
 
 `area:platform-admin` `type:feature` `security` `priority:p1`
 
-- [ ] View subscriptions and billing state; manage plans/features; create overrides with reason and expiry; all audited
+- [x] `apps/platform-admin`: staff realm, permission matrix, step-up, organisation list, subscription section (plan, source, status, interval, trial/expiry, effective entitlements, usage, overrides, history, webhook deliveries)
+- [x] Overrides with reason and expiry, all audited; mock simulator outside production
+- [ ] Plan catalogue editing (plans are seeded data for now)
 
 ---
 

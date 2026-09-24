@@ -189,6 +189,17 @@ CREATE POLICY tenant_isolation ON "Product"
 | `storevia_platform`       | platform-admin                                                | `BYPASSRLS`               | `SELECT` grants only (BYPASSRLS cannot be limited to reads, so read-only access comes from the grants); each audited platform write gets its own specific grant when built                                                                                                                         |
 | `storevia_retention` (M8) | worker purge jobs                                             | `BYPASSRLS`               | `DELETE` on expired rows and partitions, including append-only tables                                                                                                                                                                                                                              |
 
+Billing grants (migration `20260925000000_billing_entitlements`, ADR-0022 §8):
+`storevia_app` reads the plan catalogue and its own organisation's
+subscription and override values (not staff reasons or authors) and maintains
+its own usage counters; it can't write subscriptions, events or overrides.
+`storevia_platform` gains exactly the writes that audited staff actions need
+(subscriptions except their source and owner columns, subscription events,
+overrides, usage counters, mock billing customers). `storevia_system` gains
+the webhook ledger, subscription writes for the pipeline and the expiry sweep,
+and read access to billing customers. `SubscriptionEvent` is append-only for
+every runtime role.
+
 Further database invariants (migration `20260924010000_harden_tenancy`):
 
 - `storevia_app` has **column-level** `UPDATE` grants only. Platform-controlled

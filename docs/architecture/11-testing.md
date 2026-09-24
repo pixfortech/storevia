@@ -1,17 +1,18 @@
 # 11 — Testing strategy and security test suites
 
-> Implemented in Milestone 1. Every layer below runs in CI on every push and
+> Implemented in Milestone 1, extended in Milestone 2 (billing and
+> entitlements, ADR-0022). Every layer below runs in CI on every push and
 > pull request. The jobs are required checks: a red job blocks merging once
 > branch protection is enabled on `main` (roadmap issue M0-05).
 
 ## Layers
 
-| Layer       | Tool                                                              | Where                               | Runs against                                             | CI job                                   |
-| ----------- | ----------------------------------------------------------------- | ----------------------------------- | -------------------------------------------------------- | ---------------------------------------- |
-| Unit        | Vitest                                                            | `packages/*/src/**/*.test.ts`       | pure code                                                | `Format, lint, typecheck, test, build`   |
-| Integration | Vitest                                                            | `packages/*/tests/**/*.int.test.ts` | PostgreSQL `*_test` database, real roles, RLS and grants | `Integration and tenant-isolation tests` |
-| End-to-end  | Playwright                                                        | `apps/dashboard/e2e/*.spec.ts`      | production build of the dashboard over HTTP              | `End-to-end security tests (Playwright)` |
-| Static      | ESLint, `tsc`, Prettier, `check:schema`, FK-index check, gitleaks | repository                          | —                                                        | `Format, lint, …` and `Secret scan`      |
+| Layer       | Tool                                                              | Where                               | Runs against                                                    | CI job                                   |
+| ----------- | ----------------------------------------------------------------- | ----------------------------------- | --------------------------------------------------------------- | ---------------------------------------- |
+| Unit        | Vitest                                                            | `packages/*/src/**/*.test.ts`       | pure code                                                       | `Format, lint, typecheck, test, build`   |
+| Integration | Vitest                                                            | `packages/*/tests/**/*.int.test.ts` | PostgreSQL `*_test` database, real roles, RLS and grants        | `Integration and tenant-isolation tests` |
+| End-to-end  | Playwright                                                        | `apps/dashboard/e2e/*.spec.ts`      | production builds of the dashboard and platform-admin over HTTP | `End-to-end security tests (Playwright)` |
+| Static      | ESLint, `tsc`, Prettier, `check:schema`, FK-index check, gitleaks | repository                          | —                                                               | `Format, lint, …` and `Secret scan`      |
 
 ## Tenant isolation: what is proven where
 
@@ -48,16 +49,46 @@ grants and the store-suspension guard; and sessions of soft-deleted users.
 The suites were mutation-checked during development: disabling RLS on one
 table, or removing the store-access guard, makes them fail.
 
+## Entitlements and billing (Milestone 2): what is proven where
+
+Plans reach tests only through the real Subscription Service
+(`packages/billing`, platform-admin in E2E) or as real subscription rows
+arranged as fixtures. The entitlement engine and enforcement under test are
+always the production code; there is no test-only bypass (ADR-0022).
+
+| Guarantee                                                    | Database (`packages/database/tests/billing.int.test.ts`)    | Services (`entitlements`, `tenancy`, `billing` integration suites)                                                                                                                                                   | HTTP (`apps/dashboard/e2e/billing.spec.ts`)                                                        |
+| ------------------------------------------------------------ | ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Resolution: override → plan → system default                 | value trigger rejects malformed values                      | engine unit tests (every status, expiry edges); precedence, expiry and removal with real rows                                                                                                                        | override raises the merchant's visible limit                                                       |
+| Source never changes meaning                                 | CHECK ties source to provider columns                       | manual and mock subscriptions on the same plan resolve identically                                                                                                                                                   | mock subscription shows the same limits                                                            |
+| Plan assignment (manual) incl. trial, change, cancel, expire | one live subscription per organisation; status/date CHECKs  | each operation writes the change, a SubscriptionEvent and an AuditLog row; illegal transitions rejected                                                                                                              | staff assign; merchant sees the plan and uses the new limit                                        |
+| Merchants can't change plans                                 | app role has no write on subscriptions, events or overrides | no merchant-facing plan API exists; `requirePlatformStaff` rejects owners; forged contexts rejected                                                                                                                  | owner can't sign in to platform-admin; staff action replayed with merchant cookies changes nothing |
+| Platform permissions, step-up, reason, audit                 | platform role column grants (no source/owner changes)       | permission matrix per role; step-up and reason required; audit metadata (actor, org, reason, before/after, request ID)                                                                                               | missing step-up and missing reason rejected in the UI                                              |
+| Usage limits: store_count, staff_accounts                    | counter `value >= 0`; RLS on counters                       | N concurrent creations/acceptances vs limit L → exactly L; forged `organisationId` ignored; pending invitations count; archive/removal free capacity                                                                 | crafted create-store replays (past the limit, and into another org) → `LIMIT_REACHED`              |
+| Over-limit after downgrade/expiry                            | —                                                           | stores and members kept and usable; new creation blocked; staff must acknowledge                                                                                                                                     | downgrade keeps stores working, marks over-limit, blocks new stores                                |
+| Webhook pipeline                                             | ledger unique per provider event                            | invalid/missing signature, stale timestamp (replay), invalid schema, duplicate (sequential and concurrent), out-of-order (reverse delivery converges), unknown subscription, illegal transition, failed-then-retried | simulator faults end-to-end; unsigned/forged POSTs → 400; disabled providers → 404                 |
+| Environment safety                                           | —                                                           | mock enabled only in development/test or staging+flag; production → provider, route and simulator absent; manual assignment still works                                                                              | —                                                                                                  |
+| Expiry sweep                                                 | —                                                           | due MANUAL subscriptions expire via the Subscription Service; provider-managed ones untouched                                                                                                                        | —                                                                                                  |
+
+All Milestone 1 tenant-isolation and security suites still run unchanged in
+intent. Fixtures that need more than the system-default floor (a second
+store, invited members) are given a plan first.
+
+Mutation checks during development: removing the counter row lock lets 10
+concurrent creators through a limit of 3; granting the app role INSERT on
+`Subscription` fails the database suite.
+
 ## Running locally
 
 ```sh
 pnpm db:setup && pnpm db:test:prepare   # once
 pnpm test                               # unit
 pnpm test:integration                   # integration + isolation (uses *_test)
-pnpm --filter @storevia/dashboard build
+pnpm db:seed                            # plans, for the dev database used by E2E
+pnpm --filter @storevia/dashboard --filter @storevia/platform-admin build
 EMAIL_TRANSPORT=file EMAIL_FILE_DIR=/tmp/storevia-mail pnpm test:e2e
 ```
 
-The E2E suite starts the dashboard with `next start` (or reuses one on port
-3001). Outside CI, point `PLAYWRIGHT_CHROMIUM_EXECUTABLE` at a local Chromium
+The E2E suite starts the dashboard (port 3001) and platform-admin (port 3003)
+with `next start`, or reuses running ones. It needs `DATABASE_MIGRATOR_URL`
+to grant the test staff member's `PlatformStaff` row, as operations would. Outside CI, point `PLAYWRIGHT_CHROMIUM_EXECUTABLE` at a local Chromium
 if Playwright's bundled browser isn't installed.

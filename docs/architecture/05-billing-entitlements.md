@@ -81,7 +81,7 @@ Enterprise contracts that need more use **overrides**, never an ad-hoc plan.
 ```ts
 type FeatureKey = "store_count" | "staff_accounts" | "product_limit" | /* … */;
 
-loadEntitlements(tx, organisationId, now?): Promise<EntitlementSet>   // one round trip
+loadEntitlements(tx, organisationId, now?): Promise<EntitlementSet>   // a few indexed queries
 hasFeature(tx, organisationId, key): Promise<boolean>
 assertFeature(tx, organisationId, key): Promise<void>                // throws ENTITLEMENT_REQUIRED
 getFeatureLimit(tx, organisationId, key): Promise<bigint | "unlimited">
@@ -136,6 +136,7 @@ acknowledge it. Provider-side downgrades are applied and then flagged.
 | ----------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- |
 | Stores                        | `store_count`             | All stores keep working (dashboard, storefront). Creating a store is blocked. Archiving frees a slot                                                  | M2 ✔             |
 | Staff (memberships)           | `staff_accounts`          | Every member keeps access. Invitations can't be sent and acceptances fail. Removing members frees seats                                               | M2 ✔             |
+| Store-limited staff access    | `advanced_permissions`    | Existing restrictions stay (they only narrow access). New restrictions are blocked; lifting a restriction is always allowed                           | M2 ✔             |
 | Products                      | `product_limit`           | Existing products stay editable and purchasable. New products (and un-archiving) are blocked                                                          | M3               |
 | Media storage                 | `media_storage`           | Existing media is served. New uploads are blocked. Deleting media frees space                                                                         | M3               |
 | Inventory locations           | (future limit)            | Existing locations keep stock and fulfilment. Creating locations is blocked                                                                           | M3 (if limited)  |

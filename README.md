@@ -50,16 +50,23 @@ cp .env.example .env         # then set AUTH_SECRET (openssl rand -base64 32) an
 pnpm db:setup                # create database roles + dev and test databases
 pnpm db:reset                # migrate the dev database from zero
 pnpm db:seed:dev             # optional demo tenants (password: storevia-dev-password)
-pnpm --filter @storevia/dashboard dev   # http://app.localhost:3001
+pnpm --filter @storevia/dashboard dev        # http://app.localhost:3001
+pnpm --filter @storevia/platform-admin dev   # http://admin.localhost:3003 (staff)
 ```
+
+`pnpm db:reset` also loads the plan catalogue (`pnpm db:seed`). No real
+payment gateway is integrated yet (ADR-0022): plans are assigned by staff in
+platform-admin, and a signed mock billing provider can be exercised there
+outside production (`MOCK_BILLING_WEBHOOK_SECRET` must be set).
 
 For local email, set `EMAIL_TRANSPORT=file` (and `EMAIL_FILE_DIR`): verification
 and invitation emails are written as JSON files. Otherwise set `SMTP_URL`
 (e.g. Mailpit). Set `AUTH_BREACHED_PASSWORD_CHECK=off` when working offline.
 
-Seeded accounts: `owner@acme.test` (two stores), `designer@acme.test`
-(Designer role), `owner@globex.test` (a separate tenant) and
-`staff@storevia.test` (platform staff).
+Seeded accounts: `owner@acme.test` (Business plan, two stores),
+`designer@acme.test` (Designer role), `owner@globex.test` (a separate tenant
+on a Starter trial) and `staff@storevia.test` (platform staff; signs in to
+platform-admin).
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow.
 
@@ -77,7 +84,9 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow.
 | `pnpm format` / `pnpm format:check`                   | Prettier write / verify                                                           |
 | `pnpm db:setup` / `pnpm db:reset` / `pnpm db:migrate` | Create roles and databases / recreate + migrate dev DB / apply pending migrations |
 | `pnpm db:test:prepare`                                | Recreate and migrate the `*_test` database                                        |
+| `pnpm db:seed`                                        | Idempotent reference data: the plan catalogue                                     |
 | `pnpm db:seed:dev`                                    | Idempotent demo data (never in production)                                        |
+| `pnpm --filter @storevia/billing billing:sweep`       | Expire manual subscriptions whose term has ended (cron until the worker exists)   |
 | `pnpm db:validate:draft`                              | Validate the draft ERD schema                                                     |
 | `pnpm check:schema`                                   | Live schema agrees with the ERD draft (ADR-0020)                                  |
 | `pnpm verify`                                         | Everything CI runs, locally                                                       |

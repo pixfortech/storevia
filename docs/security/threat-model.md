@@ -92,13 +92,17 @@ verified.
 
 ### 4.3 Authorisation and privilege escalation
 
-| Threat                                  | Mitigation                                                                                                | Test                       | M    |
-| --------------------------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------- | ---- |
-| Member grants themselves a higher role  | Subset rule; no self-role-change; single OWNER invariant                                                  | T7                         | 1    |
-| Plan bypass (use features not paid for) | Server-side `assertFeature`/`consumeUsage` with row locks                                                 | concurrency + gating tests | 2    |
-| Merchant reaches platform-admin         | Separate host, realm, cookie, `PlatformStaff` check, private access                                       | T11                        | 1    |
-| Insider misuse of platform-admin        | Least-privilege platform roles, MFA/SSO, full audit, no silent impersonation, alerts on sensitive actions | audit coverage test        | 1, 8 |
-| API key over-privilege                  | Store-bound keys, scopes → permissions, entitlement check                                                 | scope matrix tests         | 3    |
+| Threat                                         | Mitigation                                                                                                                                                          | Test                                                                   | M    |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ---- |
+| Member grants themselves a higher role         | Subset rule; no self-role-change; single OWNER invariant                                                                                                            | T7                                                                     | 1    |
+| Plan bypass (use features not paid for)        | Server-side `assertFeature`/`consumeUsage` with row locks                                                                                                           | concurrency + gating tests                                             | 2    |
+| Merchant assigns or upgrades their own plan    | No merchant-facing plan API; app DB role cannot write subscriptions, events or overrides; plan changes only in platform-admin (ADR-0022)                            | DB grant tests; crafted replay of a staff action with merchant cookies | 2    |
+| Forged or replayed billing webhook             | HMAC over the raw body, 5-minute timestamp window, unique event ledger, per-subscription lock, stale-snapshot guard                                                 | pipeline tests (invalid/stale signature, duplicate, out-of-order)      | 2    |
+| Mock billing reachable in production           | Registry enables the mock only in development/test or staging with a flag; route, provider and simulator 404 elsewhere; unset stage fails closed                    | environment-safety tests                                               | 2    |
+| Staff changes a plan by mistake or maliciously | Platform permission per role, step-up, required reason, audit (before/after, request ID), SubscriptionEvent history, over-limit acknowledgement; never deletes data | platform permission matrix, audit and step-up tests                    | 2    |
+| Merchant reaches platform-admin                | Separate host, realm, cookie, `PlatformStaff` check, private access                                                                                                 | T11                                                                    | 1    |
+| Insider misuse of platform-admin               | Least-privilege platform roles, MFA/SSO, full audit, no silent impersonation, alerts on sensitive actions                                                           | audit coverage test                                                    | 1, 8 |
+| API key over-privilege                         | Store-bound keys, scopes → permissions, entitlement check                                                                                                           | scope matrix tests                                                     | 3    |
 
 ### 4.4 Injection and content attacks
 
