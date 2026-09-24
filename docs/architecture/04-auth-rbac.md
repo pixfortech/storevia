@@ -144,7 +144,7 @@ be under our control.
 | store.update / settings.manage  |   ✔   |   ✔   |       ✔       |          |                   |               |           |         |        |
 | store.archive                   |   ✔   |   ✔   |               |          |                   |               |           |         |        |
 | product.read / inventory.read   |   ✔   |   ✔   |       ✔       |    ✔     |         ✔         |       ✔       |     ✔     |    ✔    |   ✔    |
-| product.create / update         |   ✔   |   ✔   |       ✔       |          |         ✔         |               |           |         |        |
+| product.create / product.update |   ✔   |   ✔   |       ✔       |          |         ✔         |               |           |         |        |
 | product.delete                  |   ✔   |   ✔   |       ✔       |          |         ✔         |               |           |         |        |
 | collection.manage               |   ✔   |   ✔   |       ✔       |          |         ✔         |               |     ✔     |         |        |
 | inventory.adjust                |   ✔   |   ✔   |       ✔       |          |         ✔         |       ✔       |           |         |        |

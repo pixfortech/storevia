@@ -130,6 +130,34 @@ importers:
         specifier: 4.1.11
         version: 4.1.11(@types/node@22.19.1)(vite@8.3.0(@types/node@22.19.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
+  packages/tenancy:
+    dependencies:
+      '@storevia/database':
+        specifier: workspace:*
+        version: link:../database
+      '@storevia/email':
+        specifier: workspace:*
+        version: link:../email
+      '@storevia/security':
+        specifier: workspace:*
+        version: link:../security
+      '@storevia/types':
+        specifier: workspace:*
+        version: link:../types
+      '@storevia/validation':
+        specifier: workspace:*
+        version: link:../validation
+      server-only:
+        specifier: 0.0.1
+        version: 0.0.1
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
+    devDependencies:
+      vitest:
+        specifier: 4.1.11
+        version: 4.1.11(@types/node@22.19.1)(vite@8.3.0(@types/node@22.19.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+
   packages/types:
     devDependencies:
       vitest:
