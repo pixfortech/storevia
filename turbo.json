@@ -22,5 +22,22 @@
       "cache": false,
       "persistent": true
     }
-  }
+  },
+  "globalPassThroughEnv": [
+    "CI",
+    "STOREVIA_*",
+    "DATABASE_*",
+    "AUTH_*",
+    "EMAIL_*",
+    "SMTP_URL",
+    "STOREFRONT_ROOT_DOMAIN",
+    "DASHBOARD_URL",
+    "PLATFORM_ADMIN_URL",
+    "MARKETING_URL",
+    "TRUSTED_CLIENT_IP_HEADER",
+    "LOG_LEVEL",
+    "PLAYWRIGHT_*",
+    "E2E_*",
+    "NEXT_PUBLIC_*"
+  ]
 }
