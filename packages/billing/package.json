@@ -1,30 +1,30 @@
 {
-  "name": "@storevia/tenancy",
+  "name": "@storevia/billing",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./rbac": "./src/rbac.ts",
-    "./platform": "./src/platform.ts",
-    "./platform-rbac": "./src/platform-rbac.ts"
+    "./state-machine": "./src/state-machine.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests --exclude 'tests/**'",
-    "test:integration": "vitest run --config vitest.int.config.ts"
-  },
-  "devDependencies": {
-    "vitest": "4.1.11"
+    "test:integration": "vitest run --config vitest.int.config.ts",
+    "billing:sweep": "tsx --conditions=react-server scripts/sweep.ts"
   },
   "dependencies": {
     "@storevia/database": "workspace:*",
-    "@storevia/email": "workspace:*",
     "@storevia/entitlements": "workspace:*",
-    "@storevia/security": "workspace:*",
+    "@storevia/observability": "workspace:*",
+    "@storevia/tenancy": "workspace:*",
     "@storevia/types": "workspace:*",
     "@storevia/validation": "workspace:*",
     "server-only": "0.0.1",
     "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "tsx": "4.23.15",
+    "vitest": "4.1.11"
   }
 }

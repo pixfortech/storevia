@@ -11,6 +11,7 @@ export const ID_PREFIXES = {
   membership: "mem",
   invitation: "inv",
   user: "user",
+  subscription: "sub",
 } as const;
 
 export type IdKind = keyof typeof ID_PREFIXES;

@@ -37,3 +37,5 @@ export {
 export type { InvitationPreview, InvitationView } from "./invitations";
 export { getAllowance, getOrganisationBilling } from "./billing";
 export type { OrganisationBilling } from "./billing";
+export { recordActorAudit, sanitiseMetadata } from "./audit";
+export type { ActorAuditEntry, AuditMetadata } from "./audit";

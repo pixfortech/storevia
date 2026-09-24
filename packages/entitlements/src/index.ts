@@ -35,6 +35,7 @@ export {
   limitReached,
   loadEntitlements,
   loadLiveSubscription,
+  previewUsageForPlan,
   reconcileUsage,
   releaseUsage,
   resolveEntitlement,

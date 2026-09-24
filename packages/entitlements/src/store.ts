@@ -157,22 +157,21 @@ export async function loadLiveSubscription(
   return { ...rest, planName: plan.name, entitling: isEntitling(rest, now) };
 }
 
-/** Resolves every feature for an organisation (a few indexed queries). */
-export async function loadEntitlements(
+async function resolveAll(
   db: Db,
   organisationId: string,
-  now: Date = new Date(),
-): Promise<EntitlementSet> {
-  const subscription = await loadLiveSubscription(db, organisationId, now);
+  planId: string | null,
+  now: Date,
+): Promise<ResolvedEntitlement[]> {
   const features = (
     await db.feature.findMany({ select: featureSelect, orderBy: { sortOrder: "asc" } })
   )
     .map(toFeatureRow)
     .filter((f): f is FeatureRow => f !== null);
   const planValues = new Map<string, ValueColumns>();
-  if (subscription?.entitling) {
+  if (planId) {
     const rows = await db.planFeature.findMany({
-      where: { planId: subscription.planId },
+      where: { planId },
       select: { featureId: true, enabled: true, limit: true, unlimited: true, config: true },
     });
     for (const row of rows) planValues.set(row.featureId, row);
@@ -185,9 +184,15 @@ export async function loadEntitlements(
       })
     ).map((row) => [row.featureId, row]),
   );
-  const entitlements = features.map((f) =>
-    resolveFeature(f, planValues.get(f.id), overrides.get(f.id), now),
-  );
+  return features.map((f) => resolveFeature(f, planValues.get(f.id), overrides.get(f.id), now));
+}
+
+function toSet(
+  organisationId: string,
+  now: Date,
+  subscription: SubscriptionView | null,
+  entitlements: ResolvedEntitlement[],
+): EntitlementSet {
   const byKey = new Map(entitlements.map((e) => [e.key, e]));
   return {
     organisationId,
@@ -200,6 +205,37 @@ export async function loadEntitlements(
       return found;
     },
   };
+}
+
+/** Resolves every feature for an organisation (a few indexed queries). */
+export async function loadEntitlements(
+  db: Db,
+  organisationId: string,
+  now: Date = new Date(),
+): Promise<EntitlementSet> {
+  const subscription = await loadLiveSubscription(db, organisationId, now);
+  const planId = subscription?.entitling ? subscription.planId : null;
+  return toSet(
+    organisationId,
+    now,
+    subscription,
+    await resolveAll(db, organisationId, planId, now),
+  );
+}
+
+/**
+ * What the organisation's gauges would look like on another plan (null = no
+ * entitling subscription), keeping its overrides. Used for the over-limit
+ * pre-check before a plan change or expiry; never blocks by itself.
+ */
+export async function previewUsageForPlan(
+  db: Db,
+  organisationId: string,
+  planId: string | null,
+  now: Date = new Date(),
+): Promise<UsageLine[]> {
+  const set = toSet(organisationId, now, null, await resolveAll(db, organisationId, planId, now));
+  return getUsageSummary(db, organisationId, set);
 }
 
 /** Resolves one feature (hot paths: consumption and gating). */
