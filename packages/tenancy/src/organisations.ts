@@ -1,7 +1,7 @@
 import "server-only";
 import { withTenant } from "@storevia/database";
 import { consumeRateLimit } from "@storevia/security/server";
-import { DomainError, uuidv7 } from "@storevia/types";
+import { DomainError, notFound, uuidv7 } from "@storevia/types";
 import { countrySchema, displayNameSchema } from "@storevia/validation";
 import { z } from "zod";
 import { recordAudit } from "./audit";
@@ -130,4 +130,23 @@ export async function renameOrganisation(ctx: OrganisationContext, input: unknow
       { fields: "name" },
     );
   });
+}
+
+export interface OrganisationDetails {
+  readonly id: string;
+  readonly name: string;
+  readonly country: string | null;
+  readonly createdAt: Date;
+}
+
+export async function getOrganisation(ctx: OrganisationContext): Promise<OrganisationDetails> {
+  requirePermission(ctx, "organisation.read");
+  const row = await withTenant(scopeOf(ctx), (tx) =>
+    tx.organisation.findFirst({
+      where: { id: ctx.organisationId },
+      select: { id: true, name: true, country: true, createdAt: true },
+    }),
+  );
+  if (!row) throw notFound();
+  return row;
 }

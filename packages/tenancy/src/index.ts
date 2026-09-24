@@ -1,6 +1,12 @@
 export * from "./context";
 export * from "./rbac";
-export { createOrganisation, listMyOrganisations, renameOrganisation } from "./organisations";
+export {
+  createOrganisation,
+  getOrganisation,
+  listMyOrganisations,
+  renameOrganisation,
+} from "./organisations";
+export type { OrganisationDetails } from "./organisations";
 export type { OrganisationSummary } from "./organisations";
 export {
   archiveStore,
