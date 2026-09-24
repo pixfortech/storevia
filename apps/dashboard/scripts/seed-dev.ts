@@ -69,11 +69,13 @@ async function user(
 const store = (
   name: string,
   slug: string,
+  businessType: "ECOMMERCE" | "BUSINESS" | "PUBLISHING" | "PORTFOLIO" = "ECOMMERCE",
   country = "IN",
   currency = "INR",
   locale = "en-IN",
   timezone = "Asia/Kolkata",
 ) => ({
+  businessType,
   name,
   slug,
   country,
@@ -138,7 +140,11 @@ async function main(): Promise<void> {
     acmeOwner,
     "Acme Supplies",
     "IN",
-    [store("Acme Flagship", "acme-flagship"), store("Acme Outlet", "acme-outlet")],
+    [
+      store("Acme Flagship", "acme-flagship"),
+      store("Acme Outlet", "acme-outlet"),
+      store("The Acme Journal", "acme-journal", "PUBLISHING"),
+    ],
     { staff: staffCtx, planKey: "business", status: "ACTIVE" },
   );
   const designer = (await user("designer@acme.test", "Dev Designer")).principal;
@@ -162,8 +168,29 @@ async function main(): Promise<void> {
     globexOwner,
     "Globex Home",
     "GB",
-    [store("Globex Home", "globex-home", "GB", "GBP", "en-GB", "Europe/London")],
+    [store("Globex Home", "globex-home", "ECOMMERCE", "GB", "GBP", "en-GB", "Europe/London")],
     { staff: staffCtx, planKey: "starter", status: "TRIAL" },
+  );
+
+  // One organisation per remaining business type, for design review.
+  const studioOwner = (await user("owner@studionorth.test", "Maya Okafor")).principal;
+  await ensureOrganisation(
+    studioOwner,
+    "Studio North",
+    "GB",
+    [
+      store("Studio North", "studio-north", "PORTFOLIO", "GB", "GBP", "en-GB", "Europe/London"),
+      store(
+        "North & Co Architects",
+        "north-and-co",
+        "BUSINESS",
+        "GB",
+        "GBP",
+        "en-GB",
+        "Europe/London",
+      ),
+    ],
+    { staff: staffCtx, planKey: "business", status: "ACTIVE" },
   );
 
   console.log(

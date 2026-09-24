@@ -14,12 +14,14 @@ import {
   createOrganisation,
   createStore,
   getStore,
+  grantedFeatures,
   listStores,
   requireOrganisationAccess,
   requireStoreAccess,
   type OrganisationContext,
   type Principal,
 } from "../src";
+import { storeNavigation } from "../src/business-types";
 
 const MAIL_DIR = mkdtempSync(join(tmpdir(), "storevia-business-types-mail-"));
 process.env["EMAIL_TRANSPORT"] = "file";
@@ -215,5 +217,24 @@ describe("business type is not an authorisation or entitlement input", () => {
     // An admin can invite any preset role.
     for (const role of ["INVENTORY_MANAGER", "CONTENT_MANAGER", "EDITOR", "AUTHOR"])
       await member(role);
+  });
+
+  it("navigation locks follow the plan, identically for every business type", async () => {
+    const { storeId } = await createStore(org, storeInput("the-atelier", "PORTFOLIO"));
+    const ctx = await requireStoreAccess(owner, toTypeId("store", storeId));
+    const locked = async () => {
+      const granted = await grantedFeatures(ctx);
+      return storeNavigation(ctx.storeBusinessType, ctx.permissions, (f) => granted.has(f))
+        .filter((item) => item.locked)
+        .map((item) => item.key);
+    };
+    // Free allowance: analytics isn't included.
+    expect(await locked()).toContain("analytics");
+    await subscribe("business");
+    expect(await locked()).toEqual([]);
+    // A member without billing access may still know what is included.
+    const viewer = await member("VIEWER");
+    const viewerCtx = await requireStoreAccess(viewer, toTypeId("store", storeId));
+    expect((await grantedFeatures(viewerCtx)).has("analytics")).toBe(true);
   });
 });

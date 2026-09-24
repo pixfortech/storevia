@@ -36,7 +36,7 @@ export {
   revokeInvitation,
 } from "./invitations";
 export type { InvitationPreview, InvitationView } from "./invitations";
-export { getAllowance, getOrganisationBilling } from "./billing";
+export { getAllowance, getOrganisationBilling, grantedFeatures } from "./billing";
 export type { OrganisationBilling } from "./billing";
 export { recordActorAudit, sanitiseMetadata } from "./audit";
 export type { ActorAuditEntry, AuditMetadata } from "./audit";

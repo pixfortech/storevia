@@ -1,7 +1,7 @@
 "use client";
 
-import { Avatar, Badge, Button, Dialog, DialogClose, Select } from "@storevia/ui";
-import { useActionState } from "react";
+import { Avatar, Badge, Button, cn, Dialog, DialogClose, Select } from "@storevia/ui";
+import { useActionState, useState } from "react";
 import { FormMessage, SelectField, SubmitButton, TextField } from "@/components/forms";
 import {
   changeRoleAction,
@@ -17,11 +17,63 @@ interface RoleOption {
   label: string;
 }
 
-export function InviteForm({ orgId, roles }: { orgId: string; roles: RoleOption[] }) {
+export interface RolePresetOption {
+  role: string;
+  label: string;
+  description: string;
+}
+
+/**
+ * Invitation form. Presets suggested by the organisation's business types are
+ * shortcuts that select an existing role; the server checks the role as usual.
+ */
+export function InviteForm({
+  orgId,
+  roles,
+  presets,
+}: {
+  orgId: string;
+  roles: RoleOption[];
+  presets: RolePresetOption[];
+}) {
   const [state, action] = useActionState(inviteMemberAction.bind(null, orgId), { ok: false });
+  const [role, setRole] = useState(
+    state.values?.["role"] ??
+      roles.find((r) => r.value === "VIEWER")?.value ??
+      roles.at(-1)?.value ??
+      "",
+  );
+  const preset = presets.find((p) => p.role === role);
   return (
     <form action={action} className="space-y-4" noValidate>
       <FormMessage state={state} />
+      {presets.length > 0 ? (
+        <div>
+          <p id="preset-label" className="text-sm font-medium text-ink">
+            Suggested roles
+          </p>
+          <div role="group" aria-labelledby="preset-label" className="mt-2 flex flex-wrap gap-2">
+            {presets.map((p) => (
+              <button
+                key={p.role}
+                type="button"
+                aria-pressed={role === p.role}
+                onClick={() => {
+                  setRole(p.role);
+                }}
+                className={cn(
+                  "h-9 rounded-pill border px-3.5 text-sm font-medium transition-colors",
+                  role === p.role
+                    ? "border-brand-600 bg-brand-50 text-brand-700"
+                    : "border-line bg-surface text-ink-muted hover:border-line-strong hover:text-ink",
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div className="grid gap-4 sm:grid-cols-[1fr_220px_auto] sm:items-end">
         <TextField label="Email" name="email" type="email" required state={state} />
         <SelectField
@@ -29,10 +81,14 @@ export function InviteForm({ orgId, roles }: { orgId: string; roles: RoleOption[
           name="role"
           state={state}
           options={roles}
-          defaultValue={roles.at(-1)?.value ?? "VIEWER"}
+          value={role}
+          onChange={(event) => {
+            setRole(event.currentTarget.value);
+          }}
         />
         <SubmitButton>Send invitation</SubmitButton>
       </div>
+      {preset ? <p className="text-sm text-ink-muted">{preset.description}</p> : null}
     </form>
   );
 }

@@ -6,17 +6,18 @@ test("a new user registers, creates an organisation as OWNER, creates the first 
 }) => {
   const tenant = await createTenant(page, "onboard");
 
-  // Store dashboard with the full OWNER navigation.
+  // Store dashboard with the full OWNER navigation for an online store (the default type).
   const nav = page.getByRole("navigation", { name: "Primary" }).first();
   for (const label of [
     "Home",
     "Orders",
     "Products",
+    "Inventory",
     "Customers",
     "Website",
-    "Analytics",
+    "Pages",
     "Marketing",
-    "Apps",
+    "Analytics",
     "Settings",
   ]) {
     await expect(nav.getByRole("link", { name: label })).toBeVisible();

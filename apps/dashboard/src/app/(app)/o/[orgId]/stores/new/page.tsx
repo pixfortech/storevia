@@ -64,12 +64,12 @@ export default async function NewStorePage({
         title={onboarding ? "Create your first store" : "Create store"}
         description={
           onboarding
-            ? "Step 2 of 2 · You can change everything except the address later."
-            : undefined
+            ? "Step 2 of 2 · Tell us what you're building. You can change everything except the address later."
+            : "Each store has its own address, navigation and team access. It shares your organisation's plan."
         }
       />
-      <Card className="max-w-2xl">
-        <CardBody className="py-6">
+      <Card className="max-w-3xl">
+        <CardBody className="py-6 sm:px-8 sm:py-8">
           <CreateStoreForm
             orgId={orgId}
             rootDomain={storefrontDomainLabel()}

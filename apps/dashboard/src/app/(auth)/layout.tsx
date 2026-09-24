@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Logo } from "@/components/brand";
+import { Logo } from "@storevia/ui";
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (

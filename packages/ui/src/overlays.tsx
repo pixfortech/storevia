@@ -77,7 +77,10 @@ export function DropdownMenuItem({
   );
 }
 
-/** Modal dialog. `side="bottom"` renders a mobile-style sheet. */
+/**
+ * Modal dialog. `side="bottom"` renders a mobile sheet, `"left"` a navigation
+ * drawer and `"right"` a contextual side panel.
+ */
 export function Dialog({
   open,
   onOpenChange,
@@ -93,7 +96,7 @@ export function Dialog({
   title: ReactNode;
   description?: ReactNode;
   children: ReactNode;
-  side?: "center" | "bottom" | "right";
+  side?: "center" | "bottom" | "left" | "right";
 }) {
   return (
     <DialogPrimitive.Root
@@ -110,6 +113,8 @@ export function Dialog({
               "left-1/2 top-1/2 max-h-[calc(100dvh-32px)] w-[calc(100vw-32px)] max-w-lg -translate-x-1/2 -translate-y-1/2 animate-rise-in overflow-y-auto rounded-card p-6",
             side === "bottom" &&
               "inset-x-0 bottom-0 max-h-[92dvh] animate-sheet-in overflow-y-auto rounded-t-panel p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]",
+            side === "left" &&
+              "inset-y-0 left-0 w-[min(20rem,calc(100vw-48px))] animate-drawer-in overflow-y-auto border-r border-line p-4",
             side === "right" &&
               "inset-y-0 right-0 w-[min(28rem,100vw)] animate-fade-in overflow-y-auto border-l border-line p-6",
           )}

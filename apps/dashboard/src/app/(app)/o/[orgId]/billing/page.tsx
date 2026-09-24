@@ -5,6 +5,7 @@ import { Alert, Badge, Card, CardBody, CardHeader } from "@storevia/ui";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { PageHeader } from "@/components/shell/app-shell";
+import { UsageMeters } from "@/components/usage-meters";
 import { organisationContextOr404 } from "@/lib/tenant";
 
 export const metadata: Metadata = { title: "Billing" };
@@ -147,37 +148,8 @@ export default async function BillingPage({ params }: { params: Promise<{ orgId:
 
         <Card data-testid="usage-card">
           <CardHeader title="Usage" />
-          <CardBody className="space-y-5">
-            {billing.usage.map((line) => {
-              const limit = line.limit === "unlimited" ? null : line.limit;
-              const pct =
-                limit && limit > 0n ? Math.min(100, Number((line.usage * 100n) / limit)) : 100;
-              return (
-                <div key={line.key} data-testid={`usage-${line.key}`}>
-                  <div className="flex justify-between text-sm">
-                    <span className="font-medium">{line.name}</span>
-                    <span
-                      className={line.overLimit ? "font-medium text-danger-700" : "text-ink-muted"}
-                    >
-                      {line.usage.toString()} of {limit === null ? "unlimited" : limit.toString()}
-                    </span>
-                  </div>
-                  <div
-                    className="mt-2 h-2 rounded-full bg-subtle"
-                    role="meter"
-                    aria-label={line.name}
-                    aria-valuemin={0}
-                    aria-valuemax={limit === null ? undefined : Number(limit)}
-                    aria-valuenow={Number(line.usage)}
-                  >
-                    <div
-                      className={`h-2 rounded-full ${line.overLimit ? "bg-danger-600" : "bg-brand-600"}`}
-                      style={{ width: `${String(limit === null ? 0 : pct)}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
+          <CardBody>
+            <UsageMeters usage={billing.usage} />
           </CardBody>
         </Card>
 

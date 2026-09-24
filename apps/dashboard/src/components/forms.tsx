@@ -1,7 +1,7 @@
 "use client";
 
 import { Alert, Button, Field, Input, Select, type ButtonProps } from "@storevia/ui";
-import type { InputHTMLAttributes, ReactNode } from "react";
+import type { ChangeEvent, InputHTMLAttributes, ReactNode } from "react";
 import Link from "next/link";
 import { useFormStatus } from "react-dom";
 
@@ -77,6 +77,8 @@ export function SelectField({
   state,
   options,
   defaultValue,
+  value: controlled,
+  onChange,
   hint,
   disabled,
 }: {
@@ -85,6 +87,9 @@ export function SelectField({
   state: FormState;
   options: readonly { value: string; label: string }[];
   defaultValue?: string;
+  /** Controlled value (with onChange); otherwise the field is uncontrolled. */
+  value?: string;
+  onChange?: (event: ChangeEvent<HTMLSelectElement>) => void;
   hint?: ReactNode;
   disabled?: boolean;
 }) {
@@ -99,7 +104,11 @@ export function SelectField({
           aria-describedby={describedBy}
           aria-invalid={invalid || undefined}
           disabled={disabled}
-          {...(value === undefined ? {} : { defaultValue: value })}
+          {...(controlled !== undefined
+            ? { value: controlled, onChange }
+            : value === undefined
+              ? {}
+              : { defaultValue: value })}
         >
           {options.map((o) => (
             <option key={o.value} value={o.value}>

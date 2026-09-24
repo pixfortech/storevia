@@ -413,3 +413,21 @@ export function areaForSegment(type: BusinessType, segment: string): StoreArea |
     .map((key) => STORE_AREAS[key])
     .find((area) => area.segment === `/${segment}`);
 }
+
+/**
+ * Role presets for the given business types (e.g. every store type in an
+ * organisation), first label wins per role. Suggestions only: each maps to an
+ * existing MemberRole, and assigning it goes through the usual RBAC checks.
+ */
+export function rolePresetsFor(types: readonly BusinessType[]): RolePreset[] {
+  const seen = new Set<MemberRole>();
+  const presets: RolePreset[] = [];
+  for (const type of new Set(types)) {
+    for (const preset of BUSINESS_TYPE_DEFINITIONS[type].rolePresets) {
+      if (seen.has(preset.role)) continue;
+      seen.add(preset.role);
+      presets.push(preset);
+    }
+  }
+  return presets;
+}

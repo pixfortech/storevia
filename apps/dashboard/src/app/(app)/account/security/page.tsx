@@ -2,7 +2,7 @@ import { buttonClasses, Card, CardBody, CardHeader } from "@storevia/ui";
 import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Logo } from "@/components/brand";
+import { Logo } from "@storevia/ui";
 import { dashboardAuth, getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { signOutAction } from "../actions";

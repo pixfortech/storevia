@@ -20,6 +20,7 @@ export async function createStoreAction(
     const principal = await requireActionPrincipal();
     const ctx = await requireOrganisationAccess(principal, orgId, await requestInfo());
     const { storeId } = await createStore(ctx, {
+      businessType: formData.get("businessType") ?? undefined,
       name: formData.get("name"),
       slug: formData.get("slug"),
       currency: formData.get("currency"),

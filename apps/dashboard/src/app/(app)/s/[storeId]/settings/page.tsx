@@ -3,7 +3,7 @@ import { Card, CardBody, CardHeader } from "@storevia/ui";
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/shell/app-shell";
 import { storeContextOr404 } from "@/lib/tenant";
-import { ArchiveStoreForm, StoreSettingsForm } from "./settings-forms";
+import { ArchiveStoreForm, BusinessTypeForm, StoreSettingsForm } from "./settings-forms";
 
 export const metadata: Metadata = { title: "Store settings" };
 
@@ -19,7 +19,7 @@ export default async function StoreSettingsPage({
   return (
     <>
       <PageHeader title="Store settings" description={store.primaryHostname ?? undefined} />
-      <div className="max-w-2xl space-y-6">
+      <div className="max-w-3xl space-y-6">
         <Card>
           <CardHeader
             title="General"
@@ -42,6 +42,15 @@ export default async function StoreSettingsPage({
                 address: store.primaryHostname ?? "",
               }}
             />
+          </CardBody>
+        </Card>
+        <Card id="business-type">
+          <CardHeader
+            title="Business type"
+            description="Shapes this store's navigation, home and suggested team roles. Your content, plan and permissions stay the same."
+          />
+          <CardBody>
+            <BusinessTypeForm storeId={storeId} current={store.businessType} canEdit={canEdit} />
           </CardBody>
         </Card>
         {hasPermission(ctx, "store.archive") && store.status !== "ARCHIVED" ? (

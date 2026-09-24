@@ -2,7 +2,7 @@ import { previewInvitation, ROLE_LABELS } from "@storevia/tenancy";
 import { Alert, buttonClasses } from "@storevia/ui";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Logo } from "@/components/brand";
+import { Logo } from "@storevia/ui";
 import { getPrincipal } from "@/lib/auth";
 import { AcceptInvitationForm } from "./accept-form";
 

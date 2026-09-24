@@ -1,5 +1,6 @@
 export * from "./button";
 export * from "./choice";
+export * from "./command";
 export * from "./cn";
 export * from "./data";
 export * from "./form";

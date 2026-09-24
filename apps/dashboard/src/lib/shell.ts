@@ -1,5 +1,6 @@
 import "server-only";
 import {
+  grantedFeatures,
   hasPermission,
   listMyOrganisations,
   listStores,
@@ -7,9 +8,9 @@ import {
   type OrganisationContext,
   type StoreContext,
 } from "@storevia/tenancy";
-import type { ShellData, ShellLink } from "@/components/shell/types";
+import { BUSINESS_TYPE_DEFINITIONS, storeNavigation } from "@storevia/tenancy/business-types";
+import type { ShellAction, ShellData, ShellLink } from "@/components/shell/types";
 import { orgPath, storePath } from "./ids";
-import { visibleNav } from "./navigation";
 
 async function common(ctx: OrganisationContext) {
   const [organisations, stores] = await Promise.all([
@@ -28,37 +29,23 @@ async function common(ctx: OrganisationContext) {
       id: s.id,
       label: s.name,
       href: storePath(s.id),
-      description: s.primaryHostname ?? undefined,
+      description: BUSINESS_TYPE_DEFINITIONS[s.businessType].label,
     })),
     canCreateStore: hasPermission(ctx, "store.create"),
     createStoreHref: orgPath(ctx.organisationId, "/stores/new"),
   };
 }
 
-export async function storeShellData(ctx: StoreContext): Promise<ShellData> {
-  const links: ShellLink[] = visibleNav(ctx.permissions).map((item) => ({
-    key: item.key,
-    label: item.label,
-    href: storePath(ctx.storeId, item.segment),
-    icon: item.icon,
-    badge: item.availability ? "Soon" : undefined,
-    primaryOnMobile: item.primaryOnMobile,
-  }));
-  return {
-    ...(await common(organisationOf(ctx))),
-    store: { id: ctx.storeId, name: ctx.storeName, href: storePath(ctx.storeId) },
-    links,
-  };
-}
-
-export async function organisationShellData(ctx: OrganisationContext): Promise<ShellData> {
+/** Organisation-level destinations, filtered by permission. */
+function organisationLinks(ctx: OrganisationContext, primary: boolean): ShellLink[] {
   const links: ShellLink[] = [
     {
       key: "stores",
-      label: "Stores",
+      label: primary ? "Stores" : "Overview",
       href: orgPath(ctx.organisationId),
-      icon: "stores",
+      icon: primary ? "stores" : "organisation",
       primaryOnMobile: true,
+      exact: true,
     },
   ];
   if (hasPermission(ctx, "member.read")) {
@@ -78,12 +65,81 @@ export async function organisationShellData(ctx: OrganisationContext): Promise<S
       icon: "billing",
     });
   }
-  links.push({
-    key: "settings",
-    label: "Settings",
-    href: orgPath(ctx.organisationId, "/settings"),
-    icon: "settings",
-    primaryOnMobile: true,
-  });
-  return { ...(await common(ctx)), links };
+  if (primary) {
+    links.push({
+      key: "settings",
+      label: "Settings",
+      href: orgPath(ctx.organisationId, "/settings"),
+      icon: "settings",
+      primaryOnMobile: true,
+    });
+  }
+  return links;
+}
+
+/** Real create actions only, each gated by the permission it needs. */
+function createActions(
+  ctx: OrganisationContext,
+  canCreateStore: boolean,
+  organisationScope: boolean,
+): ShellAction[] {
+  const actions: ShellAction[] = [];
+  const members = orgPath(ctx.organisationId, "/members");
+  if (hasPermission(ctx, "member.manage")) {
+    // In a store, inviting is the everyday action; in the organisation, only on Members.
+    actions.push({
+      label: "Invite member",
+      href: `${members}#invite`,
+      under: organisationScope ? members : undefined,
+    });
+  }
+  if (organisationScope && canCreateStore) {
+    actions.push({ label: "Create store", href: orgPath(ctx.organisationId, "/stores/new") });
+  }
+  return actions;
+}
+
+/**
+ * Store navigation comes from the store's business type (ADR-0024): the type
+ * picks and orders the areas, the member's permissions filter them and the
+ * plan marks locked ones. Presentation only: every route and action still
+ * enforces its own permission and entitlement.
+ */
+export async function storeShellData(ctx: StoreContext): Promise<ShellData> {
+  const organisation = organisationOf(ctx);
+  const [base, granted] = await Promise.all([common(organisation), grantedFeatures(ctx)]);
+  const links: ShellLink[] = storeNavigation(ctx.storeBusinessType, ctx.permissions, (feature) =>
+    granted.has(feature),
+  ).map((area) => ({
+    key: area.key,
+    label: area.label,
+    href: storePath(ctx.storeId, area.segment),
+    icon: area.key,
+    soon: area.availability,
+    locked: area.locked,
+    primaryOnMobile: area.primaryOnMobile,
+    exact: area.segment === "",
+  }));
+  return {
+    ...base,
+    store: {
+      id: ctx.storeId,
+      name: ctx.storeName,
+      href: storePath(ctx.storeId),
+      kind: BUSINESS_TYPE_DEFINITIONS[ctx.storeBusinessType].label,
+    },
+    links,
+    organisationLinks: organisationLinks(organisation, false),
+    createActions: createActions(organisation, base.canCreateStore, false),
+  };
+}
+
+export async function organisationShellData(ctx: OrganisationContext): Promise<ShellData> {
+  const base = await common(ctx);
+  return {
+    ...base,
+    links: organisationLinks(ctx, true),
+    organisationLinks: [],
+    createActions: createActions(ctx, base.canCreateStore, true),
+  };
 }

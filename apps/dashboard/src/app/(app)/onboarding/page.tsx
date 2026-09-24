@@ -2,7 +2,7 @@ import { listMyOrganisations } from "@storevia/tenancy";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Logo } from "@/components/brand";
+import { Logo } from "@storevia/ui";
 import { requirePrincipal } from "@/lib/auth";
 import { CreateOrganisationForm } from "./create-organisation-form";
 

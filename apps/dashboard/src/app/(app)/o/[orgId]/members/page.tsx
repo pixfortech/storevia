@@ -4,9 +4,11 @@ import {
   hasPermission,
   listInvitations,
   listMembers,
+  listStores,
   MEMBER_ROLES,
   ROLE_LABELS,
 } from "@storevia/tenancy";
+import { rolePresetsFor } from "@storevia/tenancy/business-types";
 import { Alert, Badge, Card, CardHeader } from "@storevia/ui";
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/shell/app-shell";
@@ -37,13 +39,23 @@ export default async function MembersPage({
     );
   }
   const canManage = hasPermission(ctx, "member.manage");
-  const [members, invitations] = await Promise.all([listMembers(ctx), listInvitations(ctx)]);
-  const assignableRoles = MEMBER_ROLES.filter((role) => canAssignRole(ctx.role, role)).map(
-    (role) => ({
+  const [members, invitations, stores] = await Promise.all([
+    listMembers(ctx),
+    listInvitations(ctx),
+    listStores(ctx),
+  ]);
+  // Least privilege last and as the default: Viewer.
+  const assignableRoles = [...MEMBER_ROLES.filter((role) => role !== "VIEWER"), "VIEWER" as const]
+    .filter((role) => canAssignRole(ctx.role, role))
+    .map((role) => ({
       value: role,
       label: ROLE_LABELS[role],
-    }),
-  );
+    }));
+  // Suggestions from the organisation's store types (ADR-0024); each maps to a
+  // role the inviter may assign. The server re-checks the role on submit.
+  const presets = rolePresetsFor(stores.map((s) => s.businessType))
+    .filter((p) => canAssignRole(ctx.role, p.role))
+    .map((p) => ({ role: p.role, label: p.label, description: p.description }));
   const canTransfer = hasPermission(ctx, "ownership.transfer");
   const seats = canManage ? await getAllowance(ctx, "staff_accounts") : null;
   const seatLimit = seats && seats.limit !== "unlimited" ? seats.limit : null;
@@ -54,7 +66,7 @@ export default async function MembersPage({
       <div className="space-y-6">
         {removed ? <Alert tone="success">Member removed.</Alert> : null}
         {canManage ? (
-          <Card>
+          <Card id="invite" className="scroll-mt-20">
             <CardHeader
               title="Invite someone"
               description="They'll get an email with a link to join. Invitations expire after 7 days."
@@ -69,7 +81,7 @@ export default async function MembersPage({
               }
             />
             <div className="px-5 py-4">
-              <InviteForm orgId={orgId} roles={assignableRoles} />
+              <InviteForm orgId={orgId} roles={assignableRoles} presets={presets} />
             </div>
           </Card>
         ) : null}

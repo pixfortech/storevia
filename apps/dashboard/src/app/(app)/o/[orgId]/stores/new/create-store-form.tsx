@@ -1,7 +1,9 @@
 "use client";
 
+import { isBusinessType } from "@storevia/tenancy/business-types";
 import { normaliseSlug } from "@storevia/validation";
 import { useActionState, useState } from "react";
+import { BusinessTypePicker } from "@/components/business-type-picker";
 import { FormMessage, SelectField, SubmitButton, TextField } from "@/components/forms";
 import { COUNTRY_OPTIONS, CURRENCY_OPTIONS, LOCALE_OPTIONS, TIMEZONE_OPTIONS } from "@/lib/options";
 import { createStoreAction } from "./actions";
@@ -18,70 +20,78 @@ export function CreateStoreForm({
   const [state, action] = useActionState(createStoreAction.bind(null, orgId), { ok: false });
   const [slug, setSlug] = useState(state.values?.["slug"] ?? "");
   const [slugTouched, setSlugTouched] = useState(false);
+  const chosen = state.values?.["businessType"] ?? "";
   return (
-    <form action={action} className="space-y-5" noValidate>
+    <form action={action} className="space-y-8" noValidate>
       <FormMessage state={state} />
-      <TextField
-        label="Store name"
-        name="name"
-        required
-        state={state}
-        onChange={(event) => {
-          if (!slugTouched) setSlug(normaliseSlug(event.currentTarget.value));
-        }}
+      <BusinessTypePicker
+        defaultValue={isBusinessType(chosen) ? chosen : "ECOMMERCE"}
+        error={state.fieldErrors?.["businessType"]}
       />
-      <TextField
-        label="Store address"
-        name="slug"
-        required
-        state={state}
-        value={slug}
-        onChange={(event) => {
-          setSlugTouched(true);
-          setSlug(event.currentTarget.value.toLowerCase());
-        }}
-        hint={
-          <>
-            Your store will be at{" "}
-            <strong className="text-ink">
-              {slug || "your-store"}.{rootDomain}
-            </strong>
-            . You can connect your own domain later.
-          </>
-        }
-      />
-      <div className="grid gap-5 sm:grid-cols-2">
-        <SelectField
-          label="Country"
-          name="country"
+      <fieldset className="space-y-5">
+        <legend className="mb-4 text-[15px] font-semibold text-ink">Store details</legend>
+        <TextField
+          label="Store name"
+          name="name"
+          required
           state={state}
-          options={COUNTRY_OPTIONS}
-          defaultValue={defaults.country}
+          onChange={(event) => {
+            if (!slugTouched) setSlug(normaliseSlug(event.currentTarget.value));
+          }}
         />
-        <SelectField
-          label="Currency"
-          name="currency"
+        <TextField
+          label="Store address"
+          name="slug"
+          required
           state={state}
-          options={CURRENCY_OPTIONS}
-          defaultValue={defaults.currency}
-          hint="Prices are shown and charged in this currency."
+          value={slug}
+          onChange={(event) => {
+            setSlugTouched(true);
+            setSlug(event.currentTarget.value.toLowerCase());
+          }}
+          hint={
+            <>
+              Your store will be at{" "}
+              <strong className="text-ink">
+                {slug || "your-store"}.{rootDomain}
+              </strong>
+              . You can connect your own domain later.
+            </>
+          }
         />
-        <SelectField
-          label="Language"
-          name="locale"
-          state={state}
-          options={LOCALE_OPTIONS}
-          defaultValue={defaults.locale}
-        />
-        <SelectField
-          label="Time zone"
-          name="timezone"
-          state={state}
-          options={TIMEZONE_OPTIONS}
-          defaultValue={defaults.timezone}
-        />
-      </div>
-      <div className="flex justify-end">
+        <div className="grid gap-5 sm:grid-cols-2">
+          <SelectField
+            label="Country"
+            name="country"
+            state={state}
+            options={COUNTRY_OPTIONS}
+            defaultValue={defaults.country}
+          />
+          <SelectField
+            label="Currency"
+            name="currency"
+            state={state}
+            options={CURRENCY_OPTIONS}
+            defaultValue={defaults.currency}
+            hint="Prices are shown and charged in this currency."
+          />
+          <SelectField
+            label="Language"
+            name="locale"
+            state={state}
+            options={LOCALE_OPTIONS}
+            defaultValue={defaults.locale}
+          />
+          <SelectField
+            label="Time zone"
+            name="timezone"
+            state={state}
+            options={TIMEZONE_OPTIONS}
+            defaultValue={defaults.timezone}
+          />
+        </div>
+      </fieldset>
+      <div className="flex justify-end border-t border-line pt-5">
         <SubmitButton>Create store</SubmitButton>
       </div>
     </form>

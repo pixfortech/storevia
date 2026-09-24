@@ -1,6 +1,11 @@
 "use server";
 
-import { archiveStore, requireStoreAccess, updateStore } from "@storevia/tenancy";
+import {
+  archiveStore,
+  changeStoreBusinessType,
+  requireStoreAccess,
+  updateStore,
+} from "@storevia/tenancy";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { runAction, type ActionState } from "@/lib/action";
@@ -33,6 +38,24 @@ export async function updateStoreAction(
     });
     revalidatePath(`/s/${storeId}`, "layout");
     return { ok: true, message: "Settings saved." };
+  }, formData);
+}
+
+/** Presentation only (ADR-0024): navigation and suggestions change; data and access don't. */
+export async function changeBusinessTypeAction(
+  storeId: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const ctx = await requireStoreAccess(
+      await requireActionPrincipal(),
+      storeId,
+      await requestInfo(),
+    );
+    await changeStoreBusinessType(ctx, { businessType: formData.get("businessType") });
+    revalidatePath(`/s/${storeId}`, "layout");
+    return { ok: true, message: "Business type updated. Your navigation now reflects it." };
   }, formData);
 }
 

@@ -32,7 +32,7 @@ export function ChoiceCards({
   const errorId = useId();
   return (
     <fieldset aria-describedby={error ? errorId : undefined}>
-      <legend className="text-sm font-medium text-ink">{legend}</legend>
+      <legend className="text-[15px] font-semibold text-ink">{legend}</legend>
       <div
         className={cn(
           "mt-3 grid gap-3",
@@ -56,7 +56,9 @@ export function ChoiceCards({
               value={option.value}
               defaultChecked={option.value === defaultValue}
               onChange={() => onChange?.(option.value)}
-              className="peer sr-only"
+              // Transparent but full-size: the whole card is the hit target,
+              // and assistive tech and automation see a real, visible radio.
+              className="peer absolute inset-0 z-10 m-0 size-full cursor-pointer appearance-none rounded-card opacity-0"
             />
             {option.visual}
             <span className="min-w-0">

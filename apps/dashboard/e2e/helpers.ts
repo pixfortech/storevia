@@ -66,7 +66,11 @@ export interface Tenant {
 }
 
 /** Full onboarding through the UI: sign up → verify → sign in → organisation → store. */
-export async function createTenant(page: Page, label: string): Promise<Tenant> {
+export async function createTenant(
+  page: Page,
+  label: string,
+  options: { businessType?: string } = {},
+): Promise<Tenant> {
   const email = uniqueEmail(label);
   await signUpAndVerify(page, `Owner ${label}`, email);
   await signIn(page, email);
@@ -76,6 +80,9 @@ export async function createTenant(page: Page, label: string): Promise<Tenant> {
   await page.getByRole("button", { name: "Continue" }).click();
   await page.waitForURL(/\/o\/org_[^/]+\/stores\/new/);
   const orgId = /\/o\/(org_[^/]+)/.exec(page.url())?.[1] ?? "";
+  if (options.businessType) {
+    await page.getByRole("radio", { name: new RegExp(options.businessType) }).check();
+  }
   await page.getByLabel("Store name").fill(`Store ${label} ${Date.now().toString(36)}`);
   await page.getByRole("button", { name: "Create store" }).click();
   await page.waitForURL(/\/s\/store_[^/?]+/);

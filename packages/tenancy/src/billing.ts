@@ -2,8 +2,10 @@ import "server-only";
 import { withTenant } from "@storevia/database";
 import {
   getUsageSummary,
+  isGranted,
   loadEntitlements,
   type EntitlementSet,
+  type FeatureKey,
   type GaugeFeature,
   type ResolvedEntitlement,
   type SubscriptionView,
@@ -64,4 +66,17 @@ export async function getAllowance(ctx: TenantContext, key: GaugeFeature): Promi
   const line = usage.find((l) => l.key === key);
   if (!line) throw new Error(`no usage line for ${key}`);
   return line;
+}
+
+/**
+ * The features the organisation's plan currently grants, for presentation
+ * only (locked navigation areas, plan hints). Any member may know this: it
+ * reveals no subscription, provider or usage detail. It decides nothing:
+ * every server path still enforces with assertFeature / consumeUsage.
+ */
+export async function grantedFeatures(ctx: TenantContext): Promise<ReadonlySet<FeatureKey>> {
+  const set = await withTenant({ ...scopeOf(ctx), storeId: null }, (tx) =>
+    loadEntitlements(tx, ctx.organisationId),
+  );
+  return new Set(set.entitlements.filter((e) => isGranted(e.value)).map((e) => e.key));
 }

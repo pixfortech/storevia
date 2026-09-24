@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   BUSINESS_TYPE_DEFINITIONS,
   BUSINESS_TYPES,
+  rolePresetsFor,
   STORE_AREAS,
   storeNavigation,
   type BusinessType,
@@ -124,5 +125,19 @@ describe("role presets map onto permission primitives", () => {
         "store.read",
       ].sort(),
     );
+  });
+
+  it("combines presets across an organisation's store types, one per role", () => {
+    const presets = rolePresetsFor(["ECOMMERCE", "PUBLISHING", "PORTFOLIO"]);
+    const roles = presets.map((p) => p.role);
+    expect(new Set(roles).size).toBe(roles.length);
+    for (const role of ["STORE_MANAGER", "CONTENT_MANAGER", "AUTHOR", "SITE_MANAGER"]) {
+      expect(roles).toContain(role);
+    }
+    expect(rolePresetsFor([])).toEqual([]);
+    // Every preset is an existing role: presets are labels, not a second system.
+    for (const preset of rolePresetsFor([...BUSINESS_TYPES])) {
+      expect(MEMBER_ROLES).toContain(preset.role);
+    }
   });
 });

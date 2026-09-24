@@ -1,10 +1,17 @@
 "use client";
 
-import { Button, Dialog, DialogClose, Field, Input } from "@storevia/ui";
-import { useActionState } from "react";
+import {
+  BUSINESS_TYPE_DEFINITIONS,
+  isBusinessType,
+  type BusinessType,
+} from "@storevia/tenancy/business-types";
+import { Button, Dialog, DialogClose, Field, GlyphTile, Input } from "@storevia/ui";
+import { useActionState, useState } from "react";
+import { BusinessTypePicker } from "@/components/business-type-picker";
+import { BUSINESS_TYPE_GLYPH } from "@/lib/business-types";
 import { FormMessage, SelectField, SubmitButton, TextField } from "@/components/forms";
 import { LOCALE_OPTIONS, TIMEZONE_OPTIONS } from "@/lib/options";
-import { archiveStoreAction, updateStoreAction } from "./actions";
+import { archiveStoreAction, changeBusinessTypeAction, updateStoreAction } from "./actions";
 
 export function StoreSettingsForm({
   storeId,
@@ -123,5 +130,52 @@ export function ArchiveStoreForm({ storeId, storeName }: { storeId: string; stor
         </div>
       </form>
     </Dialog>
+  );
+}
+
+export function BusinessTypeForm({
+  storeId,
+  current,
+  canEdit,
+}: {
+  storeId: string;
+  current: BusinessType;
+  canEdit: boolean;
+}) {
+  const [state, action] = useActionState(changeBusinessTypeAction.bind(null, storeId), {
+    ok: false,
+  });
+  // Remount after each result so the radios reflect the saved (or rejected) value.
+  const [seen, setSeen] = useState(state);
+  const [version, setVersion] = useState(0);
+  if (seen !== state) {
+    setSeen(state);
+    setVersion((v) => v + 1);
+  }
+  if (!canEdit) {
+    const definition = BUSINESS_TYPE_DEFINITIONS[current];
+    return (
+      <div className="flex items-center gap-3.5">
+        <GlyphTile name={BUSINESS_TYPE_GLYPH[current]} />
+        <div>
+          <p className="font-medium text-ink">{definition.label}</p>
+          <p className="text-sm text-ink-muted">{definition.tagline}</p>
+        </div>
+      </div>
+    );
+  }
+  const chosen = state.values?.["businessType"] ?? "";
+  return (
+    <form key={version} action={action} className="space-y-5" noValidate>
+      <FormMessage state={state} />
+      <BusinessTypePicker
+        legend="This store is a…"
+        defaultValue={!state.ok && isBusinessType(chosen) ? chosen : current}
+        error={state.fieldErrors?.["businessType"]}
+      />
+      <div className="flex justify-end">
+        <SubmitButton variant="secondary">Update business type</SubmitButton>
+      </div>
+    </form>
   );
 }
