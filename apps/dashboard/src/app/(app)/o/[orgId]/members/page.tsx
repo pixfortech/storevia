@@ -1,5 +1,6 @@
 import {
   canAssignRole,
+  getAllowance,
   hasPermission,
   listInvitations,
   listMembers,
@@ -44,6 +45,9 @@ export default async function MembersPage({
     }),
   );
   const canTransfer = hasPermission(ctx, "ownership.transfer");
+  const seats = canManage ? await getAllowance(ctx, "staff_accounts") : null;
+  const seatLimit = seats && seats.limit !== "unlimited" ? seats.limit : null;
+  const pending = invitations.length;
   return (
     <>
       <PageHeader title="Members" description={`People who can work in ${ctx.organisationName}.`} />
@@ -54,6 +58,15 @@ export default async function MembersPage({
             <CardHeader
               title="Invite someone"
               description="They'll get an email with a link to join. Invitations expire after 7 days."
+              actions={
+                seats ? (
+                  <Badge tone={seats.overLimit ? "danger" : "neutral"} data-testid="seat-usage">
+                    {seats.usage.toString()} of{" "}
+                    {seatLimit === null ? "unlimited" : seatLimit.toString()} seats used
+                    {pending > 0 ? ` · ${String(pending)} pending` : ""}
+                  </Badge>
+                ) : null
+              }
             />
             <div className="px-5 py-4">
               <InviteForm orgId={orgId} roles={assignableRoles} />

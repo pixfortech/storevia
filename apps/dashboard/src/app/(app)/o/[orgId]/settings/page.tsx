@@ -1,7 +1,9 @@
 import { getOrganisation, hasPermission, ROLE_LABELS } from "@storevia/tenancy";
-import { Card, CardBody, CardHeader } from "@storevia/ui";
+import { buttonClasses, Card, CardBody, CardHeader } from "@storevia/ui";
+import Link from "next/link";
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/shell/app-shell";
+import { orgPath } from "@/lib/ids";
 import { organisationContextOr404 } from "@/lib/tenant";
 import { LeaveOrganisationForm, OrganisationNameForm } from "./settings-forms";
 
@@ -32,14 +34,19 @@ export default async function OrganisationSettingsPage({
             />
           </CardBody>
         </Card>
-        <Card>
-          <CardHeader title="Billing" description="Plans and invoices arrive with Milestone 2." />
-          <CardBody>
-            <p className="text-sm text-ink-muted">
-              Billing isn't available yet. Nothing is charged during this phase.
-            </p>
-          </CardBody>
-        </Card>
+        {hasPermission(ctx, "billing.read") ? (
+          <Card>
+            <CardHeader title="Billing" description="Your plan, its limits and your usage." />
+            <CardBody>
+              <Link
+                href={orgPath(ctx.organisationId, "/billing")}
+                className={buttonClasses("secondary", "sm")}
+              >
+                View plan and usage
+              </Link>
+            </CardBody>
+          </Card>
+        ) : null}
         {ctx.role !== "OWNER" ? (
           <Card>
             <CardHeader

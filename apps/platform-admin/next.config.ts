@@ -33,7 +33,7 @@ const config: NextConfig = {
   ],
   outputFileTracingRoot: resolve(import.meta.dirname, "../.."),
   experimental: {
-    serverActions: { bodySizeLimit: "256kb" },
+    serverActions: { bodySizeLimit: "64kb" },
   },
 };
 

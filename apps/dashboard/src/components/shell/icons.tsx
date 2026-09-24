@@ -2,6 +2,7 @@ import {
   BarChart3,
   Blocks,
   Building2,
+  CreditCard,
   Globe,
   Home,
   Megaphone,
@@ -14,7 +15,10 @@ import {
 } from "lucide-react";
 import type { NavIcon } from "@/lib/navigation";
 
-export const NAV_ICONS: Record<NavIcon | "stores" | "members" | "organisation", LucideIcon> = {
+export const NAV_ICONS: Record<
+  NavIcon | "stores" | "members" | "organisation" | "billing",
+  LucideIcon
+> = {
   home: Home,
   orders: ShoppingBag,
   products: Package,
@@ -27,4 +31,5 @@ export const NAV_ICONS: Record<NavIcon | "stores" | "members" | "organisation", 
   stores: Store,
   members: Users,
   organisation: Building2,
+  billing: CreditCard,
 };

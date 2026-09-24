@@ -4,6 +4,7 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
+  type TextareaHTMLAttributes,
 } from "react";
 import { cn } from "./cn";
 
@@ -29,6 +30,13 @@ export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSel
     );
   },
 );
+
+export const Textarea = forwardRef<
+  HTMLTextAreaElement,
+  TextareaHTMLAttributes<HTMLTextAreaElement>
+>(function Textarea({ className, ...props }, ref) {
+  return <textarea ref={ref} className={cn(CONTROL, "min-h-20 py-2", className)} {...props} />;
+});
 
 export interface FieldProps {
   label: string;

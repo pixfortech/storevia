@@ -4,15 +4,21 @@
 //   pnpm seed:dev
 //
 // Accounts (password: storevia-dev-password):
-//   owner@acme.test      OWNER of "Acme Supplies" (stores: acme-flagship, acme-outlet)
+//   owner@acme.test      OWNER of "Acme Supplies" (Business plan; stores: acme-flagship, acme-outlet)
 //   designer@acme.test   DESIGNER in Acme
-//   owner@globex.test    OWNER of "Globex Home" (store: globex-home)
-//   staff@storevia.test  Platform staff (SUPER_ADMIN), no merchant memberships
+//   owner@globex.test    OWNER of "Globex Home" (Starter trial; store: globex-home)
+//   staff@storevia.test  Platform staff (SUPER_ADMIN), signs in at PLATFORM_ADMIN_URL
+//
+// Plans are assigned through the real Subscription Service as that staff
+// member (ADR-0022), exactly as platform-admin would.
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { hashPassword } from "@storevia/auth";
+import { assignPlan } from "@storevia/billing";
 import { disconnectAll, withTenant } from "@storevia/database";
+import { platformDb } from "@storevia/database/platform";
 import { systemDb } from "@storevia/database/system";
+import { consumeUsage } from "@storevia/entitlements";
 import {
   createOrganisation,
   createStore,
@@ -21,6 +27,7 @@ import {
   requireOrganisationAccess,
   type Principal,
 } from "@storevia/tenancy";
+import { requirePlatformStaff, type PlatformContext } from "@storevia/tenancy/platform";
 import { toTypeId, uuidv7 } from "@storevia/types";
 import pg from "pg";
 
@@ -80,12 +87,25 @@ async function ensureOrganisation(
   name: string,
   country: string,
   stores: ReturnType<typeof store>[],
+  plan: { staff: PlatformContext; planKey: string; status: "ACTIVE" | "TRIAL" },
 ) {
   const existing = (await listMyOrganisations(owner)).find(
     (o) => o.name === name && o.role === "OWNER",
   )?.id;
   const organisationId =
     existing ?? (await createOrganisation(owner, { name, country })).organisationId;
+  const live = await platformDb().subscription.findFirst({
+    where: { organisationId, status: { not: "EXPIRED" } },
+  });
+  if (!live) {
+    await assignPlan(plan.staff, {
+      organisationId: toTypeId("organisation", organisationId),
+      planKey: plan.planKey,
+      status: plan.status,
+      billingInterval: "MONTH",
+      reason: "Development seed",
+    });
+  }
   const ctx = await requireOrganisationAccess(owner, toTypeId("organisation", organisationId));
   const existingSlugs = new Set((await listStores(ctx)).map((s) => s.slug));
   for (const input of stores) if (!existingSlugs.has(input.slug)) await createStore(ctx, input);
@@ -93,30 +113,6 @@ async function ensureOrganisation(
 }
 
 async function main(): Promise<void> {
-  const acmeOwner = (await user("owner@acme.test", "Priya Sharma")).principal;
-  const acmeId = await ensureOrganisation(acmeOwner, "Acme Supplies", "IN", [
-    store("Acme Flagship", "acme-flagship"),
-    store("Acme Outlet", "acme-outlet"),
-  ]);
-  const designer = (await user("designer@acme.test", "Dev Designer")).principal;
-  await withTenant(
-    { organisationId: acmeId, storeId: null, userId: acmeOwner.userId },
-    async (tx) => {
-      const member = await tx.membership.findFirst({
-        where: { organisationId: acmeId, userId: designer.userId },
-      });
-      if (!member)
-        await tx.membership.create({
-          data: { organisationId: acmeId, userId: designer.userId, role: "DESIGNER" },
-        });
-    },
-  );
-
-  const globexOwner = (await user("owner@globex.test", "Jordan Lee")).principal;
-  await ensureOrganisation(globexOwner, "Globex Home", "GB", [
-    store("Globex Home", "globex-home", "GB", "GBP", "en-GB", "Europe/London"),
-  ]);
-
   // Granting platform access is an operations action: the application roles
   // can't write PlatformStaff, so use the schema owner (migrator) here.
   const staff = (await user("staff@storevia.test", "Storevia Staff")).principal;
@@ -133,6 +129,42 @@ async function main(): Promise<void> {
   } finally {
     await admin.end();
   }
+
+  // The seed acts as that staff member, with step-up (it holds the password).
+  const staffCtx = await requirePlatformStaff({ ...staff, recentlyAuthenticated: true });
+
+  const acmeOwner = (await user("owner@acme.test", "Priya Sharma")).principal;
+  const acmeId = await ensureOrganisation(
+    acmeOwner,
+    "Acme Supplies",
+    "IN",
+    [store("Acme Flagship", "acme-flagship"), store("Acme Outlet", "acme-outlet")],
+    { staff: staffCtx, planKey: "business", status: "ACTIVE" },
+  );
+  const designer = (await user("designer@acme.test", "Dev Designer")).principal;
+  await withTenant(
+    { organisationId: acmeId, storeId: null, userId: acmeOwner.userId },
+    async (tx) => {
+      const member = await tx.membership.findFirst({
+        where: { organisationId: acmeId, userId: designer.userId },
+      });
+      if (!member) {
+        await consumeUsage(tx, acmeId, "staff_accounts");
+        await tx.membership.create({
+          data: { organisationId: acmeId, userId: designer.userId, role: "DESIGNER" },
+        });
+      }
+    },
+  );
+
+  const globexOwner = (await user("owner@globex.test", "Jordan Lee")).principal;
+  await ensureOrganisation(
+    globexOwner,
+    "Globex Home",
+    "GB",
+    [store("Globex Home", "globex-home", "GB", "GBP", "en-GB", "Europe/London")],
+    { staff: staffCtx, planKey: "starter", status: "TRIAL" },
+  );
 
   console.log(
     `Seeded development data. Sign in with any seeded email and the password "${PASSWORD}".`,

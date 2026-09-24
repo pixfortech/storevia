@@ -47,12 +47,21 @@ importers:
       '@storevia/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@storevia/billing':
+        specifier: workspace:*
+        version: link:../../packages/billing
       '@storevia/database':
         specifier: workspace:*
         version: link:../../packages/database
       '@storevia/email':
         specifier: workspace:*
         version: link:../../packages/email
+      '@storevia/entitlements':
+        specifier: workspace:*
+        version: link:../../packages/entitlements
+      '@storevia/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
       '@storevia/security':
         specifier: workspace:*
         version: link:../../packages/security
@@ -111,6 +120,73 @@ importers:
       tsx:
         specifier: 4.23.15
         version: 4.23.15
+
+  apps/platform-admin:
+    dependencies:
+      '@storevia/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@storevia/billing':
+        specifier: workspace:*
+        version: link:../../packages/billing
+      '@storevia/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@storevia/email':
+        specifier: workspace:*
+        version: link:../../packages/email
+      '@storevia/entitlements':
+        specifier: workspace:*
+        version: link:../../packages/entitlements
+      '@storevia/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
+      '@storevia/security':
+        specifier: workspace:*
+        version: link:../../packages/security
+      '@storevia/tenancy':
+        specifier: workspace:*
+        version: link:../../packages/tenancy
+      '@storevia/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      '@storevia/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@storevia/validation':
+        specifier: workspace:*
+        version: link:../../packages/validation
+      lucide-react:
+        specifier: 1.47.0
+        version: 1.47.0(react@19.3.0)
+      next:
+        specifier: 16.3.6
+        version: 16.3.6(@playwright/test@1.63.0)(@types/node@22.19.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      react:
+        specifier: 19.3.0
+        version: 19.3.0
+      react-dom:
+        specifier: 19.3.0
+        version: 19.3.0(react@19.3.0)
+      server-only:
+        specifier: 0.0.1
+        version: 0.0.1
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
+    devDependencies:
+      '@tailwindcss/postcss':
+        specifier: 4.3.3
+        version: 4.3.3
+      '@types/react':
+        specifier: 19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 19.3.0
+        version: 19.3.0(@types/react@19.3.0)
+      tailwindcss:
+        specifier: 4.3.3
+        version: 4.3.3
 
   packages/auth:
     dependencies:

@@ -1,39 +1,24 @@
 import { baseSecurityHeaders, contentSecurityPolicy, safeRedirectPath } from "@storevia/security";
 import { NextResponse, type NextRequest } from "next/server";
-import { dashboardAuth } from "./lib/auth";
+import { platformAuth } from "./lib/auth";
 
-// Runs before every page and server action (Next.js request proxy, Node runtime).
-// 1. request ID + nonce-based CSP + security headers on every response;
-// 2. protected routes: redirect when there is no valid session, and extend
-//    the sliding session expiry (cookies can be written here, not in RSC).
-// Pages and actions still verify the session and tenant access themselves;
-// this is an early, optimistic check (defence in depth).
+// Platform-admin request proxy: request ID, nonce CSP and security headers on
+// every response; no indexing; redirect to sign-in without a valid platform
+// session and extend the (short) sliding session. Pages and actions still
+// resolve the staff member themselves on every request.
 
-const PUBLIC_PREFIXES = [
-  "/sign-in",
-  "/sign-up",
-  "/verify-email",
-  "/check-email",
-  "/forgot-password",
-  "/reset-password",
-  "/invitations/",
-  "/api/health",
-  // Provider webhooks authenticate by signature, not session (docs 05 §4).
-  "/api/webhooks/",
-];
+const PUBLIC_PREFIXES = ["/sign-in", "/api/health"];
 
 const isPublic = (pathname: string) =>
-  PUBLIC_PREFIXES.some((prefix) =>
-    prefix.endsWith("/")
-      ? pathname.startsWith(prefix)
-      : pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
+  PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 
-const secure = () => (process.env["DASHBOARD_URL"] ?? "").startsWith("https://");
+const secure = () => (process.env["PLATFORM_ADMIN_URL"] ?? "").startsWith("https://");
 
 function withSecurityHeaders(response: NextResponse, csp: string, requestId: string): NextResponse {
   response.headers.set("Content-Security-Policy", csp);
   response.headers.set("x-request-id", requestId);
+  response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  response.headers.set("Cache-Control", "private, no-store");
   for (const [key, value] of Object.entries(baseSecurityHeaders(secure()))) {
     response.headers.set(key, value);
   }
@@ -52,7 +37,6 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const forwarded = new Headers(request.headers);
   forwarded.set("x-nonce", nonce);
   forwarded.set("x-request-id", requestId);
-  // Next.js reads the nonce from the request's CSP header for its own scripts.
   forwarded.set("Content-Security-Policy", csp);
 
   const { pathname, search } = request.nextUrl;
@@ -64,7 +48,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const { valid, setCookies } = await dashboardAuth().refreshSession(request.headers);
+  const { valid, setCookies } = await platformAuth().refreshSession(request.headers);
   if (!valid) {
     const url = request.nextUrl.clone();
     url.pathname = "/sign-in";
@@ -81,8 +65,5 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  matcher: [
-    // Everything except static assets and image optimisation.
-    "/((?!_next/static|_next/image|favicon.ico|robots.txt).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|robots.txt).*)"],
 };

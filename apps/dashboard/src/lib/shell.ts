@@ -70,6 +70,14 @@ export async function organisationShellData(ctx: OrganisationContext): Promise<S
       primaryOnMobile: true,
     });
   }
+  if (hasPermission(ctx, "billing.read")) {
+    links.push({
+      key: "billing",
+      label: "Billing",
+      href: orgPath(ctx.organisationId, "/billing"),
+      icon: "billing",
+    });
+  }
   links.push({
     key: "settings",
     label: "Settings",
