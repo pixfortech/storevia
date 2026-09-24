@@ -70,6 +70,16 @@ Moved out of Milestone 1, with the reason:
 
 ## Milestone 2 status
 
+**Complete** (tag `milestone-2`). An independent security review found no
+merchant-reachable bypass or cross-tenant leak. Its findings (webhook
+ordering, simulator privileges, a dedicated billing database role, stuck
+provider subscriptions, and several smaller gaps) were fixed with
+regression tests and recorded as ADR-0022 amendments A1–A10. All four CI
+jobs were green before the tag.
+
+Recovery points: `milestone-0` (architecture baseline), `milestone-1`
+(commit `d3ccbf9`, platform foundation), `milestone-2`.
+
 Revised before implementation: payment-gateway registration is pending, so
 **no real payment gateway is integrated in Milestone 2**
 ([ADR-0022](../adr/0022-provider-neutral-subscriptions-and-entitlements.md)).
