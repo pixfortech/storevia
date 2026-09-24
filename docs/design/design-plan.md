@@ -98,12 +98,43 @@ Tokens are in `theme.css`. Every text/background pair is AA-tested in
 
 ## 6. Icon system
 
+### The Storevia mark
+
+`Logo` and `LogoMark` in `packages/ui` recreate the supplied logo, which exists
+only as an image. The official vector replaces the recreation when it's
+available. What the recreation must match:
+
+- **Form:** one ribbon folded into an "S". Three thick bands of equal width
+  are joined by two round folds, as if a strip of ribbon were folded back on
+  itself twice.
+- **Slants alternate.** The top band rises to the right (/), the middle band
+  falls to the right (\\) and the bottom band rises to the right (/). The top
+  and bottom bands are parallel to each other; the middle band is not. Don't
+  redraw the mark with three parallel bands: that is a different logo.
+- **Gaps:** because the slants alternate, each gap between two bands is a
+  wedge that narrows towards the fold joining them. The fold keeps a small,
+  visible counter; it never closes to a hairline.
+- **Top band:** deep blue `#1F3BE8` (left) to sky cyan `#29C5FF` (top right),
+  with a flat vertical cut at its top-right end. It folds round at the left
+  into the middle band.
+- **Middle band:** light blue `#4FA8FF` (left) to deep blue `#1A3BD9`
+  (right). It folds round at the right into the bottom band.
+- **Bottom band:** violet, `#9B6BFF` to `#6E6BFF`, with a translucent overlap
+  near the right fold and a flat vertical cut at its bottom-left end.
+- **Wordmark:** "Storevia" in a bold geometric sans (Plus Jakarta Sans 700),
+  navy `#0B1530`. The dot of the "i" is an electric-blue circle, `#4A67FF`.
+- **Craft:** each fold meets its bands tangentially with no visible seam in
+  outline or colour (continuous or matched gradients). The mark stays legible
+  from 16 px up.
+
+### Interface icons and glyphs
+
 - **Interface:** Lucide only, through `<Icon>`. Sizes are 16, 18 (navigation),
   20, 24 and 32. The stroke is 1.75 at 16–24 and 1.5 at 32. Icons are
   decorative unless they carry meaning alone, in which case they take a
   label.
-- **Storevia glyphs:** product concepts drawn on the logo's ribbon geometry:
-  parallel slanted bands, round folds and flat cut ends. The set covers
+- **Storevia glyphs:** product concepts drawn on the mark's ribbon geometry:
+  slanted bands at the mark's slant, round folds and flat cut ends. The set covers
   website, commerce, publishing, portfolio, analytics, teams, domains, themes,
   integrations, retail, builder and content. Illustrations are 1.5 stroke on
   a 24 grid, inked in navy with one blue or violet accent stroke.
