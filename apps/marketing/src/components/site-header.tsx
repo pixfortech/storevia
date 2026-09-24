@@ -9,7 +9,7 @@ export function SiteHeader() {
   const links = appLinks();
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-surface">
-      <div className="mx-auto flex h-16 max-w-(--container-content) items-center gap-8 px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto flex h-16 max-w-(--container-content) items-center gap-4 px-4 sm:px-6 lg:gap-8 lg:px-8">
         <Link href="/" aria-label="Storevia home" className="rounded-control">
           <Logo />
         </Link>
@@ -23,7 +23,11 @@ export function SiteHeader() {
           </ul>
         </nav>
         <div className="ml-auto flex items-center gap-2">
-          <a href={links.signIn} className={buttonClasses("ghost", "sm")}>
+          {/* The smallest phones find "Log in" in the menu sheet instead. */}
+          <a
+            href={links.signIn}
+            className={buttonClasses("ghost", "sm", "hidden min-[400px]:inline-flex")}
+          >
             Log in
           </a>
           <a href={links.signUp} className={buttonClasses("primary", "sm")}>

@@ -196,7 +196,7 @@ export default async function HomePage() {
                   <li key={point} className="flex gap-2.5">
                     <span
                       aria-hidden="true"
-                      className="mt-2 size-1 shrink-0 rounded-full bg-stone-400"
+                      className="mt-2 size-1 shrink-0 rounded-full bg-neutral-400"
                     />
                     {point}
                   </li>

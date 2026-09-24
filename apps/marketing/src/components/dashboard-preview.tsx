@@ -189,7 +189,7 @@ export function PhonePreview({ type, className }: { type: BusinessType; classNam
         .map((n) => n.label)
         .join(", ")} in the bottom bar.`}
       className={cn(
-        "w-[260px] overflow-hidden rounded-[2.25rem] border-[6px] border-stone-900 bg-canvas shadow-[var(--shadow-popover)]",
+        "w-[260px] overflow-hidden rounded-[2.25rem] border-[6px] border-neutral-900 bg-canvas shadow-[var(--shadow-popover)]",
         className,
       )}
     >

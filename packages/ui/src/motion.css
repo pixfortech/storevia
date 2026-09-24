@@ -1,0 +1,212 @@
+/*
+ * Motion primitives (motion.tsx). Class names are global, so all are
+ * prefixed .sv-motion-*.
+ *
+ * Every hidden pre-state below is (1) set only by JavaScript, on the client,
+ * for content that was below the fold at mount, and (2) scoped to
+ * `screen and (prefers-reduced-motion: no-preference)`. Server HTML, no-JS,
+ * print and reduced motion therefore always show content in its final state.
+ *
+ * Base rules sit in the components layer, so utilities on the same element
+ * win: <AnimatedNumber className="block">, a duration-* class on a HoverLift,
+ * animate-none on a Float. State rules (pending, in, counting, paused, the
+ * hover lift) stay outside layers on purpose: while they apply they must
+ * beat utilities such as a card's own shadow-card.
+ */
+
+@layer components {
+  /* Defaults on each motion root, so values never leak into nested roots. */
+  .sv-motion,
+  .sv-motion-chart,
+  .sv-motion-line {
+    --sv-motion-delay: 0ms;
+    --sv-motion-stagger: 0ms;
+    --sv-motion-duration: var(--duration-reveal);
+    --sv-motion-ease: var(--ease-emphasised);
+  }
+  .sv-motion {
+    --sv-motion-from: none;
+  }
+  /* Strokes read best with a gentler curve than expo-out. */
+  .sv-motion-chart,
+  .sv-motion-line {
+    --sv-motion-ease: var(--ease-standard);
+    --sv-motion-step: 40ms;
+  }
+
+  /* AnimatedNumber: the counting overlay sits over the real value. */
+  .sv-motion-number {
+    position: relative;
+    display: inline-block;
+    white-space: nowrap;
+  }
+  .sv-motion-number-ticker {
+    position: absolute;
+    inset: 0;
+    display: none;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  /* HoverLift: movement at the hover duration, colour changes at the fast one. */
+  .sv-motion-lift {
+    transition:
+      translate var(--duration-base) var(--ease-emphasised),
+      box-shadow var(--duration-base) var(--ease-standard),
+      border-color var(--duration-fast) var(--ease-standard),
+      background-color var(--duration-fast) var(--ease-standard),
+      color var(--duration-fast) var(--ease-standard);
+  }
+
+  /* Float: the loop itself. Paused off screen by the state rule below. */
+  @media screen and (prefers-reduced-motion: no-preference) {
+    .sv-motion-float {
+      animation: var(--animate-float);
+      animation-delay: var(--sv-motion-float-delay, 0ms);
+    }
+  }
+}
+
+@keyframes sv-motion-enter {
+  from {
+    opacity: 0;
+    transform: var(--sv-motion-from);
+  }
+}
+@keyframes sv-motion-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+/* `scale` (not `transform`) so a bar's own transform attribute is untouched. */
+@keyframes sv-motion-grow {
+  from {
+    scale: 1 0;
+  }
+}
+@keyframes sv-motion-grow-x {
+  from {
+    scale: 0 1;
+  }
+}
+@keyframes sv-motion-wipe {
+  from {
+    clip-path: inset(-25% 100% -25% -25%);
+  }
+  to {
+    clip-path: inset(-25%);
+  }
+}
+@keyframes sv-motion-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@media screen and (prefers-reduced-motion: no-preference) {
+  /* Reveal, FadeIn, SlideReveal, ScaleIn */
+  .sv-motion[data-sv-motion="pending"] {
+    opacity: 0;
+    transform: var(--sv-motion-from);
+  }
+  /* `backwards` holds the from-state during the delay and leaves nothing
+     behind afterwards, so hover transforms and transitions keep working. */
+  .sv-motion[data-sv-motion="in"] {
+    animation: sv-motion-enter var(--sv-motion-duration) var(--sv-motion-ease)
+      calc(var(--sv-motion-delay) + var(--sv-motion-stagger)) backwards;
+  }
+
+  /* DrawLine. Dash pattern "1 2" (with pathLength=1) leaves no dot at the
+     far end of the hidden stroke. */
+  .sv-motion-line[data-sv-motion="pending"] {
+    opacity: 0;
+    stroke-dasharray: 1 2;
+    stroke-dashoffset: 1;
+  }
+  .sv-motion-line[data-sv-motion="in"] {
+    stroke-dasharray: 1 2;
+    animation: sv-motion-draw var(--sv-motion-duration) var(--sv-motion-ease)
+      calc(var(--sv-motion-delay) + var(--sv-motion-stagger)) backwards;
+  }
+
+  /* ChartReveal marks. The chart frame (axes, grid, labels) stays visible;
+     only marks that opt in with a class wait for the entrance. */
+  .sv-motion-chart
+    :is(.sv-motion-draw, .sv-motion-grow, .sv-motion-grow-x, .sv-motion-wipe, .sv-motion-fade) {
+    --sv-motion-mark-delay: calc(
+      var(--sv-motion-delay) + var(--sv-motion-stagger) + var(--sv-motion-i, 0) *
+        var(--sv-motion-step)
+    );
+  }
+  .sv-motion-chart[data-sv-motion="pending"]
+    :is(.sv-motion-draw, .sv-motion-grow, .sv-motion-grow-x, .sv-motion-wipe, .sv-motion-fade) {
+    opacity: 0;
+  }
+  .sv-motion-chart[data-sv-motion] .sv-motion-draw {
+    stroke-dasharray: 1 2;
+  }
+  .sv-motion-chart[data-sv-motion="in"] .sv-motion-draw {
+    animation: sv-motion-draw var(--sv-motion-duration) var(--sv-motion-ease)
+      var(--sv-motion-mark-delay) backwards;
+  }
+  .sv-motion-chart[data-sv-motion] :is(.sv-motion-grow, .sv-motion-grow-x) {
+    transform-box: fill-box;
+  }
+  .sv-motion-chart[data-sv-motion] .sv-motion-grow {
+    transform-origin: 50% 100%;
+  }
+  .sv-motion-chart[data-sv-motion] .sv-motion-grow-x {
+    transform-origin: 0% 50%;
+  }
+  .sv-motion-chart[data-sv-motion="in"] .sv-motion-grow {
+    animation: sv-motion-grow var(--sv-motion-duration) var(--ease-emphasised)
+      var(--sv-motion-mark-delay) backwards;
+  }
+  .sv-motion-chart[data-sv-motion="in"] .sv-motion-grow-x {
+    animation: sv-motion-grow-x var(--sv-motion-duration) var(--ease-emphasised)
+      var(--sv-motion-mark-delay) backwards;
+  }
+  .sv-motion-chart[data-sv-motion="in"] .sv-motion-wipe {
+    animation: sv-motion-wipe var(--sv-motion-duration) var(--sv-motion-ease)
+      var(--sv-motion-mark-delay) backwards;
+  }
+  /* Points and labels arrive once the line is half drawn. */
+  .sv-motion-chart[data-sv-motion="in"] .sv-motion-fade {
+    animation: sv-motion-fade var(--duration-slow) var(--ease-standard)
+      calc(var(--sv-motion-mark-delay) + var(--sv-motion-duration) * 0.5) backwards;
+  }
+
+  /* AnimatedNumber: the real value keeps its space (and stays in the
+     accessibility tree) while a decorative overlay counts. */
+  .sv-motion-number[data-sv-counting] > .sv-motion-number-value {
+    color: transparent;
+  }
+  .sv-motion-number[data-sv-counting] > .sv-motion-number-ticker {
+    display: block;
+  }
+
+  /* Float, off screen */
+  .sv-motion-float[data-sv-motion-paused] {
+    animation-play-state: paused;
+  }
+}
+
+/* HoverLift. Touch screens get neither: a tap would leave the card stuck
+   "hovered". */
+@media (hover: hover) {
+  .sv-motion-lift:hover,
+  .sv-motion-lift:focus-visible,
+  .sv-motion-lift:has(:focus-visible) {
+    box-shadow: var(--shadow-raised);
+  }
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .sv-motion-lift:hover,
+  .sv-motion-lift:focus-visible,
+  .sv-motion-lift:has(:focus-visible) {
+    translate: 0 -2px;
+  }
+}

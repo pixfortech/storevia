@@ -26,7 +26,7 @@ export function AdminNav({ items, label }: { items: readonly AdminNavItem[]; lab
                   "inline-flex h-9 items-center rounded-control px-3 text-sm font-medium transition-colors",
                   active
                     ? "bg-white/10 text-white"
-                    : "text-stone-300 hover:bg-white/5 hover:text-white",
+                    : "text-neutral-300 hover:bg-white/5 hover:text-white",
                 )}
               >
                 {item.label}

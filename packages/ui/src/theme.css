@@ -1,23 +1,88 @@
 /*
- * Storevia design tokens (Tailwind v4 theme). One foundation for marketing,
- * the merchant dashboard, platform-admin and the future editor.
- * docs/architecture/12-design-system.md explains the choices.
+ * Storevia design tokens (Tailwind v4 theme): the single visual contract for
+ * marketing, the merchant dashboard, platform-admin and the future editor.
+ * docs/design/design-plan.md explains the system; docs/architecture/
+ * 12-design-system.md documents usage.
  *
- * Layers: primitives (raw scales) → semantic tokens (what things are). Apps
- * use semantic utilities (bg-surface, text-ink-muted, border-line, …) and the
- * brand scale; primitives exist so semantics can be re-pointed (e.g. dark
- * mode) without touching components. All text/background pairs meet WCAG
- * 2.2 AA.
+ * Direction: white-first, navy type, electric blue for action, soft violet
+ * as a rare secondary accent (both taken from the Storevia ribbon mark).
+ * Premium comes from typography, spacing and restraint, not from colour.
+ *
+ * Layers: primitives (raw ramps) → semantic tokens (what things are). Apps
+ * use semantic utilities (bg-surface, text-ink-muted, border-line, …) plus
+ * the brand/accent ramps; primitives exist so semantics can be re-pointed.
+ * Text/background pairs used by components meet WCAG 2.2 AA (tested in
+ * theme.test.ts).
  */
 @import "@fontsource-variable/inter";
+@import "@fontsource-variable/plus-jakarta-sans";
+@import "./motion.css";
+@import "./charts.css";
 
-@theme {
-  /* --- Typography ------------------------------------------------------------ */
+@theme static {
+  /* --- Type families ---------------------------------------------------------- */
+  /* Inter for interface and reading; Plus Jakarta Sans (geometric, like the
+     wordmark) for display and headings only. */
   --font-sans:
     "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-display:
+    "Plus Jakarta Sans Variable", "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* Size / line-height / tracking. Display sizes are for marketing heroes. */
+  /* --- Type scale ----------------------------------------------------------- */
+  /* Named roles (use these in new code). Display and headings pair with
+     `font-display`; responsive steps are applied by components. */
+  --text-display-xl: 4rem; /* 64 */
+  --text-display-xl--line-height: 1.05;
+  --text-display-xl--letter-spacing: -0.035em;
+  --text-display-xl--font-weight: 650;
+  --text-display-l: 3.25rem; /* 52 */
+  --text-display-l--line-height: 1.08;
+  --text-display-l--letter-spacing: -0.03em;
+  --text-display-l--font-weight: 650;
+  --text-h1: 2.5rem; /* 40 */
+  --text-h1--line-height: 1.12;
+  --text-h1--letter-spacing: -0.025em;
+  --text-h1--font-weight: 650;
+  --text-h2: 2rem; /* 32 */
+  --text-h2--line-height: 1.18;
+  --text-h2--letter-spacing: -0.022em;
+  --text-h2--font-weight: 650;
+  --text-h3: 1.5rem; /* 24 */
+  --text-h3--line-height: 1.25;
+  --text-h3--letter-spacing: -0.015em;
+  --text-h3--font-weight: 620;
+  --text-h4: 1.1875rem; /* 19 */
+  --text-h4--line-height: 1.4;
+  --text-h4--letter-spacing: -0.01em;
+  --text-h4--font-weight: 620;
+  --text-body-lg: 1.125rem; /* 18 */
+  --text-body-lg--line-height: 1.65;
+  --text-body: 1rem; /* 16 */
+  --text-body--line-height: 1.6;
+  --text-body-sm: 0.875rem; /* 14 */
+  --text-body-sm--line-height: 1.5;
+  --text-label: 0.8125rem; /* 13 */
+  --text-label--line-height: 1.35;
+  --text-label--font-weight: 550;
+  --text-caption: 0.75rem; /* 12 */
+  --text-caption--line-height: 1.35;
+  --text-overline: 0.6875rem; /* 11 */
+  --text-overline--line-height: 1.3;
+  --text-overline--letter-spacing: 0.08em;
+  --text-overline--font-weight: 600;
+  --text-metric: 1.75rem; /* 28: KPI values */
+  --text-metric--line-height: 1.15;
+  --text-metric--letter-spacing: -0.02em;
+  --text-metric--font-weight: 620;
+  --text-metric-lg: 2.75rem; /* 44: the one hero figure per view */
+  --text-metric-lg--line-height: 1.05;
+  --text-metric-lg--letter-spacing: -0.03em;
+  --text-metric-lg--font-weight: 650;
+  --text-table: 0.8125rem; /* 13 */
+  --text-table--line-height: 1.4;
+
+  /* Tailwind size steps (kept for existing usage; prefer the roles above). */
   --text-xs: 0.75rem;
   --text-xs--line-height: 1rem;
   --text-sm: 0.875rem;
@@ -42,95 +107,138 @@
   --text-6xl--line-height: 4.25rem;
   --text-6xl--letter-spacing: -0.035em;
 
-  /* --- Colour primitives --------------------------------------------------- */
-  /* Warm neutral ("stone"): calm surfaces, crisp text. */
-  --color-stone-0: #ffffff;
-  --color-stone-25: #fbfbf9;
-  --color-stone-50: #f7f7f4;
-  --color-stone-100: #f0f0ec;
-  --color-stone-150: #e8e8e3;
-  --color-stone-200: #dfdfd9;
-  --color-stone-300: #cbcbc3;
-  --color-stone-400: #a3a39b;
-  --color-stone-500: #6b6d73;
-  --color-stone-600: #5b5f68;
-  --color-stone-700: #41444b;
-  --color-stone-800: #2a2c31;
-  --color-stone-900: #16181d;
-  --color-stone-950: #0c0d10;
+  /* --- Colour primitives ---------------------------------------------------- */
+  /* Neutral: cool, faintly navy-tinted greys. */
+  --color-neutral-0: #ffffff;
+  --color-neutral-25: #fbfcfe;
+  --color-neutral-50: #f6f7fa;
+  --color-neutral-100: #eff1f6;
+  --color-neutral-150: #e6e9f0;
+  --color-neutral-200: #dce0e9;
+  --color-neutral-300: #c4cad6;
+  --color-neutral-400: #9aa2b3;
+  --color-neutral-500: #5f687c;
+  --color-neutral-600: #4a5368;
+  --color-neutral-700: #353d52;
+  --color-neutral-800: #232a3c;
+  --color-neutral-900: #141a2c;
+  --color-neutral-950: #0b1020;
 
-  /* Brand: deep teal. 600 is the action colour (AA on white). */
-  --color-brand-25: #f5fcfa;
-  --color-brand-50: #effaf8;
-  --color-brand-100: #d7f2ec;
-  --color-brand-200: #afe3d8;
-  --color-brand-300: #7dcdbd;
-  --color-brand-400: #3fae9b;
-  --color-brand-500: #14907d;
-  --color-brand-600: #0f766a;
-  --color-brand-700: #0d5f56;
-  --color-brand-800: #0c4c45;
-  --color-brand-900: #0a3b36;
-  --color-brand-950: #062421;
+  /* Navy: the wordmark colour. Type and high-emphasis surfaces. */
+  --color-navy-50: #f2f4f9;
+  --color-navy-100: #e3e7f1;
+  --color-navy-600: #34406a;
+  --color-navy-700: #243160;
+  --color-navy-800: #172248;
+  --color-navy-900: #0b1530;
+  --color-navy-950: #070d1f;
 
-  /* Status */
-  --color-danger-50: #fdf2f2;
-  --color-danger-100: #fbe0e0;
-  --color-danger-500: #dc3a40;
-  --color-danger-600: #c0262d;
-  --color-danger-700: #a11d23;
-  --color-warning-50: #fdf8ec;
-  --color-warning-100: #f9ecc8;
-  --color-warning-500: #d69b12;
-  --color-warning-700: #8a5a00;
-  --color-success-50: #eef9f1;
-  --color-success-100: #d6f0de;
-  --color-success-500: #2f9e55;
-  --color-success-700: #1d6b35;
-  --color-info-50: #eef5fc;
-  --color-info-100: #d8e8f8;
-  --color-info-500: #3478c6;
-  --color-info-700: #1f5a96;
+  /* Brand: electric blue from the ribbon mark. 600 is the action colour. */
+  --color-brand-25: #f7f9ff;
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-200: #c3d0ff;
+  --color-brand-300: #9ab0ff;
+  --color-brand-400: #6a87ff;
+  --color-brand-500: #3355ff;
+  --color-brand-600: #2447f0;
+  --color-brand-700: #1d38cc;
+  --color-brand-800: #1b30a3;
+  --color-brand-900: #1a2c7f;
+  --color-brand-950: #111b4d;
+
+  /* Accent: soft violet from the ribbon mark. Rare, secondary emphasis only. */
+  --color-accent-25: #fbfaff;
+  --color-accent-50: #f5f2ff;
+  --color-accent-100: #ede8ff;
+  --color-accent-200: #dcd3ff;
+  --color-accent-300: #c2b3ff;
+  --color-accent-400: #a07cff;
+  --color-accent-500: #8b6dfb;
+  --color-accent-600: #7452ee;
+  --color-accent-700: #6140d2;
+  --color-accent-800: #4f35a8;
+
+  /* Sky: the mark's highlight. Logo and product illustration only. */
+  --color-sky-300: #8fdcff;
+  --color-sky-400: #33c2ff;
+  --color-sky-500: #1aa8f5;
+
+  /* Status (never used for data series). */
+  --color-success-50: #ecfdf4;
+  --color-success-100: #d3f8e3;
+  --color-success-500: #16a36a;
+  --color-success-600: #0f8a58;
+  --color-success-700: #0b6b45;
+  --color-warning-50: #fff8eb;
+  --color-warning-100: #feecc7;
+  --color-warning-500: #e59a0b;
+  --color-warning-600: #c27c05;
+  --color-warning-700: #8f5a03;
+  --color-danger-50: #fff2f2;
+  --color-danger-100: #fedddd;
+  --color-danger-500: #e5484d;
+  --color-danger-600: #cd2b31;
+  --color-danger-700: #a51d23;
+  --color-info-50: #eef2ff;
+  --color-info-100: #e0e7ff;
+  --color-info-500: #3355ff;
+  --color-info-700: #1d38cc;
 
   /* --- Semantic colours ------------------------------------------------------ */
-  --color-canvas: var(--color-stone-50);
-  --color-surface: var(--color-stone-0);
-  --color-surface-raised: var(--color-stone-0);
-  --color-subtle: var(--color-stone-100);
-  --color-muted: var(--color-stone-150);
-  --color-line: var(--color-stone-150);
-  --color-line-strong: var(--color-stone-300);
-  --color-ink: var(--color-stone-900);
-  --color-ink-muted: var(--color-stone-600);
-  --color-ink-faint: var(--color-stone-500);
-  --color-ink-inverse: var(--color-stone-0);
-  --color-focus: var(--color-brand-600);
-  /* Platform-admin chrome: visibly an internal tool. */
-  --color-admin: var(--color-stone-900);
+  --color-canvas: #ffffff; /* page background: pure white */
+  --color-surface: #ffffff; /* cards, panels */
+  --color-surface-raised: #ffffff; /* popovers, dialogs */
+  --color-surface-sunken: var(--color-neutral-50); /* wells, sidebars, table heads */
+  --color-subtle: var(--color-neutral-50); /* hover and quiet fills */
+  --color-muted: var(--color-neutral-100); /* tracks, pressed fills */
+  --color-line: var(--color-neutral-150); /* hairlines */
+  --color-line-strong: var(--color-neutral-200); /* emphasised hairlines */
+  /* Control boundaries: inputs, selects, textareas, checkboxes, radios, switch
+     and segmented tracks. At least 3:1 on canvas, sunken and muted surfaces
+     (WCAG 1.4.11 non-text contrast); hover darkens to neutral-500. */
+  --color-line-control: #838b9d;
+  --color-ink: var(--color-navy-900); /* primary text */
+  --color-ink-muted: var(--color-neutral-600); /* secondary text */
+  --color-ink-faint: var(--color-neutral-500); /* tertiary text, meta */
+  --color-ink-inverse: #ffffff;
+  --color-focus: var(--color-brand-500);
+  /* Platform-admin marker: the internal tool is labelled, not darkened. */
+  --color-admin: var(--color-warning-500);
 
-  /* --- Radius ----------------------------------------------------------------- */
-  --radius-xs: 0.25rem;
-  --radius-sm: 0.375rem;
-  --radius-control: 0.5rem;
-  --radius-card: 0.875rem;
-  --radius-panel: 1.25rem;
+  /* Data visualisation (docs/design/design-plan.md §9; validated for CVD). */
+  --color-chart-1: #3355ff; /* primary series */
+  --color-chart-2: #a07cff; /* comparison series */
+  --color-chart-3: var(--color-accent-800); /* third slot, part-to-whole only */
+  --color-chart-muted: var(--color-neutral-300); /* history fills (bars, segments) */
+  --color-chart-history: var(--color-neutral-400); /* history lines, always dashed */
+  --color-chart-grid: var(--color-neutral-100);
+  --color-chart-axis: var(--color-neutral-500);
+
+  /* --- Radius ------------------------------------------------------------------- */
+  --radius-xs: 0.25rem; /* 4: chips, bar ends */
+  --radius-sm: 0.375rem; /* 6: small controls */
+  --radius-control: 0.5rem; /* 8: buttons, inputs */
+  --radius-card: 0.75rem; /* 12: cards */
+  --radius-panel: 1rem; /* 16: product windows, sheets */
   --radius-pill: 9999px;
 
-  /* --- Shadows (subtle depth, never glow) ---------------------------------- */
-  --shadow-xs: 0 1px 1px rgb(22 24 29 / 0.04);
-  --shadow-card: 0 1px 2px rgb(22 24 29 / 0.04), 0 1px 1px rgb(22 24 29 / 0.03);
-  --shadow-raised: 0 4px 12px -4px rgb(22 24 29 / 0.1), 0 1px 3px rgb(22 24 29 / 0.05);
-  --shadow-popover: 0 12px 32px -8px rgb(22 24 29 / 0.18), 0 2px 6px rgb(22 24 29 / 0.06);
-  --shadow-inset: inset 0 0 0 1px rgb(22 24 29 / 0.06);
+  /* --- Shadows (cool-tinted, restrained; never glow) ----------------------------- */
+  --shadow-xs: 0 1px 2px rgb(11 21 48 / 0.05);
+  --shadow-card: 0 1px 2px rgb(11 21 48 / 0.04), 0 1px 3px rgb(11 21 48 / 0.03);
+  --shadow-raised: 0 10px 24px -12px rgb(11 21 48 / 0.16), 0 2px 4px rgb(11 21 48 / 0.04);
+  --shadow-popover: 0 18px 44px -14px rgb(11 21 48 / 0.24), 0 3px 8px rgb(11 21 48 / 0.06);
+  --shadow-window: 0 40px 80px -36px rgb(11 21 48 / 0.28), 0 12px 24px -16px rgb(11 21 48 / 0.12);
+  --shadow-inset: inset 0 0 0 1px rgb(11 21 48 / 0.06);
 
   /* --- Layout ------------------------------------------------------------------ */
-  --container-narrow: 28rem;
-  --container-prose: 42rem;
-  --container-content: 72rem;
-  --container-app: 90rem;
-  /* Breakpoints (Tailwind defaults, named for intent): sm 640 large phones,
-     md 768 tablet portrait, lg 1024 tablet landscape / small laptop,
-     xl 1280 desktop, 2xl 1536 wide. */
+  --container-narrow: 28rem; /* forms, auth */
+  --container-prose: 42rem; /* reading */
+  --container-content: 76rem; /* marketing grid (1216) */
+  --container-app: 90rem; /* dashboard max */
+  --container-wide: 100rem;
+  /* Breakpoints: sm 640 large phones, md 768 tablet portrait, lg 1024 tablet
+     landscape / small laptop, xl 1280 desktop, 2xl 1536 wide. */
   --breakpoint-sm: 40rem;
   --breakpoint-md: 48rem;
   --breakpoint-lg: 64rem;
@@ -139,16 +247,21 @@
 
   /* --- Motion ------------------------------------------------------------------ */
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
-  --ease-emphasised: cubic-bezier(0.3, 0, 0, 1.15);
+  --ease-emphasised: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
   --duration-fast: 120ms;
-  --duration-base: 180ms;
-  --duration-slow: 280ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --duration-reveal: 640ms;
 
   --animate-fade-in: fade-in var(--duration-base) var(--ease-standard);
-  --animate-rise-in: rise-in var(--duration-slow) var(--ease-standard);
-  --animate-sheet-in: sheet-in var(--duration-slow) var(--ease-standard);
-  --animate-drawer-in: drawer-in var(--duration-slow) var(--ease-standard);
+  --animate-rise-in: rise-in var(--duration-slow) var(--ease-emphasised);
+  --animate-scale-in: scale-in var(--duration-base) var(--ease-emphasised);
+  --animate-sheet-in: sheet-in var(--duration-slow) var(--ease-emphasised);
+  --animate-drawer-in: drawer-in var(--duration-slow) var(--ease-emphasised);
+  --animate-drawer-in-right: drawer-in-right var(--duration-slow) var(--ease-emphasised);
+  --animate-shimmer: shimmer 1.6s linear infinite;
+  --animate-float: float 7s ease-in-out infinite;
 
   @keyframes fade-in {
     from {
@@ -158,7 +271,13 @@
   @keyframes rise-in {
     from {
       opacity: 0;
-      transform: translateY(6px);
+      transform: translateY(8px);
+    }
+  }
+  @keyframes scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.97);
     }
   }
   @keyframes sheet-in {
@@ -171,6 +290,39 @@
       transform: translateX(-100%);
     }
   }
+  @keyframes drawer-in-right {
+    from {
+      transform: translateX(100%);
+    }
+  }
+  @keyframes shimmer {
+    from {
+      background-position: -200% 0;
+    }
+    to {
+      background-position: 200% 0;
+    }
+  }
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-6px);
+    }
+  }
+}
+
+/* z-index scale (plain custom properties; use z-(--z-modal) etc.). */
+:root {
+  --z-base: 0;
+  --z-raised: 10;
+  --z-sticky: 30;
+  --z-overlay: 40;
+  --z-modal: 50;
+  --z-popover: 60;
+  --z-toast: 70;
 }
 
 @layer base {
@@ -178,10 +330,19 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    /* Inter: single-storey "a" and open digits for a calmer, distinct voice. */
-    font-feature-settings: "cv11", "cv01";
+    /* Inter: open digits and a straight-sided "l" for crisp interface text. */
+    font-feature-settings: "cv11", "ss01";
     color: var(--color-ink);
     background: var(--color-canvas);
+  }
+  h1,
+  h2,
+  h3,
+  h4 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
   }
   :focus-visible {
     outline: 2px solid var(--color-focus);

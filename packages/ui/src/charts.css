@@ -1,0 +1,46 @@
+/*
+ * Charts (charts.tsx). Class names are global, so all are prefixed .sv-chart-*.
+ *
+ * Entrance motion is not defined here: chart marks carry MOTION's ChartReveal
+ * classes (.sv-motion-wipe, -grow, -grow-x, -fade with --sv-motion-i; see
+ * motion.css), so charts and every other entrance share one policy for
+ * reduced motion, print, server HTML and automated captures. Grid, axes and
+ * labels never animate: the frame is stable and only the data arrives.
+ */
+
+/* Hover and keyboard feedback: 120 ms, standard easing. */
+.sv-chart-bar,
+.sv-chart-hbar,
+.sv-chart-segment {
+  transition: opacity var(--duration-fast) var(--ease-standard);
+}
+
+/* Loading skeleton: a quiet neutral sweep over the plot frame. */
+.sv-chart-shimmer {
+  background-color: var(--color-neutral-100);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--color-surface) 90%, transparent) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  background-repeat: no-repeat;
+  animation: var(--animate-shimmer);
+}
+
+/*
+ * Forced colours (Windows contrast themes) may paint every series in one
+ * system colour. History is always dashed; here the comparison and third
+ * slots get dashes of their own too, on the lines and on their keys, so
+ * series stay distinguishable without hue. (Round caps add 1 px to each
+ * end of a dash, hence the wide gaps: dash-dot, and dots.)
+ */
+@media (forced-colors: active) {
+  .sv-chart-dash-comparison {
+    stroke-dasharray: 8 4 1 4;
+  }
+  .sv-chart-dash-tertiary {
+    stroke-dasharray: 1 4;
+  }
+}

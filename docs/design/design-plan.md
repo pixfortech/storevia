@@ -59,12 +59,18 @@ values, tabular in columns.
 ## 4. Colour system
 
 Tokens are in `theme.css`. Every text/background pair is AA-tested in
-`theme.test.ts`.
+`theme.test.ts`, and so are control boundaries (3:1).
 
 - **Surfaces:** `canvas` and `surface` are pure white; `surface-sunken` and
   `subtle` are `#F6F7FA`; `muted` is `#EFF1F6`.
-- **Lines:** `line` is `#E6E9F0` (hairlines); `line-strong` is `#DCE0E9`
-  (controls).
+- **Lines:** `line` is `#E6E9F0` (hairlines: cards, dividers, tables);
+  `line-strong` is `#DCE0E9` (emphasised hairlines, such as hovered cards).
+- **Control boundaries:** `line-control` is `#838B9D`. Borders that identify
+  a control use it: inputs, selects, textareas, checkboxes, radios, and switch
+  and segmented tracks. It reaches 3:1 on canvas, sunken and muted surfaces
+  (WCAG 1.4.11 non-text contrast); hover darkens to `neutral-500`. Hairline
+  tokens are never used for a control's boundary. Forced-colours mode must
+  still show every state (a border or outline, not only a fill).
 - **Ink:** `ink` is navy `#0B1530` (the wordmark); `ink-muted` is `#4A5368`;
   `ink-faint` is `#5F687C`.
 - **Brand (electric blue):** `brand-500` is `#3355FF`; `brand-600` is
@@ -74,10 +80,13 @@ Tokens are in `theme.css`. Every text/background pair is AA-tested in
 - **Sky** (`#33C2FF`): logo and illustration highlights only.
 - **Status:** `success`, `warning`, `danger` and `info`. Always shown with an
   icon or label, never used as data series.
-- **Charts:** `chart-1` is `#3355FF` (primary), `chart-2` is `#A07CFF`
-  (comparison), `chart-muted` is `#C4CAD6` (history), `chart-grid` is
-  `#EFF1F6`. The pair passes the CVD validator; violet contrast is 3:1, so
-  charts always carry a legend and a table fallback.
+- **Charts:** categorical slots in a fixed order: `chart-1` is `#3355FF`
+  (primary), `chart-2` is `#A07CFF` (comparison) and `chart-3` is `#4F35A8`
+  (a third slice, part-to-whole only). History is grey: `chart-muted`
+  (`#C4CAD6`) for fills and `chart-history` (`#9AA2B3`) for lines, which are
+  always dashed. `chart-grid` is `#EFF1F6`. The slots pass the CVD validator
+  and reach 3:1 on white (violet only just), so charts always carry a legend
+  and a table fallback. Chart code uses these names, never ramp steps.
 
 ## 5. Spacing and grid
 

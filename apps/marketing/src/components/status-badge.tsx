@@ -25,7 +25,7 @@ export function StatusBadge({ status, className }: { status: Status; className?:
             ? "bg-success-500"
             : status === "in-development"
               ? "bg-info-500"
-              : "bg-stone-400",
+              : "bg-neutral-400",
         )}
       />
       {STATUS_LABELS[status]}

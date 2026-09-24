@@ -83,6 +83,6 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 export const config = {
   matcher: [
     // Everything except static assets and image optimisation.
-    "/((?!_next/static|_next/image|favicon.ico|robots.txt).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon1.svg|icon2.png|apple-icon.png|robots.txt).*)",
   ],
 };
