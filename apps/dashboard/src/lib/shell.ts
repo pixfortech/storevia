@@ -1,5 +1,7 @@
 import "server-only";
 import {
+  getAllowance,
+  getOrganisationBilling,
   grantedFeatures,
   hasPermission,
   listMyOrganisations,
@@ -9,14 +11,28 @@ import {
   type StoreContext,
 } from "@storevia/tenancy";
 import { BUSINESS_TYPE_DEFINITIONS, storeNavigation } from "@storevia/tenancy/business-types";
+import { atLimit, planIndicator } from "@/components/shell/plan";
 import type { ShellAction, ShellData, ShellLink } from "@/components/shell/types";
+import { BUSINESS_TYPE_GLYPH } from "./business-types";
 import { orgPath, storePath } from "./ids";
 
 async function common(ctx: OrganisationContext) {
-  const [organisations, stores] = await Promise.all([
+  const mayCreateStore = hasPermission(ctx, "store.create");
+  const mayReadBilling = hasPermission(ctx, "billing.read");
+  const billingHref = orgPath(ctx.organisationId, "/billing");
+  const [organisations, stores, billing, storeAllowance] = await Promise.all([
     listMyOrganisations(ctx.principal),
     listStores(ctx),
+    // The plan indicator is for members who may read billing; others get none.
+    mayReadBilling ? getOrganisationBilling(ctx) : null,
+    // Billing already carries the store line; otherwise read that line alone.
+    mayCreateStore && !mayReadBilling ? getAllowance(ctx, "store_count") : null,
   ]);
+  // A hint only, like the store list's: createStore enforces the limit on the
+  // server. At the limit the shell stops offering "Create store" (a dead end).
+  const storeLimitReached =
+    mayCreateStore &&
+    atLimit(billing?.usage.find((line) => line.key === "store_count") ?? storeAllowance);
   return {
     user: { name: ctx.principal.name, email: ctx.principal.email },
     organisation: {
@@ -30,9 +46,12 @@ async function common(ctx: OrganisationContext) {
       label: s.name,
       href: storePath(s.id),
       description: BUSINESS_TYPE_DEFINITIONS[s.businessType].label,
+      glyph: BUSINESS_TYPE_GLYPH[s.businessType],
     })),
-    canCreateStore: hasPermission(ctx, "store.create"),
+    canCreateStore: mayCreateStore && !storeLimitReached,
     createStoreHref: orgPath(ctx.organisationId, "/stores/new"),
+    storeLimit: storeLimitReached ? { href: mayReadBilling ? billingHref : undefined } : undefined,
+    plan: billing ? planIndicator(billing, billingHref) : undefined,
   };
 }
 
@@ -40,10 +59,11 @@ async function common(ctx: OrganisationContext) {
 function organisationLinks(ctx: OrganisationContext, primary: boolean): ShellLink[] {
   const links: ShellLink[] = [
     {
+      // "Stores" in either scope, as the page's own heading says.
       key: "stores",
-      label: primary ? "Stores" : "Overview",
+      label: "Stores",
       href: orgPath(ctx.organisationId),
-      icon: primary ? "stores" : "organisation",
+      icon: "stores",
       primaryOnMobile: true,
       exact: true,
     },
@@ -88,13 +108,25 @@ function createActions(
   if (hasPermission(ctx, "member.manage")) {
     // In a store, inviting is the everyday action; in the organisation, only on Members.
     actions.push({
+      key: "invite-member",
       label: "Invite member",
+      description: `Give someone access to ${ctx.organisationName}, with the role they need.`,
       href: `${members}#invite`,
       under: organisationScope ? members : undefined,
     });
   }
-  if (organisationScope && canCreateStore) {
-    actions.push({ label: "Create store", href: orgPath(ctx.organisationId, "/stores/new") });
+  if (canCreateStore) {
+    actions.push({
+      key: "create-store",
+      label: "Create store",
+      description: "Add an online store, business website, publication or portfolio.",
+      href: orgPath(ctx.organisationId, "/stores/new"),
+      // Inside a store the page's action stays "Invite member"; creating
+      // another store is offered in the Create sheet and the command menu.
+      sheetOnly: !organisationScope,
+      // The store list has its own "Create store" button.
+      offeredOn: [orgPath(ctx.organisationId)],
+    });
   }
   return actions;
 }
@@ -108,7 +140,7 @@ function createActions(
 export async function storeShellData(ctx: StoreContext): Promise<ShellData> {
   const organisation = organisationOf(ctx);
   const [base, granted] = await Promise.all([common(organisation), grantedFeatures(ctx)]);
-  const links: ShellLink[] = storeNavigation(ctx.storeBusinessType, ctx.permissions, (feature) =>
+  const areas: ShellLink[] = storeNavigation(ctx.storeBusinessType, ctx.permissions, (feature) =>
     granted.has(feature),
   ).map((area) => ({
     key: area.key,
@@ -120,6 +152,19 @@ export async function storeShellData(ctx: StoreContext): Promise<ShellData> {
     primaryOnMobile: area.primaryOnMobile,
     exact: area.segment === "",
   }));
+  // Apps sit with Settings: an honest placeholder (no app catalogue exists).
+  const apps: ShellLink = {
+    key: "apps",
+    label: "Apps",
+    href: storePath(ctx.storeId, "/apps"),
+    icon: "apps",
+    soon: "On the roadmap",
+  };
+  const settings = areas.findIndex((area) => area.key === "settings");
+  const links =
+    settings === -1
+      ? [...areas, apps]
+      : [...areas.slice(0, settings), apps, ...areas.slice(settings)];
   return {
     ...base,
     store: {
@@ -127,6 +172,7 @@ export async function storeShellData(ctx: StoreContext): Promise<ShellData> {
       name: ctx.storeName,
       href: storePath(ctx.storeId),
       kind: BUSINESS_TYPE_DEFINITIONS[ctx.storeBusinessType].label,
+      glyph: BUSINESS_TYPE_GLYPH[ctx.storeBusinessType],
     },
     links,
     organisationLinks: organisationLinks(organisation, false),

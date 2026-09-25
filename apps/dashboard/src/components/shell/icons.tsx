@@ -1,7 +1,7 @@
 import {
   BarChart3,
+  Blocks,
   Boxes,
-  Building2,
   CreditCard,
   FileText,
   FolderTree,
@@ -18,21 +18,24 @@ import {
   ShoppingBag,
   Store,
   UserPen,
+  UserRound,
   Users,
   type LucideIcon,
 } from "lucide-react";
 import type { AreaKey } from "@storevia/tenancy/business-types";
 
 // One icon per destination, all Lucide at the shared stroke (ICON_STROKE).
+// Customers are one person and members a group, so an online store's
+// Customers and its organisation's Members never share an icon.
 export const NAV_ICONS: Record<
-  AreaKey | "stores" | "members" | "organisation" | "billing" | "security",
+  AreaKey | "apps" | "stores" | "members" | "billing" | "security",
   LucideIcon
 > = {
   home: House,
   orders: ShoppingBag,
   products: Package,
   inventory: Boxes,
-  customers: Users,
+  customers: UserRound,
   website: Globe,
   pages: FileText,
   posts: PenLine,
@@ -44,9 +47,9 @@ export const NAV_ICONS: Record<
   marketing: Megaphone,
   analytics: BarChart3,
   settings: Settings,
+  apps: Blocks,
   stores: Store,
   members: Users,
-  organisation: Building2,
   billing: CreditCard,
   security: ShieldCheck,
 };

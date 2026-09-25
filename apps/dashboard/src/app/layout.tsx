@@ -5,7 +5,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: { default: "Storevia", template: "%s · Storevia" },
-  description: "Build and run your online store with Storevia.",
+  description: "Run your online store, website, publication or portfolio with Storevia.",
   robots: { index: false, follow: false },
 };
 
@@ -13,7 +13,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#f7f7f5",
+  themeColor: "#ffffff",
 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
@@ -21,11 +21,16 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
   // CSP nonce requires.
   await headers();
   return (
-    <html lang="en">
+    // Scroll padding keeps anchor targets and focused fields clear of the
+    // shell's sticky top bar and, on phones, its bottom bar.
+    <html
+      lang="en"
+      className="scroll-pt-[calc(4.5rem+env(safe-area-inset-top))] max-md:scroll-pb-[calc(5.5rem+env(safe-area-inset-bottom))]"
+    >
       <body className="min-h-dvh bg-canvas font-sans text-ink antialiased">
         <a
           href="#main"
-          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-control focus:bg-surface focus:px-3 focus:py-2 focus:shadow"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-(--z-toast) focus:rounded-control focus:border focus:border-line focus:bg-surface focus:px-4 focus:py-2.5 focus:text-body-sm focus:font-medium focus:text-ink focus:shadow-popover"
         >
           Skip to content
         </a>

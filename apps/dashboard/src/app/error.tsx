@@ -1,32 +1,42 @@
 "use client";
 
-import { Button } from "@storevia/ui";
+import { Button, buttonClasses } from "@storevia/ui";
+import Link from "next/link";
+import { StatusPage } from "@/components/shell/status-page";
 
 export default function ErrorBoundary({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
   return (
-    <main id="main" className="flex min-h-dvh items-center justify-center px-4">
-      <div className="max-w-sm text-center" role="alert">
-        <h1 className="text-xl font-semibold">Something went wrong</h1>
-        <p className="mt-2 text-sm text-ink-muted">
+    <StatusPage
+      alert
+      illustration="error"
+      eyebrow="Unexpected error"
+      title="Something went wrong"
+      description={
+        <>
           Please try again. If it keeps happening, contact support
           {error.digest ? (
             <>
               {" "}
-              with reference <code className="font-mono">{error.digest}</code>
+              with reference <code className="font-mono text-body-sm">{error.digest}</code>
             </>
           ) : null}
           .
-        </p>
-        <Button className="mt-6" variant="secondary" onClick={reset}>
-          Try again
-        </Button>
-      </div>
-    </main>
+        </>
+      }
+      actions={
+        <>
+          <Button onClick={retry}>Try again</Button>
+          <Link href="/" className={buttonClasses("secondary")}>
+            Go to your dashboard
+          </Link>
+        </>
+      }
+    />
   );
 }

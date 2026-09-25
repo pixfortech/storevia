@@ -1,71 +1,52 @@
 "use client";
 
-import { buttonClasses, ICON_STROKE } from "@storevia/ui";
-import { ChevronRight, Plus } from "lucide-react";
+import { Breadcrumb, buttonClasses, Icon } from "@storevia/ui";
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { isActive } from "./nav-links";
-import type { ShellAction, ShellData } from "./types";
+import { CommandTrigger } from "./command";
+import { breadcrumbTrail, fittingCreateAction } from "./navigation";
+import { StoreSwitcher } from "./switchers";
+import type { ShellData } from "./types";
 
 /** Where you are: organisation › store › section. */
-export function Breadcrumbs({ data }: { data: ShellData }) {
+function Breadcrumbs({ data }: { data: ShellData }) {
   const pathname = usePathname();
-  const section = [...data.links, ...data.organisationLinks]
-    .filter((l) => !l.exact || pathname === l.href)
-    .find((l) => isActive(pathname, l) && l.href !== (data.store?.href ?? data.organisation.href));
-  const crumbs = [
-    { label: data.organisation.name, href: data.organisation.href },
-    ...(data.store ? [{ label: data.store.name, href: data.store.href }] : []),
-    ...(section ? [{ label: section.label, href: section.href }] : []),
-  ];
-  return (
-    <nav aria-label="Breadcrumb" className="min-w-0">
-      <ol className="flex min-w-0 items-center gap-1.5 text-sm">
-        {crumbs.map((crumb, index) => {
-          const last = index === crumbs.length - 1;
-          return (
-            <li key={crumb.href} className="flex min-w-0 items-center gap-1.5">
-              {index > 0 ? (
-                <ChevronRight
-                  aria-hidden="true"
-                  strokeWidth={ICON_STROKE}
-                  className="size-3.5 shrink-0 text-ink-faint"
-                />
-              ) : null}
-              {last ? (
-                <span aria-current="page" className="truncate font-medium text-ink">
-                  {crumb.label}
-                </span>
-              ) : (
-                <Link href={crumb.href} className="truncate text-ink-muted hover:text-ink">
-                  {crumb.label}
-                </Link>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-    </nav>
-  );
+  return <Breadcrumb items={breadcrumbTrail(data, pathname)} linkAs={Link} />;
 }
 
-/** The create action that fits this page, or none on the action's own page. */
-export function useCreateAction(actions: readonly ShellAction[]): ShellAction | undefined {
+/** The page's primary create action, or none on the action's own page. */
+function CreateActionButton({ data }: { data: ShellData }) {
   const pathname = usePathname();
-  const fitting = actions
-    .filter((a) => a.under === undefined || isActive(pathname, { href: a.under }))
-    .sort((a, b) => (b.under?.length ?? 0) - (a.under?.length ?? 0))[0];
-  if (!fitting || fitting.href.split("#")[0] === pathname) return undefined;
-  return fitting;
-}
-
-export function CreateActionButton({ data }: { data: ShellData }) {
-  const action = useCreateAction(data.createActions);
+  const action = fittingCreateAction(data.createActions, pathname);
   if (!action) return null;
   return (
     <Link href={action.href} className={buttonClasses("primary", "sm")}>
-      <Plus aria-hidden="true" strokeWidth={2} className="size-4" />
+      <Icon icon={Plus} size="sm" strokeWidth={2} />
       {action.label}
     </Link>
+  );
+}
+
+/**
+ * The 56 px context bar above the workspace (tablet and desktop). Desktop
+ * shows the breadcrumb trail; the tablet rail has no store selector, so the
+ * bar carries it instead. Search (⌘K) and the page's create action sit on
+ * the right. No notifications until notifications exist.
+ */
+export function TopBar({ data }: { data: ShellData }) {
+  return (
+    <header className="sticky top-0 z-(--z-sticky) hidden h-14 shrink-0 items-center gap-4 border-b border-line bg-canvas px-6 md:flex lg:px-8">
+      <div className="hidden min-w-0 flex-1 lg:block">
+        <Breadcrumbs data={data} />
+      </div>
+      <div className="flex max-w-72 min-w-0 lg:hidden">
+        <StoreSwitcher data={data} variant="bar" />
+      </div>
+      <div className="ml-auto flex shrink-0 items-center gap-3">
+        <CommandTrigger />
+        <CreateActionButton data={data} />
+      </div>
+    </header>
   );
 }
