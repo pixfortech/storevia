@@ -185,6 +185,13 @@ describe("Breadcrumb", () => {
     expect(html).toContain("--breadcrumb-reserve-sm:3.25rem");
   });
 
+  it("lets ancestors shrink below their label so they truncate first", () => {
+    const html = renderToStaticMarkup(<Breadcrumb items={items} collapse={false} />);
+    const ancestors = [...html.matchAll(/<li class="([^"]*)"><a href/g)].map((m) => m[1] ?? "");
+    expect(ancestors).toHaveLength(3);
+    for (const cls of ancestors) expect(cls.split(" ")).toContain("min-w-0");
+  });
+
   it("doesn't fold two-level trails or when collapse is off", () => {
     expect(renderToStaticMarkup(<Breadcrumb items={items.slice(2)} />)).not.toContain(
       "Show all breadcrumb levels",

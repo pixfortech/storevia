@@ -232,7 +232,9 @@ export function Breadcrumb({
               key={index}
               ref={index === 0 ? rootRef : undefined}
               className={cn(
-                "flex items-center gap-1.5",
+                // min-w-0: flex items otherwise never shrink below their
+                // content, so ancestors would not truncate.
+                "flex min-w-0 items-center gap-1.5",
                 // Ancestors shrink (down to their separator); the current page
                 // doesn't, up to what the row can spare after its ancestors.
                 current &&
