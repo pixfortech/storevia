@@ -69,7 +69,11 @@ export const ROADMAP: readonly RoadmapStage[] = [
     title: "Checkout and orders",
     status: "roadmap",
     summary: "Stores take orders.",
-    items: ["Checkout, payments and orders", "Customers, discounts, refunds and fulfilment"],
+    items: [
+      "Checkout, payments and orders",
+      "Customers, discounts, refunds and fulfilment",
+      "An API with API keys, and webhooks",
+    ],
   },
   {
     id: "domains-themes",

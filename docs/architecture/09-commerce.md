@@ -4,6 +4,13 @@
 >
 > Implemented in `packages/commerce` (M3, M6) and `packages/payments` (M6).
 > This document fixes the rules that must hold from the first line of code.
+>
+> **Milestone 3 status:** money (§1), the catalogue (§2) and inventory are
+> implemented as decided in
+> [ADR-0027](../adr/0027-commerce-catalogue-and-inventory.md), which records
+> the refinements (archive instead of delete, the reconciliation of option
+> edits, `product_limit` and `media_storage` as gauges, the single inventory
+> write path). Everything from carts onwards is Milestone 6.
 
 ## 1. Money
 

@@ -9,7 +9,7 @@ export const FEATURE_STATUS: Readonly<Record<FeatureKey, Status>> = {
   staff_accounts: "available",
   product_limit: "available",
   media_storage: "available",
-  // Planned with the catalogue, then deferred: not scheduled yet.
+  // Moved from the catalogue milestone to Milestone 6, with webhooks (ADR-0027 §1).
   api_access: "roadmap",
   custom_domain: "roadmap",
   visual_builder: "roadmap",

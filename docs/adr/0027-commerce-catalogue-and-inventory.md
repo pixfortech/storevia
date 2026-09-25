@@ -45,12 +45,13 @@ external consumer exists).
 
 ### 2. Model refinements (draft, ERD and live schema change together)
 
-| Model                     | Change                                                        | Why                                                                                      |
-| ------------------------- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `Product`                 | `+ archivedAt`, `+ createdById`, `+ updatedById` (→ `User`)   | Archive time and authorship for the editor and audits. `SET NULL` when a user is deleted |
-| `Location`                | `+ code` (unique per store among live locations)              | Short stable reference for inventory screens and future imports ("MAIN", "WH-2")         |
-| `InventoryMovementReason` | `+ INITIAL`                                                   | The first stock recorded for an item at a location is not a correction or a restock      |
-| `ProductVariant`          | soft delete also rewrites `optionSignature` to `deleted:<id>` | Frees the combination for a new variant while the deleted row keeps its ledger (§5)      |
+| Model                     | Change                                                         | Why                                                                                      |
+| ------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `Product`                 | `+ archivedAt`, `+ createdById`, `+ updatedById` (→ `User`)    | Archive time and authorship for the editor and audits. `SET NULL` when a user is deleted |
+| `Collection`              | `+ archivedAt` (migration `20260929000000_collection_archive`) | Collections archive and restore like products; archived ones leave pickers and lists     |
+| `Location`                | `+ code` (unique per store among live locations)               | Short stable reference for inventory screens and future imports ("MAIN", "WH-2")         |
+| `InventoryMovementReason` | `+ INITIAL`                                                    | The first stock recorded for an item at a location is not a correction or a restock      |
+| `ProductVariant`          | soft delete also rewrites `optionSignature` to `deleted:<id>`  | Frees the combination for a new variant while the deleted row keeps its ledger (§5)      |
 
 On hand is not a column: **on hand = available + reserved**, as the draft
 says. `reserved` stays 0 until checkout reserves stock in M6.
@@ -98,8 +99,8 @@ redirect table can be backfilled. Redirects themselves belong to M4.
 
 ### 6. Archive, never hard-delete
 
-Products and collections are archived (`status = ARCHIVED`, `archivedAt`),
-restorable, and never hard-deleted in M3. `deletedAt` exists for the purge
+Products are archived (`status = ARCHIVED`, `archivedAt`) and collections by
+`archivedAt`; both are restorable and never hard-deleted in M3. `deletedAt` exists for the purge
 policy in [data-lifecycle.md](../database/data-lifecycle.md), which a later
 job implements. Order history (M6) is safe because orders snapshot product
 data and `OrderLine` references use `SET NULL`.
@@ -144,7 +145,10 @@ DEFINER` function that sums the organisation's stores and refuses any
 - A manual adjustment records the delta, location, reason, optional note and
   the acting user.
 - A store gets a "Main location" (`MAIN`) the first time the catalogue needs
-  one. A store always keeps at least one active location; locations are
+  one: initial stock on a new product, or a stock change that names no
+  location (so a store's first product with variants can be stocked before
+  anyone creates a location). Creating it takes no `location.manage`: it is
+  part of the stock write. A store always keeps at least one active location; locations are
   deactivated, not deleted, in M3.
 - Low stock is `0 < available ≤ 5` summed across active locations
   (a store setting later); out of stock is `≤ 0` for tracked, `DENY`
@@ -167,7 +171,8 @@ DEFINER` function that sums the organisation's stores and refuses any
   the declared type. **SVG is refused** for product media (it can carry
   script); video and documents come later.
 - Processing (sniff, decode with sharp, strip metadata including EXIF GPS,
-  WebP renditions at 320/640/1280/2048 px wide) runs when the upload is
+  WebP renditions at 320/640/1280/2048 px wide, never upscaled: a smaller
+  image gets one rendition at its own width) runs when the upload is
   completed, in the request, bounded by the limits above. Moving it to the
   worker is a later scaling step; the `PROCESSING` state already exists.
 - `media_storage` (bytes) is consumed when an upload completes (original +
@@ -175,7 +180,10 @@ DEFINER` function that sums the organisation's stores and refuses any
   Uploads are refused when the plan is at its limit; existing media keeps
   working. Object purge follows the data-lifecycle purge job (later).
 - Media is served with the stored, sniffed content type, `nosniff` and a
-  sandboxing CSP; in production from the user-content domain.
+  sandboxing CSP; in production from the user-content domain. In
+  development the dashboard serves local objects at `/media/…`, only
+  cleaned originals and renditions, never the raw upload; the dashboard CSP
+  allows the configured media origin for images and uploads.
 
 ### 10. Rich text
 
@@ -204,7 +212,29 @@ is a mandatory argument of every query. Lists use keyset pagination.
   `product.update`, `collection.manage`, `inventory.read`,
   `inventory.adjust`, `media.manage`). There is no second permission engine.
 
-### 13. Business type
+### 13. Export, import and bulk actions
+
+- **CSV export** of the product list is available to any member with
+  `product.read`. It is not gated by the `export` plan feature: that
+  feature means the full data export of Milestone 8, and a merchant's own
+  product list is not a paid extra. Cells that a spreadsheet would treat as
+  formulas are neutralised. The export is audited (`product.exported`).
+- **Import** is an interface only (`CatalogueImporter`); the CSV importer
+  is deferred.
+- **Bulk actions** (activate, draft, archive, restore, add/remove tags, add
+  to collection) take at most 100 products, check the same permission and
+  limits per product, and report each product that failed and why; the
+  others are applied.
+
+### 14. Platform staff
+
+Staff see catalogue **diagnostics only** (counts by status, variants,
+locations, tracked items, media bytes, stock anomalies, products per
+store), read by `@storevia/billing` through the platform role's
+column-level grants, which cover ids, statuses, sizes and stock figures and
+never titles, descriptions or prices. Staff don't edit catalogues.
+
+### 15. Business type
 
 Commerce services never read the business type. It decides only navigation
 emphasis, onboarding suggestions and dashboard widgets (ADR-0024). An

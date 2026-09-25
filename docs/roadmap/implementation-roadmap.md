@@ -66,7 +66,7 @@ Moved out of Milestone 1, with the reason:
 | M1-09 Google sign-in              | M8 (with MFA)                 | Optional; architecture unchanged                                                                                              |
 | M1-21 Marketing site skeleton     | M2 (with pricing)             | Excluded from M1 by the milestone brief                                                                                       |
 | `observability` package           | M2 (with the worker)          | First real consumer is the worker; M1 logs structured errors with request IDs                                                 |
-| docker compose for local services | M3 (with MinIO)               | M1 needs only PostgreSQL (`pnpm db:setup`)                                                                                    |
+| docker compose for local services | Open (see Milestone 3 status) | M1 needs only PostgreSQL (`pnpm db:setup`)                                                                                    |
 
 ## Milestone 2 status
 
@@ -163,6 +163,67 @@ pnpm dev                        # marketing :3000, dashboard :3001, platform-adm
 Review each surface at desktop (≥1280 px), tablet (768–1023 px, for example
 an iPad in portrait) and phone (≈390 px) widths. In a desktop browser, use
 the responsive mode of the developer tools.
+
+## Milestone 3 status: commerce catalogue
+
+**Built. Waiting at the Milestone 3 review.** Storefront (M4), Orders and
+Checkout (M6) and the Visual Builder (M5) have not started. No payment
+gateway or POS work was done, and no sales, orders or revenue figures exist
+anywhere in the product.
+
+Delivered ([ADR-0027](../adr/0027-commerce-catalogue-and-inventory.md)):
+
+- **Schema**: 13 catalogue, media and inventory tables promoted with forced
+  RLS, same-store composite FKs and triggers, partial unique indexes, CHECKs,
+  search indexes and least-privilege grants (migrations
+  `20260928000000_catalogue_inventory`, `20260929000000_collection_archive`).
+- **`@storevia/commerce`**: money, handles, rich text, option/variant
+  reconciliation, products, collections (manual), locations, the single
+  inventory write path and ledger, product media, PostgreSQL search, bulk
+  actions, CSV export and the store-home overview. Services take a
+  `StoreContext` and run outside React.
+- **`@storevia/media`**: S3 (SigV4, POST policies) and local storage
+  adapters, magic-byte sniffing, sharp processing with metadata stripped,
+  WebP renditions and the media library service.
+- **Plan enforcement**: `product_limit` (not archived, organisation-wide)
+  and `media_storage` (bytes) as gauges through the entitlement engine.
+- **Dashboard**: products (search, filters, sort, status tabs, bulk
+  actions, pagination, CSV export), the product editor, collections,
+  inventory (stock, locations, history), the media library, and live
+  catalogue and stock-alert cards on the store home.
+- **Platform-admin**: read-only catalogue diagnostics per organisation.
+- **Marketing**: catalogue, variants, inventory and media marked available;
+  checkout, orders, themes and the builder stay on the roadmap.
+
+Moved out of Milestone 3, with the reason:
+
+| Item                                                 | Now                          | Why                                                                                       |
+| ---------------------------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------- |
+| M3-06 smart collection rules                         | Later (after M4)             | Manual collections cover the review scope; the `type` and `rules` columns already exist   |
+| M3-09 Admin API v1 and API keys                      | M6 (with outbound webhooks)  | No external consumer before checkout; ADR-0027 §1                                         |
+| M3-10 product taxonomy (`Category`)                  | M6 (with tax)                | Category matters for tax rules, which arrive with checkout                                |
+| Media rename                                         | Later                        | File names are metadata only; alt text, search, reuse and delete are in                   |
+| CSV import                                           | Later                        | The `CatalogueImporter` interface exists; export shipped                                  |
+| Image processing in the worker                       | Later (scaling)              | In-request processing is bounded (20 MB, 40 MP); the `PROCESSING` state exists            |
+| docker compose with MinIO                            | Open                         | Container registries were unreachable in the build environment; S3 signing is unit-tested |
+| Purge of deleted media objects and soft-deleted rows | With the data-lifecycle jobs | [data-lifecycle.md](../database/data-lifecycle.md); nothing is hard-deleted in M3         |
+
+### Milestone 3 review (how to run it)
+
+```sh
+git fetch origin claude/cool-thompson-c7u8qp && git checkout claude/cool-thompson-c7u8qp
+pnpm install
+pnpm db:migrate && pnpm db:seed && pnpm db:seed:dev   # or pnpm db:reset first for a clean start
+pnpm dev
+```
+
+- `owner@acme.test` → Acme Flagship: 7 fictional products (5 active, 1
+  draft, 1 archived), 12 variants, two collections, a Main location and a
+  Bengaluru warehouse, generated images, one product low on stock and two
+  variants out of stock. No sales.
+- `owner@globex.test` → Globex Home: at a product limit of 3 (a staff
+  override), so "Add product" is gone and saving a fourth is refused.
+- `staff@storevia.test` → platform-admin: Acme Supplies → Catalogue.
 
 ## Milestone 1 plan (as scheduled at M0)
 

@@ -334,17 +334,17 @@ gateway in this milestone.
 
 ## Milestone 3 — Commerce catalogue
 
-- **M3-01** Money library with ISO-4217 exponents, allocation, formatting; property tests — `area:catalogue`
-- **M3-02** Products, options, variants: schema, services, `product_limit` consumption, variant matrix — `area:catalogue` `tenant-isolation`
-- **M3-03** Product editor UI: variants, pricing, SEO, status, tags; responsive; empty/loading/error states — `area:catalogue` `area:ui`
-- **M3-04** Rich-text descriptions: Tiptap JSON storage, allow-list renderer, XSS corpus tests — `area:catalogue` `security`
-- **M3-05** Media library: signed uploads, magic-byte sniffing, SVG handling, renditions, alt text, search, rename, delete — `area:media` `security`
-- **M3-06** Collections: manual ordering and smart rules — `area:catalogue`
-- **M3-07** Locations, inventory levels, `adjustInventory` ledger, inventory UI with reasons — `area:catalogue`
-- **M3-08** `SearchIndex` interface + PostgreSQL FTS for dashboard search — `area:catalogue`
-- **M3-09** Admin API v1: API keys (hashed, scoped, step-up), products/variants/collections/inventory endpoints, OpenAPI — `area:api` `security`
-- **M3-10** Product taxonomy (Category) reference data — `area:catalogue`
-- **M3-11** Extend IDOR/isolation sweeps to catalogue, media and API — `type:test` `tenant-isolation`
+- **M3-01** ✔ Money library with ISO-4217 exponents, allocation, formatting; property tests — `area:catalogue`
+- **M3-02** ✔ Products, options, variants: schema, services, `product_limit` consumption, variant matrix — `area:catalogue` `tenant-isolation`
+- **M3-03** ✔ Product editor UI: variants, pricing, SEO, status, tags; responsive; empty/loading/error states — `area:catalogue` `area:ui`
+- **M3-04** ✔ Rich-text descriptions: Tiptap JSON storage, allow-list renderer, XSS corpus tests — `area:catalogue` `security`
+- **M3-05** ✔ Media library: signed uploads, magic-byte sniffing, SVG handling, renditions, alt text, search, delete (rename → later) — `area:media` `security`
+- **M3-06** ✔ Collections: manual ordering (smart rules → later) — `area:catalogue`
+- **M3-07** ✔ Locations, inventory levels, `adjustInventory` ledger, inventory UI with reasons — `area:catalogue`
+- **M3-08** ✔ `SearchIndex` interface + PostgreSQL FTS for dashboard search — `area:catalogue`
+- **M3-09** → M6 Admin API v1: API keys (hashed, scoped, step-up), products/variants/collections/inventory endpoints, OpenAPI — `area:api` `security`
+- **M3-10** → M6 Product taxonomy (Category) reference data — `area:catalogue`
+- **M3-11** ✔ Extend IDOR/isolation sweeps to catalogue and media (API with M3-09) — `type:test` `tenant-isolation`
 
 ## Milestone 4 — Storefront engine
 

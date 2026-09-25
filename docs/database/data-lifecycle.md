@@ -47,7 +47,11 @@ Anonymised snapshots, if ever needed, are produced by a reviewed script.
 1. **Merchants never hard-delete commercial history.** Products, collections,
    customers, pages and media are soft-deleted (`deletedAt`) and disappear from
    the UI and storefront; orders and everything under them are never deleted
-   by merchant action.
+   by merchant action. In Milestone 3 merchants go one step softer: products
+   and collections are **archived** (restorable), media no longer in use is
+   soft-deleted, and variants with stock history are soft-deleted when an
+   option edit removes them. Nothing is hard-deleted until the purge job
+   exists ([ADR-0027 §6](../adr/0027-commerce-catalogue-and-inventory.md)).
 2. **Cascades only inside an aggregate, never across aggregates.** A product
    purge may cascade to its own options, variants, media links and collection
    memberships; it may never cascade to order lines (those use `SET NULL` and

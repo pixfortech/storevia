@@ -4,11 +4,11 @@ import { parsePublicId } from "@storevia/tenancy";
 import { requirePlatformPermission, type PlatformContext } from "@storevia/tenancy/platform";
 import { toTypeId } from "@storevia/types";
 
-// Read-only catalogue diagnostics for platform staff, beside the other staff
-// read models (admin.ts): the platform role is confined to this package and
-// the platform-admin app (ADR-0027): counts
-// only, never catalogue content. The platform role holds column-level SELECT
-// on ids, statuses, sizes and stock figures and nothing else (migration
+// Read-only catalogue diagnostics for platform staff (ADR-0027 §14): counts
+// only, never catalogue content. They live beside the other staff read
+// models (admin.ts) because the platform role is confined to this package
+// and the platform-admin app. That role holds column-level SELECT on ids,
+// statuses, sizes and stock figures and nothing else (migration
 // 20260928000000 §6), so these queries could not read titles, prices or
 // descriptions even if they tried.
 

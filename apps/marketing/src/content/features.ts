@@ -494,6 +494,7 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
         "api_access",
         "API access",
         "Use the Storevia API with API keys, starting with the catalogue.",
+        M.orders,
       ),
       planFeature("webhooks", "Webhooks", "Send events to your own endpoints.", M.orders),
       planFeature("export", "Data export", "Export your data.", M.hardening),

@@ -25,7 +25,7 @@ export function requireStoreContext(ctx: TenantContext): StoreContext {
 
 /**
  * The store may take catalogue writes: archived and suspended stores are
- * read-only. Business type is never consulted (ADR-0027 §13).
+ * read-only. Business type is never consulted (ADR-0027 §15).
  */
 export function requireWritableStore(ctx: StoreContext): void {
   if (ctx.storeStatus === "ARCHIVED") {

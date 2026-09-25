@@ -213,7 +213,7 @@ describe("billing presentation", () => {
         name: "API access",
         label: "Not included",
         included: false,
-        availability: "On the roadmap",
+        availability: "Coming in Milestone 6",
       },
     ]);
   });

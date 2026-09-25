@@ -115,6 +115,44 @@ supersedes" guard fails the out-of-order regression.
 | High-risk staff actions acknowledged                  | E2E `admin-shell.spec.ts` and the shared `submitDialog` helper                                                                                                                                              |
 | Design token contrast                                 | unit `packages/ui/src/theme.test.ts` (AA for every semantic text pair)                                                                                                                                      |
 
+## Milestone 3 (catalogue, inventory, media): what is proven where
+
+| Guarantee                                          | Database (`packages/database/tests/catalogue.int.test.ts`)                                        | Services (`packages/commerce/tests`, `packages/media/tests`, `packages/billing/tests`)                                                                                                           | HTTP (`apps/dashboard/e2e/catalogue.spec.ts`)                                                                                    |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| A can't read or change B's catalogue (ID swapping) | RLS forced on all 13 tables; INSERTs claiming another store fail                                  | `isolation.int.test.ts`: every service with B's product, variant, collection, location and media ids → not found; B untouched                                                                    | B opens A's product under either store → 404; B's replayed action rewritten to A's product and store → refused                   |
+| Nested references stay in one store                | composite same-store FKs; triggers for optional media references and variant option values        | a collection only gains its own store's products; foreign media can't be attached or used as a variant image; bulk actions report foreign ids as not found                                       | —                                                                                                                                |
+| Permissions                                        | app-role grants: no DELETE on products, collections, locations, media, levels; ledger append-only | `permissions.int.test.ts`: role × catalogue primitive matrix; business type never consulted                                                                                                      | —                                                                                                                                |
+| Product limit                                      | usage functions refuse any organisation but the caller's                                          | `plan-limits.int.test.ts`: org-wide count, archive frees and restore takes a slot, parallel creates and restores can't pass the limit, over-limit keeps products editable, reconciliation        | staff override to 1: no "Add product", server refuses the form, archive frees the slot, restore over it refused                  |
+| Inventory without read-modify-write                | ledger rows can't be updated or deleted; `resultingValue` CHECKs                                  | `inventory.int.test.ts`: 20 parallel −1 on 10 → exactly 10 succeed; mixed parallel deltas add up; opposite transfers don't deadlock and conserve stock; one level row from parallel first stock  | adjust with note → shown in the history                                                                                          |
+| Variants and destructive edits                     | option-value-same-product trigger; signature uniqueness                                           | `variants.int.test.ts` and unit `variants.test.ts`: reconciliation keeps ids, SKUs, prices and stock; removals only after exact confirmation; history ⇒ soft delete                              | options → variants → prices and SKUs in the editor                                                                               |
+| Handles and rich text                              | partial unique indexes                                                                            | unit `handles.test.ts`, `rich-text.test.ts` (reserved names, collisions, allow-list, XSS corpus)                                                                                                 | —                                                                                                                                |
+| Media                                              | media bytes counted by a `SECURITY DEFINER` function                                              | unit: key grammar (no traversal), magic-byte sniffing, SVG/polyglot/bomb/oversize refusal, EXIF and GPS stripped, SigV4 vector, POST policy, HMAC tokens; integration: quota, cleanup, isolation | SVG named .png refused; renditions served with nosniff and sandbox CSP; raw upload, traversal → never a file; forged token → 403 |
+| Staff diagnostics are counts only                  | platform role has column-level grants only                                                        | `catalogue-diagnostics.int.test.ts`: per-status counts, per-store counts, no other organisation's rows, malformed ids refused                                                                    | —                                                                                                                                |
+
+Mutation checks (each change applied alone, the named suite run, then
+reverted; every mutant made the suite fail):
+
+| Mutant                                                                            | Caught by                                                                  |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| RLS disabled on `Product`                                                         | `isolation.int.test.ts` (10 tests)                                         |
+| `getProduct` without the store boundary (organisation-wide scope)                 | "getProduct (other store, same org)"                                       |
+| `product_limit` not consumed on create; not consumed on restore                   | `plan-limits.int.test.ts` (7 tests each)                                   |
+| Stock as read-modify-write without row locks                                      | all four concurrency tests in `inventory.int.test.ts`                      |
+| `addProductsToCollection` without the store boundary and without the composite FK | "a collection only ever gains its own store's products"                    |
+| `attachProductMedia` without the store boundary and without the composite FK      | "media from another tenant or store can't be attached or used as an image" |
+| RLS disabled on `MediaAsset` and the composite FK removed                         | the same media test                                                        |
+
+Layer checks: removing only the collection composite FK leaves the suite
+green (RLS still hides the other store's product: defence in depth), while
+removing only the row locks already fails "opposite transfers" (the ordered
+locks are what prevents deadlocks).
+
+Responsive and accessibility sweep: 18 dashboard and staff pages (seeded
+catalogue, a store at its product limit) at 320, 375, 390, 430, 768, 1024,
+1280, 1440 and 1920 px with no horizontal overflow and no console errors,
+and axe (WCAG 2.2 AA and best practice) at 390 and 1440 px with no
+violations.
+
 ## Runtime compatibility
 
 CI runs every suite on the required Node LTS line (`.nvmrc`, PostgreSQL 17)
@@ -132,6 +170,7 @@ pnpm db:setup && pnpm db:test:prepare   # once
 pnpm test                               # unit
 pnpm test:integration                   # integration + isolation (uses *_test)
 pnpm db:seed                            # plans, for the dev database used by E2E
+pnpm db:seed:dev                        # optional: demo tenants and a fictional catalogue
 pnpm --filter @storevia/dashboard --filter @storevia/platform-admin --filter @storevia/marketing build
 EMAIL_TRANSPORT=file EMAIL_FILE_DIR=/tmp/storevia-mail pnpm test:e2e
 ```

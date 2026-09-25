@@ -75,8 +75,8 @@ export const FEATURE_AVAILABILITY: Readonly<Record<FeatureKey, string | null>> =
   staff_accounts: null,
   product_limit: null,
   media_storage: null,
-  // The Admin API was planned with the catalogue; it follows in a later release.
-  api_access: "On the roadmap",
+  // The Admin API ships with outbound webhooks (ADR-0027 §1).
+  api_access: "Coming in Milestone 6",
   visual_builder: "Coming in Milestone 5",
   discounts: "Coming in Milestone 6",
   custom_domain: "Coming in Milestone 7",
