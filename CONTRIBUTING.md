@@ -72,7 +72,8 @@ for documentation. CI runs a secret scan on full history. If you commit a
 secret by accident, treat it as leaked: rotate it first, then clean up. If
 the scan flags something that is verifiably not a secret (for example a
 test fixture), add its fingerprint to `.gitleaksignore` with a comment
-saying what it is; never loosen the scanner's rules.
+saying what it is in words (quoting the match trips the scan again), commit,
+and rerun the scan on the commit; never loosen the scanner's rules.
 
 ## Dependencies and toolchain
 

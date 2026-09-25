@@ -1,6 +1,10 @@
 # Verified false positives in the secret scan (gitleaks). One fingerprint per
 # line: <commit>:<file>:<rule>:<line>. Add an entry only after checking the
 # match is not a secret; anything real is rotated first (CONTRIBUTING.md).
+# Describe each match in words: quoting it here trips the scanner again.
 
-# A keyboard-shortcut test fixture, keys: "Shift+Escape" (aria-keyshortcuts).
+# A keyboard-shortcut test fixture (a menu item's aria-keyshortcuts value).
 783b12bf421b2f555af31cfc1692584fa4c51832:packages/ui/src/command.test.tsx:generic-api-key:173
+
+# The first version of this file quoted that fixture in a comment.
+c6546fb487aa14741a0166259e3e8491351001ab:.gitleaksignore:generic-api-key:5
