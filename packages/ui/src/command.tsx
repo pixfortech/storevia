@@ -193,7 +193,7 @@ function CommandFooter({ count }: { count: number }) {
         <Kbd>Esc</Kbd>
         <span className="ml-0.5">Close</span>
       </span>
-      <span className="ml-auto tabular-nums">{resultCount(count)}</span>
+      <span className="ml-auto whitespace-nowrap tabular-nums">{resultCount(count)}</span>
     </div>
   );
 }

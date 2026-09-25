@@ -120,7 +120,7 @@ export function ChartCard({
               onClick={() => {
                 setView(tableView ? "chart" : "table");
               }}
-              className="-mr-2 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-sm px-2 text-caption font-medium text-ink-muted transition-colors duration-(--duration-fast) ease-standard hover:bg-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+              className="relative -mr-2 inline-flex h-8 shrink-0 pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-[7px] items-center gap-1.5 rounded-sm px-2 text-caption font-medium text-ink-muted transition-colors duration-(--duration-fast) ease-standard hover:bg-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
             >
               <Icon icon={tableView ? ChartLine : Table2} size="sm" />
               {tableView ? "View as chart" : "View as table"}
