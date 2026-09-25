@@ -12,8 +12,8 @@ export const STATUSES: readonly Status[] = ["available", "in-development", "road
 
 export const STATUS_LABELS: Record<Status, string> = {
   available: "Available now",
-  // Commerce is designed and scheduled but not started, so "In development"
-  // ("being built now") would overclaim.
+  // "In development" ("being built now") would overclaim a milestone that is
+  // designed and scheduled but not started.
   "in-development": "Up next",
   roadmap: "On the roadmap",
   future: "Future",
@@ -83,16 +83,18 @@ export const CAPABILITIES: readonly Capability[] = [
   },
   {
     id: "commerce",
-    title: "Commerce",
+    // The catalogue is live; checkout and orders are separate roadmap items
+    // (features.ts), so the capability names only what ships today.
+    title: "Catalogue and inventory",
     glyph: "commerce",
-    status: "in-development",
-    summary: "Products, variants, inventory and a media library, then checkout and orders.",
+    status: "available",
+    summary: "Products, variants, stock by location and a media library, ready to use today.",
     points: [
       "Products with options, variants and collections",
       "Inventory by location with a full movement history",
-      "Checkout, payments, orders, refunds and fulfilment follow",
+      "A media library that checks and resizes every image",
+      "Search, bulk editing and CSV export",
     ],
-    milestone: STORE_AREAS.products.availability,
   },
   {
     id: "builder",
@@ -166,10 +168,10 @@ export const CAPABILITIES: readonly Capability[] = [
     glyph: "integrations",
     status: "roadmap",
     summary: "An API and webhooks so your own tools can work with your store.",
-    // No single milestone: API access comes with the catalogue, webhooks and
-    // export later. /products lists each part with its status from features.ts.
+    // No single milestone: /products lists each part with its status from
+    // features.ts.
     points: [
-      "An API for your catalogue, arriving with it",
+      "An API for your catalogue",
       "Webhooks that tell your systems when something changes",
       "Export your data whenever you need it",
     ],

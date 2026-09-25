@@ -32,21 +32,29 @@ const STOCK = [
   { value: "untracked", label: "Not tracked" },
 ];
 
+type FilterKey = "stock" | "vendor" | "productType" | "collection" | "sort";
+const EVERY_FILTER: readonly FilterKey[] = ["stock", "vendor", "productType", "collection", "sort"];
+/** Filters that live behind "More filters" at desktop width. */
+const MORE_FILTERS: readonly FilterKey[] = ["vendor", "productType", "collection"];
+const CLEARED = { stock: "", vendor: "", productType: "", collection: "" };
+
 function FilterFields({
   values,
   options,
   onChange,
+  keys = EVERY_FILTER,
 }: {
   values: Record<string, string>;
   options: FilterOptions;
   onChange: (name: string, value: string) => void;
+  keys?: readonly FilterKey[];
 }) {
   const select = (
     name: string,
     label: string,
     items: readonly { value: string; label: string }[],
   ) => (
-    <Field label={label} className="min-w-0 lg:w-44">
+    <Field label={label} className="min-w-0 xl:w-44">
       <Select
         size="md"
         value={values[name] ?? ""}
@@ -62,28 +70,29 @@ function FilterFields({
       </Select>
     </Field>
   );
+  const shows = (key: FilterKey) => keys.includes(key);
   return (
     <>
-      {select("stock", "Stock", STOCK)}
-      {options.vendors.length > 0
+      {shows("stock") ? select("stock", "Stock", STOCK) : null}
+      {shows("vendor") && options.vendors.length > 0
         ? select("vendor", "Vendor", [
             { value: "", label: "Any vendor" },
             ...options.vendors.map((v) => ({ value: v, label: v })),
           ])
         : null}
-      {options.productTypes.length > 0
+      {shows("productType") && options.productTypes.length > 0
         ? select("productType", "Type", [
             { value: "", label: "Any type" },
             ...options.productTypes.map((v) => ({ value: v, label: v })),
           ])
         : null}
-      {options.collections.length > 0
+      {shows("collection") && options.collections.length > 0
         ? select("collection", "Collection", [
             { value: "", label: "Any collection" },
             ...options.collections.map((c) => ({ value: c.id, label: c.title })),
           ])
         : null}
-      {select("sort", "Sort by", SORTS)}
+      {shows("sort") ? select("sort", "Sort by", SORTS) : null}
     </>
   );
 }
@@ -102,6 +111,9 @@ export function ProductFilters({ options }: { options: FilterOptions }) {
     sort: params.get("sort") ?? "updated",
   };
   const active = ["stock", "vendor", "productType", "collection"].filter((k) => values[k]).length;
+  const moreActive = MORE_FILTERS.filter((k) => values[k]).length;
+  const hasMore =
+    options.vendors.length + options.productTypes.length + options.collections.length > 0;
 
   const navigate = (changes: Record<string, string>) => {
     const next = new URLSearchParams(params.toString());
@@ -129,9 +141,57 @@ export function ProductFilters({ options }: { options: FilterOptions }) {
     };
   }, [query]);
 
+  // A render helper, not a component: a component defined here would remount
+  // (and close) on every navigation.
+  const filterDialog = ({
+    label,
+    title,
+    keys,
+  }: {
+    label: string;
+    title: string;
+    keys: readonly FilterKey[];
+  }) => (
+    <Dialog
+      side="bottom"
+      title={title}
+      trigger={
+        <Button variant="secondary" leadingIcon={SlidersHorizontal}>
+          {label}
+        </Button>
+      }
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <FilterFields
+          values={values}
+          options={options}
+          keys={keys}
+          onChange={(name, value) => {
+            navigate({ [name]: value });
+          }}
+        />
+      </div>
+      <DialogFooter>
+        {active > 0 ? (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              navigate(CLEARED);
+            }}
+          >
+            Clear filters
+          </Button>
+        ) : null}
+        <DialogClose asChild>
+          <Button>Done</Button>
+        </DialogClose>
+      </DialogFooter>
+    </Dialog>
+  );
+
   return (
     <div
-      className="flex flex-col gap-3 border-b border-line px-4 py-3.5 sm:px-6 lg:flex-row lg:items-end"
+      className="flex flex-col gap-3 border-b border-line px-4 py-3.5 sm:flex-row sm:items-center sm:px-6 xl:items-end"
       aria-busy={pending || undefined}
     >
       <form
@@ -155,55 +215,36 @@ export function ProductFilters({ options }: { options: FilterOptions }) {
           }}
         />
       </form>
-      <div className="hidden gap-3 lg:flex">
+      {/* Desktop: search, stock and sort inline; the rest behind "More filters". */}
+      <div className="hidden items-end gap-3 xl:flex">
         <FilterFields
           values={values}
           options={options}
+          keys={["stock", "sort"]}
           onChange={(name, value) => {
             navigate({ [name]: value });
           }}
         />
+        {hasMore
+          ? filterDialog({
+              label: `More filters${moreActive > 0 ? ` (${String(moreActive)})` : ""}`,
+              title: "More filters",
+              keys: MORE_FILTERS,
+            })
+          : null}
       </div>
-      <div className="flex items-center gap-2 lg:hidden">
-        <Dialog
-          side="bottom"
-          title="Filter and sort"
-          trigger={
-            <Button variant="secondary" leadingIcon={SlidersHorizontal}>
-              Filters{active > 0 ? ` (${String(active)})` : ""}
-            </Button>
-          }
-        >
-          <div className="grid gap-4 sm:grid-cols-2">
-            <FilterFields
-              values={values}
-              options={options}
-              onChange={(name, value) => {
-                navigate({ [name]: value });
-              }}
-            />
-          </div>
-          <DialogFooter>
-            {active > 0 ? (
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  navigate({ stock: "", vendor: "", productType: "", collection: "" });
-                }}
-              >
-                Clear filters
-              </Button>
-            ) : null}
-            <DialogClose asChild>
-              <Button>Done</Button>
-            </DialogClose>
-          </DialogFooter>
-        </Dialog>
+      {/* Phones, tablets and laptops: every filter in one sheet. */}
+      <div className="flex items-center gap-2 xl:hidden">
+        {filterDialog({
+          label: `Filters${active > 0 ? ` (${String(active)})` : ""}`,
+          title: "Filter and sort",
+          keys: EVERY_FILTER,
+        })}
         {active > 0 ? (
           <Button
             variant="ghost"
             onClick={() => {
-              navigate({ stock: "", vendor: "", productType: "", collection: "" });
+              navigate(CLEARED);
             }}
           >
             Clear

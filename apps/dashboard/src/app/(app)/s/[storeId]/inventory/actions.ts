@@ -27,6 +27,7 @@ export async function adjustStockAction(
   input: {
     mode: "adjust" | "set";
     variantId: string;
+    /** Empty: the store's default location, created on first use. */
     locationId: string;
     quantity: string;
     reason: string;
@@ -35,18 +36,19 @@ export async function adjustStockAction(
 ): Promise<DataActionResult<{ available: number }>> {
   return runDataAction(async () => {
     const ctx = await storeActionContext(storeId);
+    const location = input.locationId ? { locationId: input.locationId } : {};
     const result =
       input.mode === "set"
         ? await setInventory(ctx, {
             variantId: input.variantId,
-            locationId: input.locationId,
+            ...location,
             quantity: input.quantity,
             reason: input.reason,
             note: input.note,
           })
         : await adjustInventory(ctx, {
             variantId: input.variantId,
-            locationId: input.locationId,
+            ...location,
             delta: input.quantity,
             reason: input.reason,
             note: input.note,

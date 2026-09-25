@@ -292,7 +292,7 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
     title: "Commerce",
     glyph: "commerce",
     capability: "commerce",
-    summary: "A catalogue built for real stock first, then checkout, orders and customers.",
+    summary: "A catalogue built for real stock today; checkout, orders and customers follow.",
     items: [
       planFeature(
         "product_limit",
@@ -303,14 +303,18 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
       {
         title: "Options and variants",
         description: "Sizes, colours and materials, each variant with its own price and stock.",
-        status: "in-development",
-        milestone: M.catalogue,
+        status: "available",
       },
       {
         title: "Inventory by location",
         description: "Stock levels per location, with a full history of every movement.",
-        status: "in-development",
-        milestone: M.inventory,
+        status: "available",
+      },
+      {
+        title: "Search and bulk editing",
+        description:
+          "Find products by title, SKU, barcode, vendor or tag, change many at once and export them as CSV.",
+        status: "available",
       },
       planFeature(
         "media_storage",
@@ -351,7 +355,7 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
         title: "Storefront",
         description:
           "Your store on the web at its Storevia address, with a default theme, cart and search.",
-        status: "roadmap",
+        status: "in-development",
         milestone: M.storefront,
       },
       planFeature(
@@ -490,7 +494,6 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
         "api_access",
         "API access",
         "Use the Storevia API with API keys, starting with the catalogue.",
-        M.catalogue,
       ),
       planFeature("webhooks", "Webhooks", "Send events to your own endpoints.", M.orders),
       planFeature("export", "Data export", "Export your data.", M.hardening),

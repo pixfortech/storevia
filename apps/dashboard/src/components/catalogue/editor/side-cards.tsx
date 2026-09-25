@@ -198,7 +198,7 @@ export function StockCard({
                 </span>
               </li>
             </ul>
-            {canAdjust && locations.length > 0 ? (
+            {canAdjust ? (
               <AdjustStockDialog
                 storeId={storeId}
                 variantId={variant.id}

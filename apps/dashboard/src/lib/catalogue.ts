@@ -63,15 +63,30 @@ export interface StockSummaryInput {
 /** Stock in words, with a tone. Never colour alone. */
 export function stockSummary(item: StockSummaryInput): { text: string; tone: BadgeTone | null } {
   if (item.trackedVariants === 0) return { text: "Not tracked", tone: null };
+  // The variant count is shown beside the title, so this stays short.
   const units = `${item.available.toLocaleString("en-IN")} in stock`;
-  const across = item.variantCount > 1 ? ` across ${String(item.variantCount)} variants` : "";
+  const variants = (n: number) => `${String(n)} ${n === 1 ? "variant" : "variants"}`;
   if (item.outOfStockVariants > 0) {
     return item.outOfStockVariants === item.trackedVariants
       ? { text: "Out of stock", tone: "danger" }
-      : { text: `${units}${across} · ${String(item.outOfStockVariants)} out`, tone: "warning" };
+      : {
+          text:
+            item.variantCount > 1
+              ? `${units} · ${variants(item.outOfStockVariants)} out`
+              : `${units} · out`,
+          tone: "warning",
+        };
   }
-  if (item.lowStockVariants > 0) return { text: `${units}${across} · low`, tone: "warning" };
-  return { text: `${units}${across}`, tone: null };
+  if (item.lowStockVariants > 0) {
+    return {
+      text:
+        item.variantCount > 1
+          ? `${units} · ${variants(item.lowStockVariants)} low`
+          : `${units} · low`,
+      tone: "warning",
+    };
+  }
+  return { text: units, tone: null };
 }
 
 export const MOVEMENT_REASON_LABELS: Readonly<Record<string, string>> = {

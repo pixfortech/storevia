@@ -1,6 +1,6 @@
 // 07 Commerce: copy and a part-by-part status list beside the product
-// editor. Commerce is in development; the list says which parts come first
-// and which follow, so nothing unfinished reads as live.
+// editor. The catalogue is live; the list says which parts follow, so
+// nothing unfinished (checkout, orders, customers) reads as live.
 import { Reveal, SlideReveal } from "@storevia/ui/motion";
 import { Section, SectionHeading, StatusPill } from "@/components/marketing";
 import { capability } from "@/content/capabilities";
@@ -36,7 +36,7 @@ export function CommerceSection() {
         <SlideReveal direction="left" className="min-w-0 lg:sticky lg:top-28 lg:mt-10">
           <ProductEditor className="h-[28rem] sm:h-[30rem]" />
           <IllustrativeNote className="mt-4">
-            A preview of commerce in development, with sample products.
+            An illustration of the product editor, with sample products.
           </IllustrativeNote>
         </SlideReveal>
       </div>

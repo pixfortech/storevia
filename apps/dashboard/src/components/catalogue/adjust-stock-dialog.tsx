@@ -49,6 +49,10 @@ export function AdjustStockDialog({
   );
   const [pending, startTransition] = useTransition();
   const current = locations.find((l) => l.id === locationId)?.available ?? 0;
+  // A store with no location yet gets its "Main location" on the first save.
+  const locationName =
+    locations.find((l) => l.id === locationId)?.name ??
+    (locations.length === 0 ? "Main location" : "This location");
   const parsed = Number(quantity);
   const valid =
     quantity.trim() !== "" && Number.isInteger(parsed) && (mode === "set" || parsed !== 0);
@@ -157,7 +161,7 @@ export function AdjustStockDialog({
           className="rounded-control bg-subtle px-3 py-2 text-body-sm text-ink-muted"
           aria-live="polite"
         >
-          {locations.find((l) => l.id === locationId)?.name ?? "This location"}:{" "}
+          {locationName}:{" "}
           <span className="font-medium text-ink tabular-nums">
             {current.toLocaleString("en-IN")}
           </span>

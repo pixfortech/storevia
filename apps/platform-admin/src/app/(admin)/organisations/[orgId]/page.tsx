@@ -1,11 +1,12 @@
 import {
+  getCatalogueDiagnostics,
   getOrganisationBillingDetail,
   STATUS_LABELS,
   type AdminOverride,
   type SubscriptionStatus,
 } from "@storevia/billing";
 import { isEntitling, type EntitlementValue, type FeatureKey } from "@storevia/entitlements";
-import { formatEntitlement } from "@storevia/entitlements/format";
+import { formatBytes, formatEntitlement, isByteFeature } from "@storevia/entitlements/format";
 import { hasPlatformPermission } from "@storevia/tenancy/platform";
 import { toTypeId } from "@storevia/types";
 import { buttonClasses } from "@storevia/ui/button";
@@ -144,7 +145,10 @@ function Section({
 export default async function OrganisationPage({ params }: { params: Promise<{ orgId: string }> }) {
   const { orgId } = await params;
   const ctx = await requireStaff(`/organisations/${orgId}`);
-  const detail = await getOrganisationBillingDetail(ctx, orgId);
+  const [detail, catalogue] = await Promise.all([
+    getOrganisationBillingDetail(ctx, orgId),
+    getCatalogueDiagnostics(ctx, orgId),
+  ]);
   const { organisation: org, subscription: sub } = detail;
   const now = new Date();
   const canManage = hasPlatformPermission(ctx, "platform.subscription.manage");
@@ -168,6 +172,7 @@ export default async function OrganisationPage({ params }: { params: Promise<{ o
 
   const sections = [
     { id: "billing", label: "Subscription and usage" },
+    { id: "catalogue", label: "Catalogue" },
     { id: "entitlements", label: "Entitlements" },
     ...(canSimulate ? [{ id: "simulator", label: "Billing simulator" }] : []),
     { id: "history", label: "History" },
@@ -417,6 +422,9 @@ export default async function OrganisationPage({ params }: { params: Promise<{ o
                   label={line.name}
                   used={Number(line.usage)}
                   limit={line.limit === "unlimited" ? "unlimited" : Number(line.limit)}
+                  {...(isByteFeature(line.key)
+                    ? { format: (value: number) => formatBytes(BigInt(Math.round(value))) }
+                    : {})}
                 />
               ))}
             </CardBody>
@@ -430,6 +438,73 @@ export default async function OrganisationPage({ params }: { params: Promise<{ o
             ) : null}
           </Card>
         </div>
+      </Section>
+
+      <Section
+        id="catalogue"
+        title="Catalogue"
+        description="Counts only, for diagnosing support requests. Staff never see catalogue content."
+      >
+        <Card data-testid="catalogue-card">
+          <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-t-card bg-line sm:grid-cols-3 lg:grid-cols-6 [&>div]:bg-surface [&>div]:px-5 [&>div]:py-4 sm:[&>div]:px-6">
+            <Stat label="Active products" value={catalogue.products.active} />
+            <Stat label="Draft products" value={catalogue.products.draft} />
+            <Stat label="Archived products" value={catalogue.products.archived} />
+            <Stat label="Variants" value={catalogue.variants} />
+            <Stat label="Locations" value={catalogue.locations} />
+            <Stat label="Tracked items" value={catalogue.trackedItems} />
+          </dl>
+          <CardBody className="space-y-5 border-t border-line">
+            <DescriptionList
+              items={[
+                {
+                  term: "Media",
+                  detail: `${String(catalogue.media.ready)} ready, ${formatBytes(catalogue.media.bytes)}${
+                    catalogue.media.inProgress > 0
+                      ? `; ${String(catalogue.media.inProgress)} uploading or processing`
+                      : ""
+                  }${catalogue.media.rejected > 0 ? `; ${String(catalogue.media.rejected)} rejected` : ""}`,
+                },
+                {
+                  term: "Stock checks",
+                  detail:
+                    catalogue.overReservedLevels + catalogue.negativeLevels === 0 ? (
+                      "No anomalies"
+                    ) : (
+                      <span className="text-warning-700">
+                        {catalogue.overReservedLevels > 0
+                          ? `${String(catalogue.overReservedLevels)} levels with more reserved than on hand. `
+                          : ""}
+                        {catalogue.negativeLevels > 0
+                          ? `${String(catalogue.negativeLevels)} levels below zero (overselling allowed).`
+                          : ""}
+                      </span>
+                    ),
+                },
+                ...(catalogue.stores.length > 0
+                  ? [
+                      {
+                        term: "Products by store",
+                        detail: (
+                          <ul className="space-y-1">
+                            {catalogue.stores.map((s) => (
+                              <li key={s.storeId} className="flex flex-wrap gap-x-2">
+                                <span className="font-medium">{s.name}</span>
+                                <span className="text-ink-muted tabular-nums">{s.products}</span>
+                                <code className="font-mono text-caption text-ink-faint">
+                                  {s.storeId}
+                                </code>
+                              </li>
+                            ))}
+                          </ul>
+                        ),
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+          </CardBody>
+        </Card>
       </Section>
 
       <Section

@@ -7,9 +7,10 @@ import type { Status } from "./capabilities";
 export const FEATURE_STATUS: Readonly<Record<FeatureKey, Status>> = {
   store_count: "available",
   staff_accounts: "available",
-  product_limit: "in-development",
-  media_storage: "in-development",
-  api_access: "in-development",
+  product_limit: "available",
+  media_storage: "available",
+  // Planned with the catalogue, then deferred: not scheduled yet.
+  api_access: "roadmap",
   custom_domain: "roadmap",
   visual_builder: "roadmap",
   advanced_builder: "roadmap",

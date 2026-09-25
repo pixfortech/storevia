@@ -87,7 +87,7 @@ export const PRODUCTS_MENU: NavMenu = {
       heading: "Build",
       links: [
         capabilityLink("builder", "Design pages visually, for every screen."),
-        capabilityLink("commerce", "Products, variants and inventory, then checkout."),
+        capabilityLink("commerce", "Products, variants, stock and media."),
         capabilityLink("content", "Posts, pages, categories and authors."),
         capabilityLink("domains", "Connect your own domain, with HTTPS."),
       ],

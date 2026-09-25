@@ -32,20 +32,20 @@ export const ROADMAP: readonly RoadmapStage[] = [
     id: "catalogue",
     milestone: "Milestone 3",
     title: "Catalogue",
-    status: "in-development",
+    status: "available",
     summary: "Real product data, built for real stock.",
     items: [
       "Products, options and variants",
       "Collections and a media library",
       "Inventory by location, with a movement history",
-      "A catalogue API",
+      "Search, bulk editing and CSV export",
     ],
   },
   {
     id: "storefront",
     milestone: "Milestone 4",
     title: "Storefront",
-    status: "roadmap",
+    status: "in-development",
     summary: "Stores become visible on the web.",
     items: [
       "Your store at its Storevia address",

@@ -9,6 +9,7 @@ import {
   INVENTORY_QUANTITY_LIMIT,
 } from "@storevia/validation";
 import { conflict, inStore, internalId, publicId, type TenantTx } from "./internal";
+import { ensureDefaultLocation } from "./locations";
 
 // The single write path for stock (ADR-0027 §8). Every change locks the
 // level row(s) in a deterministic order, applies a conditional update in SQL
@@ -213,6 +214,13 @@ export interface InventoryChange {
   readonly available: number;
 }
 
+/** The store's default location, created as "Main location" if it has none yet. */
+async function defaultLocationId(tx: TenantTx, store: StoreContext): Promise<string> {
+  const location = await ensureDefaultLocation(tx, store);
+  if (!location) throw notFound();
+  return location.id;
+}
+
 /** Records a manual stock change (delta, location, reason, note, actor). Needs inventory.adjust. */
 export async function adjustInventory(
   ctx: TenantContext,
@@ -220,11 +228,12 @@ export async function adjustInventory(
 ): Promise<InventoryChange> {
   const data = parseInput(adjustInventorySchema, input);
   const variantId = internalId("variant", data.variantId);
-  const locationId = internalId("location", data.locationId);
+  const chosen = data.locationId ? internalId("location", data.locationId) : null;
   return inStore(
     ctx,
     "inventory.adjust",
     async (tx, store) => {
+      const locationId = chosen ?? (await defaultLocationId(tx, store));
       const { resultingValue, location } = await adjustInventoryInTx(tx, store, {
         variantId,
         locationId,
@@ -245,7 +254,11 @@ export async function adjustInventory(
           ...(data.note ? { note: data.note } : {}),
         },
       );
-      return { variantId: data.variantId, locationId: data.locationId, available: resultingValue };
+      return {
+        variantId: data.variantId,
+        locationId: publicId("location", locationId),
+        available: resultingValue,
+      };
     },
     { write: true },
   );
@@ -258,11 +271,13 @@ export async function adjustInventory(
 export async function setInventory(ctx: TenantContext, input: unknown): Promise<InventoryChange> {
   const data = parseInput(setInventorySchema, input);
   const variantId = internalId("variant", data.variantId);
-  const locationId = internalId("location", data.locationId);
+  const chosen = data.locationId ? internalId("location", data.locationId) : null;
   return inStore(
     ctx,
     "inventory.adjust",
     async (tx, store) => {
+      const locationId = chosen ?? (await defaultLocationId(tx, store));
+      const publicLocationId = publicId("location", locationId);
       const item = await loadItem(tx, variantId);
       const location = await loadLocation(tx, locationId);
       requireTrackedActive(item, location);
@@ -278,7 +293,7 @@ export async function setInventory(ctx: TenantContext, input: unknown): Promise<
       if (delta === 0) {
         return {
           variantId: data.variantId,
-          locationId: data.locationId,
+          locationId: publicLocationId,
           available: level.available,
         };
       }
@@ -312,7 +327,7 @@ export async function setInventory(ctx: TenantContext, input: unknown): Promise<
       );
       return {
         variantId: data.variantId,
-        locationId: data.locationId,
+        locationId: publicLocationId,
         available: applied.resulting,
       };
     },

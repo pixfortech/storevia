@@ -139,8 +139,9 @@ export default async function AboutPage() {
               </p>
               <p>
                 We&apos;re doing it in the open. The foundations (accounts, organisations, stores,
-                teams, roles and plans) are available today. The catalogue, storefront, builder and
-                checkout follow, and every part of this site says exactly where each one stands.
+                teams, roles and plans) and the catalogue are available today. The storefront,
+                builder and checkout follow, and every part of this site says exactly where each one
+                stands.
               </p>
             </div>
           </Reveal>

@@ -22,12 +22,14 @@ import {
 } from "@storevia/ui/surfaces";
 import {
   ArrowRight,
+  Boxes,
   Building2,
   Check,
   CreditCard,
   Globe,
   History,
   Lock,
+  Package,
   ShieldCheck,
   Store,
   Users,
@@ -271,6 +273,8 @@ export function TeamCard({ widget, team }: { widget: ComposedWidget; team: TeamS
 const ACTIVITY_ICONS: Record<ActivityCategory, LucideIcon> = {
   team: Users,
   store: Store,
+  catalogue: Package,
+  stock: Boxes,
   plan: CreditCard,
   organisation: Building2,
   security: ShieldCheck,

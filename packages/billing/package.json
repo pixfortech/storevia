@@ -24,6 +24,7 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "@storevia/commerce": "workspace:*",
     "tsx": "4.23.15",
     "vitest": "4.1.11"
   }

@@ -122,6 +122,28 @@ describe("describeActivity", () => {
     expect(category("auth.password_changed")).toBe("security");
   });
 
+  it("describes catalogue and stock changes, naming products and collections", () => {
+    expect(sentence(entry("product.created", { title: "Linen apron" }))).toBe(
+      "You added the product Linen apron.",
+    );
+    expect(sentence(entry("product.activated", { title: "Linen apron" }))).toBe(
+      "You made Linen apron active.",
+    );
+    expect(sentence(entry("product.archived"))).toBe("You archived a product.");
+    expect(sentence(entry("product.drafted", { title: "Mug" }))).toBe("You set Mug back to draft.");
+    expect(sentence(entry("collection.created", { title: "Kitchen" }))).toBe(
+      "You created the collection Kitchen.",
+    );
+    expect(sentence(entry("inventory.adjusted", { status: "ignored" }))).toBe("You updated stock.");
+    expect(sentence(entry("location.created", { name: "Bengaluru warehouse" }))).toBe(
+      "You added the location Bengaluru warehouse.",
+    );
+    const category = (action: string) => describeActivity(entry(action), { now: NOW }).category;
+    expect(category("product.variants_updated")).toBe("catalogue");
+    expect(category("media.uploaded")).toBe("catalogue");
+    expect(category("inventory.moved")).toBe("stock");
+  });
+
   it("dates events relatively, with the exact time for tooltips", () => {
     const item = describeActivity(entry("store.updated"), { now: NOW, timeZone: "Asia/Kolkata" });
     expect(item.when).toBe("5 minutes ago");

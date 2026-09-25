@@ -127,11 +127,21 @@ function Parts({
  * link to its section. The roadmap column is twice as wide (it holds most).
  */
 function ProductMap() {
+  // A status with no capability in it (nothing "up next" among the areas
+  // below) gets no empty column.
+  const groups = STATUSES.map((status) => ({
+    status,
+    items: CAPABILITIES.filter((item) => item.status === status),
+  })).filter((group) => group.items.length > 0);
   return (
     <nav aria-label="Product areas" className="mt-14 lg:mt-16">
-      <div className="grid gap-px overflow-hidden rounded-panel border border-line bg-line sm:grid-cols-2 lg:grid-cols-[1fr_1fr_2fr_1fr]">
-        {STATUSES.map((status) => {
-          const items = CAPABILITIES.filter((item) => item.status === status);
+      <div
+        className={cn(
+          "grid gap-px overflow-hidden rounded-panel border border-line bg-line sm:grid-cols-2",
+          groups.length === 4 ? "lg:grid-cols-[1fr_1fr_2fr_1fr]" : "lg:grid-cols-[1fr_2fr_1fr]",
+        )}
+      >
+        {groups.map(({ status, items }) => {
           return (
             <div key={status} className="flex flex-col bg-surface p-5 sm:p-6">
               <StatusPill status={status} size="md" className="self-start" />
@@ -242,7 +252,7 @@ export default async function ProductsPage() {
       <PageHero
         eyebrow="Products"
         title="Everything you run online, in one workspace"
-        lead="Storevia is built in stages, and every part of it says where it stands. Here is what you can use today, what's up next and what comes after."
+        lead="Storevia is built in stages, and every part of it says where it stands. Here is what you can use today and what comes after."
         actions={
           <>
             <a href={signUp} className={buttonClasses("primary", "lg")}>
@@ -262,8 +272,8 @@ export default async function ProductsPage() {
         className="pt-4 md:pt-8 lg:pt-10"
       >
         <Chapter n="01" title="Available today">
-          The foundations every business needs before it sells: an account, stores, a team and a
-          dashboard that works on every screen.
+          The foundations every business needs to sell: an account, stores, a team, a dashboard that
+          works on every screen, and a catalogue built for real stock.
         </Chapter>
         <SplitFeature
           className="mt-14 lg:mt-20"
@@ -329,20 +339,16 @@ export default async function ProductsPage() {
         />
       </Section>
 
-      {/* Chapter 2: up next. Deeper than the homepage: how each part works. */}
+      {/* Deeper than the homepage: how each part of the catalogue works. */}
       <Section tone="tinted" labelledBy="commerce-heading" id="commerce">
-        <Chapter n="02" title="Up next">
-          Designed and scheduled as the next milestone: a catalogue built for real stock. Checkout,
-          orders and customers follow it.
-        </Chapter>
-        <div className="mt-14 lg:mt-20">
+        <div>
           <SectionHeading
             id="commerce-heading"
             eyebrow={commerce.title}
+            status={commerce.status}
             title="Products modelled the way you stock them"
-            lead="Options, variants, stock and media each get a proper structure of their own, so a catalogue stays accurate at four products or four thousand."
+            lead="Options, variants, stock and media each get a proper structure of their own, so a catalogue stays accurate at four products or four thousand. Checkout, orders and customers follow."
           />
-          <Timing item={commerce} className="mt-6" />
         </div>
         <div className="mt-12 grid gap-8 lg:mt-16 xl:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] xl:items-center xl:gap-16">
           <DeepDive title="Options make the variants">
@@ -369,9 +375,7 @@ export default async function ProductsPage() {
             <MediaPipelineVisual />
           </Reveal>
         </div>
-        <IllustrativeNote className="mt-8">
-          Illustrative, with a sample product: commerce is designed but not built yet.
-        </IllustrativeNote>
+        <IllustrativeNote className="mt-8">Illustrative, with a sample product.</IllustrativeNote>
         <div className="mt-14 lg:mt-16">
           <Parts item={commerce} title="Commerce, part by part" columns={2} />
         </div>
@@ -379,7 +383,7 @@ export default async function ProductsPage() {
 
       {/* Chapter 3: on the roadmap. */}
       <Section labelledBy="builder-heading" id="builder">
-        <Chapter n="03" title="On the roadmap">
+        <Chapter n="02" title="On the roadmap">
           Designed into the platform from the start, and built in order after the catalogue.
           Concepts below show the direction, not shipped screens.
         </Chapter>

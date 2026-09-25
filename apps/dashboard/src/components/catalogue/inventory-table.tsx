@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@storevia/ui/button";
+import { Button, IconButton } from "@storevia/ui/button";
 import { cn } from "@storevia/ui/cn";
 import { Icon } from "@storevia/ui/icons";
 import { ArrowLeftRight, ImageOff, SlidersHorizontal } from "lucide-react";
@@ -39,8 +39,10 @@ export function InventoryTable({
   locations: readonly { readonly id: string; readonly name: string }[];
   canAdjust: boolean;
 }) {
-  // Up to four locations get their own column; beyond that, the total and the dialog show the split.
+  // Up to four locations get their own column (two from laptop width, three
+  // or four from desktop); beyond that, the total and the dialog show the split.
   const columns = locations.length <= 4 ? locations : [];
+  const locationCell = locations.length <= 2 ? "hidden lg:table-cell" : "hidden xl:table-cell";
   const name = (row: InventoryTableRow) =>
     row.variantTitle === "Default" ? row.productTitle : `${row.productTitle} · ${row.variantTitle}`;
   const actions = (row: InventoryTableRow) =>
@@ -77,14 +79,11 @@ export function InventoryTable({
               available: row.levels[l.id] ?? 0,
             }))}
             trigger={
-              <Button
+              <IconButton
                 size="sm"
-                variant="ghost"
-                leadingIcon={ArrowLeftRight}
+                icon={ArrowLeftRight}
                 aria-label={`Move stock for ${name(row)}`}
-              >
-                Move
-              </Button>
+              />
             }
           />
         ) : null}
@@ -92,45 +91,55 @@ export function InventoryTable({
     ) : null;
   const status = (row: InventoryTableRow) =>
     !row.tracked ? (
-      <span className="text-ink-faint">Not tracked</span>
+      <span className="whitespace-nowrap text-ink-faint">Not tracked</span>
     ) : (
       <span
         className={cn(
-          "font-medium tabular-nums",
+          "font-medium whitespace-nowrap tabular-nums",
           row.out ? "text-danger-700" : row.low ? "text-warning-700" : "text-ink",
         )}
       >
         {row.available.toLocaleString("en-IN")}
         {row.out ? (
-          <span className="ml-1.5 text-caption font-normal">Out of stock</span>
+          <span className="block text-caption font-normal">Out of stock</span>
         ) : row.low ? (
-          <span className="ml-1.5 text-caption font-normal">Low</span>
+          <span className="block text-caption font-normal">Low</span>
         ) : null}
       </span>
     );
   return (
     <>
       <div className="hidden overflow-x-auto md:block">
-        <table className="w-full border-collapse text-left">
+        <table className="w-full table-fixed border-collapse text-left">
           <caption className="sr-only">Stock by variant and location</caption>
           <thead>
             <tr className="text-caption font-medium text-ink-faint shadow-[inset_0_-1px_0_var(--color-line)]">
               <th scope="col" className="h-10 pl-6 font-medium">
                 Product
               </th>
-              <th scope="col" className="hidden h-10 font-medium lg:table-cell">
+              <th scope="col" className="hidden h-10 w-44 px-3 font-medium xl:table-cell">
                 SKU
               </th>
               {columns.map((l) => (
-                <th key={l.id} scope="col" className="h-10 px-3 text-right font-medium">
-                  {l.name}
+                <th
+                  key={l.id}
+                  scope="col"
+                  className={cn("h-10 w-28 px-3 text-right font-medium", locationCell)}
+                >
+                  <span className="line-clamp-2">{l.name}</span>
                 </th>
               ))}
-              <th scope="col" className="h-10 px-3 text-right font-medium">
+              <th scope="col" className="h-10 w-28 px-3 text-right font-medium">
                 Available
               </th>
               {canAdjust ? (
-                <th scope="col" className="h-10 pr-6 text-right font-medium">
+                <th
+                  scope="col"
+                  className={cn(
+                    "h-10 pr-6 text-right font-medium",
+                    locations.length > 1 ? "w-40" : "w-32",
+                  )}
+                >
                   <span className="sr-only">Actions</span>
                 </th>
               ) : null}
@@ -142,7 +151,7 @@ export function InventoryTable({
                 <td className="py-2.5 pl-6">
                   <Link
                     href={row.productHref}
-                    className="flex min-w-0 items-center gap-3 hover:text-brand-700"
+                    className="flex min-w-0 items-center gap-3 pr-3 hover:text-brand-700"
                   >
                     <span className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-control border border-line bg-subtle">
                       {row.image ? (
@@ -170,13 +179,16 @@ export function InventoryTable({
                     </span>
                   </Link>
                 </td>
-                <td className="hidden py-2.5 text-body-sm text-ink-muted lg:table-cell">
+                <td className="hidden truncate px-3 py-2.5 text-body-sm text-ink-muted xl:table-cell">
                   {row.sku ?? "—"}
                 </td>
                 {columns.map((l) => (
                   <td
                     key={l.id}
-                    className="px-3 py-2.5 text-right text-body-sm text-ink-muted tabular-nums"
+                    className={cn(
+                      "px-3 py-2.5 text-right text-body-sm text-ink-muted tabular-nums",
+                      locationCell,
+                    )}
                   >
                     {row.tracked ? (row.levels[l.id] ?? 0).toLocaleString("en-IN") : "—"}
                   </td>

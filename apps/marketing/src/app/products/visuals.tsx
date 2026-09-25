@@ -251,7 +251,7 @@ export function IntegrationsVignette() {
 }
 
 // ---------------------------------------------------------------------------
-// Commerce, part by part (up next): the catalogue's model, the stock ledger
+// Commerce, part by part: the catalogue's model, the stock ledger
 // and the media pipeline, each with one sample product.
 // ---------------------------------------------------------------------------
 

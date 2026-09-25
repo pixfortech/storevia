@@ -20,6 +20,23 @@ export interface Release {
 
 export const RELEASES: readonly Release[] = [
   {
+    id: "milestone-3",
+    date: "2026-09-25",
+    label: "Milestone 3",
+    title: "Catalogue, inventory and media",
+    status: "in-progress",
+    summary:
+      "Stores get real product data: products with variants, stock by location with a full history, and a media library. Built and tested; waiting for its review before release.",
+    changes: [
+      "Products with descriptions, options, variants, prices, SKUs and barcodes, saved as drafts until you activate them, and archived rather than deleted",
+      "Collections you arrange by hand",
+      "Stock by location, with every change recorded with its reason, note and who made it",
+      "A media library that checks each file is the image it claims to be, removes hidden location data and resizes it for every screen",
+      "Search, filters, bulk editing with a report of anything that couldn't change, and CSV export",
+      "Product and media limits enforced by plan, and real product and stock counts on each store's home",
+    ],
+  },
+  {
     id: "redesign",
     date: "2026-09-24",
     label: "Design",

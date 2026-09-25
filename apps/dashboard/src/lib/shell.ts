@@ -139,7 +139,12 @@ function createActionsFor(
  */
 export async function storeShellData(ctx: StoreContext): Promise<ShellData> {
   const organisation = organisationOf(ctx);
-  const [base, granted] = await Promise.all([common(organisation), grantedFeatures(ctx)]);
+  const mayCreateProduct = hasPermission(ctx, "product.create") && ctx.storeStatus !== "ARCHIVED";
+  const [base, granted, productAllowance] = await Promise.all([
+    common(organisation),
+    grantedFeatures(ctx),
+    mayCreateProduct ? getAllowance(ctx, "product_limit") : null,
+  ]);
   const areas: ShellLink[] = storeNavigation(ctx.storeBusinessType, ctx.permissions, (feature) =>
     granted.has(feature),
   ).map((area) => ({
@@ -166,7 +171,12 @@ export async function storeShellData(ctx: StoreContext): Promise<ShellData> {
       ? [...areas, apps]
       : [...areas.slice(0, settings), apps, ...areas.slice(settings)];
   const createActions = createActionsFor(organisation, base.canCreateStore, false);
-  if (hasPermission(ctx, "product.create") && ctx.storeStatus !== "ARCHIVED") {
+  // At the product limit the shell offers no "Add product"; the list says why.
+  const productsFull =
+    productAllowance !== null &&
+    productAllowance.limit !== "unlimited" &&
+    productAllowance.usage >= productAllowance.limit;
+  if (mayCreateProduct && !productsFull) {
     // Offered on the catalogue's pages; the product list and form show it themselves.
     const products = storePath(ctx.storeId, "/products");
     createActions.unshift({

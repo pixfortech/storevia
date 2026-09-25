@@ -480,7 +480,7 @@ function VariantMatrix({
           <caption className="sr-only">Variants</caption>
           <thead>
             <tr className="text-caption font-medium text-ink-faint shadow-[inset_0_-1px_0_var(--color-line)]">
-              <th scope="col" className="h-10 w-[16%] pr-3 pl-6 font-medium">
+              <th scope="col" className="h-10 w-[18%] pr-3 pl-6 font-medium">
                 Variant
               </th>
               <th scope="col" className="h-10 pr-2 font-medium">
@@ -492,10 +492,10 @@ function VariantMatrix({
               <th scope="col" className="h-10 pr-2 font-medium">
                 Cost
               </th>
-              <th scope="col" className="h-10 w-[16%] pr-2 font-medium">
+              <th scope="col" className="h-10 w-[18%] pr-2 font-medium">
                 SKU
               </th>
-              <th scope="col" className="h-10 w-[17%] pr-2 font-medium">
+              <th scope="col" className="h-10 w-[15%] pr-2 font-medium">
                 Barcode
               </th>
               <th scope="col" className="h-10 w-20 pr-6 text-right font-medium">
@@ -513,7 +513,7 @@ function VariantMatrix({
                   <tr className={cn(!same(d, draftOf(v)) && "bg-brand-25")}>
                     <th
                       scope="row"
-                      className="truncate py-2.5 pr-3 pl-6 text-body-sm font-medium text-ink"
+                      className="py-2.5 pr-3 pl-6 text-body-sm font-medium break-words text-ink"
                     >
                       {v.title}
                     </th>

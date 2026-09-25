@@ -9,6 +9,12 @@
 //   owner@globex.test    OWNER of "Globex Home" (Starter trial; store: globex-home)
 //   staff@storevia.test  Platform staff (SUPER_ADMIN), signs in at PLATFORM_ADMIN_URL
 //
+// Catalogue (seed-catalogue.ts, fictional, no sales):
+//   acme-flagship  7 products (5 active, 1 draft, 1 archived), 12 variants, two
+//                  collections, Main location and Bengaluru warehouse, one
+//                  product low on stock and two variants out of stock
+//   globex-home    3 products, at a product limit of 3 (staff override)
+//
 // Plans are assigned through the real Subscription Service as that staff
 // member (ADR-0022), exactly as platform-admin would.
 import { existsSync } from "node:fs";
@@ -25,11 +31,13 @@ import {
   listMyOrganisations,
   listStores,
   requireOrganisationAccess,
+  requireStoreAccess,
   type Principal,
 } from "@storevia/tenancy";
 import { requirePlatformStaff, type PlatformContext } from "@storevia/tenancy/platform";
 import { toTypeId, uuidv7 } from "@storevia/types";
 import pg from "pg";
+import { seedAcmeCatalogue, seedGlobexAtLimit } from "./seed-catalogue";
 
 const rootEnv = resolve(import.meta.dirname, "../../../.env");
 if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
@@ -164,7 +172,7 @@ async function main(): Promise<void> {
   );
 
   const globexOwner = (await user("owner@globex.test", "Jordan Lee")).principal;
-  await ensureOrganisation(
+  const globexId = await ensureOrganisation(
     globexOwner,
     "Globex Home",
     "GB",
@@ -192,6 +200,23 @@ async function main(): Promise<void> {
     ],
     { staff: staffCtx, planKey: "business", status: "ACTIVE" },
   );
+
+  const storeContext = async (owner: Principal, organisationId: string, slug: string) => {
+    const org = await requireOrganisationAccess(owner, toTypeId("organisation", organisationId));
+    const found = (await listStores(org)).find((s) => s.slug === slug);
+    if (!found) throw new Error(`store ${slug} is missing`);
+    return requireStoreAccess(owner, toTypeId("store", found.id));
+  };
+  if (await seedAcmeCatalogue(await storeContext(acmeOwner, acmeId, "acme-flagship")))
+    console.log("Seeded the Acme Flagship catalogue.");
+  if (
+    await seedGlobexAtLimit(
+      staffCtx,
+      globexId,
+      await storeContext(globexOwner, globexId, "globex-home"),
+    )
+  )
+    console.log("Seeded Globex Home at its product limit.");
 
   console.log(
     `Seeded development data. Sign in with any seeded email and the password "${PASSWORD}".`,

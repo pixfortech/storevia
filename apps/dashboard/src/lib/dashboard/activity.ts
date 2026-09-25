@@ -12,7 +12,8 @@ import { BUSINESS_TYPE_DEFINITIONS, isBusinessType } from "@storevia/tenancy/bus
 import { ROLE_LABELS, isMemberRole } from "@storevia/tenancy/rbac";
 
 /** Picks the icon beside an event. */
-export type ActivityCategory = "team" | "store" | "plan" | "organisation" | "security" | "other";
+export type ActivityCategory =
+  "team" | "store" | "catalogue" | "stock" | "plan" | "organisation" | "security" | "other";
 
 export interface ActivityItem {
   readonly id: string;
@@ -92,6 +93,11 @@ const ENTITY_NOUNS: Readonly<Record<string, string>> = {
   Invitation: "an invitation",
   Subscription: "the plan",
   OrganisationFeatureOverride: "the plan",
+  Product: "a product",
+  ProductVariant: "a product",
+  Collection: "a collection",
+  Location: "a location",
+  MediaAsset: "the media library",
 };
 
 /** What happened, as the rest of a sentence that starts with the actor. */
@@ -197,6 +203,63 @@ function summarise(entry: ActivityEntry): { summary: string; category: ActivityC
         category: "plan",
       };
     }
+    case "product.created":
+      return { summary: `added the product${quoted(text(d.title))}`, category: "catalogue" };
+    case "product.activated":
+      return {
+        summary: `made${quoted(text(d.title)) || " a product"} active`,
+        category: "catalogue",
+      };
+    case "product.drafted":
+      return {
+        summary: `set${quoted(text(d.title)) || " a product"} back to draft`,
+        category: "catalogue",
+      };
+    case "product.archived":
+      return { summary: `archived${quoted(text(d.title)) || " a product"}`, category: "catalogue" };
+    case "product.restored":
+      return { summary: `restored${quoted(text(d.title)) || " a product"}`, category: "catalogue" };
+    case "product.updated":
+      return { summary: "updated a product's details", category: "catalogue" };
+    case "product.options_changed":
+    case "product.variants_updated":
+      return { summary: "updated a product's variants", category: "catalogue" };
+    case "product.media_added":
+    case "product.media_removed":
+    case "product.media_reordered":
+      return { summary: "updated a product's images", category: "catalogue" };
+    case "product.exported":
+      return { summary: "exported the product list", category: "catalogue" };
+    case "collection.created":
+      return { summary: `created the collection${quoted(text(d.title))}`, category: "catalogue" };
+    case "collection.updated":
+      return { summary: `updated the collection${quoted(text(d.title))}`, category: "catalogue" };
+    case "collection.archived":
+      return { summary: "archived a collection", category: "catalogue" };
+    case "collection.restored":
+      return { summary: "restored a collection", category: "catalogue" };
+    case "collection.products_added":
+    case "collection.products_removed":
+    case "collection.reordered":
+      return { summary: "changed the products in a collection", category: "catalogue" };
+    case "media.uploaded":
+      return { summary: "uploaded an image", category: "catalogue" };
+    case "media.deleted":
+      return { summary: "deleted an image", category: "catalogue" };
+    case "inventory.adjusted":
+      return { summary: "updated stock", category: "stock" };
+    case "inventory.moved":
+      return { summary: "moved stock between locations", category: "stock" };
+    case "inventory.tracking_changed":
+      return { summary: "changed stock tracking for a product", category: "stock" };
+    case "location.created":
+      return { summary: `added the location${quoted(text(d.name))}`, category: "stock" };
+    case "location.updated":
+      return { summary: `updated the location${quoted(text(d.name))}`, category: "stock" };
+    case "location.activated":
+      return { summary: "reopened a location", category: "stock" };
+    case "location.deactivated":
+      return { summary: "closed a location", category: "stock" };
     case "billing.override.created":
     case "billing.override.updated":
     case "billing.override.removed":

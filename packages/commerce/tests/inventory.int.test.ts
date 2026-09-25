@@ -149,6 +149,25 @@ describe("adjustments", () => {
     expect(await available()).toBe(10);
   });
 
+  it("without a chosen location, stock goes to the default one, created on first use", async () => {
+    // A product with no initial stock: the store has no location yet.
+    const other = await makeTenant("inv-empty");
+    const ctx = storeOf(other);
+    const { productId: bare } = await createProduct(ctx, { title: "Bare" });
+    const bareVariant = (await getProduct(ctx, bare)).variants[0]?.id ?? "";
+    expect(await listLocations(ctx)).toEqual([]);
+    const first = await adjustInventory(ctx, {
+      variantId: bareVariant,
+      delta: 4,
+      reason: "RESTOCK",
+    });
+    const locations = await listLocations(ctx);
+    expect(locations.map((l) => [l.id, l.code])).toEqual([[first.locationId, "MAIN"]]);
+    const second = await setInventory(ctx, { variantId: bareVariant, quantity: 9 });
+    expect(second).toEqual({ variantId: bareVariant, locationId: first.locationId, available: 9 });
+    expect(await listLocations(ctx)).toHaveLength(1);
+  });
+
   it("the ledger is append-only for the app role", async () => {
     const before = await migratorDb().inventoryMovement.count();
     await adjustInventory(store(), { variantId, locationId: main, delta: 1, reason: "RESTOCK" });

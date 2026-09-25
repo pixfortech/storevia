@@ -28,8 +28,9 @@ export const PLATFORM: readonly HomeItem[] = [
     glyph: "website",
   },
   {
-    title: "Commerce",
-    description: "Products, variants and stock by location, then checkout and orders.",
+    title: "Catalogue",
+    description:
+      "Products, variants, stock by location and a media library. Checkout and orders follow.",
     status: commerce.status,
     glyph: "commerce",
   },

@@ -80,7 +80,7 @@ const ENTRIES: readonly Entry[] = [
   {
     icon: FileCode2,
     title: "API documentation",
-    description: "Reference for the Storevia API, published alongside the catalogue API.",
+    description: "Reference for the Storevia API, published alongside the API itself.",
     status: "roadmap",
     statusLabel: "Coming with the API",
   },

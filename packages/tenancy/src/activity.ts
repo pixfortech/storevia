@@ -21,6 +21,8 @@ const DISPLAY_KEYS = [
   "status",
   "previousStatus",
   "name",
+  // Product and collection titles: catalogue names, never personal data.
+  "title",
   "plan",
   "previousPlan",
   "interval",

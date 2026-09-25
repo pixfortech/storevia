@@ -282,7 +282,8 @@ const noteSchema = z
 
 export const adjustInventorySchema = z.object({
   variantId: publicIdSchema,
-  locationId: publicIdSchema,
+  /** Omitted: the store's default location, created on first use (ADR-0027 §8). */
+  locationId: publicIdSchema.optional(),
   delta: quantitySchema(-INVENTORY_QUANTITY_LIMIT, INVENTORY_QUANTITY_LIMIT).refine(
     (value) => value !== 0,
     "Enter a change other than 0.",
@@ -294,7 +295,8 @@ export type AdjustInventoryInput = z.input<typeof adjustInventorySchema>;
 
 export const setInventorySchema = z.object({
   variantId: publicIdSchema,
-  locationId: publicIdSchema,
+  /** Omitted: the store's default location, created on first use (ADR-0027 §8). */
+  locationId: publicIdSchema.optional(),
   quantity: quantitySchema(-INVENTORY_QUANTITY_LIMIT, INVENTORY_QUANTITY_LIMIT),
   reason: z.enum(MANUAL_ADJUSTMENT_REASONS).default("CORRECTION"),
   note: noteSchema,

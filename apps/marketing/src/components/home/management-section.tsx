@@ -1,6 +1,6 @@
 // 08 Store management: the merchant dashboard at full size, with example
 // figures, and an honest line on what the store home shows today versus
-// what arrives with commerce and analytics.
+// what arrives with orders and analytics.
 import { ScaleIn } from "@storevia/ui/motion";
 import { Section, SectionHeading, StatusPill } from "@/components/marketing";
 import { DashboardWindow } from "@/components/product/dashboard-window";
@@ -12,12 +12,12 @@ const STAGES = [
     status: "available",
     title: "Today",
     description:
-      "Each store's home shows what to set up next, the store's details and your plan's usage.",
+      "Each store's home shows what to set up next, product and stock counts, low and out-of-stock items, and your plan's usage.",
   },
   {
-    status: "in-development",
-    title: "With commerce",
-    description: "Revenue, orders and top products, once the catalogue and orders arrive.",
+    status: "roadmap",
+    title: "With orders",
+    description: "Revenue, orders and top products, once checkout and orders arrive.",
   },
   {
     status: "roadmap",
