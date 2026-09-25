@@ -424,7 +424,10 @@ export async function getProductStock(
 ): Promise<VariantStock[]> {
   const productId = internalId("product", productPublicId);
   return inStore(ctx, "inventory.read", async (tx) => {
-    const product = await tx.product.findFirst({ where: { id: productId, deletedAt: null }, select: { id: true } });
+    const product = await tx.product.findFirst({
+      where: { id: productId, deletedAt: null },
+      select: { id: true },
+    });
     if (!product) throw notFound();
     const variants = await tx.productVariant.findMany({
       where: { productId, deletedAt: null },
