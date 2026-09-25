@@ -12,6 +12,14 @@ export const ID_PREFIXES = {
   invitation: "inv",
   user: "user",
   subscription: "sub",
+  // Catalogue (ADR-0027).
+  product: "prod",
+  variant: "var",
+  option: "opt",
+  optionValue: "optval",
+  collection: "coll",
+  location: "loc",
+  media: "media",
 } as const;
 
 export type IdKind = keyof typeof ID_PREFIXES;

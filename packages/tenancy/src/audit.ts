@@ -39,10 +39,35 @@ const ALLOWED_METADATA_KEYS = new Set([
   "drift",
   "businessType",
   "previousBusinessType",
+  // Catalogue and inventory (ADR-0027): identifiers and counts, never
+  // descriptions, prices or free-text notes beyond the movement note.
+  "title",
+  "handle",
+  "previousHandle",
+  "sku",
+  "code",
+  "delta",
+  "resultingValue",
+  "quantity",
+  "location",
+  "fromLocation",
+  "toLocation",
+  "count",
+  "variantCount",
+  "createdVariants",
+  "removedVariants",
+  "deletedVariants",
+  "mediaCount",
+  "action",
+  "succeeded",
+  "failed",
+  "filename",
+  "bytes",
+  "note",
 ]);
 
 /** Longer free text allowed for these keys (staff-entered reasons). */
-const LONG_KEYS = new Set(["reason"]);
+const LONG_KEYS = new Set(["reason", "note"]);
 
 export type AuditMetadata = Record<string, string | number | boolean | null>;
 

@@ -38,7 +38,8 @@ export {
 export type { InvitationPreview, InvitationView } from "./invitations";
 export { getAllowance, getOrganisationBilling, grantedFeatures } from "./billing";
 export type { OrganisationBilling } from "./billing";
-export { recordActorAudit, sanitiseMetadata } from "./audit";
+export { recordActorAudit, recordAudit, sanitiseMetadata } from "./audit";
+export { isUniqueViolation, parseInput } from "./errors";
 export type { ActorAuditEntry, AuditMetadata } from "./audit";
 export { listRecentActivity } from "./activity";
 export type { ActivityDetailKey, ActivityEntry } from "./activity";

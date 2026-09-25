@@ -258,6 +258,8 @@ model Collection {
   seoTitle        String?
   seoDescription  String?
   publishedAt     DateTime?           @db.Timestamptz(3)
+  /// Set when the collection is archived (hidden, restorable); ADR-0027.
+  archivedAt      DateTime?           @db.Timestamptz(3)
   createdAt       DateTime            @default(now()) @db.Timestamptz(3)
   updatedAt       DateTime            @updatedAt @db.Timestamptz(3)
   deletedAt       DateTime?           @db.Timestamptz(3)

@@ -4,14 +4,28 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./money": "./src/money.ts"
+    ".": "./src/index.ts",
+    "./money": "./src/money.ts",
+    "./handles": "./src/handles.ts",
+    "./rich-text": "./src/rich-text.ts",
+    "./variants": "./src/variants.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests --exclude \"tests/**\""
+    "test": "vitest run --passWithNoTests --exclude \"tests/**\"",
+    "test:integration": "vitest run --config vitest.int.config.ts"
   },
   "devDependencies": {
     "fast-check": "3.23.2",
     "vitest": "4.1.11"
+  },
+  "dependencies": {
+    "@storevia/database": "workspace:*",
+    "@storevia/entitlements": "workspace:*",
+    "@storevia/tenancy": "workspace:*",
+    "@storevia/types": "workspace:*",
+    "@storevia/validation": "workspace:*",
+    "server-only": "0.0.1",
+    "zod": "4.6.5"
   }
 }
