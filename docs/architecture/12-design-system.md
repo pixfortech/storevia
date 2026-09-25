@@ -52,23 +52,24 @@ component's classes can be overridden safely.
 
 ## 3. Components
 
-| Module                   | Components                                                                                                                                                                      |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `icons`, `illustrations` | `Logo`, `LogoMark`, `Icon`, `Glyph`, `GlyphTile`, `Illustration` (empty and status states), `BusinessScene`                                                                     |
-| `button`, `spinner`      | `Button`, `IconButton`, `ButtonGroup`, `buttonClasses`, `Spinner` (server-safe)                                                                                                 |
-| `form`, `choice`         | `Input`, `Textarea`, `Select`, `Field`, `SearchInput`, `Combobox`, `DateRangePicker`, `ChoiceCards`, `Checkbox`, `RadioGroup`/`RadioItem`, `Switch`, `SegmentedControl`         |
-| `navigation`             | `Tabs`, `Breadcrumb`, `Pagination`, `NavigationMenu*` (marketing mega-menus)                                                                                                    |
-| `feedback`               | `Tooltip`, `Popover`, toasts (`ToastProvider`, `Toaster`, `useToast`), `Progress`                                                                                               |
-| `surfaces`               | `Card` family, `PageHeader`, `SectionHeader`, `Badge`, `ExampleDataBadge`, `StatusDot`, `Alert`, `EmptyState`, `Skeleton`, `Avatar`, `AvatarGroup`, `Divider`, `VisuallyHidden` |
-| `data`                   | `Metric`, `KpiCard`, `UsageMeter`, `Meter`, `Stat`, `Kbd`, `Table` primitives, `DataList`, `DescriptionList`                                                                    |
-| `overlays`, `command`    | `Dialog`, `Drawer`, `Sheet`, `DropdownMenu*`, `CommandMenu` (⌘K / Ctrl+K), with shared focus return (`overlays-focus.ts`)                                                       |
-| `charts`                 | `LineChart`, `AreaChart`, `BarChart`, `DonutChart`, `Sparkline`, `ChartCard`, `ChartLegend`, `ChartTable`, `ChartEmpty`: SVG, no chart library                                  |
-| `motion`                 | `Reveal`, `FadeIn`, `SlideReveal`, `ScaleIn`, `Stagger`, `AnimatedNumber`, `ChartReveal`, `DrawLine`, `HoverLift`, `Float`, `useInView`, `usePrefersReducedMotion`              |
-| `control-helpers`        | `paginationRange`, `dateRangeBounds`: pure, callable from server components                                                                                                     |
+| Module                                 | Components                                                                                                                                                                      |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `icons`, `illustrations`               | `Logo`, `LogoMark`, `Icon`, `Glyph`, `GlyphTile`, `Illustration` (empty and status states), `BusinessScene`                                                                     |
+| `button`, `spinner`                    | `Button`, `IconButton`, `ButtonGroup`, `buttonClasses`, `Spinner` (server-safe)                                                                                                 |
+| `form`, `choice`                       | `Input`, `Textarea`, `Select`, `Field`, `SearchInput`, `Combobox`, `DateRangePicker`, `ChoiceCards`, `Checkbox`, `RadioGroup`/`RadioItem`, `Switch`, `SegmentedControl`         |
+| `navigation`                           | `Tabs`, `Breadcrumb`, `Pagination`, `NavigationMenu*` (marketing mega-menus)                                                                                                    |
+| `feedback`, `toast`                    | `Tooltip`, `Popover`, `Progress`; toasts (`ToastProvider`, `Toaster`, `useToast`) in their own module                                                                           |
+| `surfaces`                             | `Card` family, `PageHeader`, `SectionHeader`, `Badge`, `ExampleDataBadge`, `StatusDot`, `Alert`, `EmptyState`, `Skeleton`, `Avatar`, `AvatarGroup`, `Divider`, `VisuallyHidden` |
+| `data`                                 | `Metric`, `KpiCard`, `UsageMeter`, `Meter`, `Stat`, `Kbd`, `Table` primitives, `DataList`, `DescriptionList`                                                                    |
+| `overlays`, `dropdown-menu`, `command` | `Dialog`, `Drawer`, `Sheet`; `DropdownMenu*`; `CommandMenu` (⌘K / Ctrl+K); shared focus return (`overlays-focus.ts`)                                                            |
+| `charts`                               | `LineChart`, `AreaChart`, `BarChart`, `DonutChart`, `Sparkline`, `ChartCard`, `ChartLegend`, `ChartTable`, `ChartEmpty`: SVG, no chart library                                  |
+| `motion`                               | `Reveal`, `FadeIn`, `SlideReveal`, `ScaleIn`, `Stagger`, `AnimatedNumber`, `ChartReveal`, `DrawLine`, `HoverLift`, `Float`, `useInView`, `usePrefersReducedMotion`              |
+| `control-helpers`                      | `paginationRange`, `dateRangeBounds`: pure, callable from server components                                                                                                     |
 
 Components with no hooks stay server-safe; interactive ones are client
-modules. The package declares `"sideEffects": ["*.css"]` so pages ship only
-the components they use.
+modules. The package declares `"sideEffects": ["*.css"]` so bundlers can
+drop modules a page doesn't use (client modules imported through the barrel
+are the exception today: see §8).
 
 ## 4. Icons, glyphs and illustrations
 
@@ -134,6 +135,18 @@ bottom navigation), and no page may scroll horizontally at 320 px and up.
 Server Components by default; client components are interactive islands.
 Fonts are self-hosted, icons are tree-shaken Lucide components, charts are
 plain SVG, and motion uses CSS and IntersectionObserver with no animation
-library. Marking the package side-effect-free and keeping `Spinner` out of
-the Radix-based feedback module cut the marketing home page's JavaScript
-from 764 to 605 KiB (uncompressed, production build).
+library. Modules are split so a page can skip what it doesn't use (toasts
+and the dropdown menu are apart from tooltips and dialogs), and `Spinner`
+is server-safe.
+
+Measured on production builds (uncompressed JavaScript): marketing home
+800 KiB, pricing 665 KiB, contact 723 KiB, dashboard sign-in 685 KiB.
+Lighthouse (simulated mobile): marketing home 85 to 92, other pages 90 to
+97; desktop 98 to 100; accessibility 100 everywhere.
+
+Known gap: apps import from the `@storevia/ui` barrel, and the production
+build ships every client module the barrel re-exports on each page that
+imports it (the home page loads toast and dropdown code it never renders).
+`optimizePackageImports` does not change this. The fix is importing each
+component from its own module (a subpath export map), a change across every
+app, scheduled after the design review.

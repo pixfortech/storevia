@@ -5,13 +5,10 @@ import {
   PopoverContent,
   PopoverTrigger,
   Progress,
-  Toast,
-  Toaster,
-  ToastProvider,
   Tooltip,
   TooltipProvider,
-  useToast,
 } from "./feedback";
+import { Toast, Toaster, ToastProvider, useToast } from "./toast";
 import { Spinner } from "./spinner";
 
 describe("Spinner", () => {

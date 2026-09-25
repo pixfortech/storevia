@@ -2,13 +2,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { commandResults, CommandMenu, CommandMenuPreview, type CommandItem } from "./command";
 import {
-  Dialog,
   DropdownMenu,
   DropdownMenuPreview,
   DropdownMenuTrigger,
   dropdownMenuShortcut,
-  OverlayPreview,
-} from "./overlays";
+} from "./dropdown-menu";
+import { Dialog, OverlayPreview } from "./overlays";
 
 const items: CommandItem[] = [
   { id: "home", label: "Home", group: "Acme Store" },
