@@ -1,6 +1,21 @@
 "use client";
 
-import { Alert, Button, Dialog, DialogClose, type ButtonProps } from "@storevia/ui";
+import {
+  Alert,
+  Badge,
+  Button,
+  CardHeader,
+  DataList,
+  Dialog,
+  DialogClose,
+  DialogFooter,
+  EmptyState,
+  Field,
+  Icon,
+  Select,
+  type ButtonProps,
+} from "@storevia/ui";
+import { OctagonAlert, Plus } from "lucide-react";
 import { useActionState, useEffect, useState, type ReactNode } from "react";
 import {
   CheckboxField,
@@ -47,6 +62,51 @@ const EXPIRY_MODES = [
   { value: "date", label: "Expire automatically on a date" },
 ];
 
+/**
+ * Expiry mode plus the date it needs. The date field only appears for a dated
+ * expiry, so "No expiry" never sits beside a date that looks like it applies.
+ */
+function ExpiryFields({
+  state,
+  defaultMode,
+  defaultDate = "",
+}: {
+  state: FormState;
+  defaultMode: "none" | "date";
+  defaultDate?: string;
+}) {
+  const [mode, setMode] = useState(state.values?.["expiryMode"] ?? defaultMode);
+  return (
+    <>
+      <Field label="Expiry" error={state.fieldErrors?.["expiryMode"]}>
+        <Select
+          name="expiryMode"
+          value={mode}
+          onChange={(e) => {
+            setMode(e.target.value);
+          }}
+          className="pointer-coarse:h-11"
+        >
+          {EXPIRY_MODES.map((m) => (
+            <option key={m.value} value={m.value}>
+              {m.label}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      {mode === "date" ? (
+        <TextField
+          label="Expires on"
+          name="expiresAt"
+          type="date"
+          state={state}
+          defaultValue={defaultDate}
+        />
+      ) : null}
+    </>
+  );
+}
+
 /** Reason (required) and internal notes, on every staff change. */
 function ReasonFields({ state }: { state: FormState }) {
   return (
@@ -90,6 +150,7 @@ function ActionDialog({
   submitLabel,
   variant = "secondary",
   testId,
+  icon,
   risk,
   children,
 }: {
@@ -100,6 +161,7 @@ function ActionDialog({
   submitLabel: string;
   variant?: ButtonProps["variant"];
   testId?: string;
+  icon?: ButtonProps["leadingIcon"];
   /**
    * High-risk actions end or reduce a merchant's access. They get a danger
    * style, a stated consequence and an explicit acknowledgement before the
@@ -143,8 +205,11 @@ function ActionDialog({
           <Button
             type="button"
             size="sm"
-            variant={risk ? "danger-outline" : variant}
+            variant={risk || variant === "danger" ? "danger-outline" : variant}
             data-testid={testId}
+            // Compact on desktop; a full 44 px on touch screens.
+            className="pointer-coarse:h-11"
+            {...(icon ? { leadingIcon: icon } : {})}
           >
             {label}
           </Button>
@@ -159,7 +224,7 @@ function ActionDialog({
           ) : null}
           {children(state)}
           {risk ? (
-            <label className="flex items-start gap-2.5 rounded-control border border-line p-3 text-sm">
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-control border border-danger-100 bg-danger-50 p-3 text-body-sm font-medium text-ink">
               <input
                 type="checkbox"
                 checked={acknowledged}
@@ -171,9 +236,9 @@ function ActionDialog({
               I understand the consequence for this merchant.
             </label>
           ) : null}
-          <div className="flex justify-end gap-2 pt-2">
+          <DialogFooter className="pt-2">
             <DialogClose asChild>
-              <Button type="button" variant="ghost">
+              <Button type="button" variant="ghost" className="pointer-coarse:h-11">
                 Close
               </Button>
             </DialogClose>
@@ -183,7 +248,7 @@ function ActionDialog({
             >
               {submitLabel}
             </SubmitButton>
-          </div>
+          </DialogFooter>
         </form>
       </Dialog>
       {shown ? (
@@ -192,6 +257,65 @@ function ActionDialog({
         </div>
       ) : null}
     </>
+  );
+}
+
+/** A labelled row of routine actions. */
+function ActionGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div>
+      <p className="text-overline text-ink-faint uppercase">{title}</p>
+      <div className="mt-2.5 flex flex-wrap gap-2">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * Actions that end or reduce a merchant's access, set apart so they are
+ * never buried: a danger frame, the consequence in words and the timing
+ * ("Reversible" or "Immediate") beside each one.
+ */
+function HighRiskZone({ children }: { children: ReactNode }) {
+  return (
+    <section
+      aria-labelledby="high-risk-title"
+      className="overflow-hidden rounded-card border border-danger-100"
+    >
+      <div className="flex items-center gap-2 border-b border-danger-100 bg-danger-50 px-4 py-2.5">
+        <Icon icon={OctagonAlert} size="sm" className="text-danger-600" />
+        <h3 id="high-risk-title" className="text-label text-danger-700">
+          High-risk actions: these end access
+        </h3>
+      </div>
+      <ul className="divide-y divide-line">{children}</ul>
+    </section>
+  );
+}
+
+function HighRiskRow({
+  title,
+  timing,
+  children,
+  action,
+}: {
+  title: string;
+  timing: "Reversible" | "Immediate";
+  children: ReactNode;
+  action: ReactNode;
+}) {
+  return (
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3.5">
+      <div className="min-w-[14rem] flex-1">
+        <p className="flex flex-wrap items-center gap-2 text-body-sm font-medium text-ink">
+          {title}
+          <Badge tone={timing === "Immediate" ? "danger" : "warning"} size="sm">
+            {timing}
+          </Badge>
+        </p>
+        <p className="mt-1 text-caption text-ink-muted">{children}</p>
+      </div>
+      {action}
+    </li>
   );
 }
 
@@ -213,7 +337,7 @@ export function SubscriptionActions({
   const planOptions = plans.map((p) => ({ value: p.key, label: p.name }));
   if (!subscription) {
     return (
-      <div className="flex flex-wrap gap-2">
+      <ActionGroup title="Plan assignment">
         {(["ACTIVE", "TRIAL"] as const).map((status) => (
           <ActionDialog
             key={status}
@@ -251,181 +375,175 @@ export function SubscriptionActions({
                     hint="Leave empty for the plan's default trial length."
                   />
                 ) : null}
-                <SelectField
-                  label="Expiry"
-                  name="expiryMode"
-                  state={state}
-                  options={EXPIRY_MODES}
-                />
-                <TextField label="Expires on" name="expiresAt" type="date" state={state} />
+                <ExpiryFields state={state} defaultMode="none" />
                 <ReasonFields state={state} />
               </>
             )}
           </ActionDialog>
         ))}
-      </div>
+      </ActionGroup>
     );
   }
 
   const { status } = subscription;
   const hidden = <input type="hidden" name="subscriptionId" value={subscription.id} />;
   return (
-    <div className="flex flex-wrap gap-2">
-      <ActionDialog
-        label="Change plan"
-        title="Change the subscription"
-        description="Upgrades apply immediately. A downgrade never deletes data."
-        action={actions.change}
-        submitLabel="Save changes"
-        testId="change-plan"
-      >
-        {(state) => (
-          <>
-            {hidden}
-            <SelectField
-              label="Plan"
-              name="planKey"
-              state={state}
-              options={planOptions}
-              defaultValue={subscription.planKey}
-            />
-            <SelectField
-              label="Billing interval"
-              name="billingInterval"
-              state={state}
-              options={INTERVALS}
-              defaultValue={subscription.billingInterval ?? "NONE"}
-            />
-            {status === "TRIAL" ? (
-              <TextField
-                label="Trial ends"
-                name="trialEndsAt"
-                type="date"
-                state={state}
-                defaultValue={subscription.trialEndsAt}
-              />
-            ) : null}
-            {status === "CANCELLED" ? (
-              <>
-                <input type="hidden" name="expiryMode" value="date" />
-                <TextField
-                  label="Access ends"
-                  name="expiresAt"
-                  type="date"
-                  state={state}
-                  defaultValue={subscription.expiresAt}
-                />
-              </>
-            ) : (
-              <>
-                <SelectField
-                  label="Expiry"
-                  name="expiryMode"
-                  state={state}
-                  options={EXPIRY_MODES}
-                  defaultValue={subscription.expiresAt ? "date" : "none"}
-                />
-                <TextField
-                  label="Expires on"
-                  name="expiresAt"
-                  type="date"
-                  state={state}
-                  defaultValue={subscription.expiresAt}
-                />
-              </>
-            )}
-            <OverLimitAck state={state} />
-            <ReasonFields state={state} />
-          </>
-        )}
-      </ActionDialog>
-
-      {status === "TRIAL" || status === "PAST_DUE" || status === "CANCELLED" ? (
+    <div className="space-y-5 border-t border-line pt-5">
+      <ActionGroup title="Plan and status">
         <ActionDialog
-          label={status === "CANCELLED" ? "Reactivate" : "Activate"}
-          title={
-            status === "CANCELLED" ? "Reactivate the subscription" : "Activate the subscription"
-          }
-          action={actions.activate}
-          submitLabel="Activate"
-          testId="activate"
+          label="Change plan"
+          title="Change the subscription"
+          description="Upgrades apply immediately. A downgrade never deletes data."
+          action={actions.change}
+          submitLabel="Save changes"
+          testId="change-plan"
         >
           {(state) => (
             <>
               {hidden}
               <SelectField
-                label="Expiry"
-                name="expiryMode"
+                label="Plan"
+                name="planKey"
                 state={state}
-                options={EXPIRY_MODES}
-                defaultValue={status !== "CANCELLED" && subscription.expiresAt ? "date" : "none"}
+                options={planOptions}
+                defaultValue={subscription.planKey}
               />
-              <TextField
-                label="Expires on"
-                name="expiresAt"
-                type="date"
+              <SelectField
+                label="Billing interval"
+                name="billingInterval"
                 state={state}
-                defaultValue={status === "CANCELLED" ? "" : subscription.expiresAt}
+                options={INTERVALS}
+                defaultValue={subscription.billingInterval ?? "NONE"}
               />
+              {status === "TRIAL" ? (
+                <TextField
+                  label="Trial ends"
+                  name="trialEndsAt"
+                  type="date"
+                  state={state}
+                  defaultValue={subscription.trialEndsAt}
+                />
+              ) : null}
+              {status === "CANCELLED" ? (
+                <>
+                  <input type="hidden" name="expiryMode" value="date" />
+                  <TextField
+                    label="Access ends"
+                    name="expiresAt"
+                    type="date"
+                    state={state}
+                    defaultValue={subscription.expiresAt}
+                  />
+                </>
+              ) : (
+                <>
+                  <ExpiryFields
+                    state={state}
+                    defaultMode={subscription.expiresAt ? "date" : "none"}
+                    defaultDate={subscription.expiresAt}
+                  />
+                </>
+              )}
+              <OverLimitAck state={state} />
               <ReasonFields state={state} />
             </>
           )}
         </ActionDialog>
-      ) : null}
 
-      <span className="basis-full pt-2 text-xs font-semibold uppercase tracking-wide text-danger-700">
-        Ends access
-      </span>
-      {status === "TRIAL" || status === "ACTIVE" || status === "PAST_DUE" ? (
-        <ActionDialog
-          risk={{
-            consequence:
-              "The merchant keeps its plan until the access end date, then drops to the system defaults. Resources over the default limits stop accepting additions.",
-          }}
-          label="Cancel"
-          title="Cancel the subscription"
-          description="The organisation keeps its plan until access ends, then falls back to system defaults."
-          action={actions.cancel}
-          submitLabel="Cancel subscription"
-          testId="cancel"
+        {status === "TRIAL" || status === "PAST_DUE" || status === "CANCELLED" ? (
+          <ActionDialog
+            label={status === "CANCELLED" ? "Reactivate" : "Activate"}
+            title={
+              status === "CANCELLED" ? "Reactivate the subscription" : "Activate the subscription"
+            }
+            action={actions.activate}
+            submitLabel="Activate"
+            testId="activate"
+          >
+            {(state) => (
+              <>
+                {hidden}
+                <ExpiryFields
+                  state={state}
+                  defaultMode={status !== "CANCELLED" && subscription.expiresAt ? "date" : "none"}
+                  defaultDate={status === "CANCELLED" ? "" : subscription.expiresAt}
+                />
+                <ReasonFields state={state} />
+              </>
+            )}
+          </ActionDialog>
+        ) : null}
+      </ActionGroup>
+
+      <HighRiskZone>
+        {status === "TRIAL" || status === "ACTIVE" || status === "PAST_DUE" ? (
+          <HighRiskRow
+            title="Cancel the subscription"
+            timing="Reversible"
+            action={
+              <ActionDialog
+                risk={{
+                  consequence:
+                    "The merchant keeps its plan until the access end date, then drops to the system defaults. Resources over the default limits stop accepting additions.",
+                }}
+                label="Cancel"
+                title="Cancel the subscription"
+                description="The organisation keeps its plan until access ends, then falls back to system defaults."
+                action={actions.cancel}
+                submitLabel="Cancel subscription"
+                testId="cancel"
+              >
+                {(state) => (
+                  <>
+                    {hidden}
+                    <TextField
+                      label="Access ends"
+                      name="accessEndsAt"
+                      type="date"
+                      state={state}
+                      defaultValue={subscription.defaultAccessEnd}
+                    />
+                    <ReasonFields state={state} />
+                  </>
+                )}
+              </ActionDialog>
+            }
+          >
+            The plan stays until the access end date, then system defaults apply. Can be reactivated
+            until then.
+          </HighRiskRow>
+        ) : null}
+
+        <HighRiskRow
+          title="Expire the subscription now"
+          timing="Immediate"
+          action={
+            <ActionDialog
+              risk={{
+                consequence:
+                  "Paid features end immediately for every store in this organisation. Nothing is deleted, but anything over the system defaults stops accepting additions.",
+              }}
+              label="Expire now"
+              title="Expire the subscription now"
+              description="Entitlements end immediately and system defaults apply. Data is never deleted."
+              action={actions.expire}
+              submitLabel="Expire now"
+              variant="danger"
+              testId="expire"
+            >
+              {(state) => (
+                <>
+                  {hidden}
+                  <OverLimitAck state={state} />
+                  <ReasonFields state={state} />
+                </>
+              )}
+            </ActionDialog>
+          }
         >
-          {(state) => (
-            <>
-              {hidden}
-              <TextField
-                label="Access ends"
-                name="accessEndsAt"
-                type="date"
-                state={state}
-                defaultValue={subscription.defaultAccessEnd}
-              />
-              <ReasonFields state={state} />
-            </>
-          )}
-        </ActionDialog>
-      ) : null}
-
-      <ActionDialog
-        risk={{
-          consequence:
-            "Paid features end immediately for every store in this organisation. Nothing is deleted, but anything over the system defaults stops accepting additions.",
-        }}
-        label="Expire now"
-        title="Expire the subscription now"
-        description="Entitlements end immediately and system defaults apply. Data is never deleted."
-        action={actions.expire}
-        submitLabel="Expire now"
-        variant="danger"
-        testId="expire"
-      >
-        {(state) => (
-          <>
-            {hidden}
-            <OverLimitAck state={state} />
-            <ReasonFields state={state} />
-          </>
-        )}
-      </ActionDialog>
+          Paid features end at once for every store. Nothing is deleted.
+        </HighRiskRow>
+      </HighRiskZone>
     </div>
   );
 }
@@ -468,46 +586,41 @@ function OverrideFields({
       {initial ? (
         <input type="hidden" name="featureKey" value={featureKey} />
       ) : (
-        <label className="block space-y-1.5 text-sm">
-          <span className="font-medium text-ink">Feature</span>
-          <select
+        <Field label="Feature">
+          <Select
             name="featureKey"
             value={featureKey}
+            className="pointer-coarse:h-11"
             onChange={(e) => {
               setFeatureKey(e.target.value);
               const next = features.find((f) => f.key === e.target.value);
               setMode(MODES[next?.type ?? "BOOLEAN"][0]?.value ?? "");
             }}
-            className="block h-10 w-full rounded-control border border-line-strong bg-surface px-3 text-sm"
           >
             {features.map((f) => (
               <option key={f.key} value={f.key}>
                 {f.name} ({f.type.toLowerCase()})
               </option>
             ))}
-          </select>
-        </label>
+          </Select>
+        </Field>
       )}
-      <label className="block space-y-1.5 text-sm">
-        <span className="font-medium text-ink">Value</span>
-        <select
+      <Field label="Value" error={state.fieldErrors?.["mode"]}>
+        <Select
           name="mode"
+          className="pointer-coarse:h-11"
           value={modes.some((m) => m.value === mode) ? mode : (modes[0]?.value ?? "")}
           onChange={(e) => {
             setMode(e.target.value);
           }}
-          className="block h-10 w-full rounded-control border border-line-strong bg-surface px-3 text-sm"
         >
           {modes.map((m) => (
             <option key={m.value} value={m.value}>
               {m.label}
             </option>
           ))}
-        </select>
-        {state.fieldErrors?.["mode"] ? (
-          <span className="text-danger-700">{state.fieldErrors["mode"]}</span>
-        ) : null}
-      </label>
+        </Select>
+      </Field>
       {mode === "limit" ? (
         <TextField
           label="Limit"
@@ -525,19 +638,10 @@ function OverrideFields({
           placeholder='{"retentionDays": 90}'
         />
       ) : null}
-      <SelectField
-        label="Expiry"
-        name="expiryMode"
+      <ExpiryFields
         state={state}
-        options={EXPIRY_MODES}
-        defaultValue={initial?.expiresAt ? "date" : "none"}
-      />
-      <TextField
-        label="Expires on"
-        name="expiresAt"
-        type="date"
-        state={state}
-        defaultValue={initial?.expiresAt ?? ""}
+        defaultMode={initial?.expiresAt ? "date" : "none"}
+        defaultDate={initial?.expiresAt ?? ""}
       />
       <TextAreaField
         label="Reason"
@@ -578,42 +682,81 @@ export function OverrideManager({
   actions: { set: Action; remove: Action };
 }) {
   return (
-    <div className="space-y-4">
+    <>
+      <CardHeader
+        title="Entitlement overrides"
+        description="Per-organisation exceptions. Every change is audited."
+        actions={
+          canManage ? (
+            <ActionDialog
+              label="Add override"
+              title="Add an entitlement override"
+              description="Overrides replace the plan's value for this organisation only. Use them instead of creating per-customer plans."
+              action={actions.set}
+              submitLabel="Save override"
+              testId="add-override"
+              icon={Plus}
+            >
+              {(state) => <OverrideFields state={state} features={features} />}
+            </ActionDialog>
+          ) : null
+        }
+      />
       {overrides.length === 0 ? (
-        <p className="text-sm text-ink-muted">
-          No overrides. The plan (or system default) applies to every feature.
-        </p>
+        <EmptyState
+          compact
+          titleAs="h3"
+          className="py-8"
+          title="No overrides"
+          description="The plan (or system default) applies to every feature."
+        />
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[600px] text-left text-sm">
-            <thead className="text-xs uppercase tracking-wide text-ink-muted">
-              <tr>
-                <th className="py-2 pr-4 font-medium">Feature</th>
-                <th className="py-2 pr-4 font-medium">Value</th>
-                <th className="py-2 pr-4 font-medium">Reason</th>
-                <th className="py-2 pr-4 font-medium">Expires</th>
-                {canManage ? (
-                  <th className="py-2 font-medium">
-                    <span className="sr-only">Actions</span>
-                  </th>
-                ) : null}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {overrides.map((o) => (
-                <tr key={o.featureKey} data-testid="override-row">
-                  <td className="py-2 pr-4 font-medium">{o.featureName}</td>
-                  <td className="py-2 pr-4">{o.value}</td>
-                  <td className="py-2 pr-4">
-                    <span className="block">{o.reason}</span>
-                    <span className="block text-xs text-ink-muted">{o.byline}</span>
-                  </td>
-                  <td className={`py-2 pr-4 ${o.expired ? "text-danger-700" : ""}`}>
-                    {o.expiresLabel}
-                  </td>
-                  {canManage ? (
-                    <td className="py-2">
-                      <div className="flex flex-wrap justify-end gap-2">
+        <DataList
+          caption="Entitlement overrides"
+          rows={overrides}
+          rowKey={(o) => o.featureKey}
+          rowTestId="override-row"
+          columns={[
+            {
+              key: "feature",
+              header: "Feature",
+              primary: true,
+              cell: (o) => <span className="font-medium">{o.featureName}</span>,
+            },
+            {
+              key: "value",
+              header: "Value",
+              cell: (o) => <Badge tone="warning">{o.value}</Badge>,
+            },
+            {
+              key: "reason",
+              header: "Reason",
+              cell: (o) => (
+                <>
+                  <span className="block">{o.reason}</span>
+                  <span className="block text-caption text-ink-muted">{o.byline}</span>
+                </>
+              ),
+            },
+            {
+              key: "expires",
+              header: "Expires",
+              className: "whitespace-nowrap",
+              cell: (o) =>
+                o.expired ? (
+                  <span className="font-medium text-danger-700">{o.expiresLabel}</span>
+                ) : (
+                  o.expiresLabel
+                ),
+            },
+            ...(canManage
+              ? [
+                  {
+                    key: "actions",
+                    header: "Actions",
+                    align: "end" as const,
+                    cell: (o: OverrideRow) => (
+                      <span className="inline-flex flex-wrap justify-end gap-2">
                         <ActionDialog
                           label="Edit"
                           title={`Edit override: ${o.featureName}`}
@@ -656,30 +799,15 @@ export function OverrideManager({
                             </>
                           )}
                         </ActionDialog>
-                      </div>
-                    </td>
-                  ) : null}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                      </span>
+                    ),
+                  },
+                ]
+              : []),
+          ]}
+        />
       )}
-      {canManage ? (
-        <div className="flex flex-wrap gap-2">
-          <ActionDialog
-            label="Add override"
-            title="Add an entitlement override"
-            description="Overrides replace the plan's value for this organisation only. Use them instead of creating per-customer plans."
-            action={actions.set}
-            submitLabel="Save override"
-            testId="add-override"
-          >
-            {(state) => <OverrideFields state={state} features={features} />}
-          </ActionDialog>
-        </div>
-      ) : null}
-    </div>
+    </>
   );
 }
 
@@ -749,33 +877,31 @@ export function SimulationPanel({
         required
         hint="Simulated events change real subscription state. Recorded in the audit log."
       />
-      <SubmitButton variant="secondary">Send event</SubmitButton>
+      <SubmitButton>Send event</SubmitButton>
     </form>
   );
 }
 
 export function ReconcileButton({ action }: { action: Action }) {
   return (
-    <div className="flex flex-wrap gap-2">
-      <ActionDialog
-        label="Recalculate usage"
-        title="Recalculate usage"
-        description="Recounts stores and team members from the database and corrects the usage counters."
-        action={action}
-        submitLabel="Recalculate"
-        variant="ghost"
-      >
-        {(state) => (
-          <TextAreaField
-            label="Reason"
-            name="reason"
-            state={state}
-            rows={2}
-            required
-            hint="Recorded in the audit log."
-          />
-        )}
-      </ActionDialog>
-    </div>
+    <ActionDialog
+      label="Recalculate usage"
+      title="Recalculate usage"
+      description="Recounts stores and team members from the database and corrects the usage counters."
+      action={action}
+      submitLabel="Recalculate"
+      variant="secondary"
+    >
+      {(state) => (
+        <TextAreaField
+          label="Reason"
+          name="reason"
+          state={state}
+          rows={2}
+          required
+          hint="Recorded in the audit log."
+        />
+      )}
+    </ActionDialog>
   );
 }

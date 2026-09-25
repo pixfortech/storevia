@@ -47,3 +47,28 @@ export function humanise(value: string): string {
   const text = value.replaceAll(/[_.]/g, " ").toLowerCase();
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
+
+/** Organisation lifecycle status → badge tone (the words carry the meaning). */
+export const ORGANISATION_STATUS_TONES: Record<string, "success" | "warning" | "danger"> = {
+  ACTIVE: "success",
+  SUSPENDED: "danger",
+  PENDING_DELETION: "warning",
+};
+
+/** Deployment stage for the environment indicator ("development" → "Development"). */
+export function environmentLabel(stage: string): string {
+  return humanise(stage);
+}
+
+const PERMISSION_LABELS: Record<string, string> = {
+  "platform.organisation.read": "View organisations",
+  "platform.audit.read": "View audit and background jobs",
+  "platform.subscription.manage": "Manage subscriptions",
+  "platform.entitlement_override.manage": "Manage entitlement overrides",
+  "platform.billing.simulate": "Simulate billing events",
+};
+
+/** A platform permission in words; unknown keys fall back to a humanised key. */
+export function permissionLabel(permission: string): string {
+  return PERMISSION_LABELS[permission] ?? humanise(permission);
+}

@@ -8,20 +8,40 @@ import { isEntitling, type EntitlementValue, type FeatureKey } from "@storevia/e
 import { formatEntitlement } from "@storevia/entitlements/format";
 import { hasPlatformPermission } from "@storevia/tenancy/platform";
 import { toTypeId } from "@storevia/types";
-import { Alert, Badge, Card, CardBody, CardHeader, DataList, Meter } from "@storevia/ui";
+import {
+  Alert,
+  Avatar,
+  Badge,
+  buttonClasses,
+  Card,
+  CardBody,
+  CardFooter,
+  CardHeader,
+  DataList,
+  DescriptionList,
+  PageHeader,
+  SectionHeader,
+  Stat,
+  UsageMeter,
+} from "@storevia/ui";
 import type { Metadata } from "next";
 import Link from "next/link";
+import type { ReactNode } from "react";
+import { AdminBreadcrumb } from "@/components/admin-breadcrumb";
+import { RiskSummary } from "@/components/risk-summary";
 import { requireStaff } from "@/lib/auth";
 import {
   dateInputValue,
   formatDate,
   formatDateTime,
-  formatLimit,
   humanise,
   INTERVAL_LABELS,
+  ORGANISATION_STATUS_TONES,
   SOURCE_LABELS,
   STATUS_TONES,
 } from "@/lib/format";
+import { stepUpHref } from "@/lib/navigation";
+import { riskItems } from "@/lib/risk";
 import {
   activateAction,
   assignPlanAction,
@@ -95,51 +115,31 @@ function overrideRow(o: AdminOverride, now: Date): OverrideRow {
   };
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex justify-between gap-4 py-1.5 text-sm">
-      <dt className="text-ink-muted">{label}</dt>
-      <dd className="text-right font-medium text-ink">{children}</dd>
-    </div>
-  );
-}
+const ORIGIN = {
+  OVERRIDE: { label: "Override", tone: "warning" },
+  PLAN: { label: "Plan", tone: "brand" },
+  DEFAULT: { label: "System default", tone: "neutral" },
+} as const;
 
-function RiskSummary({
-  items,
+/** A titled group of cards; the id is the "On this page" anchor. */
+function Section({
+  id,
+  title,
+  description,
+  children,
 }: {
-  items: readonly { tone: "danger" | "warning" | "info"; text: string }[];
+  id: string;
+  title: string;
+  description?: string;
+  children: ReactNode;
 }) {
-  if (items.length === 0) {
-    return (
-      <p
-        data-testid="risk-summary"
-        className="rounded-control border border-line bg-surface px-4 py-2.5 text-sm text-ink-muted"
-      >
-        Nothing needs attention: subscription, limits and overrides are in order.
-      </p>
-    );
-  }
-  const dot = { danger: "bg-danger-600", warning: "bg-warning-500", info: "bg-info-500" } as const;
   return (
-    <section
-      aria-label="Needs attention"
-      data-testid="risk-summary"
-      className="rounded-control border border-line bg-surface px-4 py-3"
-    >
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-faint">
-        Needs attention
-      </h2>
-      <ul className="mt-2 space-y-1.5 text-sm">
-        {items.map((item) => (
-          <li key={item.text} className="flex items-start gap-2.5">
-            <span
-              aria-hidden="true"
-              className={`mt-1.5 size-2 shrink-0 rounded-full ${dot[item.tone]}`}
-            />
-            {item.text}
-          </li>
-        ))}
-      </ul>
+    <section id={id} aria-labelledby={`${id}-title`} className="scroll-mt-32 space-y-4">
+      <SectionHeader
+        title={<span id={`${id}-title`}>{title}</span>}
+        {...(description ? { description } : {})}
+      />
+      {children}
     </section>
   );
 }
@@ -160,427 +160,534 @@ export default async function OrganisationPage({ params }: { params: Promise<{ o
     ? isEntitling({ ...sub, status: sub.status as SubscriptionStatus }, now)
     : false;
   const stepUpNeeded = (canManage || canOverride) && !ctx.principal.recentlyAuthenticated;
+  const publicId = toTypeId("organisation", org.id);
+  const origins = detail.entitlements.entitlements.reduce<Record<string, number>>((acc, e) => {
+    acc[e.origin] = (acc[e.origin] ?? 0) + 1;
+    return acc;
+  }, {});
 
   const bind = <A extends unknown[], R>(fn: (orgId: string, ...args: A) => R) =>
     fn.bind(null, orgId);
 
+  const sections = [
+    { id: "billing", label: "Subscription and usage" },
+    { id: "entitlements", label: "Entitlements" },
+    ...(canSimulate ? [{ id: "simulator", label: "Billing simulator" }] : []),
+    { id: "history", label: "History" },
+  ];
+
   return (
-    <div className="space-y-6">
-      <div>
-        <Link href="/organisations" className="text-sm text-ink-muted hover:underline">
-          ← Organisations
-        </Link>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">{org.name}</h1>
-          <Badge tone={org.status === "ACTIVE" ? "success" : "danger"}>
-            {humanise(org.status)}
-          </Badge>
-        </div>
-        <p className="mt-1 text-sm text-ink-muted">
-          {org.ownerEmail ?? "No owner"} · {org.storeCount} store(s) · {org.memberCount} member(s) ·
-          created {formatDate(org.createdAt)} ·{" "}
-          <code className="font-mono text-xs">{toTypeId("organisation", org.id)}</code>
-        </p>
-      </div>
+    <div className="space-y-10">
+      <div className="space-y-6">
+        <PageHeader
+          breadcrumb={
+            <AdminBreadcrumb
+              items={[{ label: "Organisations", href: "/organisations" }, { label: org.name }]}
+            />
+          }
+          title={
+            <span className="flex min-w-0 items-center gap-3">
+              <Avatar name={org.name} shape="square" size="lg" />
+              <span className="min-w-0 break-words">{org.name}</span>
+            </span>
+          }
+          meta={
+            // The organisation's lifecycle, not its billing: named as such and
+            // kept neutral while active, so it never reads as "all good" beside
+            // a past-due subscription. Problems keep their colour.
+            <Badge
+              tone={
+                org.status === "ACTIVE"
+                  ? "neutral"
+                  : (ORGANISATION_STATUS_TONES[org.status] ?? "neutral")
+              }
+              dot
+            >
+              Organisation {humanise(org.status).toLowerCase()}
+            </Badge>
+          }
+          description={
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-body-sm">
+              <span>Owner {org.ownerEmail ?? "not set"}</span>
+              <span aria-hidden="true" className="hidden text-line-strong sm:inline">
+                ·
+              </span>
+              <code className="font-mono text-caption text-ink-faint">{publicId}</code>
+            </span>
+          }
+        />
 
-      <RiskSummary
-        items={[
-          ...(org.status !== "ACTIVE"
-            ? [
-                {
-                  tone: "danger" as const,
-                  text: `Organisation is ${humanise(org.status).toLowerCase()}.`,
-                },
-              ]
-            : []),
-          ...(sub && !entitling
-            ? [
-                {
-                  tone: "danger" as const,
-                  text: "Subscription no longer grants its plan: system defaults apply.",
-                },
-              ]
-            : []),
-          ...(sub?.status === "PAST_DUE"
-            ? [
-                {
-                  tone: "warning" as const,
-                  text: `Payment overdue. Grace ends ${formatDateTime(sub.graceEndsAt)}.`,
-                },
-              ]
-            : []),
-          ...(sub?.status === "CANCELLED"
-            ? [
-                {
-                  tone: "warning" as const,
-                  text: `Cancelled. Access ends ${formatDateTime(sub.expiresAt)}.`,
-                },
-              ]
-            : []),
-          ...detail.usage
-            .filter((l) => l.overLimit)
-            .map((l) => ({
-              tone: "danger" as const,
-              text: `Over the ${l.name.toLowerCase()} limit.`,
-            })),
-          ...(detail.overrides.some((o) => o.expiresAt === null || o.expiresAt > now)
-            ? [
-                {
-                  tone: "info" as const,
-                  text: `${String(detail.overrides.filter((o) => o.expiresAt === null || o.expiresAt > now).length)} active entitlement override(s).`,
-                },
-              ]
-            : []),
-          ...(sub?.source === "MOCK"
-            ? [{ tone: "info" as const, text: "Subscription comes from mock billing (test only)." }]
-            : []),
-        ]}
-      />
-
-      {stepUpNeeded ? (
-        <Alert tone="info">
-          Changes need a recent password confirmation.{" "}
-          <Link href="/account#confirm" className="font-medium underline">
-            Confirm your password
-          </Link>{" "}
-          first.
-        </Alert>
-      ) : null}
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card data-testid="subscription-card">
-          <CardHeader
-            title="Subscription"
-            description={sub ? undefined : "No live subscription. System defaults apply."}
-            actions={
-              sub && status ? (
-                <span className="flex flex-wrap gap-1.5">
-                  <Badge tone={STATUS_TONES[status]} data-testid="subscription-status">
-                    {STATUS_LABELS[status]}
-                  </Badge>
-                  <Badge data-testid="subscription-source">
-                    {SOURCE_LABELS[sub.source] ?? sub.source}
-                  </Badge>
-                </span>
-              ) : null
+        {/* Key facts: hairlines between cells (the grid gap shows the line colour). */}
+        <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-card border border-line bg-line sm:grid-cols-3 lg:grid-cols-5 [&>div]:bg-surface [&>div]:px-5 [&>div]:py-4 sm:[&>div]:px-6">
+          <Stat label="Plan" value={sub?.planName ?? "System default"} />
+          <Stat
+            label="Subscription"
+            value={
+              status ? (
+                <Badge tone={STATUS_TONES[status]}>{STATUS_LABELS[status]}</Badge>
+              ) : (
+                <span className="text-ink-muted">None</span>
+              )
             }
           />
-          <CardBody className="space-y-4">
-            {sub ? (
-              <>
-                <dl className="divide-y divide-line">
-                  <Row label="Plan">
-                    <span data-testid="subscription-plan">{sub.planName}</span>
-                  </Row>
-                  <Row label="Grants entitlements now">
-                    {entitling ? "Yes" : "No: past its end date"}
-                  </Row>
-                  <Row label="Billing interval">
-                    {sub.billingInterval
-                      ? INTERVAL_LABELS[sub.billingInterval]
-                      : "Not billed on a cycle"}
-                  </Row>
-                  <Row label="Started">{formatDateTime(sub.startedAt)}</Row>
-                  {sub.trialEndsAt ? (
-                    <Row label="Trial ends">{formatDateTime(sub.trialEndsAt)}</Row>
-                  ) : null}
-                  {sub.currentPeriodEnd ? (
-                    <Row label="Current period ends">{formatDateTime(sub.currentPeriodEnd)}</Row>
-                  ) : null}
-                  {sub.graceEndsAt ? (
-                    <Row label="Grace period ends">{formatDateTime(sub.graceEndsAt)}</Row>
-                  ) : null}
-                  <Row label={sub.status === "CANCELLED" ? "Access ends" : "Expiry"}>
-                    {sub.expiresAt ? formatDateTime(sub.expiresAt) : "No expiry"}
-                  </Row>
-                  {sub.providerSubscriptionId ? (
-                    <Row label="Provider reference">
-                      <code className="font-mono text-xs">{sub.providerSubscriptionId}</code>
-                    </Row>
-                  ) : null}
-                </dl>
-                {sub.source !== "MANUAL" ? (
-                  <Alert tone="info">
-                    Managed by {SOURCE_LABELS[sub.source]?.toLowerCase()}. Change it through the
-                    provider
-                    {detail.mockBillingEnabled ? " (use the simulator below)" : ""}.
-                  </Alert>
-                ) : null}
-              </>
-            ) : null}
-            {canManage && (!sub || sub.source === "MANUAL") ? (
-              <SubscriptionActions
-                subscription={
-                  sub
-                    ? {
-                        id: toTypeId("subscription", sub.id),
-                        status: sub.status as SubscriptionStatus,
-                        planKey: sub.planKey,
-                        billingInterval: sub.billingInterval,
-                        trialEndsAt: dateInputValue(sub.trialEndsAt),
-                        expiresAt: dateInputValue(sub.expiresAt),
-                        defaultAccessEnd: dateInputValue(
-                          sub.status === "TRIAL"
-                            ? sub.trialEndsAt
-                            : (sub.expiresAt ?? sub.currentPeriodEnd),
-                        ),
-                      }
-                    : null
-                }
-                plans={assignable}
-                actions={{
-                  assign: bind(assignPlanAction),
-                  change: bind(changeSubscriptionAction),
-                  activate: bind(activateAction),
-                  cancel: bind(cancelAction),
-                  expire: bind(expireAction),
-                }}
-              />
-            ) : null}
-          </CardBody>
-        </Card>
-
-        <Card data-testid="usage-card">
-          <CardHeader
-            title="Usage"
-            description="Over a limit, existing resources keep working and new ones are blocked."
+          <Stat label="Stores" value={org.storeCount} />
+          <Stat label="Team members" value={org.memberCount} />
+          <Stat
+            label="Created"
+            value={formatDate(org.createdAt)}
+            className="col-span-2 lg:col-span-1"
           />
-          <CardBody className="space-y-4">
-            {detail.usage.map((line) => (
-              <div key={line.key} data-testid={`usage-${line.key}`}>
-                <Meter
-                  label={line.name}
-                  value={Number(line.usage)}
-                  max={line.limit === "unlimited" ? null : Number(line.limit)}
-                  valueLabel={
-                    <>
-                      {line.usage.toString()} of {formatLimit(line.limit)}
-                      {line.overLimit ? (
-                        <Badge tone="danger" className="ml-2">
-                          Over limit
-                        </Badge>
-                      ) : null}
-                    </>
-                  }
-                />
-              </div>
-            ))}
-            {canManage ? <ReconcileButton action={bind(reconcileUsageAction)} /> : null}
-          </CardBody>
-        </Card>
+        </dl>
+
+        <RiskSummary
+          items={riskItems({
+            organisationStatus: org.status,
+            subscription: sub,
+            entitling,
+            usage: detail.usage,
+            overrides: detail.overrides,
+            now,
+          })}
+        />
+
+        {stepUpNeeded ? (
+          <Alert
+            tone="info"
+            title="Password confirmation needed"
+            actions={
+              <Link
+                href={stepUpHref(`/organisations/${orgId}`)}
+                className={buttonClasses("secondary", "sm", "pointer-coarse:h-11")}
+              >
+                Confirm your password
+              </Link>
+            }
+          >
+            Plan, subscription and override changes need a password confirmation in the last 10
+            minutes.
+          </Alert>
+        ) : null}
+
+        <nav aria-label="On this page" className="flex flex-wrap items-center gap-2">
+          <span className="text-caption text-ink-faint">On this page</span>
+          {sections.map((s) => (
+            <a
+              key={s.id}
+              href={`#${s.id}`}
+              className="inline-flex h-8 items-center rounded-pill border border-line px-3 text-caption font-medium text-ink-muted transition-colors duration-(--duration-fast) hover:border-line-strong hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus pointer-coarse:h-11"
+            >
+              {s.label}
+            </a>
+          ))}
+        </nav>
       </div>
 
-      <Card data-testid="entitlements-card">
-        <CardHeader
-          title="Effective entitlements"
-          description="Resolved now: override → plan of an entitling subscription → system default."
-        />
-        <DataList
-          caption="Effective entitlements"
-          rows={detail.entitlements.entitlements}
-          rowKey={(e) => e.key}
-          rowTestId={(e) => `entitlement-${e.key}`}
-          columns={[
-            {
-              key: "feature",
-              header: "Feature",
-              primary: true,
-              cell: (e) => (
+      <Section
+        id="billing"
+        title="Subscription and usage"
+        description="The live subscription decides the plan. Dates are in UTC."
+      >
+        <div className="grid gap-4 lg:grid-cols-5 lg:items-start lg:gap-6">
+          <Card data-testid="subscription-card" className="lg:col-span-3">
+            <CardHeader
+              title="Subscription"
+              description={sub ? undefined : "No live subscription. System defaults apply."}
+              actions={
+                sub && status ? (
+                  <span className="flex flex-wrap gap-1.5">
+                    <Badge tone={STATUS_TONES[status]} data-testid="subscription-status">
+                      {STATUS_LABELS[status]}
+                    </Badge>
+                    <Badge variant="outline" data-testid="subscription-source">
+                      {SOURCE_LABELS[sub.source] ?? sub.source}
+                    </Badge>
+                  </span>
+                ) : null
+              }
+            />
+            <CardBody className="space-y-5">
+              {sub ? (
                 <>
-                  {e.name} <span className="font-mono text-xs text-ink-faint">{e.key}</span>
-                </>
-              ),
-            },
-            {
-              key: "value",
-              header: "Value",
-              cell: (e) => {
-                const value = describe(e.key, e.value);
-                return (
-                  <>
-                    {value.label}
-                    {value.raw ? (
-                      <span className="block font-mono text-xs text-ink-faint">{value.raw}</span>
-                    ) : null}
-                  </>
-                );
-              },
-            },
-            {
-              key: "origin",
-              header: "From",
-              cell: (e) => (
-                <>
-                  <Badge
-                    tone={
-                      e.origin === "OVERRIDE"
-                        ? "warning"
-                        : e.origin === "PLAN"
-                          ? "brand"
-                          : "neutral"
-                    }
-                  >
-                    {e.origin === "OVERRIDE"
-                      ? "Override"
-                      : e.origin === "PLAN"
-                        ? "Plan"
-                        : "System default"}
-                  </Badge>
-                  {e.overrideExpiresAt ? (
-                    <span className="ml-2 text-xs text-ink-muted">
-                      until {formatDate(e.overrideExpiresAt)}
-                    </span>
+                  <DescriptionList
+                    items={[
+                      {
+                        term: "Plan",
+                        detail: (
+                          <span data-testid="subscription-plan" className="font-medium">
+                            {sub.planName}
+                          </span>
+                        ),
+                      },
+                      {
+                        term: "Grants entitlements now",
+                        detail: entitling ? "Yes" : "No: past its end date",
+                      },
+                      {
+                        term: "Billing interval",
+                        detail: sub.billingInterval
+                          ? INTERVAL_LABELS[sub.billingInterval]
+                          : "Not billed on a cycle",
+                      },
+                      { term: "Started", detail: formatDateTime(sub.startedAt) },
+                      ...(sub.trialEndsAt
+                        ? [{ term: "Trial ends", detail: formatDateTime(sub.trialEndsAt) }]
+                        : []),
+                      ...(sub.currentPeriodEnd
+                        ? [
+                            {
+                              term: "Current period ends",
+                              detail: formatDateTime(sub.currentPeriodEnd),
+                            },
+                          ]
+                        : []),
+                      ...(sub.graceEndsAt
+                        ? [{ term: "Grace period ends", detail: formatDateTime(sub.graceEndsAt) }]
+                        : []),
+                      {
+                        term: sub.status === "CANCELLED" ? "Access ends" : "Expiry",
+                        detail: sub.expiresAt ? formatDateTime(sub.expiresAt) : "No expiry",
+                      },
+                      ...(sub.providerSubscriptionId
+                        ? [
+                            {
+                              term: "Provider reference",
+                              detail: (
+                                <code className="font-mono text-caption">
+                                  {sub.providerSubscriptionId}
+                                </code>
+                              ),
+                            },
+                          ]
+                        : []),
+                    ]}
+                  />
+                  {sub.source !== "MANUAL" ? (
+                    <Alert tone="info">
+                      Managed by {SOURCE_LABELS[sub.source]?.toLowerCase()}. Change it through the
+                      provider
+                      {detail.mockBillingEnabled ? " (use the simulator below)" : ""}.
+                    </Alert>
                   ) : null}
                 </>
-              ),
-            },
-          ]}
-        />
-      </Card>
+              ) : null}
+              {canManage && (!sub || sub.source === "MANUAL") ? (
+                <SubscriptionActions
+                  subscription={
+                    sub
+                      ? {
+                          id: toTypeId("subscription", sub.id),
+                          status: sub.status as SubscriptionStatus,
+                          planKey: sub.planKey,
+                          billingInterval: sub.billingInterval,
+                          trialEndsAt: dateInputValue(sub.trialEndsAt),
+                          expiresAt: dateInputValue(sub.expiresAt),
+                          defaultAccessEnd: dateInputValue(
+                            sub.status === "TRIAL"
+                              ? sub.trialEndsAt
+                              : (sub.expiresAt ?? sub.currentPeriodEnd),
+                          ),
+                        }
+                      : null
+                  }
+                  plans={assignable}
+                  actions={{
+                    assign: bind(assignPlanAction),
+                    change: bind(changeSubscriptionAction),
+                    activate: bind(activateAction),
+                    cancel: bind(cancelAction),
+                    expire: bind(expireAction),
+                  }}
+                />
+              ) : null}
+              {!canManage ? (
+                <p className="text-body-sm text-ink-muted">
+                  Your platform role can view this subscription but not change it.
+                </p>
+              ) : null}
+            </CardBody>
+          </Card>
 
-      <Card data-testid="overrides-card">
-        <CardHeader
-          title="Entitlement overrides"
-          description="Per-organisation exceptions. Every change is audited."
-        />
-        <CardBody>
+          <Card data-testid="usage-card" className="lg:col-span-2">
+            <CardHeader
+              title="Usage"
+              description="Over a limit, existing resources keep working and new ones are blocked."
+            />
+            <CardBody className="space-y-6">
+              {detail.usage.map((line) => (
+                <UsageMeter
+                  key={line.key}
+                  data-testid={`usage-${line.key}`}
+                  label={line.name}
+                  used={Number(line.usage)}
+                  limit={line.limit === "unlimited" ? "unlimited" : Number(line.limit)}
+                />
+              ))}
+            </CardBody>
+            {canManage ? (
+              <CardFooter className="justify-between">
+                <span className="text-caption text-ink-faint">
+                  Counters drifted? Recount from the database.
+                </span>
+                <ReconcileButton action={bind(reconcileUsageAction)} />
+              </CardFooter>
+            ) : null}
+          </Card>
+        </div>
+      </Section>
+
+      <Section
+        id="entitlements"
+        title="Entitlements"
+        description="What this organisation can use right now, and the exceptions staff have made."
+      >
+        <Card data-testid="entitlements-card">
+          <CardHeader
+            title="Effective entitlements"
+            description="Resolved now: override → plan of an entitling subscription → system default."
+            actions={
+              <span className="flex flex-wrap gap-1.5">
+                {(["OVERRIDE", "PLAN", "DEFAULT"] as const).map((origin) =>
+                  origins[origin] ? (
+                    <Badge key={origin} tone={ORIGIN[origin].tone} size="sm">
+                      {origins[origin]} from {ORIGIN[origin].label.toLowerCase()}
+                    </Badge>
+                  ) : null,
+                )}
+              </span>
+            }
+          />
+          <DataList
+            caption="Effective entitlements"
+            rows={detail.entitlements.entitlements}
+            rowKey={(e) => e.key}
+            rowTestId={(e) => `entitlement-${e.key}`}
+            columns={[
+              {
+                key: "feature",
+                header: "Feature",
+                primary: true,
+                cell: (e) => (
+                  <>
+                    <span className="font-medium">{e.name}</span>
+                    <code className="block font-mono text-[11px] text-ink-faint">{e.key}</code>
+                  </>
+                ),
+              },
+              {
+                key: "value",
+                header: "Value",
+                cell: (e) => {
+                  const value = describe(e.key, e.value);
+                  return (
+                    <>
+                      <span className={value.label === "Not included" ? "text-ink-muted" : ""}>
+                        {value.label}
+                      </span>
+                      {value.raw ? (
+                        <code className="block font-mono text-[11px] text-ink-faint">
+                          {value.raw}
+                        </code>
+                      ) : null}
+                    </>
+                  );
+                },
+              },
+              {
+                key: "origin",
+                header: "From",
+                cell: (e) => {
+                  const origin = ORIGIN[e.origin];
+                  return (
+                    <span className="flex flex-wrap items-center gap-2">
+                      <Badge tone={origin.tone}>{origin.label}</Badge>
+                      {e.overrideExpiresAt ? (
+                        <span className="text-caption text-ink-muted">
+                          until {formatDate(e.overrideExpiresAt)}
+                        </span>
+                      ) : null}
+                    </span>
+                  );
+                },
+              },
+            ]}
+          />
+        </Card>
+
+        <Card data-testid="overrides-card">
           <OverrideManager
             overrides={detail.overrides.map((o) => overrideRow(o, now))}
             features={detail.features}
             canManage={canOverride}
             actions={{ set: bind(setOverrideAction), remove: bind(removeOverrideAction) }}
           />
-        </CardBody>
-      </Card>
+        </Card>
+      </Section>
 
       {canSimulate ? (
-        <Card data-testid="simulation-card">
-          <CardHeader
-            title="Mock billing simulator"
-            description={`Environment: ${detail.enabledProviders.join(", ")} provider enabled`}
-          />
-          <CardBody>
-            <SimulationPanel plans={assignable} action={bind(simulateAction)} />
-          </CardBody>
-        </Card>
+        <Section
+          id="simulator"
+          title="Billing simulator"
+          description="Test environments only. Never available in production."
+        >
+          <Card data-testid="simulation-card">
+            <CardHeader
+              title="Mock billing simulator"
+              description={`Environment: ${detail.enabledProviders.join(", ")} provider enabled`}
+              actions={
+                <Badge tone="warning" dot>
+                  Test billing
+                </Badge>
+              }
+            />
+            <CardBody>
+              <SimulationPanel plans={assignable} action={bind(simulateAction)} />
+            </CardBody>
+          </Card>
+        </Section>
       ) : null}
 
-      <Card data-testid="history-card">
-        <CardHeader title="Subscription history" description="Every change, whatever its source." />
-        <DataList
-          caption="Subscription history"
-          rows={detail.events}
-          rowKey={(e) => e.id}
-          rowTestId="history-row"
-          empty={<p className="px-5 py-4 text-sm text-ink-muted">No subscription events yet.</p>}
-          columns={[
-            {
-              key: "when",
-              header: "When",
-              className: "whitespace-nowrap text-ink-muted",
-              cell: (e) => formatDateTime(e.occurredAt),
-            },
-            {
-              key: "event",
-              header: "Event",
-              primary: true,
-              cell: (e) => (
-                <>
-                  <span className="font-medium">{humanise(e.type)}</span>
-                  <span className="block text-xs text-ink-muted">
-                    {SOURCE_LABELS[e.source] ?? e.source}
-                  </span>
-                </>
-              ),
-            },
-            {
-              key: "status",
-              header: "Status",
-              cell: (e) => (
-                <>
-                  {e.fromStatus ? `${humanise(e.fromStatus)} → ` : ""}
-                  {e.toStatus ? humanise(e.toStatus) : ""}
-                </>
-              ),
-            },
-            {
-              key: "plan",
-              header: "Plan",
-              cell: (e) => (
-                <>
-                  {e.fromPlanName && e.fromPlanName !== e.toPlanName ? `${e.fromPlanName} → ` : ""}
-                  {e.toPlanName}
-                </>
-              ),
-            },
-            {
-              key: "by",
-              header: "By",
-              cell: (e) => (e.actorType === "SYSTEM" ? "System" : (e.actorName ?? "Staff")),
-            },
-            {
-              key: "reason",
-              header: "Reason",
-              cell: (e) => (
-                <>
-                  {e.reason}
-                  {e.note ? (
-                    <span className="block text-xs text-ink-muted">Note: {e.note}</span>
-                  ) : null}
-                  {e.providerEventId ? (
-                    <code className="block font-mono text-[11px] text-ink-faint">
-                      {e.providerEventId}
-                    </code>
-                  ) : null}
-                </>
-              ),
-            },
-          ]}
-        />
-      </Card>
-
-      {detail.webhookEvents.length > 0 ? (
-        <Card data-testid="webhooks-card">
+      <Section
+        id="history"
+        title="History"
+        description="Every subscription change and billing delivery, newest first. Staff changes are also written to the audit log, which can't be browsed here yet."
+      >
+        <Card data-testid="history-card">
           <CardHeader
-            title="Billing webhook deliveries"
-            description="Most recent 25, from the idempotency ledger."
+            title="Subscription history"
+            description="Every change, whatever its source."
           />
-          <CardBody className="overflow-x-auto p-0">
-            <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="border-b border-line text-xs uppercase tracking-wide text-ink-muted">
-                <tr>
-                  <th className="px-5 py-2.5 font-medium">Received</th>
-                  <th className="px-5 py-2.5 font-medium">Event</th>
-                  <th className="px-5 py-2.5 font-medium">Status</th>
-                  <th className="px-5 py-2.5 font-medium">Attempts</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-line">
-                {detail.webhookEvents.map((w) => (
-                  <tr key={w.providerEventId} data-testid="webhook-row">
-                    <td className="whitespace-nowrap px-5 py-2 text-ink-muted">
-                      {formatDateTime(w.receivedAt)}
-                    </td>
-                    <td className="px-5 py-2">
-                      {humanise(w.type)}
+          <DataList
+            caption="Subscription history"
+            rows={detail.events}
+            rowKey={(e) => e.id}
+            rowTestId="history-row"
+            empty={
+              <p className="px-6 py-5 text-body-sm text-ink-muted">No subscription events yet.</p>
+            }
+            columns={[
+              {
+                key: "when",
+                header: "When",
+                className: "whitespace-nowrap text-ink-muted tabular-nums",
+                cell: (e) => formatDateTime(e.occurredAt),
+              },
+              {
+                key: "event",
+                header: "Event",
+                primary: true,
+                cell: (e) => (
+                  <>
+                    <span className="font-medium">{humanise(e.type)}</span>
+                    <span className="block text-caption text-ink-muted">
+                      {SOURCE_LABELS[e.source] ?? e.source}
+                    </span>
+                  </>
+                ),
+              },
+              {
+                key: "status",
+                header: "Status",
+                cell: (e) => (
+                  <>
+                    {e.fromStatus ? `${humanise(e.fromStatus)} → ` : ""}
+                    {e.toStatus ? humanise(e.toStatus) : ""}
+                  </>
+                ),
+              },
+              {
+                key: "plan",
+                header: "Plan",
+                cell: (e) => (
+                  <>
+                    {e.fromPlanName && e.fromPlanName !== e.toPlanName
+                      ? `${e.fromPlanName} → `
+                      : ""}
+                    {e.toPlanName}
+                  </>
+                ),
+              },
+              {
+                key: "by",
+                header: "By",
+                cell: (e) => (e.actorType === "SYSTEM" ? "System" : (e.actorName ?? "Staff")),
+              },
+              {
+                key: "reason",
+                header: "Reason",
+                cell: (e) => (
+                  <>
+                    {e.reason}
+                    {e.note ? (
+                      <span className="block text-caption text-ink-muted">Note: {e.note}</span>
+                    ) : null}
+                    {e.providerEventId ? (
+                      <code className="block font-mono text-[11px] text-ink-faint">
+                        {e.providerEventId}
+                      </code>
+                    ) : null}
+                  </>
+                ),
+              },
+            ]}
+          />
+        </Card>
+
+        {detail.webhookEvents.length > 0 ? (
+          <Card data-testid="webhooks-card">
+            <CardHeader
+              title="Billing webhook deliveries"
+              description="Most recent 25, from the idempotency ledger."
+            />
+            <DataList
+              caption="Billing webhook deliveries"
+              rows={detail.webhookEvents}
+              rowKey={(w) => w.providerEventId}
+              rowTestId="webhook-row"
+              columns={[
+                {
+                  key: "received",
+                  header: "Received",
+                  className: "whitespace-nowrap text-ink-muted tabular-nums",
+                  cell: (w) => formatDateTime(w.receivedAt),
+                },
+                {
+                  key: "event",
+                  header: "Event",
+                  primary: true,
+                  cell: (w) => (
+                    <>
+                      <span className="font-medium">{humanise(w.type)}</span>
                       <code className="block font-mono text-[11px] text-ink-faint">
                         {w.providerEventId}
                       </code>
-                    </td>
-                    <td className="px-5 py-2">
+                    </>
+                  ),
+                },
+                {
+                  key: "status",
+                  header: "Status",
+                  cell: (w) => (
+                    <>
                       {humanise(w.status)}
                       {w.outcome ? (
-                        <span className="block text-xs text-ink-muted">{humanise(w.outcome)}</span>
+                        <span className="block text-caption text-ink-muted">
+                          {humanise(w.outcome)}
+                        </span>
                       ) : null}
-                    </td>
-                    <td className="px-5 py-2">{w.attempts}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </CardBody>
-        </Card>
-      ) : null}
+                    </>
+                  ),
+                },
+                {
+                  key: "attempts",
+                  header: "Attempts",
+                  align: "end",
+                  cell: (w) => w.attempts,
+                },
+              ]}
+            />
+          </Card>
+        ) : null}
+      </Section>
     </div>
   );
 }

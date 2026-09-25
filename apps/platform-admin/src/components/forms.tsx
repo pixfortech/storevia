@@ -1,9 +1,11 @@
 "use client";
 
-import { Alert, Button, Field, Input, Select, Textarea, type ButtonProps } from "@storevia/ui";
+import { Alert, Button, cn, Field, Input, Select, Textarea, type ButtonProps } from "@storevia/ui";
 import type { InputHTMLAttributes, ReactNode } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useFormStatus } from "react-dom";
+import { stepUpHref } from "@/lib/navigation";
 
 export interface FormState {
   readonly ok: boolean;
@@ -13,16 +15,21 @@ export interface FormState {
   readonly values?: Readonly<Record<string, string>> | undefined;
 }
 
-export function SubmitButton({ children, ...props }: ButtonProps) {
+// Staff forms are used on phones too: fields and submit buttons grow to
+// 44 px on touch screens.
+const TOUCH_HEIGHT = "pointer-coarse:h-11";
+
+export function SubmitButton({ children, className, ...props }: ButtonProps) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" pending={pending} {...props}>
+    <Button type="submit" pending={pending} className={cn(TOUCH_HEIGHT, className)} {...props}>
       {children}
     </Button>
   );
 }
 
 export function FormMessage({ state }: { state: FormState }) {
+  const pathname = usePathname();
   if (!state.message) return null;
   return (
     <Alert tone={state.ok ? "success" : "danger"}>
@@ -30,7 +37,7 @@ export function FormMessage({ state }: { state: FormState }) {
       {state.code === "REAUTHENTICATION_REQUIRED" ? (
         <>
           {" "}
-          <Link href="/account#confirm" className="font-medium underline">
+          <Link href={stepUpHref(pathname)} className="font-medium underline">
             Confirm your password
           </Link>
           , then try again.
@@ -46,6 +53,7 @@ export function TextField({
   state,
   hint,
   defaultValue,
+  className,
   ...props
 }: {
   label: string;
@@ -63,6 +71,7 @@ export function TextField({
           name={name}
           aria-describedby={describedBy}
           aria-invalid={invalid || undefined}
+          className={cn(TOUCH_HEIGHT, className)}
           {...(value === undefined || props.value !== undefined ? {} : { defaultValue: value })}
           {...props}
         />
@@ -99,6 +108,7 @@ export function SelectField({
           aria-describedby={describedBy}
           aria-invalid={invalid || undefined}
           disabled={disabled}
+          className={TOUCH_HEIGHT}
           {...(value === undefined ? {} : { defaultValue: value })}
         >
           {options.map((o) => (

@@ -1,35 +1,96 @@
 import { PLATFORM_ROLE_LABELS } from "@storevia/tenancy/platform-rbac";
-import { Badge, Card, CardBody, CardHeader } from "@storevia/ui";
+import {
+  Avatar,
+  Badge,
+  Card,
+  CardBody,
+  CardHeader,
+  DescriptionList,
+  Icon,
+  PageHeader,
+} from "@storevia/ui";
+import { Check } from "lucide-react";
 import type { Metadata } from "next";
 import { requireStaff } from "@/lib/auth";
+import { permissionLabel } from "@/lib/format";
+import { stepUpReturnPath } from "@/lib/navigation";
 import { ConfirmPasswordForm } from "./confirm-form";
 
 export const metadata: Metadata = { title: "Account" };
 
-export default async function AccountPage() {
+export default async function AccountPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const ctx = await requireStaff("/account");
+  const { principal } = ctx;
+  // Staff sent here from an organisation page get a way back to it.
+  const from = (await searchParams)["from"];
+  const returnTo = stepUpReturnPath(typeof from === "string" ? from : null);
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <h1 className="text-2xl font-semibold tracking-tight">Account</h1>
+    <div className="max-w-3xl space-y-8">
+      <PageHeader
+        eyebrow="Staff account"
+        title="Account"
+        description="Your staff identity, what your role allows and the password confirmation that sensitive changes need."
+      />
+
       <Card>
-        <CardHeader title={ctx.principal.name} description={ctx.principal.email} />
-        <CardBody className="flex flex-wrap items-center gap-2 text-sm">
+        <CardBody className="flex flex-wrap items-center gap-4 sm:gap-5">
+          <Avatar name={principal.name} size="xl" />
+          <div className="min-w-40 flex-1">
+            <h2 className="truncate font-display text-h4 text-ink">{principal.name}</h2>
+            <p className="truncate text-body-sm text-ink-muted">{principal.email}</p>
+          </div>
           <Badge tone="brand">{PLATFORM_ROLE_LABELS[ctx.role]}</Badge>
-          <span className="text-ink-muted">Permissions: {[...ctx.permissions].join(", ")}</span>
         </CardBody>
+        <div className="border-t border-line px-5 py-5 sm:px-6">
+          <DescriptionList
+            items={[
+              {
+                term: "Permissions",
+                detail: (
+                  <ul className="space-y-2">
+                    {[...ctx.permissions].map((permission) => (
+                      <li key={permission} className="flex items-start gap-2">
+                        <Icon icon={Check} size="sm" className="mt-0.5 text-success-600" />
+                        <span className="min-w-0">
+                          {permissionLabel(permission)}
+                          <code className="block font-mono text-[11px] break-all text-ink-faint">
+                            {permission}
+                          </code>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ),
+              },
+              {
+                term: "Session",
+                detail: "Signs out after 30 minutes without activity, and after 12 hours at most.",
+              },
+            ]}
+          />
+        </div>
       </Card>
-      <Card id="confirm">
+
+      <Card id="confirm" className="scroll-mt-28">
         <CardHeader
           title="Confirm your password"
           description="Plan, subscription and override changes need a password confirmation in the last 10 minutes."
           actions={
-            ctx.principal.recentlyAuthenticated ? (
-              <Badge tone="success">Confirmed recently</Badge>
-            ) : null
+            principal.recentlyAuthenticated ? (
+              <Badge tone="success" dot>
+                Confirmed recently
+              </Badge>
+            ) : (
+              <Badge variant="dot">Not confirmed</Badge>
+            )
           }
         />
-        <CardBody>
-          <ConfirmPasswordForm />
+        <CardBody className="max-w-md">
+          <ConfirmPasswordForm returnTo={returnTo} />
         </CardBody>
       </Card>
     </div>
