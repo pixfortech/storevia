@@ -286,6 +286,8 @@ describe("merchant billing view (read-only)", () => {
     expect(billing.usage).toEqual([
       expect.objectContaining({ key: "store_count", usage: 1n, limit: 1n, overLimit: false }),
       expect.objectContaining({ key: "staff_accounts", usage: 1n, limit: 2n, overLimit: false }),
+      expect.objectContaining({ key: "product_limit", usage: 0n, limit: 100n, overLimit: false }),
+      expect.objectContaining({ key: "media_storage", usage: 0n, overLimit: false }),
     ]);
     expect(await getAllowance(org, "store_count")).toMatchObject({ usage: 1n, limit: 1n });
   });

@@ -467,7 +467,27 @@ async function countSource(db: Db, organisationId: string, key: GaugeFeature): P
       );
     case "staff_accounts":
       return BigInt(await db.membership.count({ where: { organisationId } }));
+    // Products and media are store-scoped rows, and merchant requests run in
+    // one store's RLS scope, so these count through SECURITY DEFINER
+    // functions that sum across the organisation's stores (migration
+    // 20260928000000). They refuse any organisation but the caller's.
+    case "product_limit":
+      return scalar(
+        await db.$queryRaw<
+          { n: bigint }[]
+        >`SELECT app_usage_live_products(${organisationId}::uuid) AS n`,
+      );
+    case "media_storage":
+      return scalar(
+        await db.$queryRaw<
+          { n: bigint }[]
+        >`SELECT app_usage_media_bytes(${organisationId}::uuid) AS n`,
+      );
   }
+}
+
+function scalar(rows: readonly { n: bigint }[]): bigint {
+  return rows[0]?.n ?? 0n;
 }
 
 export interface Drift {

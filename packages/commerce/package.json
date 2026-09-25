@@ -1,0 +1,17 @@
+{
+  "name": "@storevia/commerce",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./money": "./src/money.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests --exclude \"tests/**\""
+  },
+  "devDependencies": {
+    "fast-check": "3.23.2",
+    "vitest": "4.1.11"
+  }
+}

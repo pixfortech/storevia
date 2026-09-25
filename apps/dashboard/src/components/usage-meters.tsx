@@ -1,4 +1,5 @@
 import type { UsageLine } from "@storevia/entitlements";
+import { formatBytes, isByteFeature } from "@storevia/entitlements/format";
 import { cn } from "@storevia/ui/cn";
 import { UsageMeter } from "@storevia/ui/data";
 
@@ -22,6 +23,9 @@ export function UsageMeters({
           label={line.name}
           used={Number(line.usage)}
           limit={line.limit === "unlimited" ? "unlimited" : Number(line.limit)}
+          {...(isByteFeature(line.key)
+            ? { format: (value: number) => formatBytes(BigInt(Math.round(value))) }
+            : {})}
         />
       ))}
     </div>

@@ -78,6 +78,8 @@ model User {
   invitationsAccepted  Invitation[]   @relation("InvitationAcceptedBy")
   platformStaff        PlatformStaff?
   organisationsCreated Organisation[] @relation("OrganisationCreatedBy")
+  productsCreated      Product[]      @relation("ProductCreatedBy")
+  productsUpdated      Product[]      @relation("ProductUpdatedBy")
 }
 
 /// Credential/provider link (Better Auth "account"). The credential provider
@@ -861,11 +863,18 @@ model Product {
   seoTitle        String?
   seoDescription  String?
   publishedAt     DateTime?     @db.Timestamptz(3)
+  /// Set when the product is archived; cleared when it is restored (ADR-0027).
+  archivedAt      DateTime?     @db.Timestamptz(3)
+  /// Authorship; kept when the user is deleted (ADR-0027).
+  createdById     String?       @db.Uuid
+  updatedById     String?       @db.Uuid
   createdAt       DateTime      @default(now()) @db.Timestamptz(3)
   updatedAt       DateTime      @updatedAt @db.Timestamptz(3)
   deletedAt       DateTime?     @db.Timestamptz(3)
 
   store           Store               @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  createdBy       User?               @relation("ProductCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy       User?               @relation("ProductUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
   options         ProductOption[]
   variants        ProductVariant[]
   media           ProductMedia[]
@@ -875,6 +884,8 @@ model Product {
   navigationItems NavigationItem[]
 
   @@unique([id, storeId])
+  @@index([createdById])
+  @@index([updatedById])
   @@index([storeId, status, updatedAt])
 }
 
@@ -1075,6 +1086,9 @@ model Location {
   organisationId      String    @db.Uuid
   storeId             String    @db.Uuid
   name                String
+  /// Short stable reference ("MAIN", "WH-2"); SQL: partial unique (storeId, code)
+  /// WHERE deletedAt IS NULL (ADR-0027).
+  code                String
   addressLine1        String?
   addressLine2        String?
   city                String?
@@ -1154,6 +1168,8 @@ enum InventoryQuantityName {
 }
 
 enum InventoryMovementReason {
+  /// First stock recorded for an item at a location (ADR-0027).
+  INITIAL
   SALE
   RETURN
   MANUAL_ADJUSTMENT

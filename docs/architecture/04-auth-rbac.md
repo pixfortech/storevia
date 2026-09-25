@@ -112,57 +112,58 @@ be under our control.
 
 ### 7.2 Permission catalogue (initial)
 
-| Area         | Permissions                                                                                                                                     |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Organisation | `organisation.read`, `organisation.update`, `organisation.delete`, `ownership.transfer`, `audit.read`                                           |
-| Members      | `member.read`, `member.manage`                                                                                                                  |
-| Billing      | `billing.read`, `billing.manage`                                                                                                                |
-| Stores       | `store.create`, `store.read`, `store.update`, `store.archive`, `settings.manage`                                                                |
-| Catalogue    | `product.read`, `product.create`, `product.update`, `product.delete`, `collection.manage`, `inventory.read`, `inventory.adjust`, `media.manage` |
-| Orders       | `order.read`, `order.manage`, `order.refund`, `customer.read`, `customer.manage`                                                                |
-| Marketing    | `discount.read`, `discount.manage`, `analytics.read`                                                                                            |
-| Website      | `design.edit`, `page.publish`, `theme.publish`, `navigation.manage`, `domain.manage`                                                            |
-| Developers   | `api_key.manage`, `webhook.manage`                                                                                                              |
+| Area         | Permissions                                                                                                                                                                                          |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Organisation | `organisation.read`, `organisation.update`, `organisation.delete`, `ownership.transfer`, `audit.read`                                                                                                |
+| Members      | `member.read`, `member.manage`                                                                                                                                                                       |
+| Billing      | `billing.read`, `billing.manage`                                                                                                                                                                     |
+| Stores       | `store.create`, `store.read`, `store.update`, `store.archive`, `settings.manage`                                                                                                                     |
+| Catalogue    | `product.read`, `product.create`, `product.update`, `product.archive`, `collection.read`, `collection.manage`, `inventory.read`, `inventory.adjust`, `location.manage`, `media.read`, `media.manage` |
+| Orders       | `order.read`, `order.manage`, `order.refund`, `customer.read`, `customer.manage`                                                                                                                     |
+| Marketing    | `discount.read`, `discount.manage`, `analytics.read`                                                                                                                                                 |
+| Website      | `design.edit`, `page.publish`, `theme.publish`, `navigation.manage`, `domain.manage`                                                                                                                 |
+| Developers   | `api_key.manage`, `webhook.manage`                                                                                                                                                                   |
 
 ### 7.3 Role matrix
 
 ✔ = granted. OWNER has every permission.
 
-| Permission                      | OWNER | ADMIN | STORE_MANAGER | DESIGNER | CATALOGUE_MANAGER | ORDER_MANAGER | MARKETING | SUPPORT | VIEWER | INVENTORY_MANAGER | SITE_MANAGER | CONTENT_MANAGER | EDITOR | AUTHOR |
-| ------------------------------- | :---: | :---: | :-----------: | :------: | :---------------: | :-----------: | :-------: | :-----: | :----: | :---------------: | :----------: | :-------------: | :----: | :----: |
-| organisation.read               |   ✔   |   ✔   |       ✔       |    ✔     |         ✔         |       ✔       |     ✔     |    ✔    |   ✔    |         ✔         |      ✔       |        ✔        |   ✔    |   ✔    |
-| organisation.update             |   ✔   |   ✔   |               |          |                   |               |           |         |        |                   |              |                 |        |        |
-| organisation.delete             |   ✔   |       |               |          |                   |               |           |         |        |                   |              |                 |        |        |
-| ownership.transfer              |   ✔   |       |               |          |                   |               |           |         |        |                   |              |                 |        |        |
-| audit.read                      |   ✔   |   ✔   |               |          |                   |               |           |         |        |                   |              |                 |        |        |
-| member.read                     |   ✔   |   ✔   |       ✔       |          |                   |               |           |         |        |                   |      ✔       |                 |        |        |
-| member.manage                   |   ✔   |   ✔   |               |          |                   |               |           |         |        |                   |              |                 |        |        |
-| billing.read                    |   ✔   |   ✔   |               |          |                   |               |           |         |        |                   |              |                 |        |        |
-| billing.manage                  |   ✔   |       |               |          |                   |               |           |         |        |                   |              |                 |        |        |
-| store.create                    |   ✔   |   ✔   |               |          |                   |               |           |         |        |                   |              |                 |        |        |
-| store.read                      |   ✔   |   ✔   |       ✔       |    ✔     |         ✔         |       ✔       |     ✔     |    ✔    |   ✔    |         ✔         |      ✔       |        ✔        |   ✔    |   ✔    |
-| store.update / settings.manage  |   ✔   |   ✔   |       ✔       |          |                   |               |           |         |        |                   |      ✔       |                 |        |        |
-| store.archive                   |   ✔   |   ✔   |               |          |                   |               |           |         |        |                   |              |                 |        |        |
-| product.read / inventory.read   |   ✔   |   ✔   |       ✔       |    ✔     |         ✔         |       ✔       |     ✔     |    ✔    |   ✔    |         ✔         |      ✔       |        ✔        |   ✔    |   ✔    |
-| product.create / product.update |   ✔   |   ✔   |       ✔       |          |         ✔         |               |           |         |        |                   |              |                 |        |        |
-| product.delete                  |   ✔   |   ✔   |       ✔       |          |         ✔         |               |           |         |        |                   |              |                 |        |        |
-| collection.manage               |   ✔   |   ✔   |       ✔       |          |         ✔         |               |     ✔     |         |        |                   |              |                 |        |        |
-| inventory.adjust                |   ✔   |   ✔   |       ✔       |          |         ✔         |       ✔       |           |         |        |         ✔         |              |                 |        |        |
-| media.manage                    |   ✔   |   ✔   |       ✔       |    ✔     |         ✔         |               |     ✔     |         |        |                   |      ✔       |        ✔        |   ✔    |   ✔    |
-| order.read                      |   ✔   |   ✔   |       ✔       |          |                   |       ✔       |           |    ✔    |        |                   |              |                 |        |        |
-| order.manage                    |   ✔   |   ✔   |       ✔       |          |                   |       ✔       |           |         |        |                   |              |                 |        |        |
-| order.refund                    |   ✔   |   ✔   |       ✔       |          |                   |       ✔       |           |         |        |                   |              |                 |        |        |
-| customer.read                   |   ✔   |   ✔   |       ✔       |          |                   |       ✔       |     ✔     |    ✔    |        |                   |              |                 |        |        |
-| customer.manage                 |   ✔   |   ✔   |       ✔       |          |                   |       ✔       |           |    ✔    |        |                   |              |                 |        |        |
-| discount.read                   |   ✔   |   ✔   |       ✔       |          |                   |       ✔       |     ✔     |    ✔    |   ✔    |                   |              |                 |        |        |
-| discount.manage                 |   ✔   |   ✔   |       ✔       |          |                   |               |     ✔     |         |        |                   |              |                 |        |        |
-| analytics.read                  |   ✔   |   ✔   |       ✔       |          |                   |               |     ✔     |         |   ✔    |                   |      ✔       |        ✔        |        |        |
-| design.edit                     |   ✔   |   ✔   |       ✔       |    ✔     |                   |               |     ✔     |         |        |                   |      ✔       |        ✔        |   ✔    |   ✔    |
-| page.publish                    |   ✔   |   ✔   |       ✔       |    ✔     |                   |               |           |         |        |                   |      ✔       |        ✔        |   ✔    |        |
-| theme.publish                   |   ✔   |   ✔   |       ✔       |    ✔     |                   |               |           |         |        |                   |      ✔       |                 |        |        |
-| navigation.manage               |   ✔   |   ✔   |       ✔       |    ✔     |                   |               |     ✔     |         |        |                   |      ✔       |        ✔        |        |        |
-| domain.manage                   |   ✔   |   ✔   |               |          |                   |               |           |         |        |                   |              |                 |        |        |
-| api_key.manage / webhook.manage |   ✔   |   ✔   |               |          |                   |               |           |         |        |                   |              |                 |        |        |
+| Permission                                                   | OWNER | ADMIN | STORE_MANAGER | DESIGNER | CATALOGUE_MANAGER | ORDER_MANAGER | MARKETING | SUPPORT | VIEWER | INVENTORY_MANAGER | SITE_MANAGER | CONTENT_MANAGER | EDITOR | AUTHOR |
+| ------------------------------------------------------------ | :---: | :---: | :-----------: | :------: | :---------------: | :-----------: | :-------: | :-----: | :----: | :---------------: | :----------: | :-------------: | :----: | :----: |
+| organisation.read                                            |   ✔   |   ✔   |       ✔       |    ✔     |         ✔         |       ✔       |     ✔     |    ✔    |   ✔    |         ✔         |      ✔       |        ✔        |   ✔    |   ✔    |
+| organisation.update                                          |   ✔   |   ✔   |               |          |                   |               |           |         |        |                   |              |                 |        |        |
+| organisation.delete                                          |   ✔   |       |               |          |                   |               |           |         |        |                   |              |                 |        |        |
+| ownership.transfer                                           |   ✔   |       |               |          |                   |               |           |         |        |                   |              |                 |        |        |
+| audit.read                                                   |   ✔   |   ✔   |               |          |                   |               |           |         |        |                   |              |                 |        |        |
+| member.read                                                  |   ✔   |   ✔   |       ✔       |          |                   |               |           |         |        |                   |      ✔       |                 |        |        |
+| member.manage                                                |   ✔   |   ✔   |               |          |                   |               |           |         |        |                   |              |                 |        |        |
+| billing.read                                                 |   ✔   |   ✔   |               |          |                   |               |           |         |        |                   |              |                 |        |        |
+| billing.manage                                               |   ✔   |       |               |          |                   |               |           |         |        |                   |              |                 |        |        |
+| store.create                                                 |   ✔   |   ✔   |               |          |                   |               |           |         |        |                   |              |                 |        |        |
+| store.read                                                   |   ✔   |   ✔   |       ✔       |    ✔     |         ✔         |       ✔       |     ✔     |    ✔    |   ✔    |         ✔         |      ✔       |        ✔        |   ✔    |   ✔    |
+| store.update / settings.manage                               |   ✔   |   ✔   |       ✔       |          |                   |               |           |         |        |                   |      ✔       |                 |        |        |
+| store.archive                                                |   ✔   |   ✔   |               |          |                   |               |           |         |        |                   |              |                 |        |        |
+| product.read / inventory.read / collection.read / media.read |   ✔   |   ✔   |       ✔       |    ✔     |         ✔         |       ✔       |     ✔     |    ✔    |   ✔    |         ✔         |      ✔       |        ✔        |   ✔    |   ✔    |
+| product.create / product.update                              |   ✔   |   ✔   |       ✔       |          |         ✔         |               |           |         |        |                   |              |                 |        |        |
+| product.archive                                              |   ✔   |   ✔   |       ✔       |          |         ✔         |               |           |         |        |                   |              |                 |        |        |
+| collection.manage                                            |   ✔   |   ✔   |       ✔       |          |         ✔         |               |     ✔     |         |        |                   |              |                 |        |        |
+| inventory.adjust                                             |   ✔   |   ✔   |       ✔       |          |         ✔         |       ✔       |           |         |        |         ✔         |              |                 |        |        |
+| location.manage                                              |   ✔   |   ✔   |       ✔       |          |                   |               |           |         |        |         ✔         |              |                 |        |        |
+| media.manage                                                 |   ✔   |   ✔   |       ✔       |    ✔     |         ✔         |               |     ✔     |         |        |                   |      ✔       |        ✔        |   ✔    |   ✔    |
+| order.read                                                   |   ✔   |   ✔   |       ✔       |          |                   |       ✔       |           |    ✔    |        |                   |              |                 |        |        |
+| order.manage                                                 |   ✔   |   ✔   |       ✔       |          |                   |       ✔       |           |         |        |                   |              |                 |        |        |
+| order.refund                                                 |   ✔   |   ✔   |       ✔       |          |                   |       ✔       |           |         |        |                   |              |                 |        |        |
+| customer.read                                                |   ✔   |   ✔   |       ✔       |          |                   |       ✔       |     ✔     |    ✔    |        |                   |              |                 |        |        |
+| customer.manage                                              |   ✔   |   ✔   |       ✔       |          |                   |       ✔       |           |    ✔    |        |                   |              |                 |        |        |
+| discount.read                                                |   ✔   |   ✔   |       ✔       |          |                   |       ✔       |     ✔     |    ✔    |   ✔    |                   |              |                 |        |        |
+| discount.manage                                              |   ✔   |   ✔   |       ✔       |          |                   |               |     ✔     |         |        |                   |              |                 |        |        |
+| analytics.read                                               |   ✔   |   ✔   |       ✔       |          |                   |               |     ✔     |         |   ✔    |                   |      ✔       |        ✔        |        |        |
+| design.edit                                                  |   ✔   |   ✔   |       ✔       |    ✔     |                   |               |     ✔     |         |        |                   |      ✔       |        ✔        |   ✔    |   ✔    |
+| page.publish                                                 |   ✔   |   ✔   |       ✔       |    ✔     |                   |               |           |         |        |                   |      ✔       |        ✔        |   ✔    |        |
+| theme.publish                                                |   ✔   |   ✔   |       ✔       |    ✔     |                   |               |           |         |        |                   |      ✔       |                 |        |        |
+| navigation.manage                                            |   ✔   |   ✔   |       ✔       |    ✔     |                   |               |     ✔     |         |        |                   |      ✔       |        ✔        |        |        |
+| domain.manage                                                |   ✔   |   ✔   |               |          |                   |               |           |         |        |                   |              |                 |        |        |
+| api_key.manage / webhook.manage                              |   ✔   |   ✔   |               |          |                   |               |           |         |        |                   |              |                 |        |        |
 
 Notes:
 

@@ -10,10 +10,16 @@ const BYTE_FEATURES: ReadonlySet<FeatureKey> = new Set<FeatureKey>(["media_stora
 const GiB = 1024n ** 3n;
 const MiB = 1024n ** 2n;
 
+/** Whether a limit feature is measured in bytes (media storage). */
+export function isByteFeature(key: FeatureKey): boolean {
+  return BYTE_FEATURES.has(key);
+}
+
 export function formatBytes(bytes: bigint): string {
   if (bytes >= GiB && bytes % GiB === 0n) return `${(bytes / GiB).toLocaleString("en-GB")} GB`;
   if (bytes >= GiB) return `${(Number(bytes) / Number(GiB)).toFixed(1)} GB`;
   if (bytes >= MiB) return `${(bytes / MiB).toLocaleString("en-GB")} MB`;
+  if (bytes >= 1024n) return `${(bytes / 1024n).toLocaleString("en-GB")} KB`;
   return `${bytes.toLocaleString("en-GB")} bytes`;
 }
 

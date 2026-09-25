@@ -31,11 +31,14 @@ export function isFeatureKey(value: string): value is FeatureKey {
 /**
  * Gauge features: usage is a count of live rows, kept in UsageCounter by the
  * code that creates and removes those rows, and recomputable from them
- * (reconcileUsage). Enforced from Milestone 2.
+ * (reconcileUsage). Stores and staff from Milestone 2; products and media
+ * storage (bytes) from Milestone 3 (ADR-0027).
  */
 export const GAUGE_FEATURES = [
   "store_count",
   "staff_accounts",
+  "product_limit",
+  "media_storage",
 ] as const satisfies readonly FeatureKey[];
 
 export type GaugeFeature = (typeof GAUGE_FEATURES)[number];

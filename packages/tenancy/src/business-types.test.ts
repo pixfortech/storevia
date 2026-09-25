@@ -118,8 +118,11 @@ describe("role presets map onto permission primitives", () => {
     }
     expect([...ROLE_PERMISSIONS.INVENTORY_MANAGER].sort()).toEqual(
       [
+        "collection.read",
         "inventory.adjust",
         "inventory.read",
+        "location.manage",
+        "media.read",
         "organisation.read",
         "product.read",
         "store.read",

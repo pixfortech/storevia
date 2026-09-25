@@ -1,3 +1,422 @@
+// -----------------------------------------------------------------------------
+// 5. Media
+// -----------------------------------------------------------------------------
+
+enum MediaKind {
+  IMAGE
+  VIDEO
+  DOCUMENT
+}
+
+enum MediaStatus {
+  PENDING_UPLOAD
+  PROCESSING
+  READY
+  REJECTED
+  DELETED
+}
+
+model MediaAsset {
+  id               String      @id @default(uuid(7)) @db.Uuid
+  organisationId   String      @db.Uuid
+  storeId          String      @db.Uuid
+  kind             MediaKind
+  status           MediaStatus @default(PENDING_UPLOAD)
+  filename         String
+  /// MIME detected server-side from content (magic bytes), not the extension.
+  mimeType         String?
+  declaredMimeType String
+  sizeBytes        BigInt?
+  width            Int?
+  height           Int?
+  durationMs       Int?
+  /// Opaque key: {organisationId}/{storeId}/{mediaId}/original — never user input.
+  storageKey       String      @unique
+  sha256           String?
+  altText          String?
+  /// Generated renditions: [{ key, width, height, format }]
+  renditions       Json?
+  createdById      String?     @db.Uuid
+  createdAt        DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime    @updatedAt @db.Timestamptz(3)
+  deletedAt        DateTime?   @db.Timestamptz(3)
+
+  store        Store          @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  productMedia ProductMedia[]
+
+  @@unique([id, storeId])
+  @@index([storeId, createdAt])
+  @@index([storeId, kind, status])
+}
+
+// -----------------------------------------------------------------------------
+// 6. Catalogue
+// -----------------------------------------------------------------------------
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+/// SQL: partial unique (storeId, handle) WHERE deletedAt IS NULL;
+/// GIN full-text index over title/tags (see search ADR).
+model Product {
+  id              String        @id @default(uuid(7)) @db.Uuid
+  organisationId  String        @db.Uuid
+  storeId         String        @db.Uuid
+  title           String
+  handle          String
+  status          ProductStatus @default(DRAFT)
+  /// Canonical rich text as Tiptap/ProseMirror JSON; HTML is derived.
+  descriptionDoc  Json?
+  /// Sanitised HTML rendered from descriptionDoc (cache, never user-authored).
+  descriptionHtml String?
+  productType     String?
+  vendor          String?
+  tags            String[]
+  /// Reference into the global product taxonomy (deferred, see erd.md §7).
+  categoryCode    String?
+  seoTitle        String?
+  seoDescription  String?
+  publishedAt     DateTime?     @db.Timestamptz(3)
+  /// Set when the product is archived; cleared when it is restored (ADR-0027).
+  archivedAt      DateTime?     @db.Timestamptz(3)
+  /// Authorship; kept when the user is deleted (ADR-0027).
+  createdById     String?       @db.Uuid
+  updatedById     String?       @db.Uuid
+  createdAt       DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @db.Timestamptz(3)
+  deletedAt       DateTime?     @db.Timestamptz(3)
+
+  store       Store               @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  createdBy   User?               @relation("ProductCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  updatedBy   User?               @relation("ProductUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  options     ProductOption[]
+  variants    ProductVariant[]
+  media       ProductMedia[]
+  collections CollectionProduct[]
+
+  @@unique([id, storeId])
+  @@index([createdById])
+  @@index([updatedById])
+  @@index([storeId, status, updatedAt])
+}
+
+/// e.g. "Size", "Colour". Max 3 options per product (service rule).
+model ProductOption {
+  id             String @id @default(uuid(7)) @db.Uuid
+  organisationId String @db.Uuid
+  storeId        String @db.Uuid
+  productId      String @db.Uuid
+  name           String
+  position       Int
+
+  store         Store                       @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  product       Product                     @relation(fields: [productId, storeId], references: [id, storeId], onDelete: Cascade)
+  values        ProductOptionValue[]
+  variantValues ProductVariantOptionValue[]
+
+  @@unique([productId, name])
+  @@unique([productId, position])
+  @@unique([id, storeId])
+  @@unique([id, productId])
+  @@index([storeId])
+}
+
+model ProductOptionValue {
+  id             String @id @default(uuid(7)) @db.Uuid
+  organisationId String @db.Uuid
+  storeId        String @db.Uuid
+  optionId       String @db.Uuid
+  value          String
+  position       Int
+
+  store         Store                       @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  option        ProductOption               @relation(fields: [optionId, storeId], references: [id, storeId], onDelete: Cascade)
+  variantValues ProductVariantOptionValue[]
+
+  @@unique([optionId, value])
+  @@unique([id, storeId])
+  @@unique([id, optionId])
+  @@index([storeId])
+}
+
+enum InventoryPolicy {
+  DENY
+  CONTINUE
+}
+
+/// Every product has >= 1 variant. A product without options has exactly one
+/// "default" variant (optionSignature = ""). Prices are store-currency minor
+/// units; `currency` is stored explicitly so every amount carries its currency.
+/// SQL: partial unique (storeId, sku) WHERE sku IS NOT NULL AND deletedAt IS NULL;
+///      CHECK (priceAmount >= 0), CHECK (compareAtAmount IS NULL OR compareAtAmount > priceAmount).
+model ProductVariant {
+  id               String          @id @default(uuid(7)) @db.Uuid
+  organisationId   String          @db.Uuid
+  storeId          String          @db.Uuid
+  productId        String          @db.Uuid
+  title            String
+  /// Sorted "optionId=valueId" pairs; unique per product. Prevents duplicates.
+  optionSignature  String
+  sku              String?
+  barcode          String?
+  currency         String          @db.Char(3)
+  priceAmount      BigInt
+  compareAtAmount  BigInt?
+  costAmount       BigInt?
+  weightGrams      Int?
+  requiresShipping Boolean         @default(true)
+  taxable          Boolean         @default(true)
+  taxCode          String?
+  inventoryPolicy  InventoryPolicy @default(DENY)
+  imageMediaId     String?         @db.Uuid
+  position         Int             @default(0)
+  createdAt        DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime        @updatedAt @db.Timestamptz(3)
+  deletedAt        DateTime?       @db.Timestamptz(3)
+
+  store         Store                       @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  product       Product                     @relation(fields: [productId, storeId], references: [id, storeId], onDelete: Cascade)
+  optionValues  ProductVariantOptionValue[]
+  inventoryItem InventoryItem?
+
+  @@unique([productId, optionSignature])
+  @@unique([id, storeId])
+  @@index([storeId, sku])
+}
+
+/// Exactly one value per option per variant (unique variantId+optionId);
+/// the value must belong to that option (composite FK optionValueId+optionId).
+model ProductVariantOptionValue {
+  organisationId String @db.Uuid
+  storeId        String @db.Uuid
+  variantId      String @db.Uuid
+  optionId       String @db.Uuid
+  optionValueId  String @db.Uuid
+
+  store       Store              @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  variant     ProductVariant     @relation(fields: [variantId, storeId], references: [id, storeId], onDelete: Cascade)
+  option      ProductOption      @relation(fields: [optionId, storeId], references: [id, storeId], onDelete: Cascade)
+  optionValue ProductOptionValue @relation(fields: [optionValueId, optionId], references: [id, optionId], onDelete: Cascade)
+
+  @@id([variantId, optionId])
+  @@index([optionValueId])
+  @@index([storeId])
+  @@index([optionId])
+}
+
+model ProductMedia {
+  id             String  @id @default(uuid(7)) @db.Uuid
+  organisationId String  @db.Uuid
+  storeId        String  @db.Uuid
+  productId      String  @db.Uuid
+  mediaAssetId   String  @db.Uuid
+  position       Int
+  altText        String?
+
+  store      Store      @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  product    Product    @relation(fields: [productId, storeId], references: [id, storeId], onDelete: Cascade)
+  mediaAsset MediaAsset @relation(fields: [mediaAssetId, storeId], references: [id, storeId], onDelete: Restrict)
+
+  @@unique([productId, mediaAssetId])
+  @@index([productId, position])
+  @@index([storeId])
+  @@index([mediaAssetId])
+}
+
+enum CollectionType {
+  MANUAL
+  SMART
+}
+
+enum CollectionSortOrder {
+  MANUAL
+  BEST_SELLING
+  TITLE_ASC
+  TITLE_DESC
+  PRICE_ASC
+  PRICE_DESC
+  CREATED_DESC
+}
+
+/// SQL: partial unique (storeId, handle) WHERE deletedAt IS NULL.
+model Collection {
+  id              String              @id @default(uuid(7)) @db.Uuid
+  organisationId  String              @db.Uuid
+  storeId         String              @db.Uuid
+  title           String
+  handle          String
+  type            CollectionType      @default(MANUAL)
+  /// SMART collections: validated rule set (schema in packages/validation).
+  rules           Json?
+  sortOrder       CollectionSortOrder @default(MANUAL)
+  descriptionDoc  Json?
+  descriptionHtml String?
+  imageMediaId    String?             @db.Uuid
+  seoTitle        String?
+  seoDescription  String?
+  publishedAt     DateTime?           @db.Timestamptz(3)
+  createdAt       DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime            @updatedAt @db.Timestamptz(3)
+  deletedAt       DateTime?           @db.Timestamptz(3)
+
+  store    Store               @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  products CollectionProduct[]
+
+  @@unique([id, storeId])
+  @@index([storeId, updatedAt])
+}
+
+model CollectionProduct {
+  organisationId String   @db.Uuid
+  storeId        String   @db.Uuid
+  collectionId   String   @db.Uuid
+  productId      String   @db.Uuid
+  position       Int
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+
+  store      Store      @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  collection Collection @relation(fields: [collectionId, storeId], references: [id, storeId], onDelete: Cascade)
+  product    Product    @relation(fields: [productId, storeId], references: [id, storeId], onDelete: Cascade)
+
+  @@id([collectionId, productId])
+  @@index([productId])
+  @@index([collectionId, position])
+  @@index([storeId])
+}
+
+// -----------------------------------------------------------------------------
+// 7. Inventory (location-aware, movement-audited)
+// -----------------------------------------------------------------------------
+
+model Location {
+  id                  String    @id @default(uuid(7)) @db.Uuid
+  organisationId      String    @db.Uuid
+  storeId             String    @db.Uuid
+  name                String
+  /// Short stable reference ("MAIN", "WH-2"); SQL: partial unique (storeId, code)
+  /// WHERE deletedAt IS NULL (ADR-0027).
+  code                String
+  addressLine1        String?
+  addressLine2        String?
+  city                String?
+  region              String?
+  postalCode          String?
+  countryCode         String    @db.Char(2)
+  phone               String?
+  isActive            Boolean   @default(true)
+  fulfilsOnlineOrders Boolean   @default(true)
+  /// Lower value = preferred when allocating online orders.
+  priority            Int       @default(0)
+  createdAt           DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime  @updatedAt @db.Timestamptz(3)
+  deletedAt           DateTime? @db.Timestamptz(3)
+
+  store     Store               @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  levels    InventoryLevel[]
+  movements InventoryMovement[]
+
+  @@unique([id, storeId])
+  @@index([storeId])
+}
+
+/// 1:1 with ProductVariant. Separated so inventory can later exist for
+/// non-variant stock (bundles, components) without touching the catalogue.
+model InventoryItem {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  organisationId  String   @db.Uuid
+  storeId         String   @db.Uuid
+  variantId       String   @unique @db.Uuid
+  tracked         Boolean  @default(true)
+  countryOfOrigin String?  @db.Char(2)
+  hsCode          String?
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(3)
+
+  store     Store               @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  variant   ProductVariant      @relation(fields: [variantId, storeId], references: [id, storeId], onDelete: Cascade)
+  levels    InventoryLevel[]
+  movements InventoryMovement[]
+
+  @@unique([id, storeId])
+  @@unique([variantId, storeId])
+  @@index([storeId])
+}
+
+/// on hand = available + reserved. Quantities change ONLY through the
+/// inventory service, which writes an InventoryMovement in the same
+/// transaction. SQL: CHECK (reserved >= 0 AND incoming >= 0).
+model InventoryLevel {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  organisationId  String   @db.Uuid
+  storeId         String   @db.Uuid
+  inventoryItemId String   @db.Uuid
+  locationId      String   @db.Uuid
+  available       Int      @default(0)
+  reserved        Int      @default(0)
+  incoming        Int      @default(0)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(3)
+
+  store         Store         @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId, storeId], references: [id, storeId], onDelete: Cascade)
+  location      Location      @relation(fields: [locationId, storeId], references: [id, storeId], onDelete: Restrict)
+
+  @@unique([inventoryItemId, locationId])
+  @@index([locationId])
+  @@index([storeId])
+}
+
+enum InventoryQuantityName {
+  AVAILABLE
+  RESERVED
+  INCOMING
+}
+
+enum InventoryMovementReason {
+  /// First stock recorded for an item at a location (ADR-0027).
+  INITIAL
+  SALE
+  RETURN
+  MANUAL_ADJUSTMENT
+  TRANSFER
+  RESTOCK
+  CANCELLATION
+  RESERVATION
+  RESERVATION_RELEASE
+  FULFILMENT
+  RECEIVED
+  CORRECTION
+}
+
+/// Append-only ledger (UPDATE/DELETE revoked from the app role).
+model InventoryMovement {
+  id              String                  @id @default(uuid(7)) @db.Uuid
+  organisationId  String                  @db.Uuid
+  storeId         String                  @db.Uuid
+  inventoryItemId String                  @db.Uuid
+  locationId      String                  @db.Uuid
+  quantityName    InventoryQuantityName
+  delta           Int
+  /// Value after the change — makes reconciliation and audits cheap.
+  resultingValue  Int
+  reason          InventoryMovementReason
+  referenceType   String?
+  referenceId     String?                 @db.Uuid
+  note            String?
+  actorUserId     String?                 @db.Uuid
+  createdAt       DateTime                @default(now()) @db.Timestamptz(3)
+
+  store         Store         @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId, storeId], references: [id, storeId], onDelete: Restrict)
+  location      Location      @relation(fields: [locationId, storeId], references: [id, storeId], onDelete: Restrict)
+
+  @@index([inventoryItemId, createdAt])
+  @@index([storeId, createdAt])
+  @@index([locationId])
+}
+
 // Storevia live database schema.
 //
 // Models are promoted here from docs/database/schema.draft.prisma one milestone
@@ -46,6 +465,8 @@ model User {
   invitationsAccepted  Invitation[]   @relation("InvitationAcceptedBy")
   platformStaff        PlatformStaff?
   organisationsCreated Organisation[] @relation("OrganisationCreatedBy")
+  productsCreated      Product[]      @relation("ProductCreatedBy")
+  productsUpdated      Product[]      @relation("ProductUpdatedBy")
 }
 
 model Account {
@@ -290,9 +711,22 @@ model Store {
   createdAt        DateTime     @default(now()) @db.Timestamptz(3)
   updatedAt        DateTime     @updatedAt @db.Timestamptz(3)
 
-  organisation Organisation            @relation(fields: [organisationId], references: [id], onDelete: Restrict)
-  memberAccess MembershipStoreAccess[]
-  domains      StoreDomain[]
+  organisation        Organisation                @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  memberAccess        MembershipStoreAccess[]
+  domains             StoreDomain[]
+  media               MediaAsset[]
+  products            Product[]
+  productOptions      ProductOption[]
+  productOptionValues ProductOptionValue[]
+  productVariants     ProductVariant[]
+  variantOptionValues ProductVariantOptionValue[]
+  productMedia        ProductMedia[]
+  collections         Collection[]
+  collectionProducts  CollectionProduct[]
+  locations           Location[]
+  inventoryItems      InventoryItem[]
+  inventoryLevels     InventoryLevel[]
+  inventoryMovements  InventoryMovement[]
 
   @@unique([id, organisationId])
   @@index([organisationId])
