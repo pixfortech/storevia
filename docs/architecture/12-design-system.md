@@ -177,6 +177,23 @@ About 450 KiB of each page is React and the Next.js runtime. Lighthouse
 (simulated mobile, median of three): home 86 → 88, /products 90 → 93,
 dashboard sign-in 91 → 95; accessibility 100.
 
+Milestone 3 catalogue pages, measured the same way (with the seeded
+catalogue, after UUID generation moved to Web Crypto so client pages no
+longer pull Node crypto, buffer and stream polyfills: −430 KiB each):
+
+| Page           | JavaScript         | TTFB / LCP (median of 3, local) |
+| -------------- | ------------------ | ------------------------------- |
+| Products       | 750 KiB (238 KiB)  | 71 ms / 252 ms                  |
+| Collections    | 735 KiB (235 KiB)  | 63 ms / 224 ms                  |
+| Inventory      | 740 KiB (236 KiB)  | 76 ms / 264 ms                  |
+| Media library  | 745 KiB (238 KiB)  | 54 ms / 280 ms                  |
+| Product editor | 1192 KiB (377 KiB) | 100 ms / 276 ms                 |
+| New product    | 1149 KiB (365 KiB) | 63 ms / 240 ms                  |
+
+The editor pages' extra ~400 KiB is the rich-text editor (Tiptap and
+ProseMirror), loaded as a separate chunk after the page renders; the
+catalogue list pages don't load it.
+
 Remaining weight is code the page renders: the marketing header's
 mega-menu and phone-menu dialog on every marketing page, and on the store
 home the dashboard shell (menus, command menu, tooltips) plus the chart
