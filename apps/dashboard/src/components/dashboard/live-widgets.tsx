@@ -3,6 +3,7 @@
 // business type's focus areas. Real figures only; each renders nothing it
 // wasn't given, and the page gives each only what the member may read.
 import { cn } from "@storevia/ui/cn";
+import { formatBytes } from "@storevia/entitlements/format";
 import { UsageMeter } from "@storevia/ui/data";
 import { Progress } from "@storevia/ui/feedback";
 import { Icon } from "@storevia/ui/icons";
@@ -38,7 +39,7 @@ import { NAV_ICONS } from "@/components/shell/icons";
 import type { ActivityCategory, ActivityItem } from "@/lib/dashboard/activity";
 import type { ComposedWidget } from "@/lib/dashboard/compose";
 import { websiteLaunchNote, type SetupTask } from "@/lib/dashboard/setup";
-import type { LiveData, PlanSummary, TeamSummary, WebsiteSummary } from "./types";
+import type { CatalogueSummary, LiveData, PlanSummary, TeamSummary, WebsiteSummary } from "./types";
 
 /** A quiet text link with an arrow: the card's way onward. 44 px tall below desktop and on touch. */
 function CardLink({ href, children }: { href: string; children: ReactNode }) {
@@ -222,6 +223,9 @@ export function PlanUsageCard({ widget, plan }: { widget: ComposedWidget; plan: 
             label={line.label}
             used={line.used}
             limit={line.limit}
+            {...(line.bytes
+              ? { format: (value: number) => formatBytes(BigInt(Math.round(value))) }
+              : {})}
           />
         ))}
         {plan.note ? <p className="text-caption text-ink-faint">{plan.note}</p> : null}
@@ -384,5 +388,163 @@ export function FocusBand({ widget, areas }: { widget: ComposedWidget; areas: Li
         })}
       </ul>
     </section>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * Catalogue (Milestone 3): real product and stock numbers
+ * ------------------------------------------------------------------------- */
+
+const STATUS_TONE: Record<"DRAFT" | "ACTIVE" | "ARCHIVED", BadgeTone> = {
+  ACTIVE: "success",
+  DRAFT: "neutral",
+  ARCHIVED: "warning",
+};
+
+export function CatalogueCard({
+  widget,
+  catalogue,
+}: {
+  widget: ComposedWidget;
+  catalogue: CatalogueSummary;
+}) {
+  const { products } = catalogue;
+  return (
+    <Card className="flex flex-col" data-testid="widget-catalogue">
+      <CardHeader divider={false} title={widget.title} description={widget.description} />
+      <CardBody className="flex-1 space-y-4 pt-4">
+        {products.total === 0 ? (
+          <p className="text-body-sm text-ink-muted">
+            No products yet. Add one with a title, a price and a photo.
+          </p>
+        ) : (
+          <>
+            <dl className="grid grid-cols-3 gap-3">
+              {[
+                { label: "Products", value: products.total },
+                { label: "Active", value: products.active },
+                { label: "Drafts", value: products.draft },
+              ].map((item) => (
+                <div key={item.label} className="rounded-control bg-subtle px-3 py-2.5">
+                  <dt className="text-caption text-ink-muted">{item.label}</dt>
+                  <dd className="font-display text-title-sm font-semibold text-ink tabular-nums">
+                    {item.value.toLocaleString("en-IN")}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            {catalogue.recentlyUpdated.length > 0 ? (
+              <div>
+                <p className="mb-1.5 text-caption font-medium text-ink-faint">Recently updated</p>
+                <ul className="divide-y divide-line">
+                  {catalogue.recentlyUpdated.map((p) => (
+                    <li key={p.href} className="flex items-center justify-between gap-3 py-2">
+                      <Link
+                        href={p.href}
+                        className="min-w-0 truncate text-body-sm font-medium text-ink hover:text-brand-700"
+                      >
+                        {p.title}
+                      </Link>
+                      <span className="flex shrink-0 items-center gap-2">
+                        <Badge size="sm" variant="dot" tone={STATUS_TONE[p.status]}>
+                          {p.status === "ACTIVE"
+                            ? "Active"
+                            : p.status === "DRAFT"
+                              ? "Draft"
+                              : "Archived"}
+                        </Badge>
+                        <span className="hidden text-caption text-ink-faint sm:inline">
+                          {p.when}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </>
+        )}
+      </CardBody>
+      <CardFooter className="justify-between py-1.5">
+        <CardLink href={catalogue.productsHref}>All products</CardLink>
+        {catalogue.newProductHref ? (
+          <CardLink href={catalogue.newProductHref}>Add product</CardLink>
+        ) : null}
+      </CardFooter>
+    </Card>
+  );
+}
+
+export function StockAlertsCard({
+  widget,
+  catalogue,
+}: {
+  widget: ComposedWidget;
+  catalogue: CatalogueSummary;
+}) {
+  const nothing = catalogue.lowStockVariants === 0 && catalogue.outOfStockVariants === 0;
+  return (
+    <Card className="flex flex-col" data-testid="widget-stock-alerts">
+      <CardHeader divider={false} title={widget.title} description={widget.description} />
+      <CardBody className="flex-1 space-y-4 pt-4">
+        <dl className="grid grid-cols-2 gap-3">
+          <div className="rounded-control bg-subtle px-3 py-2.5">
+            <dt className="text-caption text-ink-muted">Out of stock</dt>
+            <dd
+              className={cn(
+                "font-display text-title-sm font-semibold tabular-nums",
+                catalogue.outOfStockVariants > 0 ? "text-danger-700" : "text-ink",
+              )}
+            >
+              {catalogue.outOfStockVariants.toLocaleString("en-IN")}
+            </dd>
+          </div>
+          <div className="rounded-control bg-subtle px-3 py-2.5">
+            <dt className="text-caption text-ink-muted">Low (≤ {catalogue.lowStockThreshold})</dt>
+            <dd
+              className={cn(
+                "font-display text-title-sm font-semibold tabular-nums",
+                catalogue.lowStockVariants > 0 ? "text-warning-700" : "text-ink",
+              )}
+            >
+              {catalogue.lowStockVariants.toLocaleString("en-IN")}
+            </dd>
+          </div>
+        </dl>
+        {nothing ? (
+          <p className="flex items-center gap-2 text-body-sm text-ink-muted">
+            <Icon icon={Check} size="sm" className="text-success-600" />
+            Every tracked variant has stock to sell.
+          </p>
+        ) : (
+          <ul className="divide-y divide-line">
+            {catalogue.lowStock.map((item) => (
+              <li
+                key={`${item.href}-${item.label}`}
+                className="flex items-center justify-between gap-3 py-2"
+              >
+                <Link
+                  href={item.href}
+                  className="min-w-0 truncate text-body-sm text-ink hover:text-brand-700"
+                >
+                  {item.label}
+                </Link>
+                <span
+                  className={cn(
+                    "shrink-0 text-body-sm font-medium tabular-nums",
+                    item.available <= 0 ? "text-danger-700" : "text-warning-700",
+                  )}
+                >
+                  {item.available.toLocaleString("en-IN")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardBody>
+      <CardFooter className="justify-start py-1.5">
+        <CardLink href={catalogue.inventoryHref}>Inventory</CardLink>
+      </CardFooter>
+    </Card>
   );
 }

@@ -1,4 +1,5 @@
 import { cn } from "@storevia/ui/cn";
+import { formatBytes } from "@storevia/entitlements/format";
 import { UsageMeter } from "@storevia/ui/data";
 import { Icon } from "@storevia/ui/icons";
 import { Badge } from "@storevia/ui/surfaces";
@@ -47,6 +48,9 @@ export function PlanIndicator({ plan, className }: { plan: ShellPlan; className?
           label={plan.meter.label}
           used={plan.meter.used}
           limit={plan.meter.limit}
+          {...(plan.meter.bytes
+            ? { format: (value: number) => formatBytes(BigInt(Math.round(value))) }
+            : {})}
           size="sm"
           className="mt-2"
         />

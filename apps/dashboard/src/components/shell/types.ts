@@ -29,7 +29,7 @@ export interface ShellOption {
 
 export interface ShellAction {
   /** Picks the icon in the Create sheet. */
-  readonly key: "invite-member" | "create-store";
+  readonly key: "invite-member" | "create-store" | "create-product";
   readonly label: string;
   /** One line under the label in the Create sheet. */
   readonly description: string;
@@ -52,7 +52,14 @@ export interface ShellPlan {
   readonly href: string;
   /** The usage line closest to its limit. Real counts only. */
   readonly meter?:
-    { readonly label: string; readonly used: number; readonly limit: number | null } | undefined;
+    | {
+        readonly label: string;
+        readonly used: number;
+        readonly limit: number | null;
+        /** Measured in bytes (media storage): shown as KB, MB or GB. */
+        readonly bytes?: boolean | undefined;
+      }
+    | undefined;
 }
 
 export interface ShellData {

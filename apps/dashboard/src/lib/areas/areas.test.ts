@@ -197,7 +197,7 @@ describe("billing presentation", () => {
         name: "Products",
         label: "Unlimited",
         included: true,
-        availability: "Coming in Milestone 3",
+        availability: null,
       },
     ]);
     expect(groups.features).toEqual([
@@ -213,7 +213,7 @@ describe("billing presentation", () => {
         name: "API access",
         label: "Not included",
         included: false,
-        availability: "Coming in Milestone 3",
+        availability: "On the roadmap",
       },
     ]);
   });
@@ -225,10 +225,13 @@ describe("billing presentation", () => {
         expect(availability).toMatch(/^(Coming in Milestone \d+|On the roadmap)$/);
       }
     }
-    // Stores and team members are the only plan features merchants can use today.
+    // Stores, team members, products and media storage are the plan features
+    // merchants can use today.
     expect(FEATURE_KEYS.filter((key) => FEATURE_AVAILABILITY[key] === null)).toEqual([
       "store_count",
       "staff_accounts",
+      "product_limit",
+      "media_storage",
     ]);
   });
 });

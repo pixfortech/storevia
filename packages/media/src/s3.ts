@@ -79,7 +79,7 @@ export class S3ObjectStorage implements ObjectStorage {
     return doFetch(url, {
       method,
       headers,
-      ...(options.body ? { body: options.body } : {}),
+      ...(options.body ? { body: new Uint8Array(options.body) } : {}),
       redirect: "error",
     });
   }

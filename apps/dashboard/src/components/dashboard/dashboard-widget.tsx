@@ -2,6 +2,8 @@ import type { ComposedWidget } from "@/lib/dashboard/compose";
 import { ListWidget, MetricWidget, RankingWidget, ShareWidget, TrendWidget } from "./data-widgets";
 import {
   ActivityCard,
+  CatalogueCard,
+  StockAlertsCard,
   FocusBand,
   PlanUsageCard,
   SetupCard,
@@ -54,6 +56,10 @@ export function DashboardWidget({
       return live.activity ? <ActivityCard widget={widget} items={live.activity} /> : null;
     case "focus":
       return <FocusBand widget={widget} areas={live.focus} />;
+    case "catalogue":
+      return live.catalogue ? <CatalogueCard widget={widget} catalogue={live.catalogue} /> : null;
+    case "stock-alerts":
+      return live.catalogue ? <StockAlertsCard widget={widget} catalogue={live.catalogue} /> : null;
     default:
       return null;
   }

@@ -1,3 +1,5 @@
+import { getCatalogueOverview } from "@storevia/commerce";
+import { isByteFeature } from "@storevia/entitlements/format";
 import {
   getOrganisationBilling,
   getStore,
@@ -22,7 +24,8 @@ import type { DashboardScope, LiveData } from "@/components/dashboard/types";
 import { PageHeader } from "@/components/shell/app-shell";
 import { planIndicator } from "@/components/shell/plan";
 import { BUSINESS_TYPE_GLYPH } from "@/lib/business-types";
-import { describeActivity } from "@/lib/dashboard/activity";
+import { describeActivity, relativeTime } from "@/lib/dashboard/activity";
+import { inventoryPath, productPath, productsPath } from "@/lib/catalogue";
 import { composeDashboard, focusAreas, hasPeriodData } from "@/lib/dashboard/compose";
 import { arrangeDashboard } from "@/lib/dashboard/layout";
 import {
@@ -71,11 +74,12 @@ export default async function StoreHomePage({
   // Load only what a visible widget needs; each read enforces its own permission.
   const needsMembers =
     hasPermission(ctx, "member.read") && (shows("team") || hasPermission(ctx, "member.manage"));
-  const [store, billing, members, activity] = await Promise.all([
+  const [store, billing, members, activity, overview] = await Promise.all([
     getStore(ctx),
     shows("plan-usage") ? getOrganisationBilling(ctx) : null,
     needsMembers ? listMembers(organisationOf(ctx)) : null,
     shows("activity") ? listRecentActivity(ctx, { limit: 5 }) : null,
+    shows("catalogue") || shows("stock-alerts") ? getCatalogueOverview(ctx) : null,
   ]);
 
   const definition = BUSINESS_TYPE_DEFINITIONS[store.businessType];
@@ -123,6 +127,7 @@ export default async function StoreHomePage({
               label: line.name,
               used: Number(line.usage),
               limit: line.limit === "unlimited" ? "unlimited" : Number(line.limit),
+              ...(isByteFeature(line.key) ? { bytes: true } : {}),
             })),
             href: plan.href,
           }
@@ -141,6 +146,33 @@ export default async function StoreHomePage({
         : null,
     activity:
       activity?.map((entry) => describeActivity(entry, { now, timeZone: store.timezone })) ?? null,
+    catalogue: overview
+      ? {
+          products: overview.products,
+          lowStockVariants: overview.lowStockVariants,
+          outOfStockVariants: overview.outOfStockVariants,
+          lowStockThreshold: overview.lowStockThreshold,
+          recentlyUpdated: overview.recentlyUpdated.map((p) => ({
+            title: p.title,
+            status: p.status,
+            href: productPath(ctx.storeId, p.id),
+            when: relativeTime(p.updatedAt, now),
+          })),
+          lowStock: overview.lowStock.map((l) => ({
+            label:
+              l.variantTitle === "Default"
+                ? l.productTitle
+                : `${l.productTitle} · ${l.variantTitle}`,
+            available: l.available,
+            href: productPath(ctx.storeId, l.productId),
+          })),
+          productsHref: productsPath(ctx.storeId),
+          newProductHref: hasPermission(ctx, "product.create")
+            ? productsPath(ctx.storeId, "/new")
+            : null,
+          inventoryHref: inventoryPath(ctx.storeId),
+        }
+      : null,
     focus: focusAreas(store.businessType, ctx.permissions, granted).map((item) => ({
       ...item,
       href: storePath(ctx.storeId, item.area.segment),

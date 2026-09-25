@@ -60,6 +60,19 @@ describe("clientIp", () => {
 });
 
 describe("contentSecurityPolicy", () => {
+  it("adds only well-formed media origins, never paths or other schemes", () => {
+    const csp = contentSecurityPolicy({
+      nonce: "abc",
+      isDevelopment: false,
+      secure: true,
+      imageOrigins: ["https://cdn.example.test/media/x", "javascript:alert(1)", "*"],
+      uploadOrigins: ["https://bucket.s3.example.test/"],
+    });
+    expect(csp).toContain("img-src 'self' data: blob: https://cdn.example.test;");
+    expect(csp).toContain("connect-src 'self' https://bucket.s3.example.test;");
+    expect(csp).not.toContain("javascript");
+  });
+
   it("uses a nonce and forbids framing and plugins", () => {
     const csp = contentSecurityPolicy({ nonce: "abc", isDevelopment: false, secure: true });
     expect(csp).toContain("script-src 'self' 'nonce-abc' 'strict-dynamic'");

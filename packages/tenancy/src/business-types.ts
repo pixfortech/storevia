@@ -73,15 +73,13 @@ export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
     label: "Products",
     segment: "/products",
     permission: "product.read",
-    availability: "Milestone 3",
-    description: "Products with variants, pricing and media.",
+    description: "Products with variants, pricing, media and collections.",
   },
   inventory: {
     key: "inventory",
     label: "Inventory",
     segment: "/inventory",
     permission: "inventory.read",
-    availability: "Milestone 3",
     description: "Stock levels by location, with a full movement history.",
   },
   customers: {
@@ -153,9 +151,8 @@ export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
     key: "media",
     label: "Media",
     segment: "/media",
-    permission: "media.manage",
-    availability: "Milestone 3",
-    description: "Images and files used across your site.",
+    permission: "media.read",
+    description: "Images used across your store: products, collections and branding.",
   },
   marketing: {
     key: "marketing",

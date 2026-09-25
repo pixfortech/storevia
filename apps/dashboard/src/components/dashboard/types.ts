@@ -37,6 +37,8 @@ export interface PlanSummary {
     readonly label: string;
     readonly used: number;
     readonly limit: number | "unlimited";
+    /** Measured in bytes (media storage). */
+    readonly bytes?: boolean;
   }[];
   readonly href: string;
 }
@@ -51,6 +53,32 @@ export interface TeamSummary {
   readonly inviteHref: string | null;
 }
 
+export interface CatalogueSummary {
+  readonly products: {
+    readonly total: number;
+    readonly active: number;
+    readonly draft: number;
+    readonly archived: number;
+  };
+  readonly lowStockVariants: number;
+  readonly outOfStockVariants: number;
+  readonly lowStockThreshold: number;
+  readonly recentlyUpdated: readonly {
+    readonly title: string;
+    readonly status: "DRAFT" | "ACTIVE" | "ARCHIVED";
+    readonly href: string;
+    readonly when: string;
+  }[];
+  readonly lowStock: readonly {
+    readonly label: string;
+    readonly available: number;
+    readonly href: string;
+  }[];
+  readonly productsHref: string;
+  readonly newProductHref: string | null;
+  readonly inventoryHref: string;
+}
+
 /** Real data for the live widgets. Null where the member may not read it. */
 export interface LiveData {
   readonly setup: readonly SetupTask[];
@@ -58,5 +86,7 @@ export interface LiveData {
   readonly plan: PlanSummary | null;
   readonly team: TeamSummary | null;
   readonly activity: readonly ActivityItem[] | null;
+  /** Real catalogue numbers (never revenue, orders or customers: those don't exist yet). */
+  readonly catalogue: CatalogueSummary | null;
   readonly focus: readonly (FocusArea & { readonly href: string })[];
 }

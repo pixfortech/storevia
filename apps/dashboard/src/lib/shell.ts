@@ -98,7 +98,7 @@ function organisationLinks(ctx: OrganisationContext, primary: boolean): ShellLin
 }
 
 /** Real create actions only, each gated by the permission it needs. */
-function createActions(
+function createActionsFor(
   ctx: OrganisationContext,
   canCreateStore: boolean,
   organisationScope: boolean,
@@ -165,6 +165,19 @@ export async function storeShellData(ctx: StoreContext): Promise<ShellData> {
     settings === -1
       ? [...areas, apps]
       : [...areas.slice(0, settings), apps, ...areas.slice(settings)];
+  const createActions = createActionsFor(organisation, base.canCreateStore, false);
+  if (hasPermission(ctx, "product.create") && ctx.storeStatus !== "ARCHIVED") {
+    // Offered on the catalogue's pages; the product list and form show it themselves.
+    const products = storePath(ctx.storeId, "/products");
+    createActions.unshift({
+      key: "create-product",
+      label: "Add product",
+      description: "A product with its price, stock and images.",
+      href: `${products}/new`,
+      under: products,
+      offeredOn: [products, `${products}/new`],
+    });
+  }
   return {
     ...base,
     store: {
@@ -176,7 +189,7 @@ export async function storeShellData(ctx: StoreContext): Promise<ShellData> {
     },
     links,
     organisationLinks: organisationLinks(organisation, false),
-    createActions: createActions(organisation, base.canCreateStore, false),
+    createActions,
   };
 }
 
@@ -186,6 +199,6 @@ export async function organisationShellData(ctx: OrganisationContext): Promise<S
     ...base,
     links: organisationLinks(ctx, true),
     organisationLinks: [],
-    createActions: createActions(ctx, base.canCreateStore, true),
+    createActions: createActionsFor(ctx, base.canCreateStore, true),
   };
 }

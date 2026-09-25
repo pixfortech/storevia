@@ -1,5 +1,4 @@
 import "server-only";
-import { assertFeature } from "@storevia/entitlements";
 import { recordAudit, type TenantContext } from "@storevia/tenancy";
 import { inStore, publicId } from "./internal";
 import { toDecimalString } from "./money";
@@ -102,7 +101,10 @@ export const csvExporter: ProductExporter = {
 
 export const EXPORT_ROW_LIMIT = 10_000;
 
-/** Every live variant of the store's non-archived (or all) products, in handle order. */
+/**
+ * Every live variant of the store's non-archived (or all) products, in handle
+ * order. A catalogue tool (product.read), not the plan's full data export.
+ */
 export async function exportProducts(
   ctx: TenantContext,
   options: { readonly includeArchived?: boolean; readonly exporter?: ProductExporter } = {},
@@ -114,8 +116,6 @@ export async function exportProducts(
 }> {
   const exporter = options.exporter ?? csvExporter;
   return inStore(ctx, "product.read", async (tx, store) => {
-    // Plan-gated through the entitlement engine, like every feature.
-    await assertFeature(tx, store.organisationId, "export");
     const products = await tx.product.findMany({
       where: {
         deletedAt: null,

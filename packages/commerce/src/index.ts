@@ -7,13 +7,20 @@ import "server-only";
 export {
   adjustInventory,
   getProductStock,
+  listInventory,
   listMovements,
   moveInventory,
   setInventory,
   setInventoryTracking,
   LOW_STOCK_THRESHOLD,
 } from "./inventory";
-export type { InventoryChange, MovementView, VariantStock } from "./inventory";
+export type {
+  InventoryChange,
+  InventoryRow,
+  InventoryStockFilter,
+  MovementView,
+  VariantStock,
+} from "./inventory";
 export {
   createLocation,
   getLocation,

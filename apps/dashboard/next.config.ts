@@ -16,9 +16,11 @@ const config: NextConfig = {
   transpilePackages: [
     "@storevia/auth",
     "@storevia/billing",
+    "@storevia/commerce",
     "@storevia/database",
     "@storevia/email",
     "@storevia/entitlements",
+    "@storevia/media",
     "@storevia/observability",
     "@storevia/security",
     "@storevia/tenancy",
@@ -32,6 +34,7 @@ const config: NextConfig = {
     "@prisma/adapter-pg",
     "pg",
     "nodemailer",
+    "sharp",
   ],
   outputFileTracingRoot: resolve(import.meta.dirname, "../.."),
   experimental: {

@@ -73,9 +73,10 @@ export interface EntitlementInput {
 export const FEATURE_AVAILABILITY: Readonly<Record<FeatureKey, string | null>> = {
   store_count: null,
   staff_accounts: null,
-  product_limit: "Coming in Milestone 3",
-  media_storage: "Coming in Milestone 3",
-  api_access: "Coming in Milestone 3",
+  product_limit: null,
+  media_storage: null,
+  // The Admin API was planned with the catalogue; it follows in a later release.
+  api_access: "On the roadmap",
   visual_builder: "Coming in Milestone 5",
   discounts: "Coming in Milestone 6",
   custom_domain: "Coming in Milestone 7",

@@ -18,12 +18,13 @@ async function lockProduct(tx: TenantTx, productId: string): Promise<void> {
   if (rows.length === 0) throw notFound();
 }
 
-async function touch(tx: TenantTx, productId: string, userId: string): Promise<void> {
-  await tx.product.update({
+async function touch(tx: TenantTx, productId: string, userId: string): Promise<Date> {
+  const { updatedAt } = await tx.product.update({
     where: { id: productId },
     data: { updatedBy: { connect: { id: userId } } },
-    select: { id: true },
+    select: { updatedAt: true },
   });
+  return updatedAt;
 }
 
 /** Appends library media to a product (skipping media already attached). */
@@ -31,7 +32,7 @@ export async function attachProductMedia(
   ctx: TenantContext,
   productPublicId: string,
   input: unknown,
-): Promise<{ attached: number }> {
+): Promise<{ attached: number; updatedAt: Date }> {
   const productId = internalId("product", productPublicId);
   const data = parseInput(productMediaOrderSchema, input);
   const mediaIds = [...new Set(data.mediaIds.map((id) => internalId("media", id)))];
@@ -57,6 +58,7 @@ export async function attachProductMedia(
         throw conflict(`A product can have at most ${String(MAX_PRODUCT_MEDIA)} media.`);
       }
       let position = existing.reduce((max, m) => Math.max(max, m.position), -1) + 1;
+      let updatedAt: Date | null = null;
       if (toAttach.length > 0) {
         await tx.productMedia.createMany({
           data: toAttach.map((mediaAssetId) => ({
@@ -67,7 +69,7 @@ export async function attachProductMedia(
             position: position++,
           })),
         });
-        await touch(tx, productId, store.userId);
+        updatedAt = await touch(tx, productId, store.userId);
         await recordAudit(
           tx,
           store,
@@ -78,7 +80,13 @@ export async function attachProductMedia(
           },
         );
       }
-      return { attached: toAttach.length };
+      updatedAt ??= (
+        await tx.product.findUniqueOrThrow({
+          where: { id: productId },
+          select: { updatedAt: true },
+        })
+      ).updatedAt;
+      return { attached: toAttach.length, updatedAt };
     },
     { write: true },
   );
@@ -89,11 +97,11 @@ export async function reorderProductMedia(
   ctx: TenantContext,
   productPublicId: string,
   input: unknown,
-): Promise<void> {
+): Promise<{ updatedAt: Date }> {
   const productId = internalId("product", productPublicId);
   const data = parseInput(productMediaOrderSchema, input);
   const mediaIds = data.mediaIds.map((id) => internalId("media", id));
-  await inStore(
+  return inStore(
     ctx,
     "product.update",
     async (tx, store) => {
@@ -119,7 +127,7 @@ export async function reorderProductMedia(
           select: { id: true },
         });
       }
-      await touch(tx, productId, store.userId);
+      const updatedAt = await touch(tx, productId, store.userId);
       await recordAudit(
         tx,
         store,
@@ -129,6 +137,7 @@ export async function reorderProductMedia(
           mediaCount: mediaIds.length,
         },
       );
+      return { updatedAt };
     },
     { write: true },
   );
@@ -142,10 +151,10 @@ export async function detachProductMedia(
   ctx: TenantContext,
   productPublicId: string,
   mediaPublicId: string,
-): Promise<void> {
+): Promise<{ updatedAt: Date }> {
   const productId = internalId("product", productPublicId);
   const mediaId = internalId("media", mediaPublicId);
-  await inStore(
+  return inStore(
     ctx,
     "product.update",
     async (tx, store) => {
@@ -170,7 +179,7 @@ export async function detachProductMedia(
           select: { id: true },
         });
       }
-      await touch(tx, productId, store.userId);
+      const updatedAt = await touch(tx, productId, store.userId);
       await recordAudit(
         tx,
         store,
@@ -180,6 +189,7 @@ export async function detachProductMedia(
           mediaCount: 1,
         },
       );
+      return { updatedAt };
     },
     { write: true },
   );
@@ -199,11 +209,11 @@ export async function setProductMediaAlt(
   productPublicId: string,
   mediaPublicId: string,
   input: unknown,
-): Promise<void> {
+): Promise<{ updatedAt: Date }> {
   const productId = internalId("product", productPublicId);
   const mediaId = internalId("media", mediaPublicId);
   const data = parseInput(altSchema, input);
-  await inStore(
+  return inStore(
     ctx,
     "product.update",
     async (tx, store) => {
@@ -212,7 +222,8 @@ export async function setProductMediaAlt(
         data: { altText: data.altText },
       });
       if (updated.count === 0) throw notFound();
-      await touch(tx, productId, store.userId);
+      const updatedAt = await touch(tx, productId, store.userId);
+      return { updatedAt };
     },
     { write: true },
   );

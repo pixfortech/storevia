@@ -27,19 +27,24 @@ describe("arrangeDashboard without data (every real store today)", () => {
     expect(keys(layout.bands)).toEqual(["focus"]);
   });
 
+  it("gives the live catalogue modules their own row beside recent activity", () => {
+    expect(keys(layout.modules)).toEqual(["catalogue", "stock-alerts", "activity"]);
+    expect(layout.underMain).toBeNull();
+  });
+
   it("puts a lone secondary module under the main column, not in a row of its own", () => {
-    expect(layout.underMain?.key).toBe("activity");
-    expect(layout.modules).toEqual([]);
+    const business = arrangeDashboard(widgets("BUSINESS"), false);
+    expect(business.underMain?.key).toBe("activity");
+    expect(business.modules).toEqual([]);
   });
 
   it("summarises the rest by the store area their data starts with, soonest first", () => {
     expect(layout.tracking.map((g) => [g.area, g.metrics])).toEqual([
-      ["inventory", ["Stock to watch"]],
       ["orders", ["Revenue", "Orders", "Sales", "Top products"]],
       ["customers", ["Customers"]],
       ["analytics", ["Conversion"]],
     ]);
-    expect(layout.tracking[1]?.availability).toBe(STORE_AREAS.orders.availability);
+    expect(layout.tracking[0]?.availability).toBe(STORE_AREAS.orders.availability);
   });
 
   it("names each figure once, even when two widgets share a title", () => {
@@ -55,7 +60,7 @@ describe("arrangeDashboard in a development preview", () => {
     const layout = arrangeDashboard(widgets("ECOMMERCE"), true);
     expect(keys(layout.metrics)).toEqual(["revenue", "orders", "conversion", "customers"]);
     expect(keys(layout.main)).toEqual(["sales-trend", "setup"]);
-    expect(keys(layout.modules)).toEqual(["top-products", "stock-alerts", "activity"]);
+    expect(keys(layout.modules)).toEqual(["catalogue", "stock-alerts", "top-products", "activity"]);
     expect(layout.underMain).toBeNull();
     expect(layout.tracking).toEqual([]);
   });
@@ -75,8 +80,8 @@ describe("arrangeDashboard in a development preview", () => {
   });
 
   it("gives a designer's single module the main column's width", () => {
-    const layout = arrangeDashboard(widgets("ECOMMERCE", PAID, "DESIGNER"), true);
-    expect(layout.underMain?.key).toBe("stock-alerts");
+    const layout = arrangeDashboard(widgets("PUBLISHING", PAID, "DESIGNER"), true);
+    expect(layout.underMain?.key).toBe("authors");
     expect(layout.modules).toEqual([]);
   });
 });

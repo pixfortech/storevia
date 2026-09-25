@@ -3,10 +3,33 @@ export interface CspOptions {
   readonly isDevelopment: boolean;
   /** true when the app is served over HTTPS (adds upgrade-insecure-requests). */
   readonly secure: boolean;
+  /** Extra origins images load from (the media CDN or bucket, ADR-0015). */
+  readonly imageOrigins?: readonly string[];
+  /** Extra origins the browser uploads to directly (the media bucket). */
+  readonly uploadOrigins?: readonly string[];
+}
+
+/** An http(s) origin, or null for anything else (never a wildcard or a path). */
+export function cspOrigin(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" || parsed.protocol === "http:" ? parsed.origin : null;
+  } catch {
+    return null;
+  }
 }
 
 /** Nonce-based CSP for the dashboard and platform-admin (threat-model §5). */
-export function contentSecurityPolicy({ nonce, isDevelopment, secure }: CspOptions): string {
+export function contentSecurityPolicy({
+  nonce,
+  isDevelopment,
+  secure,
+  imageOrigins = [],
+  uploadOrigins = [],
+}: CspOptions): string {
+  const origins = (list: readonly string[]) =>
+    list.map((o) => cspOrigin(o)).filter((o): o is string => o !== null);
   const directives: Record<string, string[]> = {
     "default-src": ["'self'"],
     "script-src": [
@@ -16,9 +39,9 @@ export function contentSecurityPolicy({ nonce, isDevelopment, secure }: CspOptio
       ...(isDevelopment ? ["'unsafe-eval'"] : []),
     ],
     "style-src": ["'self'", "'unsafe-inline'"],
-    "img-src": ["'self'", "data:", "blob:"],
+    "img-src": ["'self'", "data:", "blob:", ...origins(imageOrigins)],
     "font-src": ["'self'"],
-    "connect-src": ["'self'", ...(isDevelopment ? ["ws:"] : [])],
+    "connect-src": ["'self'", ...origins(uploadOrigins), ...(isDevelopment ? ["ws:"] : [])],
     "frame-ancestors": ["'none'"],
     "base-uri": ["'none'"],
     "form-action": ["'self'"],

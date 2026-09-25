@@ -56,7 +56,12 @@ describe("composeDashboard: business type decides presentation", () => {
     expect(bySize(widgets, "kpi")).toEqual(["revenue", "orders", "conversion", "customers"]);
     expect(bySize(widgets, "main")).toEqual(["sales-trend", "setup"]);
     expect(bySize(widgets, "rail")).toEqual(["website-status", "plan-usage", "team"]);
-    expect(bySize(widgets, "half")).toEqual(["top-products", "stock-alerts", "activity"]);
+    expect(bySize(widgets, "half")).toEqual([
+      "catalogue",
+      "stock-alerts",
+      "top-products",
+      "activity",
+    ]);
   });
 
   it("gives a business website site performance", () => {
@@ -140,7 +145,8 @@ describe("composeDashboard: RBAC decides visibility", () => {
         grantedFeatures: PAID,
       }).widgets,
     );
-    expect(designer).toEqual(["setup", "website-status", "stock-alerts", "focus"]);
+    // Every member reads the catalogue (base read set), so its live widgets show.
+    expect(designer).toEqual(["setup", "website-status", "catalogue", "stock-alerts", "focus"]);
   });
 
   it("never lets a plan reveal a widget the role can't read", () => {
@@ -178,10 +184,9 @@ describe("composeDashboard: entitlements decide commercial access", () => {
     if (revenue.kind !== "upcoming") throw new Error("expected upcoming");
     expect(revenue.availability).toBe(STORE_AREAS.orders.availability);
     expect(revenue.areaLabel).toBe("Orders");
-    expect(find(widgets, "stock-alerts").state).toMatchObject({
-      area: "inventory",
-      visual: "list",
-    });
+    // Inventory shipped in Milestone 3: its widgets show real data.
+    expect(find(widgets, "stock-alerts").state).toEqual({ kind: "live" });
+    expect(find(widgets, "catalogue").state).toEqual({ kind: "live" });
   });
 });
 

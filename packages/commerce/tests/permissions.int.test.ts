@@ -106,7 +106,7 @@ describe("role matrix for the catalogue", () => {
     );
   });
 
-  it("export is gated by permission and by the export entitlement", async () => {
+  it("any member who can read products can export them", async () => {
     const csv = await exportProducts(storeOf(tenant));
     expect(csv.body.split("\r\n")[0]).toContain("productId,handle,title");
     expect(csv.rows).toBeGreaterThan(0);

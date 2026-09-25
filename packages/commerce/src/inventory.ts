@@ -599,3 +599,139 @@ export async function setInventoryTracking(
     { write: true },
   );
 }
+
+export interface InventoryRow {
+  readonly productId: string;
+  readonly productTitle: string;
+  readonly productStatus: "DRAFT" | "ACTIVE" | "ARCHIVED";
+  readonly variantId: string;
+  readonly variantTitle: string;
+  readonly sku: string | null;
+  readonly tracked: boolean;
+  readonly inventoryPolicy: "DENY" | "CONTINUE";
+  /** Available per active location (public location id → units). */
+  readonly levels: Readonly<Record<string, number>>;
+  readonly available: number;
+  readonly image: { readonly storageKey: string; readonly renditions: unknown } | null;
+}
+
+export type InventoryStockFilter = "low_stock" | "out_of_stock";
+
+/**
+ * Stock for every live variant of the store's non-archived products, one row
+ * per variant with a level per active location. Keyset-paginated on
+ * (product title, product, variant position, variant); one query per page.
+ */
+export async function listInventory(
+  ctx: TenantContext,
+  options: {
+    readonly q?: string | undefined;
+    readonly stock?: InventoryStockFilter | undefined;
+    readonly after?: string | undefined;
+    readonly limit?: number | undefined;
+  } = {},
+): Promise<{ rows: InventoryRow[]; nextCursor: string | null }> {
+  const limit = Math.min(Math.max(options.limit ?? 50, 1), 100);
+  const cursor = decodeInventoryCursor(options.after);
+  const q = options.q?.trim().toLowerCase().slice(0, 200) ?? "";
+  const like = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  return inStore(ctx, "inventory.read", async (tx) => {
+    const rows = await tx.$queryRaw<
+      {
+        productId: string;
+        productTitle: string;
+        productStatus: "DRAFT" | "ACTIVE" | "ARCHIVED";
+        variantId: string;
+        variantTitle: string;
+        position: number;
+        sku: string | null;
+        tracked: boolean | null;
+        inventoryPolicy: "DENY" | "CONTINUE";
+        levels: { locationId: string; available: number }[] | null;
+        available: bigint;
+        storageKey: string | null;
+        renditions: unknown;
+      }[]
+    >`
+      SELECT p.id AS "productId", p.title AS "productTitle", p.status::text AS "productStatus",
+             v.id AS "variantId", v.title AS "variantTitle", v.position, v.sku,
+             ii.tracked, v."inventoryPolicy"::text AS "inventoryPolicy",
+             st.levels, coalesce(st.available, 0)::bigint AS available,
+             img."storageKey", img.renditions
+      FROM "ProductVariant" v
+      JOIN "Product" p ON p.id = v."productId" AND p."deletedAt" IS NULL AND p.status <> 'ARCHIVED'
+      LEFT JOIN "InventoryItem" ii ON ii."variantId" = v.id
+      LEFT JOIN LATERAL (
+        SELECT json_agg(json_build_object('locationId', l."locationId", 'available', l.available)) AS levels,
+               sum(l.available) AS available
+        FROM "InventoryLevel" l
+        JOIN "Location" loc ON loc.id = l."locationId" AND loc."isActive" AND loc."deletedAt" IS NULL
+        WHERE l."inventoryItemId" = ii.id
+      ) st ON true
+      LEFT JOIN LATERAL (
+        SELECT m."storageKey", m.renditions FROM "MediaAsset" m
+        WHERE m.id = coalesce(v."imageMediaId", (
+          SELECT pm."mediaAssetId" FROM "ProductMedia" pm WHERE pm."productId" = p.id ORDER BY pm.position LIMIT 1))
+          AND m."deletedAt" IS NULL AND m.status = 'READY'
+      ) img ON true
+      WHERE v."deletedAt" IS NULL
+        ${q ? Prisma.sql`AND (lower(p.title) LIKE ${like} OR lower(v.title) LIKE ${like} OR lower(v.sku) LIKE ${like})` : Prisma.empty}
+        ${options.stock === "out_of_stock" ? Prisma.sql`AND ii.tracked AND v."inventoryPolicy" = 'DENY' AND coalesce(st.available, 0) <= 0` : Prisma.empty}
+        ${options.stock === "low_stock" ? Prisma.sql`AND ii.tracked AND st.available > 0 AND st.available <= ${LOW_STOCK_THRESHOLD}` : Prisma.empty}
+        ${cursor ? Prisma.sql`AND (lower(p.title), p.id, v.position, v.id) > (${cursor[0]}, ${cursor[1]}::uuid, ${cursor[2]}, ${cursor[3]}::uuid)` : Prisma.empty}
+      ORDER BY lower(p.title), p.id, v.position, v.id
+      LIMIT ${limit + 1}`;
+    const page = rows.slice(0, limit);
+    const last = page.at(-1);
+    return {
+      rows: page.map((r) => ({
+        productId: publicId("product", r.productId),
+        productTitle: r.productTitle,
+        productStatus: r.productStatus,
+        variantId: publicId("variant", r.variantId),
+        variantTitle: r.variantTitle,
+        sku: r.sku,
+        tracked: r.tracked ?? false,
+        inventoryPolicy: r.inventoryPolicy,
+        levels: Object.fromEntries(
+          (r.levels ?? []).map((l) => [publicId("location", l.locationId), l.available]),
+        ),
+        available: Number(r.available),
+        image: r.storageKey ? { storageKey: r.storageKey, renditions: r.renditions } : null,
+      })),
+      nextCursor:
+        rows.length > limit && last
+          ? Buffer.from(
+              JSON.stringify([
+                last.productTitle.toLowerCase(),
+                last.productId,
+                last.position,
+                last.variantId,
+              ]),
+            ).toString("base64url")
+          : null,
+    };
+  });
+}
+
+function decodeInventoryCursor(value: string | undefined): [string, string, number, string] | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as unknown;
+    if (
+      Array.isArray(parsed) &&
+      typeof parsed[0] === "string" &&
+      typeof parsed[1] === "string" &&
+      /^[0-9a-f-]{36}$/.test(parsed[1]) &&
+      typeof parsed[2] === "number" &&
+      Number.isInteger(parsed[2]) &&
+      typeof parsed[3] === "string" &&
+      /^[0-9a-f-]{36}$/.test(parsed[3])
+    ) {
+      return [parsed[0], parsed[1], parsed[2], parsed[3]];
+    }
+  } catch {
+    // An unreadable cursor starts from the first page.
+  }
+  return null;
+}

@@ -1,6 +1,7 @@
 import { baseSecurityHeaders, contentSecurityPolicy, safeRedirectPath } from "@storevia/security";
 import { NextResponse, type NextRequest } from "next/server";
 import { dashboardAuth } from "./lib/auth";
+import { MEDIA_RESPONSE_CSP, mediaOrigins } from "./lib/media-origins";
 
 // Runs before every page and server action (Next.js request proxy, Node runtime).
 // 1. request ID + nonce-based CSP + security headers on every response;
@@ -20,6 +21,11 @@ const PUBLIC_PREFIXES = [
   "/api/health",
   // Provider webhooks authenticate by signature, not session (docs 05 §4).
   "/api/webhooks/",
+  // Local media storage (development): uploads authenticate with a signed,
+  // single-key token; served files are public by unguessable key, like the
+  // production CDN (ADR-0027 §9).
+  "/api/media/upload",
+  "/media/",
 ];
 
 const isPublic = (pathname: string) =>
@@ -43,11 +49,15 @@ function withSecurityHeaders(response: NextResponse, csp: string, requestId: str
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const requestId = crypto.randomUUID();
-  const csp = contentSecurityPolicy({
-    nonce,
-    isDevelopment: process.env.NODE_ENV !== "production",
-    secure: secure(),
-  });
+  const { pathname, search } = request.nextUrl;
+  const csp = pathname.startsWith("/media/")
+    ? MEDIA_RESPONSE_CSP
+    : contentSecurityPolicy({
+        nonce,
+        isDevelopment: process.env.NODE_ENV !== "production",
+        secure: secure(),
+        ...mediaOrigins(),
+      });
 
   const forwarded = new Headers(request.headers);
   forwarded.set("x-nonce", nonce);
@@ -55,7 +65,6 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   // Next.js reads the nonce from the request's CSP header for its own scripts.
   forwarded.set("Content-Security-Policy", csp);
 
-  const { pathname, search } = request.nextUrl;
   if (isPublic(pathname)) {
     return withSecurityHeaders(
       NextResponse.next({ request: { headers: forwarded } }),

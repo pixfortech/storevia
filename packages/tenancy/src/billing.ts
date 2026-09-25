@@ -12,6 +12,7 @@ import {
   type UsageLine,
 } from "@storevia/entitlements";
 import { requirePermission, scopeOf, type TenantContext } from "./context";
+import type { Permission } from "./rbac";
 
 /**
  * What a merchant may see about their plan (docs 05 §7). Read-only: merchants
@@ -60,8 +61,16 @@ export async function getOrganisationBilling(ctx: TenantContext): Promise<Organi
  * the create paths consume usage atomically. Requires the permission that
  * creating the resource needs, so it reveals nothing new to the caller.
  */
+/** Who may see an allowance: the people whose action it limits. */
+const ALLOWANCE_PERMISSION: Record<GaugeFeature, Permission> = {
+  store_count: "store.create",
+  staff_accounts: "member.manage",
+  product_limit: "product.create",
+  media_storage: "media.manage",
+};
+
 export async function getAllowance(ctx: TenantContext, key: GaugeFeature): Promise<UsageLine> {
-  requirePermission(ctx, key === "store_count" ? "store.create" : "member.manage");
+  requirePermission(ctx, ALLOWANCE_PERMISSION[key]);
   const { usage } = await load(ctx);
   const line = usage.find((l) => l.key === key);
   if (!line) throw new Error(`no usage line for ${key}`);

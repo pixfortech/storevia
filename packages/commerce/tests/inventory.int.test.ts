@@ -9,6 +9,7 @@ import {
   createProduct,
   getProduct,
   getProductStock,
+  listInventory,
   listLocations,
   listMovements,
   moveInventory,
@@ -286,5 +287,44 @@ describe("concurrency (no read-modify-write)", () => {
     expect(await migratorDb().inventoryLevel.count()).toBe(2);
     const levels = (await getProductStock(store(), productId))[0]?.levels ?? [];
     expect(levels.find((l) => l.locationCode === "SHOP")?.available).toBe(8);
+  });
+});
+
+describe("listInventory", () => {
+  it("lists every live variant with per-location stock, filters and pages", async () => {
+    const { locationId: shop } = await createLocation(store(), {
+      name: "Shop",
+      code: "SHOP",
+      countryCode: "IN",
+    });
+    await moveInventory(store(), {
+      variantId,
+      fromLocationId: main,
+      toLocationId: shop,
+      quantity: 4,
+    });
+    await createProduct(store(), { title: "Bowl", initialStock: 2, sku: "BOWL-1" });
+    await createProduct(store(), { title: "Zine", trackInventory: false });
+    const all = await listInventory(store());
+    expect(all.rows.map((r) => [r.productTitle, r.available])).toEqual([
+      ["Bowl", 2],
+      ["Mug", 10],
+      ["Zine", 0],
+    ]);
+    expect(all.rows[1]?.levels).toEqual({ [main]: 6, [shop]: 4 });
+    expect(
+      (await listInventory(store(), { stock: "low_stock" })).rows.map((r) => r.productTitle),
+    ).toEqual(["Bowl"]);
+    expect((await listInventory(store(), { q: "bowl-1" })).rows).toHaveLength(1);
+    const first = await listInventory(store(), { limit: 2 });
+    const second = await listInventory(store(), { limit: 2, after: first.nextCursor ?? "" });
+    expect([...first.rows, ...second.rows].map((r) => r.productTitle)).toEqual([
+      "Bowl",
+      "Mug",
+      "Zine",
+    ]);
+    expect(second.nextCursor).toBeNull();
+    const other = await makeTenant("inv-other");
+    expect((await listInventory(storeOf(other))).rows).toEqual([]);
   });
 });

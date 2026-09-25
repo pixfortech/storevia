@@ -60,3 +60,21 @@ export async function runAction(
     };
   }
 }
+
+/** An action that returns data (for editors that call actions directly, not through a form). */
+export type DataActionResult<T> =
+  | (ActionState & { readonly ok: false })
+  | { readonly ok: true; readonly data: T; readonly message?: string };
+
+export async function runDataAction<T>(
+  fn: () => Promise<T>,
+  message?: string,
+): Promise<DataActionResult<T>> {
+  let data: T | undefined;
+  const state = await runAction(async () => {
+    data = await fn();
+    return { ok: true };
+  });
+  if (!state.ok) return { ...state, ok: false };
+  return { ok: true, data: data as T, ...(message ? { message } : {}) };
+}

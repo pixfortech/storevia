@@ -3,7 +3,7 @@
 import { cn } from "@storevia/ui/cn";
 import { Icon, LogoMark } from "@storevia/ui/icons";
 import { Dialog } from "@storevia/ui/overlays";
-import { Ellipsis, Plus, Store, UserPlus, type LucideIcon } from "lucide-react";
+import { Ellipsis, PackagePlus, Plus, Store, UserPlus, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -86,6 +86,7 @@ function Tab({ link, active }: { link: ShellLink; active: boolean }) {
 const ACTION_ICONS: Record<ShellAction["key"], LucideIcon> = {
   "invite-member": UserPlus,
   "create-store": Store,
+  "create-product": PackagePlus,
 };
 
 /** The centre button: every real create action the member has, in a sheet. */

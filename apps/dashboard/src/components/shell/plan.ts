@@ -3,6 +3,7 @@
 // already shows and never decides access. Pure, so it is unit-tested.
 import { STATUS_LABELS } from "@storevia/billing/state-machine";
 import type { UsageLine } from "@storevia/entitlements";
+import { isByteFeature } from "@storevia/entitlements/format";
 import type { OrganisationBilling } from "@storevia/tenancy";
 import type { ShellPlan } from "./types";
 
@@ -36,7 +37,7 @@ export function tightestUsage(lines: readonly UsageLine[]): ShellPlan["meter"] {
     const score =
       limit === null ? -1 : limit <= 0 ? (used > 0 ? Number.POSITIVE_INFINITY : 1) : used / limit;
     if (score > bestScore) {
-      best = { label: line.name, used, limit };
+      best = { label: line.name, used, limit, ...(isByteFeature(line.key) ? { bytes: true } : {}) };
       bestScore = score;
     }
   }

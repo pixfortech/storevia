@@ -324,9 +324,9 @@ async function changeStatus(
   store: StoreContext,
   productId: string,
   target: ProductStatus,
-): Promise<{ changed: boolean }> {
+): Promise<{ changed: boolean; updatedAt: Date }> {
   const current = await lockProduct(tx, productId);
-  if (current.status === target) return { changed: false };
+  if (current.status === target) return { changed: false, updatedAt: current.updatedAt };
   const now = new Date();
   if (current.status === "ARCHIVED") {
     // Restoring counts against the plan again (ADR-0027 §7).
@@ -335,7 +335,7 @@ async function changeStatus(
   if (target === "ARCHIVED") {
     await releaseUsage(tx, store.organisationId, "product_limit");
   }
-  await tx.product.update({
+  const { updatedAt } = await tx.product.update({
     where: { id: productId },
     data: {
       status: target,
@@ -343,7 +343,7 @@ async function changeStatus(
       ...(target === "ACTIVE" ? { publishedAt: now } : {}),
       updatedBy: { connect: { id: store.userId } },
     },
-    select: { id: true },
+    select: { updatedAt: true },
   });
   const action =
     target === "ARCHIVED"
@@ -364,7 +364,7 @@ async function changeStatus(
       title: current.title,
     },
   );
-  return { changed: true };
+  return { changed: true, updatedAt };
 }
 
 /** Makes a draft visible (ACTIVE) or hides it again (DRAFT). Usage is unchanged. */
@@ -372,9 +372,9 @@ export async function setProductStatus(
   ctx: TenantContext,
   productPublicId: string,
   status: "ACTIVE" | "DRAFT",
-): Promise<void> {
+): Promise<{ updatedAt: Date }> {
   const productId = internalId("product", productPublicId);
-  await inStore(
+  return inStore(
     ctx,
     "product.update",
     async (tx, store) => {
@@ -382,7 +382,8 @@ export async function setProductStatus(
       if (current.status === "ARCHIVED") {
         throw conflict("Restore this product before changing its status.");
       }
-      await changeStatus(tx, store, productId, status);
+      const { updatedAt } = await changeStatus(tx, store, productId, status);
+      return { updatedAt };
     },
     { write: true },
   );
