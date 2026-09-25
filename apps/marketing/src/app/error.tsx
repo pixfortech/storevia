@@ -1,32 +1,42 @@
 "use client";
 
-import { Button } from "@storevia/ui";
+import { Button, buttonClasses, Illustration } from "@storevia/ui";
+import Link from "next/link";
+import { Container } from "@/components/marketing/section";
 
 export default function ErrorBoundary({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  // retry re-fetches and re-renders the segment, so it can recover from a
+  // failed server render (reset only clears the client error state).
+  retry: () => void;
 }) {
   return (
-    <div className="flex min-h-[60vh] items-center justify-center px-4 py-20">
-      <div className="max-w-sm text-center" role="alert">
-        <h1 className="text-xl font-semibold">Something went wrong</h1>
-        <p className="mt-2 text-sm text-ink-muted">
-          Please try again
+    <Container className="flex min-h-[70vh] flex-col items-center justify-center py-20 text-center">
+      <div role="alert" className="flex flex-col items-center">
+        <Illustration name="error" size="lg" />
+        <h1 className="mt-8 font-display text-h2 text-ink">Something went wrong</h1>
+        <p className="mt-4 max-w-md text-body-lg text-ink-muted">
+          This page didn&apos;t load properly. Please try again
           {error.digest ? (
             <>
               {" "}
-              (reference <code className="font-mono">{error.digest}</code>)
+              (reference <code className="font-mono text-body">{error.digest}</code>)
             </>
           ) : null}
           .
         </p>
-        <Button className="mt-6" variant="secondary" onClick={reset}>
+      </div>
+      <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+        <Button size="lg" onClick={retry}>
           Try again
         </Button>
+        <Link href="/" className={buttonClasses("secondary", "lg")}>
+          Back to home
+        </Link>
       </div>
-    </div>
+    </Container>
   );
 }

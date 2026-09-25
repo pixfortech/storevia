@@ -1,7 +1,7 @@
 "use client";
 
-import { Alert, Button, Field, Input, Select, Textarea } from "@storevia/ui";
-import { useActionState } from "react";
+import { Alert, Button, Field, Illustration, Input, Select, Textarea } from "@storevia/ui";
+import { useActionState, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
 import { sendContactRequest, type ContactState } from "./actions";
 import { CONTACT_TOPICS } from "./topics";
@@ -29,91 +29,59 @@ const MESSAGES: Partial<
   invalid: { tone: "danger", text: "Please check the highlighted fields." },
 };
 
+/** The confirmation that replaces the form; focus moves to it so it's announced. */
+function Sent() {
+  const heading = useRef<HTMLParagraphElement>(null);
+  useEffect(() => heading.current?.focus(), []);
+  return (
+    <div role="status" className="flex flex-col items-center py-6 text-center sm:py-10">
+      <Illustration name="setup-complete" size="sm" />
+      <p
+        ref={heading}
+        tabIndex={-1}
+        className="mt-6 rounded-xs font-display text-h4 text-ink focus-visible:outline-offset-4"
+      >
+        Thanks, your message is on its way
+      </p>
+      <p className="mt-2 max-w-sm text-body-sm text-ink-muted">
+        A person on the team reads every message and replies by email.
+      </p>
+    </div>
+  );
+}
+
 export function ContactForm({ topic, message }: { topic: string; message: string }) {
   const [state, action] = useActionState(sendContactRequest, { status: "idle" });
-  if (state.status === "sent") {
-    return (
-      <Alert tone="success" title="Thanks, your message is on its way">
-        We read every message and reply by email, usually within two working days.
-      </Alert>
-    );
-  }
+  if (state.status === "sent") return <Sent />;
   const value = (name: string, fallback = "") => state.values?.[name] ?? fallback;
+  const error = (name: string) => state.fieldErrors?.[name];
   const notice = MESSAGES[state.status];
   // Remount with the echoed values after each attempt (React resets forms).
   return (
-    <form key={JSON.stringify(state.values ?? {})} action={action} className="space-y-5" noValidate>
+    <form key={JSON.stringify(state.values ?? {})} action={action} className="space-y-6" noValidate>
       {notice ? <Alert tone={notice.tone}>{notice.text}</Alert> : null}
-      <div className="grid gap-5 sm:grid-cols-2">
-        <Field label="Your name" error={state.fieldErrors?.["name"]}>
-          {({ id, describedBy, invalid }) => (
-            <Input
-              id={id}
-              name="name"
-              autoComplete="name"
-              required
-              defaultValue={value("name")}
-              aria-describedby={describedBy}
-              aria-invalid={invalid || undefined}
-            />
-          )}
+      <div className="grid gap-6 sm:grid-cols-2">
+        <Field label="Your name" required error={error("name")}>
+          <Input name="name" autoComplete="name" defaultValue={value("name")} />
         </Field>
-        <Field label="Work email" error={state.fieldErrors?.["email"]}>
-          {({ id, describedBy, invalid }) => (
-            <Input
-              id={id}
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-              defaultValue={value("email")}
-              aria-describedby={describedBy}
-              aria-invalid={invalid || undefined}
-            />
-          )}
+        <Field label="Work email" required error={error("email")}>
+          <Input name="email" type="email" autoComplete="email" defaultValue={value("email")} />
         </Field>
-        <Field label="Company" hint="Optional" error={state.fieldErrors?.["company"]}>
-          {({ id, describedBy, invalid }) => (
-            <Input
-              id={id}
-              name="company"
-              autoComplete="organization"
-              defaultValue={value("company")}
-              aria-describedby={describedBy}
-              aria-invalid={invalid || undefined}
-            />
-          )}
+        <Field label="Company" optional error={error("company")}>
+          <Input name="company" autoComplete="organization" defaultValue={value("company")} />
         </Field>
-        <Field label="Topic" error={state.fieldErrors?.["topic"]}>
-          {({ id, describedBy, invalid }) => (
-            <Select
-              id={id}
-              name="topic"
-              defaultValue={value("topic", topic)}
-              aria-describedby={describedBy}
-              aria-invalid={invalid || undefined}
-            >
-              {CONTACT_TOPICS.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </Select>
-          )}
+        <Field label="Topic" error={error("topic")}>
+          <Select name="topic" defaultValue={value("topic", topic)}>
+            {CONTACT_TOPICS.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </Select>
         </Field>
       </div>
-      <Field label="Message" error={state.fieldErrors?.["message"]}>
-        {({ id, describedBy, invalid }) => (
-          <Textarea
-            id={id}
-            name="message"
-            rows={6}
-            required
-            defaultValue={value("message", message)}
-            aria-describedby={describedBy}
-            aria-invalid={invalid || undefined}
-          />
-        )}
+      <Field label="Message" required error={error("message")}>
+        <Textarea name="message" rows={6} defaultValue={value("message", message)} />
       </Field>
       {/* Honeypot for bots: hidden from people and assistive tech. */}
       <div aria-hidden="true" className="absolute -left-[9999px] size-px overflow-hidden">
@@ -122,8 +90,10 @@ export function ContactForm({ topic, message }: { topic: string; message: string
           <input type="text" name="website" tabIndex={-1} autoComplete="off" defaultValue="" />
         </label>
       </div>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm text-ink-faint">We use your details only to reply to this message.</p>
+      <div className="flex flex-col gap-4 border-t border-line pt-6 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-caption text-ink-faint">
+          We use your details only to reply to this message.
+        </p>
         <Submit />
       </div>
     </form>

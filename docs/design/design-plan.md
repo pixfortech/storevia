@@ -177,8 +177,10 @@ available. What the recreation must match:
     plan catalogue)
   - `/resources` (roadmap and security), `/changelog` (real release history)
   - `/about`, `/contact`, legal placeholders, `/login` and `/signup`
-- **Honesty:** every capability shows _Available_, _In development_ or _On the
-  roadmap_. Product visuals that show example data say so ("Example data").
+- **Honesty:** every capability shows _Available now_, _Up next_ (designed and
+  scheduled as the next milestone, not started), _On the roadmap_ or _Future_.
+  "In development" is not used while nothing is being built. Product visuals
+  that show example data say so ("Example data").
 
 ## 9. Dashboard IA
 

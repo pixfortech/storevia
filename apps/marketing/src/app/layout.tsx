@@ -3,15 +3,16 @@ import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { appLinks } from "@/lib/env";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Storevia: websites, stores and publications for your business",
+    default: "Storevia: build your business online, run it from one place",
     template: "%s · Storevia",
   },
   description:
-    "Build your online presence with Storevia: online stores, business websites, publications and portfolios, run by your team from one place.",
+    "One workspace for your website, online store, publication or portfolio, and the team that runs it. Built in stages, with every feature labelled with its status.",
 };
 
 export const viewport: Viewport = {
@@ -24,16 +25,17 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: ReactNode }) {
   // Dynamic rendering for the per-request CSP nonce.
   await headers();
+  const links = appLinks();
   return (
     <html lang="en">
-      <body className="flex min-h-dvh flex-col bg-surface font-sans text-ink antialiased">
+      <body className="flex min-h-dvh flex-col bg-canvas font-sans text-ink antialiased">
         <a
           href="#main"
-          className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-control focus:bg-surface focus:px-3 focus:py-2 focus:shadow"
+          className="sr-only rounded-control bg-surface px-4 py-2.5 text-body-sm font-medium text-ink shadow-popover focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-(--z-toast)"
         >
           Skip to content
         </a>
-        <SiteHeader />
+        <SiteHeader signInHref={links.signIn} signUpHref={links.signUp} />
         <main id="main" className="flex-1">
           {children}
         </main>

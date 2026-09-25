@@ -36,3 +36,38 @@ export const FAQ: readonly { question: string; answer: string }[] = [
       "Every organisation's data is isolated in the database itself, not only in application code, and access is checked on every request against your membership and role. Sensitive changes ask you to confirm your password.",
   },
 ];
+
+// Pricing questions (/pricing). Plan details stay in the catalogue: nothing
+// here names a price or a limit.
+export const PRICING_FAQ: readonly { question: string; answer: string }[] = [
+  {
+    question: "Is there a free plan?",
+    answer:
+      "Yes. Every organisation starts on the free allowance, with no card needed. The Free column shows exactly what it includes.",
+  },
+  {
+    question: "What does a plan cover?",
+    answer:
+      "A plan belongs to your organisation, not to a single store. Its limits are shared by every store and team member in it, whatever each store's business type.",
+  },
+  {
+    question: "How do I move to a paid plan?",
+    answer:
+      "Online checkout isn't available yet, so our team sets up paid plans and trials. Choose Talk to us on a plan, tell us roughly how many stores and team members you need, and we'll reply by email.",
+  },
+  {
+    question: "What do Up next and On the roadmap mean on a plan?",
+    answer:
+      "They mark features that aren't built yet: Up next is the next milestone we build, On the roadmap comes after it. Each plan already records whether it includes them, and the product enforces what the plan records, so you can use a feature on your plan as soon as it ships.",
+  },
+  {
+    question: "What happens if I reach a limit?",
+    answer:
+      "Everything you already have keeps working. You can't add more of that thing, such as another store or team member, until you're within the limit again or move to a plan with more room. A plan change never deletes or disables your data.",
+  },
+  {
+    question: "Can I change or cancel my plan later?",
+    answer:
+      "Yes. For now our team makes plan changes: send us a message and we'll take care of it. Choosing and changing plans yourself arrives with online checkout.",
+  },
+];

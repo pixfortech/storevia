@@ -1,0 +1,40 @@
+import type { AreaKey } from "@storevia/tenancy/business-types";
+import {
+  Boxes,
+  ChartColumn,
+  FileText,
+  FolderTree,
+  Globe,
+  House,
+  Images,
+  LayoutGrid,
+  Megaphone,
+  Package,
+  PenLine,
+  Rss,
+  Settings,
+  ShoppingBag,
+  UserPen,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
+
+/** The icon each store area wears in the dashboard's navigation (mockups only). */
+export const AREA_ICONS: Readonly<Record<AreaKey, LucideIcon>> = {
+  home: House,
+  orders: ShoppingBag,
+  products: Package,
+  inventory: Boxes,
+  customers: Users,
+  website: Globe,
+  pages: FileText,
+  posts: PenLine,
+  categories: FolderTree,
+  authors: UserPen,
+  projects: LayoutGrid,
+  blog: Rss,
+  media: Images,
+  marketing: Megaphone,
+  analytics: ChartColumn,
+  settings: Settings,
+};

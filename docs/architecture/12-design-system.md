@@ -105,9 +105,10 @@ bottom navigation), and no page may scroll horizontally at 320 px and up.
   or the database.
 - Example figures appear only in clearly labelled development previews and
   galleries, always marked with `ExampleDataBadge` ("Example data").
-- No dead controls. Unbuilt areas show an honest status ("Soon", "In
-  development", "On the roadmap", "Future") and open explanation pages
-  with no buttons.
+- No dead controls. Unbuilt areas show an honest status and open
+  explanation pages with no buttons. Marketing uses "Available now", "Up
+  next" (scheduled, not started), "On the roadmap" and "Future"; the
+  dashboard says "Soon" or names the milestone.
 - Marketing statuses come from `apps/marketing/src/content/capabilities.ts`.
   Pricing comes from the plan catalogue (ADR-0025).
 
