@@ -1,11 +1,28 @@
 import { STATUS_LABELS } from "@storevia/billing/state-machine";
 import { getOrganisationBilling, hasPermission } from "@storevia/tenancy";
-import { formatEntitlement } from "@storevia/entitlements/format";
-import { Alert, Badge, Card, CardBody, CardHeader } from "@storevia/ui";
+import {
+  Alert,
+  Badge,
+  Card,
+  CardBody,
+  CardHeader,
+  DescriptionList,
+  Icon,
+  LogoMark,
+  cn,
+} from "@storevia/ui";
+import { Building2, Check, CreditCard, FlaskConical, Minus, UserCog } from "lucide-react";
 import type { Metadata } from "next";
-import type { ReactNode } from "react";
+import { AccessNotice } from "@/components/areas/access-notice";
 import { PageHeader } from "@/components/shell/app-shell";
 import { UsageMeters } from "@/components/usage-meters";
+import {
+  MANAGED_BY_LABEL,
+  entitlementGroups,
+  planFacts,
+  type EntitlementRow,
+} from "@/lib/areas/billing";
+import { formatLongDate } from "@/lib/areas/dates";
 import { organisationContextOr404 } from "@/lib/tenant";
 
 export const metadata: Metadata = { title: "Billing" };
@@ -14,13 +31,6 @@ export const metadata: Metadata = { title: "Billing" };
 // is integrated, so there are no checkout, payment-method or upgrade
 // controls: plan changes are made by Storevia staff.
 
-const DATE = new Intl.DateTimeFormat("en-GB", {
-  day: "numeric",
-  month: "long",
-  year: "numeric",
-  timeZone: "UTC",
-});
-const date = (d: Date | null) => (d ? DATE.format(d) : null);
 const TONES = {
   TRIAL: "info",
   ACTIVE: "success",
@@ -28,17 +38,80 @@ const TONES = {
   CANCELLED: "warning",
   EXPIRED: "neutral",
 } as const;
-const MANAGED_BY = {
-  STOREVIA: "Managed by Storevia",
-  TEST_BILLING: "Test billing (simulated)",
-  PROVIDER: "Billed online",
-} as const;
 
-function Row({ label, children }: { label: string; children: ReactNode }) {
+const MANAGED_ICON = { STOREVIA: Building2, TEST_BILLING: FlaskConical, PROVIDER: CreditCard };
+
+/** Counts and storage: what the plan allows, as quiet figures. */
+function LimitTiles({ rows }: { rows: readonly EntitlementRow[] }) {
   return (
-    <div className="flex justify-between gap-4 py-2 text-sm">
-      <dt className="text-ink-muted">{label}</dt>
-      <dd className="text-right font-medium text-ink">{children}</dd>
+    <div>
+      <h3 className="text-overline text-ink-faint uppercase">Limits</h3>
+      <dl className="mt-3 grid grid-cols-1 gap-3 min-[400px]:grid-cols-2 lg:grid-cols-4">
+        {rows.map((row) => (
+          <div key={row.key} className="min-w-0 rounded-control bg-subtle px-4 py-3.5">
+            <dt className="truncate text-label text-ink-muted">{row.name}</dt>
+            <dd
+              className={cn(
+                "mt-1 truncate text-body font-semibold tabular-nums",
+                row.included ? "text-ink" : "text-ink-faint",
+              )}
+            >
+              {row.label}
+            </dd>
+            {row.availability ? (
+              <dd className="mt-1 truncate text-caption text-ink-faint">{row.availability}</dd>
+            ) : null}
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+/**
+ * Features, each marked included or not in words as well as an icon, and,
+ * when it isn't built yet, when it's planned: a plan can include a feature
+ * before merchants can use it.
+ */
+function FeatureList({ rows }: { rows: readonly EntitlementRow[] }) {
+  return (
+    <div>
+      <h3 className="text-overline text-ink-faint uppercase">Features</h3>
+      <ul className="mt-3 grid grid-cols-1 border-t border-line md:grid-cols-2 md:gap-x-10">
+        {rows.map((row) => (
+          <li
+            key={row.key}
+            className="flex items-start justify-between gap-4 border-b border-line py-3 text-body-sm"
+            data-included={row.included}
+          >
+            <span className="flex min-w-0 items-start gap-2.5">
+              <Icon
+                icon={row.included ? Check : Minus}
+                size="sm"
+                className={cn("mt-0.5", row.included ? "text-brand-600" : "text-ink-faint")}
+              />
+              <span className="min-w-0">
+                <span className={cn("block", row.included ? "text-ink" : "text-ink-muted")}>
+                  {row.name}
+                </span>
+                {row.availability ? (
+                  <Badge size="sm" variant="outline" className="mt-1.5">
+                    {row.availability}
+                  </Badge>
+                ) : null}
+              </span>
+            </span>
+            <span
+              className={cn(
+                "shrink-0 text-right",
+                row.included ? "text-ink-muted" : "text-ink-faint",
+              )}
+            >
+              {row.label}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -49,118 +122,142 @@ export default async function BillingPage({ params }: { params: Promise<{ orgId:
   if (!hasPermission(ctx, "billing.read")) {
     return (
       <>
-        <PageHeader title="Billing" />
-        <Alert tone="warning" title="You can't view billing">
+        <PageHeader eyebrow={ctx.organisationName} title="Billing" />
+        <AccessNotice title="You can't view billing">
           Only the owner and admins of {ctx.organisationName} can see its plan and usage.
-        </Alert>
+        </AccessNotice>
       </>
     );
   }
   const billing = await getOrganisationBilling(ctx);
   const sub = billing.subscription;
-  const included = billing.entitlements
-    .map((e) => ({ key: e.key, name: e.name, label: formatEntitlement(e.key, e.value) }))
-    .filter((e) => e.label !== null);
+  const { limits, features } = entitlementGroups(billing.entitlements);
   const over = billing.usage.filter((l) => l.overLimit);
+
+  const alerts = [
+    sub?.status === "PAST_DUE" ? (
+      <Alert key="past-due" tone="warning" title="Payment is overdue">
+        Your plan stays active until {sub.graceEndsAt ? formatLongDate(sub.graceEndsAt) : null}.
+        Contact Storevia to keep it.
+      </Alert>
+    ) : null,
+    sub?.status === "CANCELLED" ? (
+      <Alert key="cancelled" tone="warning" title="Your plan is cancelled">
+        You keep its features until {sub.expiresAt ? formatLongDate(sub.expiresAt) : null}.
+      </Alert>
+    ) : null,
+    over.length > 0 ? (
+      <Alert key="over" tone="danger" title="You're over your plan's limits">
+        {over.map((l) => l.name.toLowerCase()).join(" and ")}: nothing has been removed and
+        everything keeps working, but you can't add more until you&apos;re within your plan&apos;s
+        limits.
+      </Alert>
+    ) : null,
+  ].filter(Boolean);
+
+  const ManagedIcon = sub ? MANAGED_ICON[sub.managedBy] : null;
 
   return (
     <>
-      <PageHeader title="Billing" description="Your Storevia plan, its limits and your usage." />
-      <div className="max-w-3xl space-y-6">
-        {sub?.status === "PAST_DUE" ? (
-          <Alert tone="warning" title="Payment is overdue">
-            Your plan stays active until {date(sub.graceEndsAt)}. Contact Storevia to keep it.
-          </Alert>
-        ) : null}
-        {sub?.status === "CANCELLED" ? (
-          <Alert tone="warning" title="Your plan is cancelled">
-            You keep its features until {date(sub.expiresAt)}.
-          </Alert>
-        ) : null}
-        {over.length > 0 ? (
-          <Alert tone="danger" title="You're over your plan's limits">
-            {over.map((l) => l.name.toLowerCase()).join(" and ")}: nothing has been removed and
-            everything keeps working, but you can't add more until you're within your plan's limits.
-          </Alert>
-        ) : null}
+      <PageHeader
+        eyebrow={ctx.organisationName}
+        title="Billing"
+        description="Your Storevia plan, what it includes and how much of it you use."
+      />
+      {alerts.length > 0 ? <div className="mb-6 space-y-3 lg:mb-8">{alerts}</div> : null}
 
-        <Card data-testid="plan-card">
-          <CardHeader
-            title={sub ? sub.planName : "No plan"}
-            description={
-              sub
-                ? MANAGED_BY[sub.managedBy]
-                : "Your organisation uses Storevia's free allowance: one store and one team member."
-            }
-            actions={
-              sub ? (
-                <Badge tone={TONES[sub.status]} data-testid="plan-status">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_21rem] xl:items-start xl:gap-8">
+        <div className="min-w-0 space-y-6">
+          <Card data-testid="plan-card" className="overflow-hidden">
+            <div className="flex flex-wrap items-start justify-between gap-4 px-5 py-5 sm:px-6 sm:py-6">
+              <div className="flex min-w-0 items-center gap-4">
+                <span className="flex size-12 shrink-0 items-center justify-center rounded-card bg-subtle ring-1 ring-line ring-inset">
+                  <LogoMark aria-hidden="true" className="size-6" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-overline text-ink-faint uppercase">
+                    {sub ? "Current plan" : "Free allowance"}
+                  </p>
+                  <h2 className="mt-1 font-display text-h3 text-ink">
+                    {sub ? sub.planName : "No plan"}
+                  </h2>
+                </div>
+              </div>
+              {sub ? (
+                <Badge variant="dot" tone={TONES[sub.status]} data-testid="plan-status">
                   {STATUS_LABELS[sub.status]}
                 </Badge>
-              ) : null
-            }
-          />
-          {sub ? (
-            <CardBody>
-              <dl className="divide-y divide-line">
-                {!sub.entitling ? (
-                  <Row label="Plan features">Ended. Free allowance applies</Row>
-                ) : null}
-                <Row label="Billing">
-                  {sub.billingInterval === "YEAR"
-                    ? "Annual"
-                    : sub.billingInterval === "MONTH"
-                      ? "Monthly"
-                      : "By agreement"}
-                </Row>
-                <Row label="Started">{date(sub.startedAt)}</Row>
-                {sub.status === "TRIAL" ? (
-                  <Row label="Trial ends">{date(sub.trialEndsAt)}</Row>
-                ) : null}
-                {sub.status !== "CANCELLED" && sub.currentPeriodEnd ? (
-                  <Row label="Renews">{date(sub.currentPeriodEnd)}</Row>
-                ) : null}
-                {sub.expiresAt ? (
-                  <Row label={sub.status === "CANCELLED" ? "Access ends" : "Expires"}>
-                    {date(sub.expiresAt)}
-                  </Row>
-                ) : null}
-              </dl>
+              ) : null}
+            </div>
+            <div className="border-t border-line bg-subtle px-5 py-5 sm:px-6">
+              {sub && ManagedIcon ? (
+                <>
+                  <p className="flex items-center gap-2 text-body-sm font-medium text-ink">
+                    <Icon icon={ManagedIcon} size="sm" className="text-ink-faint" />
+                    {MANAGED_BY_LABEL[sub.managedBy]}
+                  </p>
+                  <DescriptionList
+                    layout="stacked"
+                    columns={3}
+                    className="mt-5 gap-y-5"
+                    items={planFacts(sub)}
+                  />
+                </>
+              ) : (
+                <p className="text-body-sm text-ink-muted">
+                  Your organisation uses Storevia&apos;s free allowance: one store and one team
+                  member.
+                </p>
+              )}
+            </div>
+          </Card>
+
+          <Card data-testid="usage-card">
+            <CardHeader
+              title="Usage"
+              description={`Counted across every store in ${ctx.organisationName}.`}
+            />
+            <CardBody className="py-6">
+              <UsageMeters usage={billing.usage} />
             </CardBody>
-          ) : null}
-        </Card>
+          </Card>
 
-        <Card data-testid="usage-card">
-          <CardHeader title="Usage" />
-          <CardBody>
-            <UsageMeters usage={billing.usage} />
-          </CardBody>
-        </Card>
+          <Card>
+            <CardHeader
+              title="What your plan includes"
+              description="Limits and features apply to your whole organisation. Most features are still being built: each shows when it's planned, and it switches on for your plan when it launches."
+            />
+            <CardBody className="space-y-8 py-6">
+              <LimitTiles rows={limits} />
+              <FeatureList rows={features} />
+            </CardBody>
+          </Card>
+        </div>
 
-        <Card>
-          <CardHeader title="Included in your plan" />
-          <CardBody>
-            <ul className="grid gap-2 text-sm sm:grid-cols-2">
-              {included.map((f) => (
-                <li
-                  key={f.key}
-                  className="flex justify-between gap-3 rounded-control bg-subtle px-3 py-2"
-                >
-                  <span>{f.name}</span>
-                  <span className="text-ink-muted">{f.label}</span>
-                </li>
-              ))}
-            </ul>
-          </CardBody>
-        </Card>
-
-        <Card data-testid="payments-card">
-          <CardHeader title="Payments and invoices" />
-          <CardBody>
-            <p className="text-sm text-ink-muted">
-              Online payments aren't available yet, and nothing is charged here. To change your
+        <Card data-testid="payments-card" className="xl:sticky xl:top-24">
+          <CardHeader
+            icon={
+              <span className="flex size-9 items-center justify-center rounded-control bg-subtle text-ink-muted ring-1 ring-line ring-inset">
+                <Icon icon={CreditCard} size="sm" />
+              </span>
+            }
+            title="Payments and invoices"
+          />
+          <CardBody className="space-y-5">
+            <p className="text-body-sm text-ink-muted">
+              Online payments aren&apos;t available yet, and nothing is charged here. To change your
               plan, contact Storevia support.
             </p>
+            <ul className="space-y-3 border-t border-line pt-4 text-body-sm text-ink-muted">
+              <li className="flex gap-2.5">
+                <Icon icon={CreditCard} size="sm" className="mt-0.5 text-ink-faint" />
+                No payment method is stored for {ctx.organisationName}.
+              </li>
+              <li className="flex gap-2.5">
+                <Icon icon={UserCog} size="sm" className="mt-0.5 text-ink-faint" />
+                Storevia staff make plan changes for you.
+              </li>
+            </ul>
           </CardBody>
         </Card>
       </div>

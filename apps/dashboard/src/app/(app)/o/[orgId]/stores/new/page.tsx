@@ -1,7 +1,9 @@
 import { getAllowance, getOrganisation, hasPermission } from "@storevia/tenancy";
-import { Alert, buttonClasses, Card, CardBody } from "@storevia/ui";
+import { buttonClasses, Icon } from "@storevia/ui";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { AccessNotice } from "@/components/areas/access-notice";
 import { PageHeader } from "@/components/shell/app-shell";
 import { orgPath } from "@/lib/ids";
 import { defaultsForCountry } from "@/lib/options";
@@ -24,10 +26,10 @@ export default async function NewStorePage({
   if (!hasPermission(ctx, "store.create")) {
     return (
       <>
-        <PageHeader title="Create store" />
-        <Alert tone="warning" title="You can't create stores">
+        <PageHeader eyebrow={ctx.organisationName} title="Create store" />
+        <AccessNotice title="You can't create stores">
           Only owners and admins can create stores in {ctx.organisationName}.
-        </Alert>
+        </AccessNotice>
       </>
     );
   }
@@ -36,24 +38,23 @@ export default async function NewStorePage({
     // Informational: createStore enforces the limit atomically on the server.
     return (
       <>
-        <PageHeader title="Create store" />
-        <Alert
-          tone="warning"
+        <PageHeader eyebrow={ctx.organisationName} title="Create store" />
+        <AccessNotice
           title="Your plan's store limit has been reached"
-          className="max-w-2xl"
+          action={
+            <Link
+              href={orgPath(ctx.organisationId, "/billing")}
+              className={buttonClasses("secondary")}
+            >
+              View plan and usage
+              <Icon icon={ArrowRight} size="sm" />
+            </Link>
+          }
         >
           {ctx.organisationName} has {allowance.usage.toString()} of {allowance.limit.toString()}{" "}
           {allowance.limit === 1n ? "store" : "stores"} allowed by its plan. Archive a store, or
           contact Storevia to change your plan.
-          <div className="mt-3">
-            <Link
-              href={orgPath(ctx.organisationId, "/billing")}
-              className={buttonClasses("secondary", "sm")}
-            >
-              View plan and usage
-            </Link>
-          </div>
-        </Alert>
+        </AccessNotice>
       </>
     );
   }
@@ -61,22 +62,19 @@ export default async function NewStorePage({
   return (
     <>
       <PageHeader
+        eyebrow={onboarding ? "Step 2 of 2" : ctx.organisationName}
         title={onboarding ? "Create your first store" : "Create store"}
         description={
           onboarding
-            ? "Step 2 of 2 · Tell us what you're building. You can change everything except the address later."
+            ? "Tell us what you're building. You can change everything except the address and currency later."
             : "Each store has its own address, navigation and team access. It shares your organisation's plan."
         }
       />
-      <Card className="max-w-3xl">
-        <CardBody className="py-6 sm:px-8 sm:py-8">
-          <CreateStoreForm
-            orgId={orgId}
-            rootDomain={storefrontDomainLabel()}
-            defaults={defaultsForCountry(organisation.country)}
-          />
-        </CardBody>
-      </Card>
+      <CreateStoreForm
+        orgId={orgId}
+        rootDomain={storefrontDomainLabel()}
+        defaults={defaultsForCountry(organisation.country)}
+      />
     </>
   );
 }

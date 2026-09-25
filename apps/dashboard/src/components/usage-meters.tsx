@@ -1,19 +1,27 @@
 import type { UsageLine } from "@storevia/entitlements";
-import { Meter } from "@storevia/ui";
+import { cn, UsageMeter } from "@storevia/ui";
 
-/** Plan usage as meters. Real counts only; never estimated. */
-export function UsageMeters({ usage }: { usage: readonly UsageLine[] }) {
+/**
+ * Plan usage as meters: real counts only, never estimated. Each meter spells
+ * out "At limit" or "Over limit" in words, not colour alone.
+ */
+export function UsageMeters({
+  usage,
+  className,
+}: {
+  usage: readonly UsageLine[];
+  className?: string;
+}) {
   return (
-    <div className="space-y-5">
+    <div className={cn("grid gap-x-10 gap-y-6 sm:grid-cols-2", className)}>
       {usage.map((line) => (
-        <div key={line.key} data-testid={`usage-${line.key}`}>
-          <Meter
-            label={line.name}
-            value={Number(line.usage)}
-            max={line.limit === "unlimited" ? null : Number(line.limit)}
-            tone={line.overLimit ? "danger" : "default"}
-          />
-        </div>
+        <UsageMeter
+          key={line.key}
+          data-testid={`usage-${line.key}`}
+          label={line.name}
+          used={Number(line.usage)}
+          limit={line.limit === "unlimited" ? "unlimited" : Number(line.limit)}
+        />
       ))}
     </div>
   );

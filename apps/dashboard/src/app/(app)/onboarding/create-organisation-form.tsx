@@ -8,7 +8,7 @@ import { createOrganisationAction } from "./actions";
 export function CreateOrganisationForm() {
   const [state, action] = useActionState(createOrganisationAction, { ok: false });
   return (
-    <form action={action} className="space-y-4" noValidate>
+    <form action={action} className="space-y-5" noValidate>
       <FormMessage state={state} />
       <TextField
         label="Business name"
@@ -25,7 +25,9 @@ export function CreateOrganisationForm() {
         options={[{ value: "", label: "Select a country" }, ...COUNTRY_OPTIONS]}
         defaultValue=""
       />
-      <SubmitButton className="w-full">Continue</SubmitButton>
+      <SubmitButton size="lg" className="mt-2 w-full">
+        Continue
+      </SubmitButton>
     </form>
   );
 }

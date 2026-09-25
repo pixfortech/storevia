@@ -5,11 +5,13 @@ import {
   isBusinessType,
   type BusinessType,
 } from "@storevia/tenancy/business-types";
-import { Button, Dialog, DialogClose, Field, GlyphTile, Input } from "@storevia/ui";
+import { Button, CardBody, CardFooter, DescriptionList, GlyphTile } from "@storevia/ui";
 import { useActionState, useState } from "react";
+import { ConfirmDialog } from "@/components/areas/confirm-dialog";
+import { FieldGroup } from "@/components/areas/settings";
 import { BusinessTypePicker } from "@/components/business-type-picker";
-import { BUSINESS_TYPE_GLYPH } from "@/lib/business-types";
 import { FormMessage, SelectField, SubmitButton, TextField } from "@/components/forms";
+import { BUSINESS_TYPE_GLYPH } from "@/lib/business-types";
 import { LOCALE_OPTIONS, TIMEZONE_OPTIONS } from "@/lib/options";
 import { archiveStoreAction, changeBusinessTypeAction, updateStoreAction } from "./actions";
 
@@ -28,7 +30,8 @@ export function StoreSettingsForm({
     contactEmail: string;
     supportEmail: string;
   };
-  fixed: { currency: string; country: string; address: string };
+  /** Details set when the store was created, already formatted. */
+  fixed: readonly { term: string; detail: string }[];
 }) {
   const [state, action] = useActionState(updateStoreAction.bind(null, storeId), { ok: false });
   const withCurrent = <T extends { value: string; label: string }>(
@@ -39,70 +42,68 @@ export function StoreSettingsForm({
       ? options
       : [{ value: current, label: current }, ...options];
   return (
-    <form action={action} className="space-y-5" noValidate>
-      <FormMessage state={state} />
-      <fieldset disabled={!canEdit} className="space-y-5">
-        <TextField
-          label="Store name"
-          name="name"
-          defaultValue={values.name}
-          required
-          state={state}
-        />
-        <div className="grid gap-5 sm:grid-cols-2">
-          <SelectField
-            label="Language"
-            name="locale"
-            state={state}
-            options={withCurrent(LOCALE_OPTIONS, values.locale)}
-            defaultValue={values.locale}
-          />
-          <SelectField
-            label="Time zone"
-            name="timezone"
-            state={state}
-            options={withCurrent(TIMEZONE_OPTIONS, values.timezone)}
-            defaultValue={values.timezone}
-          />
-          <TextField
-            label="Contact email"
-            name="contactEmail"
-            type="email"
-            defaultValue={values.contactEmail}
-            state={state}
-          />
-          <TextField
-            label="Support email"
-            name="supportEmail"
-            type="email"
-            defaultValue={values.supportEmail}
-            state={state}
-          />
-        </div>
+    <form action={action} noValidate>
+      {/* Fixed facts first, so the Save footer sits right under the fields it saves. */}
+      <CardBody className="border-b border-line bg-subtle py-6">
+        <FieldGroup
+          title="Set when the store was created"
+          description="These can't be changed, so prices and your address stay consistent."
+        >
+          <DescriptionList layout="stacked" columns={2} items={fixed} className="gap-y-5" />
+        </FieldGroup>
+      </CardBody>
+      <fieldset disabled={!canEdit} className="min-w-0">
+        <CardBody className="space-y-8 py-6">
+          <FieldGroup title="Store details">
+            <TextField
+              label="Store name"
+              name="name"
+              defaultValue={values.name}
+              required
+              state={state}
+            />
+            <div className="grid gap-5 sm:grid-cols-2">
+              <TextField
+                label="Contact email"
+                name="contactEmail"
+                type="email"
+                defaultValue={values.contactEmail}
+                state={state}
+              />
+              <TextField
+                label="Support email"
+                name="supportEmail"
+                type="email"
+                defaultValue={values.supportEmail}
+                state={state}
+              />
+            </div>
+          </FieldGroup>
+          <FieldGroup title="Region" className="border-t border-line pt-8">
+            <div className="grid gap-5 sm:grid-cols-2">
+              <SelectField
+                label="Language"
+                name="locale"
+                state={state}
+                options={withCurrent(LOCALE_OPTIONS, values.locale)}
+                defaultValue={values.locale}
+              />
+              <SelectField
+                label="Time zone"
+                name="timezone"
+                state={state}
+                options={withCurrent(TIMEZONE_OPTIONS, values.timezone)}
+                defaultValue={values.timezone}
+              />
+            </div>
+          </FieldGroup>
+        </CardBody>
       </fieldset>
-      <div className="grid gap-5 sm:grid-cols-3">
-        {(
-          [
-            ["Web address", fixed.address],
-            ["Currency", fixed.currency],
-            ["Country", fixed.country],
-          ] as const
-        ).map(([label, value]) => (
-          <Field
-            key={label}
-            label={label}
-            hint={label === "Currency" ? "Fixed once the store is created." : undefined}
-          >
-            {({ id, describedBy }) => (
-              <Input id={id} aria-describedby={describedBy} value={value} readOnly disabled />
-            )}
-          </Field>
-        ))}
-      </div>
       {canEdit ? (
-        <div className="flex justify-end">
-          <SubmitButton>Save changes</SubmitButton>
-        </div>
+        <CardFooter className="justify-between">
+          <FormMessage state={state} variant="inline" />
+          <SubmitButton className="ml-auto">Save changes</SubmitButton>
+        </CardFooter>
       ) : null}
     </form>
   );
@@ -111,21 +112,14 @@ export function StoreSettingsForm({
 export function ArchiveStoreForm({ storeId, storeName }: { storeId: string; storeName: string }) {
   const [state, action] = useActionState(archiveStoreAction.bind(null, storeId), { ok: false });
   return (
-    <Dialog
+    <ConfirmDialog
       title={`Archive ${storeName}?`}
       description="The store disappears from your list. Its data is kept."
+      confirmLabel="Archive"
+      action={action}
+      state={state}
       trigger={<Button variant="danger-outline">Archive store</Button>}
-    >
-      <form action={action} className="space-y-3">
-        <FormMessage state={state} />
-        <div className="flex justify-end gap-2">
-          <DialogClose asChild>
-            <Button variant="secondary">Cancel</Button>
-          </DialogClose>
-          <SubmitButton variant="danger">Archive</SubmitButton>
-        </div>
-      </form>
-    </Dialog>
+    />
   );
 }
 
@@ -151,27 +145,32 @@ export function BusinessTypeForm({
   if (!canEdit) {
     const definition = BUSINESS_TYPE_DEFINITIONS[current];
     return (
-      <div className="flex items-center gap-3.5">
-        <GlyphTile name={BUSINESS_TYPE_GLYPH[current]} />
-        <div>
-          <p className="font-medium text-ink">{definition.label}</p>
-          <p className="text-sm text-ink-muted">{definition.tagline}</p>
+      <CardBody className="flex items-center gap-4 py-6">
+        <GlyphTile name={BUSINESS_TYPE_GLYPH[current]} size="lg" />
+        <div className="min-w-0">
+          <p className="text-body-sm font-semibold text-ink">{definition.label}</p>
+          <p className="mt-0.5 text-body-sm text-ink-muted">{definition.tagline}</p>
         </div>
-      </div>
+      </CardBody>
     );
   }
   const chosen = state.values?.["businessType"] ?? "";
   return (
-    <form key={version} action={action} className="space-y-5" noValidate>
-      <FormMessage state={state} />
-      <BusinessTypePicker
-        legend="This store is a…"
-        defaultValue={!state.ok && isBusinessType(chosen) ? chosen : current}
-        error={state.fieldErrors?.["businessType"]}
-      />
-      <div className="flex justify-end">
-        <SubmitButton variant="secondary">Update business type</SubmitButton>
-      </div>
+    <form key={version} action={action} noValidate>
+      <CardBody className="py-6">
+        <BusinessTypePicker
+          legend="This store is a…"
+          hideLegend
+          defaultValue={!state.ok && isBusinessType(chosen) ? chosen : current}
+          error={state.fieldErrors?.["businessType"]}
+        />
+      </CardBody>
+      <CardFooter className="justify-between">
+        <FormMessage state={state} variant="inline" />
+        <SubmitButton variant="secondary" className="ml-auto">
+          Update business type
+        </SubmitButton>
+      </CardFooter>
     </form>
   );
 }

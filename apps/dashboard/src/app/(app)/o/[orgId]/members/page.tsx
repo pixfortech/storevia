@@ -9,12 +9,26 @@ import {
   ROLE_LABELS,
 } from "@storevia/tenancy";
 import { rolePresetsFor } from "@storevia/tenancy/business-types";
-import { Alert, Badge, Card, CardHeader } from "@storevia/ui";
+import {
+  Alert,
+  Badge,
+  Card,
+  CardBody,
+  CardHeader,
+  Icon,
+  Illustration,
+  UsageMeter,
+} from "@storevia/ui";
+import { Info } from "lucide-react";
 import type { Metadata } from "next";
+import { AccessNotice } from "@/components/areas/access-notice";
 import { PageHeader } from "@/components/shell/app-shell";
+import { expiryText, formatShortDate } from "@/lib/areas/dates";
+import { storeAccessLabel } from "@/lib/areas/members";
+import { relativeTime } from "@/lib/dashboard/activity";
 import { invitationPublicId, membershipPublicId } from "@/lib/ids";
 import { organisationContextOr404 } from "@/lib/tenant";
-import { InviteForm, InvitationRow, MemberRow } from "./member-forms";
+import { InvitationRow, InviteForm, MembersList } from "./member-forms";
 
 export const metadata: Metadata = { title: "Members" };
 
@@ -31,10 +45,10 @@ export default async function MembersPage({
   if (!hasPermission(ctx, "member.read")) {
     return (
       <>
-        <PageHeader title="Members" />
-        <Alert tone="warning" title="You don't have access to the member list">
+        <PageHeader eyebrow={ctx.organisationName} title="Members" />
+        <AccessNotice title="You don't have access to the member list" illustration="empty-team">
           Ask an owner or admin of {ctx.organisationName} if you need it.
-        </Alert>
+        </AccessNotice>
       </>
     );
   }
@@ -58,69 +72,99 @@ export default async function MembersPage({
     .map((p) => ({ role: p.role, label: p.label, description: p.description }));
   const canTransfer = hasPermission(ctx, "ownership.transfer");
   const seats = canManage ? await getAllowance(ctx, "staff_accounts") : null;
-  const seatLimit = seats && seats.limit !== "unlimited" ? seats.limit : null;
   const pending = invitations.length;
+  const suspended = members.filter((m) => m.status === "SUSPENDED").length;
+  const storeNames = new Map(stores.map((s) => [s.id, s.name]));
+  const now = new Date();
+
   return (
     <>
-      <PageHeader title="Members" description={`People who can work in ${ctx.organisationName}.`} />
-      <div className="space-y-6">
+      <PageHeader
+        eyebrow={ctx.organisationName}
+        title="Members"
+        description={`People who can work in ${ctx.organisationName}, and what each of them can do.`}
+      />
+      <div className="space-y-6 lg:space-y-8">
         {removed ? <Alert tone="success">Member removed.</Alert> : null}
+
         {canManage ? (
-          <Card id="invite" className="scroll-mt-20">
+          <Card id="invite" className="scroll-mt-24">
             <CardHeader
               title="Invite someone"
               description="They'll get an email with a link to join. Invitations expire after 7 days."
               actions={
                 seats ? (
-                  <Badge tone={seats.overLimit ? "danger" : "neutral"} data-testid="seat-usage">
-                    {seats.usage.toString()} of{" "}
-                    {seatLimit === null ? "unlimited" : seatLimit.toString()} seats used
-                    {pending > 0 ? ` · ${String(pending)} pending` : ""}
-                  </Badge>
+                  <UsageMeter
+                    data-testid="seat-usage"
+                    size="sm"
+                    label="Seats"
+                    used={Number(seats.usage)}
+                    limit={seats.limit === "unlimited" ? "unlimited" : Number(seats.limit)}
+                    hint={pending > 0 ? `${String(pending)} pending` : undefined}
+                    className="w-full sm:w-52"
+                  />
                 ) : null
               }
             />
-            <div className="px-5 py-4">
+            <CardBody className="py-6">
               <InviteForm orgId={orgId} roles={assignableRoles} presets={presets} />
-            </div>
+            </CardBody>
           </Card>
         ) : null}
+
         <Card>
           <CardHeader
-            title="Members"
-            description={`${String(members.length)} ${members.length === 1 ? "person" : "people"}`}
+            title="Team"
+            description={[
+              `${String(members.length)} ${members.length === 1 ? "person" : "people"}`,
+              suspended > 0 ? `${String(suspended)} suspended` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           />
-          <ul className="divide-y divide-line">
-            {members.map((member) => (
-              <MemberRow
-                key={member.membershipId}
-                orgId={orgId}
-                member={{
-                  id: membershipPublicId(member.membershipId),
-                  name: member.name,
-                  email: member.email,
-                  role: member.role,
-                  roleLabel: ROLE_LABELS[member.role],
-                  status: member.status,
-                  isCurrentUser: member.isCurrentUser,
-                  storeScoped: !member.allStores,
-                }}
-                roles={assignableRoles}
-                canManage={
-                  canManage &&
-                  !member.isCurrentUser &&
-                  member.role !== "OWNER" &&
-                  canAssignRole(ctx.role, member.role)
-                }
-                canTransfer={canTransfer && member.role === "ADMIN" && member.status === "ACTIVE"}
-              />
-            ))}
-          </ul>
+          <MembersList
+            orgId={orgId}
+            roles={assignableRoles}
+            members={members.map((member) => ({
+              id: membershipPublicId(member.membershipId),
+              name: member.name,
+              email: member.email,
+              role: member.role,
+              roleLabel: ROLE_LABELS[member.role],
+              status: member.status,
+              isCurrentUser: member.isCurrentUser,
+              access: storeAccessLabel(member.allStores, member.storeIds, storeNames),
+              joined: formatShortDate(member.joinedAt),
+              canManage:
+                canManage &&
+                !member.isCurrentUser &&
+                member.role !== "OWNER" &&
+                canAssignRole(ctx.role, member.role),
+              canTransfer: canTransfer && member.role === "ADMIN" && member.status === "ACTIVE",
+            }))}
+          />
         </Card>
+
         <Card>
-          <CardHeader title="Pending invitations" />
-          {invitations.length === 0 ? (
-            <p className="px-5 py-6 text-sm text-ink-muted">No pending invitations.</p>
+          <CardHeader
+            title="Pending invitations"
+            description={
+              pending > 0
+                ? "Waiting to be accepted. Each link works once, for the address it was sent to."
+                : undefined
+            }
+            actions={pending > 0 ? <Badge variant="dot">{pending} pending</Badge> : undefined}
+          />
+          {pending === 0 ? (
+            <div className="flex items-center gap-4 px-5 py-5 sm:px-6">
+              <Illustration name="empty-inbox" size={56} className="shrink-0" />
+              <div className="min-w-0">
+                <h3 className="text-body-sm font-semibold text-ink">No pending invitations</h3>
+                <p className="mt-0.5 text-body-sm text-ink-muted">
+                  Invitations you send appear here until they&apos;re accepted or expire.
+                </p>
+              </div>
+            </div>
           ) : (
             <ul className="divide-y divide-line">
               {invitations.map((invitation) => (
@@ -131,7 +175,8 @@ export default async function MembersPage({
                     id: invitationPublicId(invitation.id),
                     email: invitation.email,
                     roleLabel: ROLE_LABELS[invitation.role],
-                    expires: invitation.expiresAt.toISOString(),
+                    sent: relativeTime(invitation.createdAt, now),
+                    expires: expiryText(invitation.expiresAt, now),
                   }}
                   canManage={canManage}
                 />
@@ -139,9 +184,11 @@ export default async function MembersPage({
             </ul>
           )}
         </Card>
-        <p className="text-xs text-ink-faint">
-          Roles control what each person can see and do. <Badge>Owner</Badge> is unique and moves
-          only through an ownership transfer.
+
+        <p className="flex items-start gap-2 text-caption text-ink-faint">
+          <Icon icon={Info} size="xs" className="mt-px" />
+          Roles decide what each person can see and do. There is one owner, and ownership moves only
+          through a transfer.
         </p>
       </div>
     </>
