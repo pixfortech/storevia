@@ -7,6 +7,7 @@ import {
   chartAreaPath,
   chartAxisFormatter,
   chartBarPath,
+  chartEnglishDateFormatter,
   chartExtent,
   chartFoldOther,
   chartLinePath,
@@ -276,6 +277,24 @@ describe("formatting and models", () => {
     expect(format("Mon")).toBe("Mon");
     expect(format(1200)).toBe("1,200");
     expect(chartXFormatter((x) => `#${String(x)}`)("a")).toBe("#a");
+  });
+
+  it("formats English dates without Intl, so server and browser text match", () => {
+    const friday = new Date(Date.UTC(2026, 8, 25, 23, 30));
+    const tooltip = { weekday: "short", month: "short", day: "numeric" } as const;
+    const detail = { month: "short", day: "numeric", year: "numeric" } as const;
+    // The same text as Intl's en-US output, which the other tests rely on.
+    expect(chartXFormatter(tooltip, "en-US")(friday)).toBe("Fri, Sep 25");
+    expect(chartXFormatter(detail, "en-US")(friday)).toBe("Sep 25, 2026");
+    // Day-first English locales: one fixed spelling, whatever the ICU data.
+    expect(chartXFormatter(tooltip, "en-GB")(friday)).toBe("Fri 25 Sep");
+    expect(chartXFormatter(undefined, "en-IN")(friday)).toBe("25 Sep");
+    expect(chartXFormatter(detail, "en-Latn-AU")(friday)).toBe("25 Sep 2026");
+    expect(chartXFormatter(undefined, "en")(friday)).toBe("Sep 25");
+    // Other languages and other options still use Intl.
+    expect(chartEnglishDateFormatter("fr-FR", detail)).toBeNull();
+    expect(chartEnglishDateFormatter("en-GB", { month: "long", day: "numeric" })).toBeNull();
+    expect(chartEnglishDateFormatter("en-GB", { ...detail, timeZone: "Asia/Kolkata" })).toBeNull();
   });
 
   it("maps series to a table twin, with the comparison's dates in one caption note", () => {

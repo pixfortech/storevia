@@ -439,6 +439,61 @@ export const CHART_DETAIL_DATE: Intl.DateTimeFormatOptions = {
 
 export type ChartXFormatter = (x: ChartX) => string;
 
+const MONTHS_SHORT = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+const WEEKDAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+// English locales that write the month first ("Sep 25"); the rest write "25 Sep".
+const MONTH_FIRST_REGIONS = new Set(["US", "PH", "CA", "UM", "AS", "GU", "MP", "PR", "VI"]);
+
+/**
+ * Chart dates in English are formatted here rather than by Intl. A chart
+ * renders on the server and again in the browser, and Node and browsers ship
+ * different locale data ("Fri 25 Sept" in one, "Fri, 25 Sept" in the other),
+ * so Intl text can differ and fail hydration. This covers the chart formats
+ * (short weekday, short month, day and year, in UTC); anything else, and
+ * other languages, uses Intl. Null when it doesn't apply.
+ */
+export function chartEnglishDateFormatter(
+  locale: string,
+  options: Intl.DateTimeFormatOptions,
+): ((date: Date) => string) | null {
+  const [language = "", ...subtags] = locale.split(/[-_]/);
+  if (language.toLowerCase() !== "en") return null;
+  const { weekday, month, day, year, timeZone, ...other } = options;
+  if (Object.keys(other).length > 0) return null;
+  if (timeZone !== undefined && timeZone !== "UTC") return null;
+  if (month !== "short" || day !== "numeric") return null;
+  if (weekday !== undefined && weekday !== "short") return null;
+  if (year !== undefined && year !== "numeric") return null;
+  // The region is the first two-letter or three-digit subtag ("en-Latn-GB").
+  const region = subtags.find((tag) => /^([a-z]{2}|\d{3})$/i.test(tag))?.toUpperCase();
+  const monthFirst = region === undefined || MONTH_FIRST_REGIONS.has(region);
+  return (date) => {
+    const m = MONTHS_SHORT[date.getUTCMonth()] ?? "";
+    const d = String(date.getUTCDate());
+    const y = String(date.getUTCFullYear());
+    const w = WEEKDAYS_SHORT[date.getUTCDay()] ?? "";
+    if (monthFirst) {
+      const text = year ? `${m} ${d}, ${y}` : `${m} ${d}`;
+      return weekday ? `${w}, ${text}` : text;
+    }
+    const text = year ? `${d} ${m} ${y}` : `${d} ${m}`;
+    return weekday ? `${w} ${text}` : text;
+  };
+}
+
 /** An x formatter: strings pass through, numbers use Intl, dates use `format`. */
 export function chartXFormatter(
   format: ChartXFormat | undefined,
@@ -446,10 +501,12 @@ export function chartXFormatter(
   fallback: Intl.DateTimeFormatOptions = CHART_AXIS_DATE,
 ): ChartXFormatter {
   if (typeof format === "function") return format;
-  const dates = new Intl.DateTimeFormat(locale, { timeZone: "UTC", ...(format ?? fallback) });
+  const options: Intl.DateTimeFormatOptions = { timeZone: "UTC", ...(format ?? fallback) };
+  const english = chartEnglishDateFormatter(locale, options);
+  const intl = english ? null : new Intl.DateTimeFormat(locale, options);
+  const formatDate = english ?? ((date: Date) => intl?.format(date) ?? "");
   const numbers = new Intl.NumberFormat(locale);
-  return (x) =>
-    x instanceof Date ? dates.format(x) : typeof x === "number" ? numbers.format(x) : x;
+  return (x) => (x instanceof Date ? formatDate(x) : typeof x === "number" ? numbers.format(x) : x);
 }
 
 /** A stable key for an x value (dates by timestamp). */
