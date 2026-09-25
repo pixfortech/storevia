@@ -1,15 +1,9 @@
 import { getAllowance, hasPermission, listStores } from "@storevia/tenancy";
 import { BUSINESS_TYPE_DEFINITIONS, BUSINESS_TYPES } from "@storevia/tenancy/business-types";
-import {
-  Badge,
-  BusinessScene,
-  buttonClasses,
-  Card,
-  cardClasses,
-  EmptyState,
-  Glyph,
-  Icon,
-} from "@storevia/ui";
+import { buttonClasses } from "@storevia/ui/button";
+import { Glyph, Icon } from "@storevia/ui/icons";
+import { BusinessScene } from "@storevia/ui/illustrations";
+import { Badge, Card, cardClasses, EmptyState } from "@storevia/ui/surfaces";
 import { ArrowRight, Globe, Info, Plus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";

@@ -2,7 +2,7 @@
 // (s/[storeId]/[area]). Pure data: the page still checks the area's
 // permission and the plan before it shows anything.
 import type { AreaKey } from "@storevia/tenancy/business-types";
-import type { IllustrationName } from "@storevia/ui";
+import type { IllustrationName } from "@storevia/ui/illustrations";
 
 /** The empty-state illustration for each area, drawn from the shared set. */
 export const AREA_ILLUSTRATION: Readonly<Record<AreaKey, IllustrationName>> = {

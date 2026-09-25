@@ -1,6 +1,7 @@
 "use client";
 
-import { Button, Dialog, DialogClose, DialogFooter } from "@storevia/ui";
+import { Button } from "@storevia/ui/button";
+import { Dialog, DialogClose, DialogFooter } from "@storevia/ui/overlays";
 import type { ReactNode } from "react";
 import { FormMessage, SubmitButton, type FormState } from "@/components/forms";
 

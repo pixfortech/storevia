@@ -1,14 +1,7 @@
 import { PLATFORM_ROLE_LABELS } from "@storevia/tenancy/platform-rbac";
-import {
-  Avatar,
-  Badge,
-  Card,
-  CardBody,
-  CardHeader,
-  DescriptionList,
-  Icon,
-  PageHeader,
-} from "@storevia/ui";
+import { DescriptionList } from "@storevia/ui/data";
+import { Icon } from "@storevia/ui/icons";
+import { Avatar, Badge, Card, CardBody, CardHeader, PageHeader } from "@storevia/ui/surfaces";
 import { Check } from "lucide-react";
 import type { Metadata } from "next";
 import { requireStaff } from "@/lib/auth";

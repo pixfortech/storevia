@@ -1,5 +1,5 @@
 import { getStore, hasPermission } from "@storevia/tenancy";
-import { Alert, Badge } from "@storevia/ui";
+import { Alert, Badge } from "@storevia/ui/surfaces";
 import { Lock } from "lucide-react";
 import type { Metadata } from "next";
 import {

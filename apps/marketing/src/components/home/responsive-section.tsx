@@ -1,6 +1,7 @@
 // 11 Responsive administration: desktop, tablet and phone side by side,
 // aligned on one baseline, each with the layout the dashboard ships for it.
-import { Icon, Reveal, Stagger } from "@storevia/ui";
+import { Icon } from "@storevia/ui/icons";
+import { Reveal, Stagger } from "@storevia/ui/motion";
 import { Monitor, Smartphone, Tablet } from "lucide-react";
 import { Section, SectionHeading } from "@/components/marketing";
 import { capability } from "@/content/capabilities";

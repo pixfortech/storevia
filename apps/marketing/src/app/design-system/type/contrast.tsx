@@ -3,7 +3,7 @@
 // Contrast of the tested token pairs, computed in the browser from the live
 // CSS variables so the table can't drift from theme.css. The same pairs are
 // enforced by packages/ui/src/theme.test.ts.
-import { Badge } from "@storevia/ui";
+import { Badge } from "@storevia/ui/surfaces";
 import { useEffect, useState } from "react";
 
 export interface ContrastPair {

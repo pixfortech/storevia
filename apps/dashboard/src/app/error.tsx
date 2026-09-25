@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, buttonClasses } from "@storevia/ui";
+import { Button, buttonClasses } from "@storevia/ui/button";
 import Link from "next/link";
 import { StatusPage } from "@/components/shell/status-page";
 

@@ -1,4 +1,4 @@
-import { Logo } from "@storevia/ui";
+import { Logo } from "@storevia/ui/icons";
 import Link from "next/link";
 import { ArrowLink } from "./marketing/arrow-link";
 import { Container } from "./marketing/section";

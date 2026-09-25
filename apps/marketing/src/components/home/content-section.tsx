@@ -2,7 +2,7 @@
 // each with its status. Content tools are on the roadmap; the roles for
 // authors and editors already exist. The copy comes first in the DOM so it
 // leads when stacked; the editor moves left only from lg.
-import { Reveal, SlideReveal } from "@storevia/ui";
+import { Reveal, SlideReveal } from "@storevia/ui/motion";
 import { Section, SectionHeading, StatusPill } from "@/components/marketing";
 import { capability } from "@/content/capabilities";
 import { IllustrativeNote } from "@/components/product/frame";

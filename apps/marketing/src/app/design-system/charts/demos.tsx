@@ -1,13 +1,8 @@
 "use client";
 // Interactive chart specimens: the period filter re-scopes the chart, the
 // headline and the table twin together. Every figure is example data.
-import {
-  ChartCard,
-  ChartHeadline,
-  DateRangePicker,
-  LineChart,
-  type ChartStatus,
-} from "@storevia/ui";
+import { ChartCard, ChartHeadline, LineChart, type ChartStatus } from "@storevia/ui/charts";
+import { DateRangePicker } from "@storevia/ui/date-range-picker";
 import { useState } from "react";
 import {
   exampleRevenue,

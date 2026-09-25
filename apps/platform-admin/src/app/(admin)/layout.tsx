@@ -1,6 +1,7 @@
 import { isMockBillingEnabled } from "@storevia/billing";
 import { hasPlatformPermission, PLATFORM_ROLE_LABELS } from "@storevia/tenancy/platform";
-import { Badge, Logo } from "@storevia/ui";
+import { Logo } from "@storevia/ui/icons";
+import { Badge } from "@storevia/ui/surfaces";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AdminNav } from "@/components/admin-nav";

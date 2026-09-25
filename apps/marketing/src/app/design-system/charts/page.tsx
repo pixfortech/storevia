@@ -1,8 +1,7 @@
+import { buttonClasses } from "@storevia/ui/button";
 import {
   AreaChart,
-  Badge,
   BarChart,
-  Card,
   ChartCard,
   ChartHeadline,
   ChartKey,
@@ -10,13 +9,13 @@ import {
   ChartTable,
   ChartTooltip,
   DonutChart,
-  KpiCard,
   LineChart,
   Sparkline,
-  buttonClasses,
-  cn,
   type ChartTone,
-} from "@storevia/ui";
+} from "@storevia/ui/charts";
+import { cn } from "@storevia/ui/cn";
+import { KpiCard } from "@storevia/ui/data";
+import { Badge, Card } from "@storevia/ui/surfaces";
 import type { ReactNode } from "react";
 import { RevenueCard } from "./demos";
 import {

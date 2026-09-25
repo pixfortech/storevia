@@ -3,7 +3,11 @@
 // menu and layouts). Decorative visuals; the words carry the meaning.
 import { BUSINESS_TYPE_DEFINITIONS, BUSINESS_TYPES } from "@storevia/tenancy/business-types";
 import { MEMBER_ROLES, ROLE_LABELS } from "@storevia/tenancy/rbac";
-import { Avatar, Badge, cn, CommandMenuPreview, Glyph, Icon, Reveal } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
+import { CommandMenuPreview } from "@storevia/ui/command-preview";
+import { Glyph, Icon } from "@storevia/ui/icons";
+import { Reveal } from "@storevia/ui/motion";
+import { Avatar, Badge } from "@storevia/ui/surfaces";
 import { Database, FileText, Lock, Package, Settings } from "lucide-react";
 import type { ReactNode } from "react";
 import { Section, SectionHeading, StatusPill } from "@/components/marketing";

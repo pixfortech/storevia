@@ -5,16 +5,9 @@ import {
   isBusinessType,
   type BusinessType,
 } from "@storevia/tenancy/business-types";
-import {
-  Badge,
-  BusinessScene,
-  Card,
-  CardBody,
-  CardHeader,
-  cardClasses,
-  Glyph,
-  Icon,
-} from "@storevia/ui";
+import { Glyph, Icon } from "@storevia/ui/icons";
+import { BusinessScene } from "@storevia/ui/illustrations";
+import { Badge, Card, CardBody, CardHeader, cardClasses } from "@storevia/ui/surfaces";
 import { normaliseSlug } from "@storevia/validation";
 import { Globe } from "lucide-react";
 import { useActionState, useState, type ReactNode } from "react";

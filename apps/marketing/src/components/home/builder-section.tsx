@@ -1,7 +1,7 @@
 // 06 Website builder: the editor as a concept, full width, with numbered
 // captions for its parts. The builder is on the roadmap, and the section
 // says so before anything else.
-import { ScaleIn, Stagger } from "@storevia/ui";
+import { ScaleIn, Stagger } from "@storevia/ui/motion";
 import { ArrowLink, Section, SectionHeading } from "@/components/marketing";
 import { capability } from "@/content/capabilities";
 import { EditorWindow } from "@/components/product/builder";

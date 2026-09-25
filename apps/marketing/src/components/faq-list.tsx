@@ -1,4 +1,4 @@
-import { Icon } from "@storevia/ui";
+import { Icon } from "@storevia/ui/icons";
 import { Plus } from "lucide-react";
 import { FAQ } from "@/content/faq";
 

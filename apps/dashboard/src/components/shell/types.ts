@@ -1,4 +1,4 @@
-import type { GlyphName } from "@storevia/ui";
+import type { GlyphName } from "@storevia/ui/icons";
 import type { NAV_ICONS } from "./icons";
 
 export type ShellIcon = keyof typeof NAV_ICONS;

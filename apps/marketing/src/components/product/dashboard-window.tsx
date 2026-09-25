@@ -9,19 +9,12 @@ import {
   type BusinessType,
 } from "@storevia/tenancy/business-types";
 import { ROLE_PERMISSIONS } from "@storevia/tenancy/rbac";
-import {
-  AreaChart,
-  Avatar,
-  Button,
-  ButtonGroup,
-  ChartHeadline,
-  cn,
-  Icon,
-  Kbd,
-  KpiCard,
-  Logo,
-  Sparkline,
-} from "@storevia/ui";
+import { Button, ButtonGroup } from "@storevia/ui/button";
+import { AreaChart, ChartHeadline, Sparkline } from "@storevia/ui/charts";
+import { cn } from "@storevia/ui/cn";
+import { Kbd, KpiCard } from "@storevia/ui/data";
+import { Icon, Logo } from "@storevia/ui/icons";
+import { Avatar } from "@storevia/ui/surfaces";
 import { ChevronRight, ChevronsUpDown, Plus, Search } from "lucide-react";
 import { AREA_ICONS } from "./area-icons";
 import { Mockup, WindowFrame } from "./frame";

@@ -7,12 +7,11 @@ import {
   BarChart,
   ChartCard,
   ChartHeadline,
-  cn,
   DonutChart,
-  KpiCard,
-  Metric,
   Sparkline,
-} from "@storevia/ui";
+} from "@storevia/ui/charts";
+import { cn } from "@storevia/ui/cn";
+import { KpiCard, Metric } from "@storevia/ui/data";
 import { Mockup } from "./frame";
 import { exampleDates, exampleSeries, SAMPLE_DASHBOARDS, scaleSeries } from "./sample-data";
 

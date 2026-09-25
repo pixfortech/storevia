@@ -1,5 +1,7 @@
 import { previewInvitation, ROLE_LABELS } from "@storevia/tenancy";
-import { Alert, Avatar, buttonClasses, Illustration } from "@storevia/ui";
+import { buttonClasses } from "@storevia/ui/button";
+import { Illustration } from "@storevia/ui/illustrations";
+import { Alert, Avatar } from "@storevia/ui/surfaces";
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";

@@ -2,7 +2,8 @@
 // what it's for, what Storevia adapts for it and a link to its solution
 // page. Straight from the domain's business-type definitions.
 import { BUSINESS_TYPE_DEFINITIONS, BUSINESS_TYPES } from "@storevia/tenancy/business-types";
-import { BusinessScene, Stagger } from "@storevia/ui";
+import { BusinessScene } from "@storevia/ui/illustrations";
+import { Stagger } from "@storevia/ui/motion";
 import { ArrowLink, Section, SectionHeading } from "@/components/marketing";
 import { BUSINESS_TYPE_ANCHOR } from "@/content/business-types";
 

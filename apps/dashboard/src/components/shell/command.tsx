@@ -1,6 +1,9 @@
 "use client";
 
-import { CommandMenu, cn, Icon, Kbd, useCommandShortcut, type CommandItem } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
+import { CommandMenu, useCommandShortcut, type CommandItem } from "@storevia/ui/command";
+import { Kbd } from "@storevia/ui/data";
+import { Icon } from "@storevia/ui/icons";
 import { Building2, Plus, Search, ShieldCheck, Store } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { createContext, use, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";

@@ -1,4 +1,5 @@
-import { cn, Reveal } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
+import { Reveal } from "@storevia/ui/motion";
 import type { ReactNode } from "react";
 import type { ComposedWidget, DashboardDensity } from "@/lib/dashboard/compose";
 import type { DashboardArrangement } from "@/lib/dashboard/layout";

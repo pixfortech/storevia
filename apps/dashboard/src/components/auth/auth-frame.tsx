@@ -1,4 +1,4 @@
-import { GlyphTile, Logo, type GlyphName } from "@storevia/ui";
+import { GlyphTile, Logo, type GlyphName } from "@storevia/ui/icons";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AuthAside } from "./auth-aside";

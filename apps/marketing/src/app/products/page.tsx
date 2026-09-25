@@ -1,16 +1,11 @@
 import type { PublicCatalogue } from "@storevia/entitlements/catalogue";
 import { formatEntitlement } from "@storevia/entitlements/format";
 import type { MemberRole } from "@storevia/tenancy/rbac";
-import {
-  BusinessScene,
-  buttonClasses,
-  cn,
-  Glyph,
-  GlyphTile,
-  Icon,
-  Reveal,
-  Stagger,
-} from "@storevia/ui";
+import { buttonClasses } from "@storevia/ui/button";
+import { cn } from "@storevia/ui/cn";
+import { Glyph, GlyphTile, Icon } from "@storevia/ui/icons";
+import { BusinessScene } from "@storevia/ui/illustrations";
+import { Reveal, Stagger } from "@storevia/ui/motion";
 import { Check } from "lucide-react";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";

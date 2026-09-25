@@ -1,4 +1,5 @@
-import { buttonClasses, Illustration } from "@storevia/ui";
+import { buttonClasses } from "@storevia/ui/button";
+import { Illustration } from "@storevia/ui/illustrations";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLink, Container } from "@/components/marketing";

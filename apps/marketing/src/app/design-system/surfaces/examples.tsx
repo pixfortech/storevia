@@ -2,16 +2,11 @@
 // and their static previews (page.tsx), so both always show the same thing.
 // No hooks: it renders on the server and inside client components. Every
 // name, store and address here is example data.
-import {
-  Avatar,
-  Badge,
-  DescriptionList,
-  Field,
-  Icon,
-  Input,
-  Select,
-  type CommandItem,
-} from "@storevia/ui";
+import { type CommandItem } from "@storevia/ui/command";
+import { DescriptionList } from "@storevia/ui/data";
+import { Field, Input, Select } from "@storevia/ui/form";
+import { Icon } from "@storevia/ui/icons";
+import { Avatar, Badge } from "@storevia/ui/surfaces";
 import {
   CreditCard,
   House,

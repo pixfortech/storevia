@@ -1,6 +1,6 @@
 // Example data for the charts gallery. Generated from a fixed seed so server
 // and client render the same values; none of it describes a real business.
-import type { ChartPart, ChartSeries } from "@storevia/ui";
+import type { ChartPart, ChartSeries } from "@storevia/ui/charts";
 
 // The last day of every example series (fixed, so the page is deterministic).
 const END = Date.UTC(2026, 8, 23);

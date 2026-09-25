@@ -1,4 +1,4 @@
-import { Icon } from "@storevia/ui";
+import { Icon } from "@storevia/ui/icons";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 

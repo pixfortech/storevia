@@ -1,4 +1,4 @@
-import { MOTION_DURATIONS } from "@storevia/ui";
+import { MOTION_DURATIONS } from "@storevia/ui/motion";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import {

@@ -1,4 +1,5 @@
-import { Badge, Icon, Logo } from "@storevia/ui";
+import { Icon, Logo } from "@storevia/ui/icons";
+import { Badge } from "@storevia/ui/surfaces";
 import { ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
 

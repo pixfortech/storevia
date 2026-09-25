@@ -1,7 +1,9 @@
 // Layout pieces shared by the organisation and store settings pages: a
 // sectioned page with a side index on desktop, one card per section, and a
 // danger zone kept apart from everything else. Server-safe.
-import { Card, CardHeader, Icon, cn } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
+import { Icon } from "@storevia/ui/icons";
+import { Card, CardHeader } from "@storevia/ui/surfaces";
 import { TriangleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 import { SettingsIndex, type SettingsSectionLink } from "./settings-index";

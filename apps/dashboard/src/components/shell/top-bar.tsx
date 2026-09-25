@@ -1,6 +1,8 @@
 "use client";
 
-import { Breadcrumb, buttonClasses, Icon } from "@storevia/ui";
+import { buttonClasses } from "@storevia/ui/button";
+import { Icon } from "@storevia/ui/icons";
+import { Breadcrumb } from "@storevia/ui/navigation";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";

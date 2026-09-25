@@ -1,4 +1,5 @@
-import { Icon, Reveal } from "@storevia/ui";
+import { Icon } from "@storevia/ui/icons";
+import { Reveal } from "@storevia/ui/motion";
 import { Check, Tag } from "lucide-react";
 import type { Metadata } from "next";
 import { ArrowLink, CTASection, PageHero, Section, StatusPill } from "@/components/marketing";

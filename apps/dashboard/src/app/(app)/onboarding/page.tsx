@@ -1,6 +1,9 @@
 import { listMyOrganisations } from "@storevia/tenancy";
 import { BUSINESS_TYPE_DEFINITIONS, BUSINESS_TYPES } from "@storevia/tenancy/business-types";
-import { Badge, BusinessScene, Icon, cn } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
+import { Icon } from "@storevia/ui/icons";
+import { BusinessScene } from "@storevia/ui/illustrations";
+import { Badge } from "@storevia/ui/surfaces";
 import { UserPlus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";

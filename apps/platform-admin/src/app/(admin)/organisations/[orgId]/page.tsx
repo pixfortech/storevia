@@ -8,22 +8,19 @@ import { isEntitling, type EntitlementValue, type FeatureKey } from "@storevia/e
 import { formatEntitlement } from "@storevia/entitlements/format";
 import { hasPlatformPermission } from "@storevia/tenancy/platform";
 import { toTypeId } from "@storevia/types";
+import { buttonClasses } from "@storevia/ui/button";
+import { DataList, DescriptionList, Stat, UsageMeter } from "@storevia/ui/data";
 import {
   Alert,
   Avatar,
   Badge,
-  buttonClasses,
   Card,
   CardBody,
   CardFooter,
   CardHeader,
-  DataList,
-  DescriptionList,
   PageHeader,
   SectionHeader,
-  Stat,
-  UsageMeter,
-} from "@storevia/ui";
+} from "@storevia/ui/surfaces";
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";

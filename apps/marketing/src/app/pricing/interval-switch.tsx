@@ -1,6 +1,6 @@
 "use client";
 
-import { SegmentedControl } from "@storevia/ui";
+import { SegmentedControl } from "@storevia/ui/segmented-control";
 import { useState, type ReactNode } from "react";
 import type { Interval } from "@/lib/pricing";
 

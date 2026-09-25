@@ -1,7 +1,7 @@
 // Line drawings of the sample products in the storefront and commerce
 // mockups, in the illustration language: navy 1.5 strokes on a 96 grid, one
 // soft brand accent per piece. Decorative only (the mockup carries the label).
-import { cn } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
 import type { ReactNode } from "react";
 import type { ProductArtKind } from "./sample-data";
 

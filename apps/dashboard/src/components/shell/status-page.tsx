@@ -1,4 +1,5 @@
-import { Illustration, Logo, type IllustrationName } from "@storevia/ui";
+import { Logo } from "@storevia/ui/icons";
+import { Illustration, type IllustrationName } from "@storevia/ui/illustrations";
 import Link from "next/link";
 import type { ReactNode } from "react";
 

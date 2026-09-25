@@ -1,7 +1,7 @@
 // 08 Store management: the merchant dashboard at full size, with example
 // figures, and an honest line on what the store home shows today versus
 // what arrives with commerce and analytics.
-import { ScaleIn } from "@storevia/ui";
+import { ScaleIn } from "@storevia/ui/motion";
 import { Section, SectionHeading, StatusPill } from "@/components/marketing";
 import { DashboardWindow } from "@/components/product/dashboard-window";
 import { IllustrativeNote } from "@/components/product/frame";

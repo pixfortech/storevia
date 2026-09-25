@@ -5,9 +5,6 @@ import {
   type AreaKey,
 } from "@storevia/tenancy/business-types";
 import {
-  BusinessScene,
-  Icon,
-  Reveal,
   Table,
   TableBody,
   TableCaption,
@@ -15,7 +12,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@storevia/ui";
+} from "@storevia/ui/data";
+import { Icon } from "@storevia/ui/icons";
+import { BusinessScene } from "@storevia/ui/illustrations";
+import { Reveal } from "@storevia/ui/motion";
 import { Check, CreditCard, KeyRound, LayoutDashboard, Minus } from "lucide-react";
 import type { Metadata } from "next";
 import {

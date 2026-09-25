@@ -1,13 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-  Progress,
-  Tooltip,
-  TooltipProvider,
-} from "./feedback";
+import { Progress, Tooltip, TooltipProvider } from "./feedback";
+import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 import { Toast, Toaster, ToastProvider, useToast } from "./toast";
 import { Spinner } from "./spinner";
 

@@ -50,26 +50,48 @@ Tailwind v4 `@theme static` variables, in two layers:
 `tailwind-merge` knows the custom roles, radii and shadows (`cn()`), so a
 component's classes can be overridden safely.
 
-## 3. Components
+## 3. Components and entry points
 
-| Module                                 | Components                                                                                                                                                                      |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `icons`, `illustrations`               | `Logo`, `LogoMark`, `Icon`, `Glyph`, `GlyphTile`, `Illustration` (empty and status states), `BusinessScene`                                                                     |
-| `button`, `spinner`                    | `Button`, `IconButton`, `ButtonGroup`, `buttonClasses`, `Spinner` (server-safe)                                                                                                 |
-| `form`, `choice`                       | `Input`, `Textarea`, `Select`, `Field`, `SearchInput`, `Combobox`, `DateRangePicker`, `ChoiceCards`, `Checkbox`, `RadioGroup`/`RadioItem`, `Switch`, `SegmentedControl`         |
-| `navigation`                           | `Tabs`, `Breadcrumb`, `Pagination`, `NavigationMenu*` (marketing mega-menus)                                                                                                    |
-| `feedback`, `toast`                    | `Tooltip`, `Popover`, `Progress`; toasts (`ToastProvider`, `Toaster`, `useToast`) in their own module                                                                           |
-| `surfaces`                             | `Card` family, `PageHeader`, `SectionHeader`, `Badge`, `ExampleDataBadge`, `StatusDot`, `Alert`, `EmptyState`, `Skeleton`, `Avatar`, `AvatarGroup`, `Divider`, `VisuallyHidden` |
-| `data`                                 | `Metric`, `KpiCard`, `UsageMeter`, `Meter`, `Stat`, `Kbd`, `Table` primitives, `DataList`, `DescriptionList`                                                                    |
-| `overlays`, `dropdown-menu`, `command` | `Dialog`, `Drawer`, `Sheet`; `DropdownMenu*`; `CommandMenu` (⌘K / Ctrl+K); shared focus return (`overlays-focus.ts`)                                                            |
-| `charts`                               | `LineChart`, `AreaChart`, `BarChart`, `DonutChart`, `Sparkline`, `ChartCard`, `ChartLegend`, `ChartTable`, `ChartEmpty`: SVG, no chart library                                  |
-| `motion`                               | `Reveal`, `FadeIn`, `SlideReveal`, `ScaleIn`, `Stagger`, `AnimatedNumber`, `ChartReveal`, `DrawLine`, `HoverLift`, `Float`, `useInView`, `usePrefersReducedMotion`              |
-| `control-helpers`                      | `paginationRange`, `dateRangeBounds`: pure, callable from server components                                                                                                     |
+Apps import each component from its own entry point, never from a barrel:
 
-Components with no hooks stay server-safe; interactive ones are client
-modules. The package declares `"sideEffects": ["*.css"]` so bundlers can
-drop modules a page doesn't use (client modules imported through the barrel
-are the exception today: see §8).
+```ts
+import { Button } from "@storevia/ui/button";
+import { Dialog } from "@storevia/ui/overlays";
+```
+
+`@storevia/ui` has no root export. A barrel that re-exports client modules
+makes Next.js ship every one of them on every page that imports it (the
+marketing home page loaded toast, dropdown-menu, popover and combobox code it
+never rendered). Each entry point is one module, so a page ships only the
+client code it uses. `package-exports.test.ts` checks that every public
+module is an entry point and no internal one is.
+
+| Entry point (`@storevia/ui/…`)      | Components                                                                                                                                                                      | Kind                        |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| `icons`                             | `Logo`, `LogoMark`, `Icon`, `Glyph`, `GlyphTile`, `LOGO_SLANT`                                                                                                                  | server-safe                 |
+| `illustrations`                     | `Illustration` (empty and status states), `BusinessScene`                                                                                                                       | server-safe                 |
+| `button`, `spinner`                 | `Button`, `IconButton`, `ButtonGroup`, `buttonClasses`; `Spinner`                                                                                                               | server-safe                 |
+| `surfaces`                          | `Card` family, `PageHeader`, `SectionHeader`, `Badge`, `ExampleDataBadge`, `StatusDot`, `Alert`, `EmptyState`, `Skeleton`, `Avatar`, `AvatarGroup`, `Divider`, `VisuallyHidden` | server-safe                 |
+| `data`                              | `Metric`, `KpiCard`, `UsageMeter`, `Meter`, `Stat`, `Kbd`, `Table` primitives, `DataList`, `DescriptionList`                                                                    | server-safe                 |
+| `charts`                            | `LineChart`, `AreaChart`, `BarChart`, `DonutChart`, `Sparkline`, `ChartCard`, `ChartLegend`, `ChartTable`, `ChartEmpty`                                                         | server entry, client plots  |
+| `motion`                            | `Reveal`, `FadeIn`, `SlideReveal`, `ScaleIn`, `Stagger`, `AnimatedNumber`, `ChartReveal`, `DrawLine`, `HoverLift`, `Float`, `useInView`, `usePrefersReducedMotion`              | server entry, client island |
+| `command-preview`                   | `CommandMenuPreview` (static, inert)                                                                                                                                            | server-safe                 |
+| `control-helpers`, `cn`             | `paginationRange`, `dateRangeBounds`; `cn`                                                                                                                                      | server-safe                 |
+| `form`                              | `Input`, `Textarea`, `Select`, `Field`, `SearchInput`                                                                                                                           | client                      |
+| `combobox`, `date-range-picker`     | `Combobox`; `DateRangePicker`                                                                                                                                                   | client                      |
+| `choice`                            | `Checkbox`, `RadioGroup`/`RadioItem`, `Switch`                                                                                                                                  | client                      |
+| `choice-cards`, `segmented-control` | `ChoiceCards`; `SegmentedControl`                                                                                                                                               | client                      |
+| `navigation`                        | `Tabs`, `Breadcrumb`, `Pagination`                                                                                                                                              | client                      |
+| `navigation-menu`                   | `NavigationMenu*` (marketing mega-menus)                                                                                                                                        | client                      |
+| `feedback`, `popover`, `toast`      | `Tooltip`, `Progress`; `Popover`; `ToastProvider`, `Toaster`, `useToast`                                                                                                        | client                      |
+| `overlays`, `dropdown-menu`         | `Dialog`, `Drawer`, `Sheet`; `DropdownMenu*`                                                                                                                                    | client                      |
+| `command`                           | `CommandMenu` (⌘K / Ctrl+K), `useCommandShortcut`, `commandResults`                                                                                                             | client                      |
+
+Internal modules (`form-core`, `command-parts`, `chart-*`, `motion-core`,
+`motion-client`, `overlays-focus`, `overlays-shared`, `data-scroll`) are
+not entry points. A new public module gets its own entry in
+`packages/ui/package.json`; the test fails until it does. Keep modules that
+pages use independently apart: a client module ships whole.
 
 ## 4. Icons, glyphs and illustrations
 
@@ -135,18 +157,29 @@ bottom navigation), and no page may scroll horizontally at 320 px and up.
 Server Components by default; client components are interactive islands.
 Fonts are self-hosted, icons are tree-shaken Lucide components, charts are
 plain SVG, and motion uses CSS and IntersectionObserver with no animation
-library. Modules are split so a page can skip what it doesn't use (toasts
-and the dropdown menu are apart from tooltips and dialogs), and `Spinner`
-is server-safe.
+library. Per-module entry points (§3) keep each page to the client code it
+renders.
 
-Measured on production builds (uncompressed JavaScript): marketing home
-800 KiB, pricing 665 KiB, contact 723 KiB, dashboard sign-in 685 KiB.
-Lighthouse (simulated mobile): marketing home 85 to 92, other pages 90 to
-97; desktop 98 to 100; accessibility 100 everywhere.
+Measured on production builds with every Next server restarted and each
+loaded chunk checked against the build on disk (uncompressed JavaScript,
+with transferred bytes in brackets):
 
-Known gap: apps import from the `@storevia/ui` barrel, and the production
-build ships every client module the barrel re-exports on each page that
-imports it (the home page loads toast and dropdown code it never renders).
-`optimizePackageImports` does not change this. The fix is importing each
-component from its own module (a subpath export map), a change across every
-app, scheduled after the design review.
+| Page                 | Barrel (f42a3b2)  | Entry points      |
+| -------------------- | ----------------- | ----------------- |
+| Marketing home       | 800 KiB (252 KiB) | 664 KiB (206 KiB) |
+| Marketing /products  | 800 KiB (252 KiB) | 664 KiB (206 KiB) |
+| Marketing /pricing   | 665 KiB (205 KiB) | 650 KiB (200 KiB) |
+| Marketing /contact   | 723 KiB (226 KiB) | 647 KiB (200 KiB) |
+| Dashboard sign-in    | 685 KiB (213 KiB) | 577 KiB (178 KiB) |
+| Dashboard store home | 837 KiB (258 KiB) | 765 KiB (239 KiB) |
+
+About 450 KiB of each page is React and the Next.js runtime. Lighthouse
+(simulated mobile, median of three): home 86 → 88, /products 90 → 93,
+dashboard sign-in 91 → 95; accessibility 100.
+
+Remaining weight is code the page renders: the marketing header's
+mega-menu and phone-menu dialog on every marketing page, and on the store
+home the dashboard shell (menus, command menu, tooltips) plus the chart
+components the example preview draws, which production pages load even
+though they show no charts yet. Loading those widgets on demand is an app
+change, left for when real analytics arrive.

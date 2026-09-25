@@ -1,7 +1,8 @@
 // Frames for product mockups: a browser or app window, a tablet and a phone,
 // plus the wrapper that turns a composition into one labelled image and the
 // caption that says it's illustrative. Server components.
-import { cn, Icon } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
+import { Icon } from "@storevia/ui/icons";
 import { Lock } from "lucide-react";
 import type { ReactNode } from "react";
 

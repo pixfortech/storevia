@@ -1,4 +1,5 @@
-import { cn, PageHeader as UiPageHeader, type PageHeaderProps } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
+import { PageHeader as UiPageHeader, type PageHeaderProps } from "@storevia/ui/surfaces";
 import type { ReactNode } from "react";
 import { CommandProvider } from "./command";
 import { MobileTabBar, MobileTopBar } from "./mobile-nav";

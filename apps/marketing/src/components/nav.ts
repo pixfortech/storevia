@@ -3,7 +3,7 @@
 // come from content/capabilities.ts, business types from the domain, so the
 // menus can't claim more than the product does.
 import { BUSINESS_TYPE_DEFINITIONS, BUSINESS_TYPES } from "@storevia/tenancy/business-types";
-import type { GlyphName } from "@storevia/ui";
+import type { GlyphName } from "@storevia/ui/icons";
 import {
   Building2,
   CircleHelp,

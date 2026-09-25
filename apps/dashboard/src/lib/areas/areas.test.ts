@@ -1,6 +1,6 @@
 import { FEATURE_KEYS } from "@storevia/entitlements/features";
 import { STORE_AREAS, type AreaKey } from "@storevia/tenancy/business-types";
-import { ILLUSTRATION_NAMES } from "@storevia/ui";
+import { ILLUSTRATION_NAMES } from "@storevia/ui/illustrations";
 import { describe, expect, it } from "vitest";
 import { FEATURE_AVAILABILITY, entitlementGroups, intervalLabel, planFacts } from "./billing";
 import { expiryText, formatLongDate } from "./dates";

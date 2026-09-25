@@ -2,7 +2,9 @@
 // categories, featured image and a search preview. Content tools are on the
 // roadmap (the roles for authors and editors already exist), so this is a
 // concept with sample content. Responds to its own width.
-import { Avatar, Badge, Button, Icon } from "@storevia/ui";
+import { Button } from "@storevia/ui/button";
+import { Icon } from "@storevia/ui/icons";
+import { Avatar, Badge } from "@storevia/ui/surfaces";
 import { ChevronRight, Globe } from "lucide-react";
 import type { ReactNode } from "react";
 import { Mockup, WindowFrame } from "./frame";

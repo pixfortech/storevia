@@ -1,5 +1,6 @@
 import type { UsageLine } from "@storevia/entitlements";
-import { cn, UsageMeter } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
+import { UsageMeter } from "@storevia/ui/data";
 
 /**
  * Plan usage as meters: real counts only, never estimated. Each meter spells

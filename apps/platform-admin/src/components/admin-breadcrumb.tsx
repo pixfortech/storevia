@@ -1,6 +1,6 @@
 "use client";
 
-import { Breadcrumb, type BreadcrumbItem } from "@storevia/ui";
+import { Breadcrumb, type BreadcrumbItem } from "@storevia/ui/navigation";
 import Link from "next/link";
 
 // Breadcrumb is a client component, and a server page can't hand it

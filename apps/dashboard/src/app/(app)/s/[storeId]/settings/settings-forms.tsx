@@ -5,7 +5,10 @@ import {
   isBusinessType,
   type BusinessType,
 } from "@storevia/tenancy/business-types";
-import { Button, CardBody, CardFooter, DescriptionList, GlyphTile } from "@storevia/ui";
+import { Button } from "@storevia/ui/button";
+import { DescriptionList } from "@storevia/ui/data";
+import { GlyphTile } from "@storevia/ui/icons";
+import { CardBody, CardFooter } from "@storevia/ui/surfaces";
 import { useActionState, useState } from "react";
 import { ConfirmDialog } from "@/components/areas/confirm-dialog";
 import { FieldGroup } from "@/components/areas/settings";

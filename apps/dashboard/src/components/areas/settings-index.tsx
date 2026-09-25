@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
 import { useEffect, useState } from "react";
 
 export interface SettingsSectionLink {

@@ -1,4 +1,4 @@
-import { cn } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
 import type { ReactNode } from "react";
 import type { Status } from "@/content/capabilities";
 import { StatusPill } from "./status-pill";

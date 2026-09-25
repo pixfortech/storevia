@@ -1,4 +1,4 @@
-import { buttonClasses } from "@storevia/ui";
+import { buttonClasses } from "@storevia/ui/button";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { StatusPage } from "@/components/shell/status-page";

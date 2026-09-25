@@ -1,20 +1,22 @@
 import {
-  BUSINESS_SCENE_TYPES,
-  BusinessScene,
   GLYPH_NAMES,
   Glyph,
   GlyphTile,
-  ILLUSTRATION_NAMES,
   Icon,
-  Illustration,
   Logo,
   LogoMark,
   type GlyphName,
   type GlyphTileSize,
   type GlyphTileTone,
   type IconSize,
+} from "@storevia/ui/icons";
+import {
+  BUSINESS_SCENE_TYPES,
+  BusinessScene,
+  ILLUSTRATION_NAMES,
+  Illustration,
   type IllustrationName,
-} from "@storevia/ui";
+} from "@storevia/ui/illustrations";
 import {
   Bell,
   ChartLine,

@@ -3,7 +3,9 @@ import type { InputHTMLAttributes } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { dateRangeBounds } from "./control-helpers";
-import { Combobox, DateRangePicker, Field, Input, SearchInput, Select, Textarea } from "./form";
+import { Field, Input, SearchInput, Select, Textarea } from "./form";
+import { Combobox } from "./combobox";
+import { DateRangePicker } from "./date-range-picker";
 
 const attr = (html: string, name: string) =>
   [...html.matchAll(new RegExp(`\\s${name}="([^"]*)"`, "g"))].map((m) => m[1]);

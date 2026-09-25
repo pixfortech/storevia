@@ -8,7 +8,9 @@ import {
   type BusinessType,
 } from "@storevia/tenancy/business-types";
 import { ROLE_LABELS } from "@storevia/tenancy/rbac";
-import { cn, GlyphTile, Icon, Reveal } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
+import { GlyphTile, Icon } from "@storevia/ui/icons";
+import { Reveal } from "@storevia/ui/motion";
 import { Check } from "lucide-react";
 import type { ReactNode } from "react";
 import { Section, SectionHeading, StatusPill } from "@/components/marketing";

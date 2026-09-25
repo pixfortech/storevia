@@ -1,4 +1,5 @@
-import { buttonClasses, Logo } from "@storevia/ui";
+import { buttonClasses } from "@storevia/ui/button";
+import { Logo } from "@storevia/ui/icons";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { signOutAction } from "@/app/(app)/account/actions";

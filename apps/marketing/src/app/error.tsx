@@ -1,6 +1,7 @@
 "use client";
 
-import { Button, buttonClasses, Illustration } from "@storevia/ui";
+import { Button, buttonClasses } from "@storevia/ui/button";
+import { Illustration } from "@storevia/ui/illustrations";
 import Link from "next/link";
 import { Container } from "@/components/marketing/section";
 

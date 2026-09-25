@@ -1,6 +1,9 @@
 "use client";
 
-import { Alert, Button, Field, Illustration, Input, Select, Textarea } from "@storevia/ui";
+import { Button } from "@storevia/ui/button";
+import { Field, Input, Select, Textarea } from "@storevia/ui/form";
+import { Illustration } from "@storevia/ui/illustrations";
+import { Alert } from "@storevia/ui/surfaces";
 import { useActionState, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
 import { sendContactRequest, type ContactState } from "./actions";

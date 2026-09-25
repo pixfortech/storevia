@@ -2,55 +2,37 @@
 
 // Interactive specimens for the controls gallery. All content is example
 // content for the design system, not product data.
+import { Button, ButtonGroup, IconButton } from "@storevia/ui/button";
+import { Checkbox, RadioGroup, RadioItem, Switch } from "@storevia/ui/choice";
+import { ChoiceCards } from "@storevia/ui/choice-cards";
+import { SegmentedControl } from "@storevia/ui/segmented-control";
+import { cn } from "@storevia/ui/cn";
+import { Combobox, type ComboboxOption } from "@storevia/ui/combobox";
+import { type DateRangeValue } from "@storevia/ui/control-helpers";
+import { DateRangePicker } from "@storevia/ui/date-range-picker";
+import { Progress, Tooltip, TooltipProvider } from "@storevia/ui/feedback";
+import { Popover, PopoverClose, PopoverContent, PopoverTrigger } from "@storevia/ui/popover";
+import { Field, Input, SearchInput, Select, Textarea } from "@storevia/ui/form";
+import { GlyphTile, Logo, type GlyphName } from "@storevia/ui/icons";
 import {
   Breadcrumb,
-  Button,
-  ButtonGroup,
-  Checkbox,
-  ChoiceCards,
-  Combobox,
-  DateRangePicker,
-  Dialog,
-  DialogClose,
-  Field,
-  GlyphTile,
-  IconButton,
-  Input,
-  Logo,
+  Pagination,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@storevia/ui/navigation";
+import {
   NavigationMenu,
   NavigationMenuContent,
   NavigationMenuItem,
   NavigationMenuLink,
   NavigationMenuList,
   NavigationMenuTrigger,
-  Pagination,
-  Popover,
-  PopoverClose,
-  PopoverContent,
-  PopoverTrigger,
-  Progress,
-  RadioGroup,
-  RadioItem,
-  SearchInput,
-  SegmentedControl,
-  Select,
-  Spinner,
-  Switch,
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-  Textarea,
-  Toaster,
-  ToastProvider,
-  Tooltip,
-  TooltipProvider,
-  useToast,
-  cn,
-  type ComboboxOption,
-  type DateRangeValue,
-  type GlyphName,
-} from "@storevia/ui";
+} from "@storevia/ui/navigation-menu";
+import { Dialog, DialogClose } from "@storevia/ui/overlays";
+import { Spinner } from "@storevia/ui/spinner";
+import { Toaster, ToastProvider, useToast } from "@storevia/ui/toast";
 import {
   AlignCenter,
   AlignLeft,

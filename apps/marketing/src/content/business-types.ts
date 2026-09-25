@@ -1,5 +1,5 @@
 import { STORE_AREAS, type BusinessType } from "@storevia/tenancy/business-types";
-import type { GlyphName } from "@storevia/ui";
+import type { GlyphName } from "@storevia/ui/icons";
 
 export const BUSINESS_TYPE_GLYPH: Readonly<Record<BusinessType, GlyphName>> = {
   ECOMMERCE: "online-store",

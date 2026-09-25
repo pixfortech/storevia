@@ -1,4 +1,4 @@
-import { Alert } from "@storevia/ui";
+import { Alert } from "@storevia/ui/surfaces";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AuthLink, AuthPage } from "@/components/auth/auth-page";

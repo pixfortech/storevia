@@ -6,7 +6,8 @@
 // 1280 px the dashboard and the phone remain; phones get the phone alone,
 // large enough to read (with a figure card beside it once there's room).
 // The satellites float a few pixels (not under reduced motion).
-import { cn, Float } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
+import { Float } from "@storevia/ui/motion";
 import { Container } from "@/components/marketing";
 import { AnalyticsCard, ChannelsCard } from "@/components/product/analytics";
 import { BuilderPanel } from "@/components/product/builder";

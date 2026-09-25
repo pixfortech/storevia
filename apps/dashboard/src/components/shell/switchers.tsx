@@ -1,18 +1,16 @@
 "use client";
 
+import { cn } from "@storevia/ui/cn";
 import {
-  Avatar,
-  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Glyph,
-  GlyphTile,
-  Icon,
-} from "@storevia/ui";
+} from "@storevia/ui/dropdown-menu";
+import { Glyph, GlyphTile, Icon } from "@storevia/ui/icons";
+import { Avatar } from "@storevia/ui/surfaces";
 import { Check, ChevronsUpDown, Lock, Plus, Store } from "lucide-react";
 import Link from "next/link";
 import type { ShellData } from "./types";

@@ -1,6 +1,7 @@
 "use client";
 
-import { buttonClasses, Icon } from "@storevia/ui";
+import { buttonClasses } from "@storevia/ui/button";
+import { Icon } from "@storevia/ui/icons";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";

@@ -1,16 +1,9 @@
 import { STATUS_LABELS } from "@storevia/billing/state-machine";
 import { getOrganisationBilling, hasPermission } from "@storevia/tenancy";
-import {
-  Alert,
-  Badge,
-  Card,
-  CardBody,
-  CardHeader,
-  DescriptionList,
-  Icon,
-  LogoMark,
-  cn,
-} from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
+import { DescriptionList } from "@storevia/ui/data";
+import { Icon, LogoMark } from "@storevia/ui/icons";
+import { Alert, Badge, Card, CardBody, CardHeader } from "@storevia/ui/surfaces";
 import { Building2, Check, CreditCard, FlaskConical, Minus, UserCog } from "lucide-react";
 import type { Metadata } from "next";
 import { AccessNotice } from "@/components/areas/access-notice";

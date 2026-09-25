@@ -2,6 +2,11 @@
 // status, plan usage, the team, recent activity (the audit trail) and the
 // business type's focus areas. Real figures only; each renders nothing it
 // wasn't given, and the page gives each only what the member may read.
+import { cn } from "@storevia/ui/cn";
+import { UsageMeter } from "@storevia/ui/data";
+import { Progress } from "@storevia/ui/feedback";
+import { Icon } from "@storevia/ui/icons";
+import { Illustration } from "@storevia/ui/illustrations";
 import {
   AvatarGroup,
   Badge,
@@ -10,15 +15,10 @@ import {
   CardFooter,
   CardHeader,
   EmptyState,
-  Icon,
-  Illustration,
-  Progress,
   SectionHeader,
-  UsageMeter,
   cardClasses,
-  cn,
   type BadgeTone,
-} from "@storevia/ui";
+} from "@storevia/ui/surfaces";
 import {
   ArrowRight,
   Building2,

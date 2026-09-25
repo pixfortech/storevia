@@ -5,7 +5,10 @@
 // can't be read, the section says so rather than showing invented prices.
 import type { PublicCatalogue } from "@storevia/entitlements/catalogue";
 import type { FeatureKey } from "@storevia/entitlements/features";
-import { Alert, buttonClasses, Icon, Stagger } from "@storevia/ui";
+import { buttonClasses } from "@storevia/ui/button";
+import { Icon } from "@storevia/ui/icons";
+import { Stagger } from "@storevia/ui/motion";
+import { Alert } from "@storevia/ui/surfaces";
 import { Check, Minus } from "lucide-react";
 import Link from "next/link";
 import { ArrowLink, Section, SectionHeading, StatusPill } from "@/components/marketing";

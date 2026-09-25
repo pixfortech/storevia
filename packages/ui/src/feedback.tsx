@@ -1,6 +1,6 @@
 "use client";
-// Feedback controls: Progress, Tooltip and Popover (Spinner lives in spinner.tsx,
-// toasts in toast.tsx)
+// Feedback controls: Progress and Tooltip (Spinner lives in spinner.tsx,
+// toasts in toast.tsx, Popover in popover.tsx)
 // (docs/design/design-plan.md §5, §7). Radix supplies focus management,
 // dismissal and announcements; this file supplies the Storevia look.
 //
@@ -14,7 +14,6 @@
 // Overlays exit with fade-in played in reverse: Radix Presence waits for an
 // exit animation only when its name differs from the entrance's, so entrances
 // use scale-in or rise-in.
-import * as PopoverPrimitive from "@radix-ui/react-popover";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import {
   createContext,
@@ -23,23 +22,15 @@ import {
   useId,
   useRef,
   useSyncExternalStore,
-  type ComponentPropsWithRef,
   type ReactElement,
   type ReactNode,
 } from "react";
 import { cn } from "./cn";
-import { registerControlledLayer } from "./overlays-focus";
+import { POP_ENTER, POP_EXIT } from "./overlays-shared";
 
 /* ----------------------------------------------------------------------------
  * Shared motion classes
  * ------------------------------------------------------------------------- */
-
-const POP_ENTER =
-  "data-[state=open]:animate-[scale-in_var(--duration-base)_var(--ease-emphasised)] " +
-  "data-[state=delayed-open]:animate-[scale-in_var(--duration-fast)_var(--ease-emphasised)] " +
-  "data-[state=instant-open]:animate-[scale-in_var(--duration-fast)_var(--ease-emphasised)]";
-const POP_EXIT =
-  "data-[state=closed]:animate-[fade-in_var(--duration-fast)_var(--ease-exit)_reverse_forwards]";
 
 const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
 
@@ -271,51 +262,4 @@ export function Tooltip({
   );
   if (scoped) return root;
   return <TooltipPrimitive.Provider delayDuration={300}>{root}</TooltipPrimitive.Provider>;
-}
-
-/* ----------------------------------------------------------------------------
- * Popover
- * ------------------------------------------------------------------------- */
-
-export const Popover = PopoverPrimitive.Root;
-export const PopoverTrigger = PopoverPrimitive.Trigger;
-export const PopoverClose = PopoverPrimitive.Close;
-
-export type PopoverContentProps = ComponentPropsWithRef<typeof PopoverPrimitive.Content>;
-
-/**
- * The floating panel: surface, hairline, card radius, popover shadow. Padded
- * for content (p-4); pass className="p-1" for a list of menu-like items.
- */
-export function PopoverContent({
-  className,
-  sideOffset = 8,
-  align = "center",
-  collisionPadding = 12,
-  onOpenAutoFocus,
-  ...props
-}: PopoverContentProps) {
-  return (
-    <PopoverPrimitive.Portal>
-      <PopoverPrimitive.Content
-        data-sv-layer=""
-        onOpenAutoFocus={(event) => {
-          // So a layer opened while this one closes (⌘K) can return focus to its trigger.
-          if (event.currentTarget instanceof Element) registerControlledLayer(event.currentTarget);
-          onOpenAutoFocus?.(event);
-        }}
-        sideOffset={sideOffset}
-        align={align}
-        collisionPadding={collisionPadding}
-        className={cn(
-          "z-(--z-popover) w-72 max-w-[calc(100vw-1.5rem)] rounded-card border border-line bg-surface p-4 text-body-sm text-ink shadow-popover outline-none",
-          "origin-(--radix-popover-content-transform-origin)",
-          POP_ENTER,
-          POP_EXIT,
-          className,
-        )}
-        {...props}
-      />
-    </PopoverPrimitive.Portal>
-  );
 }

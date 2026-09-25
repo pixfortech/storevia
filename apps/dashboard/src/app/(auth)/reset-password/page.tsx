@@ -1,4 +1,4 @@
-import { buttonClasses } from "@storevia/ui";
+import { buttonClasses } from "@storevia/ui/button";
 import { PASSWORD_MIN_LENGTH } from "@storevia/validation";
 import { Link2Off } from "lucide-react";
 import type { Metadata } from "next";

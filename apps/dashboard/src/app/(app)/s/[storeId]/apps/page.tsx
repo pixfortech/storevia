@@ -1,4 +1,5 @@
-import { Badge, Card, EmptyState, Glyph } from "@storevia/ui";
+import { Glyph } from "@storevia/ui/icons";
+import { Badge, Card, EmptyState } from "@storevia/ui/surfaces";
 import type { Metadata } from "next";
 import { PageHeader } from "@/components/shell/app-shell";
 import { storeContextOr404 } from "@/lib/tenant";

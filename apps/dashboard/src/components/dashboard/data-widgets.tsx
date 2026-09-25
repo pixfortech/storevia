@@ -5,21 +5,17 @@
 // plan-locked ones too, so the page never stacks empty frames and a locked
 // widget never shows data, not even example data.
 import {
-  Badge,
   BarChart,
-  Card,
-  CardFooter,
-  CardHeader,
   ChartCard,
   ChartHeadline,
   DonutChart,
-  ExampleDataBadge,
-  Icon,
-  KpiCard,
   LineChart,
   Sparkline,
-  cn,
-} from "@storevia/ui";
+} from "@storevia/ui/charts";
+import { cn } from "@storevia/ui/cn";
+import { KpiCard } from "@storevia/ui/data";
+import { Icon } from "@storevia/ui/icons";
+import { Badge, Card, CardFooter, CardHeader, ExampleDataBadge } from "@storevia/ui/surfaces";
 import { ArrowRight, Lock } from "lucide-react";
 import Link from "next/link";
 import { NAV_ICONS } from "@/components/shell/icons";

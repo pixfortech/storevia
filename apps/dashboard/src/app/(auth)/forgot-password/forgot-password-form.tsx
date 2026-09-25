@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@storevia/ui";
+import { Button } from "@storevia/ui/button";
 import { MailCheck } from "lucide-react";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { AuthField, useFieldChecks } from "@/components/auth/fields";

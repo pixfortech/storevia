@@ -1,16 +1,16 @@
 "use client";
 
+import { cn } from "@storevia/ui/cn";
 import {
-  Avatar,
-  cn,
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Icon,
-} from "@storevia/ui";
+} from "@storevia/ui/dropdown-menu";
+import { Icon } from "@storevia/ui/icons";
+import { Avatar } from "@storevia/ui/surfaces";
 import { ChevronsUpDown, LogOut, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { startTransition } from "react";

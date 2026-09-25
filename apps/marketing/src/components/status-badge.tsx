@@ -1,7 +1,7 @@
 // The status legend: what "Available now", "Up next", "On the roadmap"
 // and "Future" promise, each in its StatusPill look (components/marketing).
 // Pages that label capabilities show it once, near the top.
-import { cn } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
 import { STATUS_DESCRIPTIONS, STATUSES, type Status } from "@/content/capabilities";
 import { StatusPill } from "./marketing/status-pill";
 

@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { commandResults, CommandMenu, CommandMenuPreview, type CommandItem } from "./command";
+import { commandResults, CommandMenu, type CommandItem } from "./command";
+import { CommandMenuPreview } from "./command-preview";
 import {
   DropdownMenu,
   DropdownMenuPreview,

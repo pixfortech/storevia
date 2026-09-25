@@ -1,6 +1,7 @@
 import { getJobsOverview } from "@storevia/billing";
 import { hasPlatformPermission } from "@storevia/tenancy/platform";
-import { Alert, Badge, Card, CardHeader, DataList, PageHeader, Stat } from "@storevia/ui";
+import { DataList, Stat } from "@storevia/ui/data";
+import { Alert, Badge, Card, CardHeader, PageHeader } from "@storevia/ui/surfaces";
 import type { Metadata } from "next";
 import { requireStaff } from "@/lib/auth";
 import { formatDateTime, humanise } from "@/lib/format";

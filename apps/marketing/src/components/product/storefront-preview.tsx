@@ -2,7 +2,9 @@
 // with the store's header, a hero and a product grid. Storefronts are on the
 // roadmap, so this is a concept, not a theme catalogue; the store, products
 // and prices are sample content. Responds to its own width.
-import { buttonClasses, cn, Icon } from "@storevia/ui";
+import { buttonClasses } from "@storevia/ui/button";
+import { cn } from "@storevia/ui/cn";
+import { Icon } from "@storevia/ui/icons";
 import { Search, ShoppingBag } from "lucide-react";
 import { Mockup, WindowFrame } from "./frame";
 import { ProductArt } from "./product-art";

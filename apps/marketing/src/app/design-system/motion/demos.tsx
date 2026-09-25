@@ -1,31 +1,29 @@
 "use client";
 // Interactive specimens for the motion gallery. Every figure here is example
 // data and is labelled as such.
+import { Button } from "@storevia/ui/button";
+import { ChartLegend } from "@storevia/ui/charts";
+import { cn } from "@storevia/ui/cn";
+import { GlyphTile, Icon, type GlyphName } from "@storevia/ui/icons";
 import {
   AnimatedNumber,
-  Button,
-  ChartLegend,
   ChartReveal,
   DrawLine,
   FadeIn,
   Float,
-  GlyphTile,
   HoverLift,
-  Icon,
   MOTION_DURATIONS,
   MOTION_EASINGS,
   Reveal,
   ScaleIn,
   SlideReveal,
   Stagger,
-  cn,
   useInView,
   usePrefersReducedMotion,
-  type GlyphName,
   type MotionDuration,
   type MotionEasing,
   type SlideDirection,
-} from "@storevia/ui";
+} from "@storevia/ui/motion";
 import {
   ArrowDown,
   ArrowLeft,

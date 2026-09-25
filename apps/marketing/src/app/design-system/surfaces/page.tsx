@@ -1,33 +1,13 @@
+import { Button } from "@storevia/ui/button";
+import { Sparkline } from "@storevia/ui/charts";
+import { cn } from "@storevia/ui/cn";
+import { CommandMenuPreview } from "@storevia/ui/command-preview";
 import {
-  Alert,
-  Avatar,
-  AvatarGroup,
-  Badge,
-  Breadcrumb,
-  Button,
-  Card,
-  CardBody,
-  CardFooter,
-  CardHeader,
-  cardClasses,
-  cn,
-  CommandMenuPreview,
   DataList,
   DescriptionList,
-  Divider,
-  EmptyState,
-  ExampleDataBadge,
-  GlyphTile,
-  Illustration,
   Kbd,
   KpiCard,
   Metric,
-  OverlayPreview,
-  PageHeader,
-  SectionHeader,
-  Skeleton,
-  Sparkline,
-  StatusDot,
   Table,
   TableBody,
   TableCaption,
@@ -36,9 +16,31 @@ import {
   TableHeader,
   TableRow,
   UsageMeter,
+} from "@storevia/ui/data";
+import { GlyphTile } from "@storevia/ui/icons";
+import { Illustration } from "@storevia/ui/illustrations";
+import { Breadcrumb } from "@storevia/ui/navigation";
+import { OverlayPreview } from "@storevia/ui/overlays";
+import {
+  Alert,
+  Avatar,
+  AvatarGroup,
+  Badge,
+  Card,
+  CardBody,
+  CardFooter,
+  CardHeader,
+  cardClasses,
+  Divider,
+  EmptyState,
+  ExampleDataBadge,
+  PageHeader,
+  SectionHeader,
+  Skeleton,
+  StatusDot,
   type BadgeTone,
   type CardVariant,
-} from "@storevia/ui";
+} from "@storevia/ui/surfaces";
 import { Lock, Plus, Upload } from "lucide-react";
 import type { ReactNode } from "react";
 import {

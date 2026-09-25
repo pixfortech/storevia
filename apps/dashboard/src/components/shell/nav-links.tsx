@@ -1,6 +1,8 @@
 "use client";
 
-import { cn, Icon, Tooltip, TooltipProvider } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
+import { Tooltip, TooltipProvider } from "@storevia/ui/feedback";
+import { Icon } from "@storevia/ui/icons";
 import { Lock } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";

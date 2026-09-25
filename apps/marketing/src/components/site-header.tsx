@@ -10,11 +10,10 @@
 // chevron beside it is the button that opens the panel. Hovering either one
 // opens the panel too; that hover logic lives here (not in Radix) so moving
 // between the label, the chevron and the panel never closes it.
+import { buttonClasses } from "@storevia/ui/button";
+import { cn } from "@storevia/ui/cn";
+import { Icon, Logo } from "@storevia/ui/icons";
 import {
-  buttonClasses,
-  cn,
-  Icon,
-  Logo,
   NavigationMenu,
   NavigationMenuContent,
   NavigationMenuItem,
@@ -22,7 +21,7 @@ import {
   NavigationMenuList,
   NavigationMenuTrigger,
   NavigationMenuViewport,
-} from "@storevia/ui";
+} from "@storevia/ui/navigation-menu";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";

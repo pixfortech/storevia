@@ -1,4 +1,5 @@
-import { Alert, Icon } from "@storevia/ui";
+import { Icon } from "@storevia/ui/icons";
+import { Alert } from "@storevia/ui/surfaces";
 import { Minus } from "lucide-react";
 import { ArrowLink, Container, SectionHeading } from "./marketing";
 

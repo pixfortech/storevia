@@ -1,17 +1,12 @@
 "use client";
 
-import {
-  Avatar,
-  Badge,
-  Button,
-  cn,
-  EmptyState,
-  Icon,
-  Illustration,
-  SearchInput,
-  SegmentedControl,
-  Select,
-} from "@storevia/ui";
+import { Button } from "@storevia/ui/button";
+import { SegmentedControl } from "@storevia/ui/segmented-control";
+import { cn } from "@storevia/ui/cn";
+import { SearchInput, Select } from "@storevia/ui/form";
+import { Icon } from "@storevia/ui/icons";
+import { Illustration } from "@storevia/ui/illustrations";
+import { Avatar, Badge, EmptyState } from "@storevia/ui/surfaces";
 import { Info, Mail, Store } from "lucide-react";
 import { useActionState, useState } from "react";
 import { ConfirmDialog } from "@/components/areas/confirm-dialog";

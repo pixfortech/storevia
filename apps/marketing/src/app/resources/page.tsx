@@ -1,4 +1,6 @@
-import { cn, Icon, Reveal } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
+import { Icon } from "@storevia/ui/icons";
+import { Reveal } from "@storevia/ui/motion";
 import {
   BookOpen,
   CircleHelp,

@@ -1,6 +1,8 @@
 "use client";
 
-import { buttonClasses, Icon, SearchInput } from "@storevia/ui";
+import { buttonClasses } from "@storevia/ui/button";
+import { SearchInput } from "@storevia/ui/form";
+import { Icon } from "@storevia/ui/icons";
 import { Search } from "lucide-react";
 import Form from "next/form";
 import Link from "next/link";

@@ -1,6 +1,8 @@
 "use client";
 
-import { cn, Dialog, Icon, LogoMark } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
+import { Icon, LogoMark } from "@storevia/ui/icons";
+import { Dialog } from "@storevia/ui/overlays";
 import { Ellipsis, Plus, Store, UserPlus, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";

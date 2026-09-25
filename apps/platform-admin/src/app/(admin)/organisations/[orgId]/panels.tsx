@@ -1,20 +1,11 @@
 "use client";
 
-import {
-  Alert,
-  Badge,
-  Button,
-  CardHeader,
-  DataList,
-  Dialog,
-  DialogClose,
-  DialogFooter,
-  EmptyState,
-  Field,
-  Icon,
-  Select,
-  type ButtonProps,
-} from "@storevia/ui";
+import { Button, type ButtonProps } from "@storevia/ui/button";
+import { DataList } from "@storevia/ui/data";
+import { Field, Select } from "@storevia/ui/form";
+import { Icon } from "@storevia/ui/icons";
+import { Dialog, DialogClose, DialogFooter } from "@storevia/ui/overlays";
+import { Alert, Badge, CardHeader, EmptyState } from "@storevia/ui/surfaces";
 import { OctagonAlert, Plus } from "lucide-react";
 import { useActionState, useEffect, useState, type ReactNode } from "react";
 import {

@@ -1,4 +1,5 @@
-import { cn, ScaleIn } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
+import { ScaleIn } from "@storevia/ui/motion";
 import type { ReactNode } from "react";
 import type { Status } from "@/content/capabilities";
 import { Container, SectionHeading } from "./section";

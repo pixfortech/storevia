@@ -1,4 +1,6 @@
-import { cn, Glyph, Icon, Stagger, type GlyphName } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
+import { Glyph, Icon, type GlyphName } from "@storevia/ui/icons";
+import { Stagger } from "@storevia/ui/motion";
 import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";

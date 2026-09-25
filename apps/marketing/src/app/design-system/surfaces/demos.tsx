@@ -2,15 +2,20 @@
 
 // Interactive specimens for the surfaces gallery. All names, stores and
 // figures are example data, and nothing here changes anything.
+import { Button, IconButton } from "@storevia/ui/button";
+import { CommandMenu, useCommandShortcut } from "@storevia/ui/command";
 import {
-  Alert,
-  Avatar,
-  Badge,
-  Button,
-  CommandMenu,
-  Dialog,
-  DialogClose,
-  Drawer,
+  Kbd,
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  type TableSort,
+} from "@storevia/ui/data";
+import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
@@ -19,20 +24,10 @@ import {
   DropdownMenuPreview,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  Icon,
-  IconButton,
-  Kbd,
-  Sheet,
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-  useCommandShortcut,
-  type TableSort,
-} from "@storevia/ui";
+} from "@storevia/ui/dropdown-menu";
+import { Icon } from "@storevia/ui/icons";
+import { Dialog, DialogClose, Drawer, Sheet } from "@storevia/ui/overlays";
+import { Alert, Avatar, Badge } from "@storevia/ui/surfaces";
 import {
   Archive,
   Copy,

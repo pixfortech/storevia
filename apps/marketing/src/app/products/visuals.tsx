@@ -4,7 +4,11 @@
 // illustrative. Server components.
 import { BUSINESS_TYPE_DEFINITIONS, BUSINESS_TYPES } from "@storevia/tenancy/business-types";
 import { ROLE_LABELS } from "@storevia/tenancy/rbac";
-import { Avatar, Badge, cn, CommandMenuPreview, Glyph, Icon, Kbd, UsageMeter } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
+import { CommandMenuPreview } from "@storevia/ui/command-preview";
+import { Kbd, UsageMeter } from "@storevia/ui/data";
+import { Glyph, Icon } from "@storevia/ui/icons";
+import { Avatar, Badge } from "@storevia/ui/surfaces";
 import {
   Check,
   ChevronRight,

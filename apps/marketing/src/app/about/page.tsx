@@ -1,6 +1,8 @@
 import { BUSINESS_TYPES } from "@storevia/tenancy/business-types";
 import { MEMBER_ROLES } from "@storevia/tenancy/rbac";
-import { BusinessScene, Icon, LogoMark, Reveal } from "@storevia/ui";
+import { Icon, LogoMark } from "@storevia/ui/icons";
+import { BusinessScene } from "@storevia/ui/illustrations";
+import { Reveal } from "@storevia/ui/motion";
 import { Accessibility, FileCheck2, RefreshCw, ShieldCheck } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";

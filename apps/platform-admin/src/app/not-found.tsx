@@ -1,4 +1,7 @@
-import { buttonClasses, EmptyState, Illustration, Logo } from "@storevia/ui";
+import { buttonClasses } from "@storevia/ui/button";
+import { Logo } from "@storevia/ui/icons";
+import { Illustration } from "@storevia/ui/illustrations";
+import { EmptyState } from "@storevia/ui/surfaces";
 import type { Metadata } from "next";
 import Link from "next/link";
 

@@ -1,4 +1,6 @@
-import { cn, Icon, Reveal, SlideReveal } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
+import { Icon } from "@storevia/ui/icons";
+import { Reveal, SlideReveal } from "@storevia/ui/motion";
 import { Check } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Status } from "@/content/capabilities";

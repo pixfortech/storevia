@@ -9,16 +9,10 @@ import {
   ROLE_LABELS,
 } from "@storevia/tenancy";
 import { rolePresetsFor } from "@storevia/tenancy/business-types";
-import {
-  Alert,
-  Badge,
-  Card,
-  CardBody,
-  CardHeader,
-  Icon,
-  Illustration,
-  UsageMeter,
-} from "@storevia/ui";
+import { UsageMeter } from "@storevia/ui/data";
+import { Icon } from "@storevia/ui/icons";
+import { Illustration } from "@storevia/ui/illustrations";
+import { Alert, Badge, Card, CardBody, CardHeader } from "@storevia/ui/surfaces";
 import { Info } from "lucide-react";
 import type { Metadata } from "next";
 import { AccessNotice } from "@/components/areas/access-notice";

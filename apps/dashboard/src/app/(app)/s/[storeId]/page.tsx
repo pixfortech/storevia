@@ -9,7 +9,8 @@ import {
   ROLE_LABELS,
 } from "@storevia/tenancy";
 import { BUSINESS_TYPE_DEFINITIONS } from "@storevia/tenancy/business-types";
-import { Alert, Badge, GlyphTile } from "@storevia/ui";
+import { GlyphTile } from "@storevia/ui/icons";
+import { Alert, Badge } from "@storevia/ui/surfaces";
 import { FlaskConical } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";

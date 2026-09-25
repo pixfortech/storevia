@@ -1,4 +1,5 @@
-import { Card, CardBody, Icon } from "@storevia/ui";
+import { Icon } from "@storevia/ui/icons";
+import { Card, CardBody } from "@storevia/ui/surfaces";
 import { CreditCard, LifeBuoy, ShieldAlert, type LucideIcon } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";

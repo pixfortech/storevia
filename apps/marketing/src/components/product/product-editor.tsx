@@ -2,18 +2,11 @@
 // and its media, in the dashboard's layout. Commerce is in development, so
 // this previews the direction with sample content (the section around it
 // shows each part's status). Responds to its own width.
-import {
-  Badge,
-  Button,
-  cn,
-  Icon,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@storevia/ui";
+import { Button } from "@storevia/ui/button";
+import { cn } from "@storevia/ui/cn";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@storevia/ui/data";
+import { Icon } from "@storevia/ui/icons";
+import { Badge } from "@storevia/ui/surfaces";
 import { ChevronRight, ImagePlus, MapPin } from "lucide-react";
 import { Mockup, WindowFrame } from "./frame";
 import { ProductArt } from "./product-art";

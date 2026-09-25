@@ -1,7 +1,7 @@
 // 07 Commerce: copy and a part-by-part status list beside the product
 // editor. Commerce is in development; the list says which parts come first
 // and which follow, so nothing unfinished reads as live.
-import { Reveal, SlideReveal } from "@storevia/ui";
+import { Reveal, SlideReveal } from "@storevia/ui/motion";
 import { Section, SectionHeading, StatusPill } from "@/components/marketing";
 import { capability } from "@/content/capabilities";
 import { IllustrativeNote } from "@/components/product/frame";

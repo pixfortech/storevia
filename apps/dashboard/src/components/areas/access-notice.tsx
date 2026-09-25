@@ -1,4 +1,5 @@
-import { Card, EmptyState, Illustration, type IllustrationName } from "@storevia/ui";
+import { Illustration, type IllustrationName } from "@storevia/ui/illustrations";
+import { Card, EmptyState } from "@storevia/ui/surfaces";
 import type { ReactNode } from "react";
 
 /**

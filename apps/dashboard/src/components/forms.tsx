@@ -1,6 +1,10 @@
 "use client";
 
-import { Alert, Button, cn, Field, Icon, Input, Select, type ButtonProps } from "@storevia/ui";
+import { Button, type ButtonProps } from "@storevia/ui/button";
+import { cn } from "@storevia/ui/cn";
+import { Field, Input, Select } from "@storevia/ui/form";
+import { Icon } from "@storevia/ui/icons";
+import { Alert } from "@storevia/ui/surfaces";
 import { CircleAlert, CircleCheck } from "lucide-react";
 import type { ChangeEvent, InputHTMLAttributes, ReactNode } from "react";
 import Link from "next/link";

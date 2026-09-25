@@ -1,5 +1,8 @@
 import { getOrganisation, hasPermission, ROLE_LABELS } from "@storevia/tenancy";
-import { buttonClasses, CardBody, DescriptionList, Icon } from "@storevia/ui";
+import { buttonClasses } from "@storevia/ui/button";
+import { DescriptionList } from "@storevia/ui/data";
+import { Icon } from "@storevia/ui/icons";
+import { CardBody } from "@storevia/ui/surfaces";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import type { Metadata } from "next";

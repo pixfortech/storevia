@@ -1,6 +1,8 @@
 "use client";
 
-import { Badge, Button, CardBody, CardFooter, Icon } from "@storevia/ui";
+import { Button } from "@storevia/ui/button";
+import { Icon } from "@storevia/ui/icons";
+import { Badge, CardBody, CardFooter } from "@storevia/ui/surfaces";
 import { ChevronDown, Monitor, MonitorSmartphone, Smartphone, Tablet } from "lucide-react";
 import { useActionState, useState } from "react";
 import { FormMessage, SubmitButton, TextField } from "@/components/forms";

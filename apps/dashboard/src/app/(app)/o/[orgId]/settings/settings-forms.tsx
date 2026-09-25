@@ -1,6 +1,7 @@
 "use client";
 
-import { Button, CardBody, CardFooter } from "@storevia/ui";
+import { Button } from "@storevia/ui/button";
+import { CardBody, CardFooter } from "@storevia/ui/surfaces";
 import { useActionState } from "react";
 import { ConfirmDialog } from "@/components/areas/confirm-dialog";
 import { FormMessage, SubmitButton, TextField } from "@/components/forms";

@@ -1,6 +1,9 @@
 "use client";
 
-import { Button, EmptyState, Illustration, Logo } from "@storevia/ui";
+import { Button } from "@storevia/ui/button";
+import { Logo } from "@storevia/ui/icons";
+import { Illustration } from "@storevia/ui/illustrations";
+import { EmptyState } from "@storevia/ui/surfaces";
 
 export default function ErrorBoundary({
   error,

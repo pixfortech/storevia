@@ -4,7 +4,8 @@
 // and in tests; nothing calls Math.random. None of it describes a real
 // business, and every widget that shows it carries the "Example data" badge.
 import type { BusinessType } from "@storevia/tenancy/business-types";
-import type { ChartDatum, ChartPart, ChartSeries, MetricDelta } from "@storevia/ui";
+import type { ChartDatum, ChartPart, ChartSeries } from "@storevia/ui/charts";
+import type { MetricDelta } from "@storevia/ui/data";
 import type { WidgetKey } from "./widgets";
 
 /** Widgets whose example figures are daily metrics. */

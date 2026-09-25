@@ -1,4 +1,5 @@
-import { cn, Icon } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
+import { Icon } from "@storevia/ui/icons";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";

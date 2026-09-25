@@ -1,4 +1,6 @@
-import { buttonClasses, LogoMark, Reveal } from "@storevia/ui";
+import { buttonClasses } from "@storevia/ui/button";
+import { LogoMark } from "@storevia/ui/icons";
+import { Reveal } from "@storevia/ui/motion";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { appLinks } from "@/lib/env";

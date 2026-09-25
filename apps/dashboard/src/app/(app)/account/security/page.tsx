@@ -1,4 +1,5 @@
-import { Avatar, Icon } from "@storevia/ui";
+import { Icon } from "@storevia/ui/icons";
+import { Avatar } from "@storevia/ui/surfaces";
 import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";

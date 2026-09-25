@@ -7,7 +7,10 @@ import {
   type BusinessType,
 } from "@storevia/tenancy/business-types";
 import { ROLE_PERMISSIONS } from "@storevia/tenancy/rbac";
-import { Avatar, cn, Icon, LogoMark, Sparkline } from "@storevia/ui";
+import { Sparkline } from "@storevia/ui/charts";
+import { cn } from "@storevia/ui/cn";
+import { Icon, LogoMark } from "@storevia/ui/icons";
+import { Avatar } from "@storevia/ui/surfaces";
 import { ArrowUpRight, Menu, Minus, Search } from "lucide-react";
 import { AREA_ICONS } from "./area-icons";
 import { Mockup, TabletFrame } from "./frame";

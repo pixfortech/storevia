@@ -3,7 +3,7 @@
 // delivers. Update a status in the same change that ships the capability.
 import { STORE_AREAS } from "@storevia/tenancy/business-types";
 import { MEMBER_ROLES } from "@storevia/tenancy/rbac";
-import type { GlyphName } from "@storevia/ui";
+import type { GlyphName } from "@storevia/ui/icons";
 
 export type Status = "available" | "in-development" | "roadmap" | "future";
 

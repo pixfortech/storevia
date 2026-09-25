@@ -1,4 +1,4 @@
-import { buttonClasses } from "@storevia/ui";
+import { buttonClasses } from "@storevia/ui/button";
 import { Link2Off } from "lucide-react";
 import type { Metadata } from "next";
 import { headers } from "next/headers";

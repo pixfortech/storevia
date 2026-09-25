@@ -1,4 +1,7 @@
-import { Badge, cn, Icon, UsageMeter } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
+import { UsageMeter } from "@storevia/ui/data";
+import { Icon } from "@storevia/ui/icons";
+import { Badge } from "@storevia/ui/surfaces";
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
 import type { ShellPlan } from "./types";

@@ -4,7 +4,10 @@
 // side panel on tablets). Each section is a large link to its landing page,
 // with a toggle that reveals the pages inside it; Log in and Start free stay
 // pinned at the bottom.
-import { buttonClasses, cn, Dialog, Glyph, Icon, Logo } from "@storevia/ui";
+import { buttonClasses } from "@storevia/ui/button";
+import { cn } from "@storevia/ui/cn";
+import { Glyph, Icon, Logo } from "@storevia/ui/icons";
+import { Dialog } from "@storevia/ui/overlays";
 import { ChevronDown, Menu } from "lucide-react";
 import Link from "next/link";
 import { useId, useState } from "react";

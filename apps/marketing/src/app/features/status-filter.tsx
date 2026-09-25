@@ -1,6 +1,6 @@
 "use client";
 
-import { Select } from "@storevia/ui";
+import { Select } from "@storevia/ui/form";
 import { useId, useState, type ReactNode } from "react";
 import { STATUS_LABELS, STATUSES, type Status } from "@/content/capabilities";
 

@@ -3,7 +3,9 @@
 // device switch). The builder is on the roadmap, so these show the direction,
 // not a shipped screen; every mockup that uses them says so. Numbered markers
 // tie parts of the editor to the captions beside it.
-import { Button, ButtonGroup, buttonClasses, cn, Glyph, Icon, LogoMark } from "@storevia/ui";
+import { Button, ButtonGroup, buttonClasses } from "@storevia/ui/button";
+import { cn } from "@storevia/ui/cn";
+import { Glyph, Icon, LogoMark } from "@storevia/ui/icons";
 import {
   AlignCenter,
   AlignLeft,

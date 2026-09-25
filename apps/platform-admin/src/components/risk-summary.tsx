@@ -1,4 +1,6 @@
-import { Badge, cn, Icon } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
+import { Icon } from "@storevia/ui/icons";
+import { Badge } from "@storevia/ui/surfaces";
 import { CircleCheck, Info, OctagonAlert, TriangleAlert, type LucideIcon } from "lucide-react";
 import type { RiskItem, RiskTone } from "@/lib/risk";
 

@@ -4,18 +4,12 @@ import {
   type SubscriptionStatus,
 } from "@storevia/billing";
 import { toTypeId } from "@storevia/types";
-import {
-  Avatar,
-  Badge,
-  Button,
-  Card,
-  DataList,
-  EmptyState,
-  Icon,
-  Illustration,
-  PageHeader,
-  SearchInput,
-} from "@storevia/ui";
+import { Button } from "@storevia/ui/button";
+import { DataList } from "@storevia/ui/data";
+import { SearchInput } from "@storevia/ui/form";
+import { Icon } from "@storevia/ui/icons";
+import { Illustration } from "@storevia/ui/illustrations";
+import { Avatar, Badge, Card, EmptyState, PageHeader } from "@storevia/ui/surfaces";
 import { ChevronRight } from "lucide-react";
 import type { Metadata } from "next";
 import Form from "next/form";

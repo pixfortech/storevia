@@ -1,6 +1,7 @@
 "use client";
 
-import { cn, Icon } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
+import { Icon } from "@storevia/ui/icons";
 import { Activity, Building2, UserRound, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";

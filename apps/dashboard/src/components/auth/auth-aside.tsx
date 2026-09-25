@@ -1,4 +1,4 @@
-import { GlyphTile, Icon, type GlyphName } from "@storevia/ui";
+import { GlyphTile, Icon, type GlyphName } from "@storevia/ui/icons";
 import { Check, ChevronsUpDown, MonitorSmartphone, type LucideIcon } from "lucide-react";
 
 // The desktop panel beside the auth forms: what an account includes today

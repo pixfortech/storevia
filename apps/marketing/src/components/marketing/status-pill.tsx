@@ -1,4 +1,4 @@
-import { Badge, type BadgeProps } from "@storevia/ui";
+import { Badge, type BadgeProps } from "@storevia/ui/surfaces";
 import { STATUS_LABELS, type Status } from "@/content/capabilities";
 
 // One look per capability status, on the design system's Badge. The words

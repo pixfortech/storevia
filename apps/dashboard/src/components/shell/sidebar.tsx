@@ -1,6 +1,7 @@
 "use client";
 
-import { Dialog, Icon, Logo, LogoMark } from "@storevia/ui";
+import { Icon, Logo, LogoMark } from "@storevia/ui/icons";
+import { Dialog } from "@storevia/ui/overlays";
 import { PanelLeftOpen } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";

@@ -8,7 +8,10 @@ import {
   type AreaKey,
   type BusinessType,
 } from "@storevia/tenancy/business-types";
-import { Avatar, cn, Icon, LogoMark, Sparkline } from "@storevia/ui";
+import { Sparkline } from "@storevia/ui/charts";
+import { cn } from "@storevia/ui/cn";
+import { Icon, LogoMark } from "@storevia/ui/icons";
+import { Avatar } from "@storevia/ui/surfaces";
 import { ArrowUpRight, ChevronDown, Ellipsis, Minus, Plus } from "lucide-react";
 import { AREA_ICONS } from "./area-icons";
 import { Mockup, PhoneFrame } from "./frame";

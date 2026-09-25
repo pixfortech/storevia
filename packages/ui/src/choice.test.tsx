@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { Checkbox, ChoiceCards, RadioGroup, RadioItem, SegmentedControl, Switch } from "./choice";
+import { Checkbox, RadioGroup, RadioItem, Switch } from "./choice";
+import { ChoiceCards } from "./choice-cards";
+import { SegmentedControl } from "./segmented-control";
 
 describe("ChoiceCards", () => {
   it("keeps the existing API: native radios in a fieldset with a legend", () => {

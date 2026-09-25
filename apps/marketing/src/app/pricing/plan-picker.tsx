@@ -1,6 +1,6 @@
 "use client";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@storevia/ui";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@storevia/ui/navigation";
 import type { CSSProperties, ReactNode } from "react";
 
 /**

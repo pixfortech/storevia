@@ -1,7 +1,8 @@
 // 14 Future omnichannel: one restrained band. In-person selling is a future
 // direction only: Storevia has no point of sale, and OmniPOS appears here as
 // ecosystem direction, never as something that exists today.
-import { BusinessScene, Reveal } from "@storevia/ui";
+import { BusinessScene } from "@storevia/ui/illustrations";
+import { Reveal } from "@storevia/ui/motion";
 import { Section, SectionHeading } from "@/components/marketing";
 import { capability } from "@/content/capabilities";
 

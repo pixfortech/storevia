@@ -2,7 +2,7 @@
 // content/plan-features.ts, so the home page can't claim more than the
 // product delivers; where a part has no capability of its own it takes the
 // status of the capability it ships with.
-import type { GlyphName } from "@storevia/ui";
+import type { GlyphName } from "@storevia/ui/icons";
 import { capability, type Status } from "@/content/capabilities";
 import { FEATURE_STATUS } from "@/content/plan-features";
 

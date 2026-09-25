@@ -3,7 +3,9 @@
 // IntervalSwitch around them decides which one shows. No card is singled out
 // as recommended (the catalogue has no such flag), and paid plans lead to a
 // conversation because there is no checkout.
-import { buttonClasses, cn, Icon } from "@storevia/ui";
+import { buttonClasses } from "@storevia/ui/button";
+import { cn } from "@storevia/ui/cn";
+import { Icon } from "@storevia/ui/icons";
 import { Check } from "lucide-react";
 import Link from "next/link";
 import { STATUS_LABELS } from "@/content/capabilities";

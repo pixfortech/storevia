@@ -5,7 +5,8 @@ import {
   BUSINESS_TYPES,
   type BusinessType,
 } from "@storevia/tenancy/business-types";
-import { ChoiceCards, GlyphTile, Icon } from "@storevia/ui";
+import { ChoiceCards } from "@storevia/ui/choice-cards";
+import { GlyphTile, Icon } from "@storevia/ui/icons";
 import { Check } from "lucide-react";
 import { useState } from "react";
 import { BUSINESS_TYPE_GLYPH } from "@/lib/business-types";

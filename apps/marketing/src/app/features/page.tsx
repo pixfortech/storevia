@@ -1,5 +1,6 @@
 import type { PublicCatalogue } from "@storevia/entitlements/catalogue";
-import { cn, Glyph, GlyphTile, Icon } from "@storevia/ui";
+import { cn } from "@storevia/ui/cn";
+import { Glyph, GlyphTile, Icon } from "@storevia/ui/icons";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLink, CTASection, PageHero, StatusPill } from "@/components/marketing";

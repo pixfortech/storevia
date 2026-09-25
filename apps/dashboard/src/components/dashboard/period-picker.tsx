@@ -1,6 +1,6 @@
 "use client";
 
-import { DateRangePicker } from "@storevia/ui";
+import { DateRangePicker } from "@storevia/ui/date-range-picker";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { DASHBOARD_PERIODS, type DashboardPeriod } from "@/lib/dashboard/preview";

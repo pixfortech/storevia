@@ -4,7 +4,9 @@ import {
   STORE_AREAS,
   type StoreArea,
 } from "@storevia/tenancy/business-types";
-import { Alert, Badge, Card, EmptyState, Icon, Illustration } from "@storevia/ui";
+import { Icon } from "@storevia/ui/icons";
+import { Illustration } from "@storevia/ui/illustrations";
+import { Alert, Badge, Card, EmptyState } from "@storevia/ui/surfaces";
 import { ArrowRight, Compass, Lock } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";

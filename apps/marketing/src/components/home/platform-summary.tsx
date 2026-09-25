@@ -1,6 +1,6 @@
 // 03 Platform summary: the six parts of Storevia in one hairline grid, each
 // with its glyph, one line and its real status.
-import { Glyph } from "@storevia/ui";
+import { Glyph } from "@storevia/ui/icons";
 import { Section, SectionHeading, StatusPill } from "@/components/marketing";
 import { PLATFORM } from "./content";
 

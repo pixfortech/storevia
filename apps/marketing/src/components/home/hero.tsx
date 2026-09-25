@@ -1,6 +1,7 @@
 // 02 Hero: the proposition, the two actions and the product composition.
 // All white; the composition carries the visual weight.
-import { buttonClasses, Icon } from "@storevia/ui";
+import { buttonClasses } from "@storevia/ui/button";
+import { Icon } from "@storevia/ui/icons";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { Container } from "@/components/marketing";

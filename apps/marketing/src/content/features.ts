@@ -6,7 +6,7 @@
 import type { FeatureKey } from "@storevia/entitlements/features";
 import { STORE_AREAS } from "@storevia/tenancy/business-types";
 import { MEMBER_ROLES } from "@storevia/tenancy/rbac";
-import type { GlyphName } from "@storevia/ui";
+import type { GlyphName } from "@storevia/ui/icons";
 import { CreditCard, LifeBuoy, ShieldCheck, type LucideIcon } from "lucide-react";
 import { STATUSES, type Status } from "./capabilities";
 import { FEATURE_STATUS } from "./plan-features";

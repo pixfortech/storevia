@@ -5,9 +5,6 @@
 // its own status and the plans that will include it (from the catalogue).
 import type { PublicCatalogue } from "@storevia/entitlements/catalogue";
 import {
-  Icon,
-  Reveal,
-  SlideReveal,
   Table,
   TableBody,
   TableCaption,
@@ -15,7 +12,9 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@storevia/ui";
+} from "@storevia/ui/data";
+import { Icon } from "@storevia/ui/icons";
+import { Reveal, SlideReveal } from "@storevia/ui/motion";
 import { KeyRound, Minus, Shield, Store, UserPlus, Users } from "lucide-react";
 import { Section, SectionHeading, StatusPill } from "@/components/marketing";
 import { capability, type Status } from "@/content/capabilities";

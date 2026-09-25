@@ -1,6 +1,8 @@
 "use client";
 
-import { Button, Field, Input, VisuallyHidden } from "@storevia/ui";
+import { Button } from "@storevia/ui/button";
+import { Field, Input } from "@storevia/ui/form";
+import { VisuallyHidden } from "@storevia/ui/surfaces";
 import { Eye, EyeOff } from "lucide-react";
 import { useEffect, useRef, useState, type InputHTMLAttributes } from "react";
 

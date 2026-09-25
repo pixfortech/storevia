@@ -2,10 +2,9 @@
 // table: its header sticks under the site header on desktop, and on tablets
 // the feature column stays put while the plans scroll. On phones, a plan
 // picker with that plan's features, grouped.
+import { buttonClasses } from "@storevia/ui/button";
+import { cn } from "@storevia/ui/cn";
 import {
-  buttonClasses,
-  cn,
-  Icon,
   Table,
   TableBody,
   TableCaption,
@@ -13,7 +12,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@storevia/ui";
+} from "@storevia/ui/data";
+import { Icon } from "@storevia/ui/icons";
 import { Check, Minus } from "lucide-react";
 import Link from "next/link";
 import { StatusPill } from "@/components/marketing/status-pill";
