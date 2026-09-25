@@ -1,0 +1,29 @@
+{
+  "name": "@storevia/media",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./keys": "./src/keys.ts",
+    "./sniff": "./src/sniff.ts",
+    "./storage": "./src/storage.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests --exclude \"tests/**\"",
+    "test:integration": "vitest run --config vitest.int.config.ts"
+  },
+  "dependencies": {
+    "@storevia/database": "workspace:*",
+    "@storevia/entitlements": "workspace:*",
+    "@storevia/tenancy": "workspace:*",
+    "@storevia/types": "workspace:*",
+    "server-only": "0.0.1",
+    "sharp": "0.35.4",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "vitest": "4.1.11"
+  }
+}

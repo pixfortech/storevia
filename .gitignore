@@ -43,3 +43,6 @@ Thumbs.db
 # Written by `next dev` (Next.js 16 agent rules); not project documentation
 apps/*/AGENTS.md
 apps/*/CLAUDE.md
+
+# Local media storage (MEDIA_STORAGE=local)
+.media/
