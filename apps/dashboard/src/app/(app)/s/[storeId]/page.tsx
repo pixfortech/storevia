@@ -3,92 +3,158 @@ import {
   getStore,
   grantedFeatures,
   hasPermission,
+  listMembers,
+  listRecentActivity,
+  organisationOf,
   ROLE_LABELS,
 } from "@storevia/tenancy";
-import { BUSINESS_TYPE_DEFINITIONS, STORE_AREAS } from "@storevia/tenancy/business-types";
-import { Alert, Badge, Card, CardBody, CardHeader, GlyphTile, ICON_STROKE } from "@storevia/ui";
-import { ArrowRight, Check, Lock } from "lucide-react";
+import { BUSINESS_TYPE_DEFINITIONS } from "@storevia/tenancy/business-types";
+import { Alert, Badge, GlyphTile } from "@storevia/ui";
+import { FlaskConical } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
-import type { ReactNode } from "react";
-import { NAV_ICONS } from "@/components/shell/icons";
+import { DashboardGrid } from "@/components/dashboard/dashboard-grid";
+import { DashboardWidget } from "@/components/dashboard/dashboard-widget";
+import { TrackingCard } from "@/components/dashboard/data-widgets";
+import { PeriodPicker } from "@/components/dashboard/period-picker";
+import type { DashboardScope, LiveData } from "@/components/dashboard/types";
 import { PageHeader } from "@/components/shell/app-shell";
-import { UsageMeters } from "@/components/usage-meters";
+import { planIndicator } from "@/components/shell/plan";
 import { BUSINESS_TYPE_GLYPH } from "@/lib/business-types";
+import { describeActivity } from "@/lib/dashboard/activity";
+import { composeDashboard, focusAreas, hasPeriodData } from "@/lib/dashboard/compose";
+import { arrangeDashboard } from "@/lib/dashboard/layout";
+import {
+  DASHBOARD_PERIODS,
+  isExamplePreview,
+  parsePeriod,
+  type DashboardPeriod,
+} from "@/lib/dashboard/preview";
+import { greeting, setupTasks, storeStatusBadge } from "@/lib/dashboard/setup";
+import { roleSummary, trialNote } from "@/lib/dashboard/summaries";
+import type { WidgetKey } from "@/lib/dashboard/widgets";
 import { orgPath, storePath } from "@/lib/ids";
 import { storeContextOr404 } from "@/lib/tenant";
 
 export const metadata: Metadata = { title: "Home" };
 
-function Step({
-  done,
-  title,
-  description,
-  href,
-  action,
-}: {
-  done?: boolean;
-  title: string;
-  description: ReactNode;
-  href?: string | undefined;
-  action?: string;
-}) {
-  return (
-    <li className="flex gap-4 py-4 first:pt-0 last:pb-0">
-      <span
-        aria-hidden="true"
-        className={
-          done
-            ? "mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-600 text-white"
-            : "mt-0.5 size-6 shrink-0 rounded-full border-[1.5px] border-dashed border-line-strong"
-        }
-      >
-        {done ? <Check strokeWidth={2.5} className="size-3.5" /> : null}
-      </span>
-      <div className="min-w-0 flex-1 sm:flex sm:items-center sm:gap-4">
-        <div className="min-w-0 flex-1">
-          <p className="font-medium text-ink">
-            {title}
-            {done ? <span className="sr-only"> (done)</span> : null}
-          </p>
-          <p className="mt-0.5 text-sm text-ink-muted">{description}</p>
-        </div>
-        {href && action ? (
-          <Link
-            href={href}
-            className="-ml-3 mt-1 inline-flex h-10 shrink-0 items-center gap-1.5 rounded-control px-3 text-sm font-medium text-brand-700 hover:bg-brand-50 sm:ml-0 sm:mt-0 sm:h-9"
-          >
-            {action}
-            <ArrowRight aria-hidden="true" strokeWidth={ICON_STROKE} className="size-4" />
-          </Link>
-        ) : null}
-      </div>
-    </li>
-  );
-}
-
+/**
+ * The store home (brief §10–12): a widget composition shared by every
+ * business type (lib/dashboard). Business type picks and words the widgets,
+ * RBAC decides which exist (and which data is loaded at all), and the plan
+ * decides which are locked. Widgets with no data (domains Storevia doesn't
+ * collect yet, plan-locked features) are summarised in one "What you'll
+ * track" strip rather than drawn as empty frames; ?preview=example draws
+ * badged example data in development.
+ */
 export default async function StoreHomePage({
   params,
   searchParams,
 }: {
   params: Promise<{ storeId: string }>;
-  searchParams: Promise<Record<string, string | undefined>>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { storeId } = await params;
-  const welcome = (await searchParams)["welcome"] === "1";
+  const query = await searchParams;
   const ctx = await storeContextOr404(storeId, `/s/${storeId}`);
-  const canSeeBilling = hasPermission(ctx, "billing.read");
-  const [store, granted, billing] = await Promise.all([
+  const preview = isExamplePreview(process.env, query["preview"]);
+  const period = parsePeriod(query["range"]);
+
+  const granted = await grantedFeatures(ctx);
+  const dashboard = composeDashboard({
+    businessType: ctx.storeBusinessType,
+    permissions: ctx.permissions,
+    grantedFeatures: granted,
+  });
+  const shows = (key: WidgetKey) => dashboard.widgets.some((w) => w.key === key);
+  // Load only what a visible widget needs; each read enforces its own permission.
+  const needsMembers =
+    hasPermission(ctx, "member.read") && (shows("team") || hasPermission(ctx, "member.manage"));
+  const [store, billing, members, activity] = await Promise.all([
     getStore(ctx),
-    grantedFeatures(ctx),
-    canSeeBilling ? getOrganisationBilling(ctx) : null,
+    shows("plan-usage") ? getOrganisationBilling(ctx) : null,
+    needsMembers ? listMembers(organisationOf(ctx)) : null,
+    shows("activity") ? listRecentActivity(ctx, { limit: 5 }) : null,
   ]);
+
   const definition = BUSINESS_TYPE_DEFINITIONS[store.businessType];
-  // The business type decides emphasis; permissions still decide visibility.
-  const focus = definition.homeFocus
-    .map((key) => STORE_AREAS[key])
-    .filter((area) => ctx.permissions.has(area.permission));
-  const presets = definition.rolePresets.filter((p) => p.role !== "ADMIN" && p.role !== "VIEWER");
+  const now = new Date();
+  const active = members?.filter((m) => m.status === "ACTIVE") ?? null;
+  const billingHref = hasPermission(ctx, "billing.read")
+    ? orgPath(ctx.organisationId, "/billing")
+    : null;
+
+  const scope: DashboardScope = {
+    businessType: store.businessType,
+    preview,
+    period,
+    today: now,
+    format: { currency: store.currency, locale: store.locale },
+    billingHref,
+  };
+
+  const plan = billing ? planIndicator(billing, orgPath(ctx.organisationId, "/billing")) : null;
+  const note = billing ? trialNote(billing.subscription, store.timezone) : undefined;
+  const live: LiveData = {
+    setup: setupTasks({
+      storeId: ctx.storeId,
+      organisationId: ctx.organisationId,
+      storeName: store.name,
+      businessType: store.businessType,
+      permissions: ctx.permissions,
+      memberCount: active?.length ?? null,
+    }),
+    website: {
+      hostname: store.primaryHostname,
+      currency: store.currency,
+      locale: store.locale,
+      timezone: store.timezone,
+      settingsHref: storePath(ctx.storeId, "/settings"),
+    },
+    plan:
+      billing && plan
+        ? {
+            name: plan.name,
+            ...(plan.status ? { status: plan.status } : {}),
+            ...(note ? { note } : {}),
+            usage: billing.usage.map((line) => ({
+              key: line.key,
+              label: line.name,
+              used: Number(line.usage),
+              limit: line.limit === "unlimited" ? "unlimited" : Number(line.limit),
+            })),
+            href: plan.href,
+          }
+        : null,
+    team:
+      active && shows("team")
+        ? {
+            organisationName: ctx.organisationName,
+            people: active.map((m) => ({ name: m.name })),
+            roles: roleSummary(active.map((m) => m.role)),
+            href: orgPath(ctx.organisationId, "/members"),
+            inviteHref: hasPermission(ctx, "member.manage")
+              ? orgPath(ctx.organisationId, "/members#invite")
+              : null,
+          }
+        : null,
+    activity:
+      activity?.map((entry) => describeActivity(entry, { now, timeZone: store.timezone })) ?? null,
+    focus: focusAreas(store.businessType, ctx.permissions, granted).map((item) => ({
+      ...item,
+      href: storePath(ctx.storeId, item.area.segment),
+    })),
+  };
+
+  const layout = arrangeDashboard(dashboard.widgets, preview);
+  const status = storeStatusBadge(store.status);
+  const home = storePath(ctx.storeId);
+  const periodHrefs = Object.fromEntries(
+    DASHBOARD_PERIODS.map((p) => [
+      p,
+      `${home}?${new URLSearchParams({ preview: "example", range: p }).toString()}`,
+    ]),
+  ) as Record<DashboardPeriod, string>;
 
   return (
     <>
@@ -100,167 +166,54 @@ export default async function StoreHomePage({
           </span>
         }
         title={store.name}
-        description={`You're signed in as ${ROLE_LABELS[ctx.role]}.`}
+        meta={
+          <Badge variant="dot" tone={status.tone}>
+            {status.label}
+          </Badge>
+        }
+        description={`${greeting(ctx.principal.name)} You're signed in as ${ROLE_LABELS[ctx.role]}.`}
+        // The period control appears only when a chart has data to scope. The
+        // page's create action lives in the shell's top bar (phones: Create).
+        actions={
+          hasPeriodData(dashboard.widgets, preview) ? (
+            <PeriodPicker value={period} hrefs={periodHrefs} />
+          ) : undefined
+        }
       />
-      {welcome ? (
+
+      {query["welcome"] === "1" ? (
         <Alert tone="success" title="Your store is ready" className="mb-6">
-          It isn't visible to visitors yet: the storefront and site builder arrive in upcoming
+          It isn&apos;t visible to visitors yet: the storefront and site builder arrive in upcoming
           milestones.
         </Alert>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
-          <Card>
-            <CardHeader title="Get set up" description="The steps you can take today." />
-            <CardBody>
-              <ol className="divide-y divide-line">
-                <Step
-                  done
-                  title="Create your store"
-                  description={`${store.name} is set up as ${definition.label.toLowerCase()}.`}
-                />
-                <Step
-                  title="Check your store details"
-                  description="Name, language, time zone and contact emails."
-                  href={storePath(ctx.storeId, "/settings")}
-                  action={hasPermission(ctx, "store.update") ? "Review" : "View"}
-                />
-                {hasPermission(ctx, "member.manage") ? (
-                  <Step
-                    title="Invite your team"
-                    description={
-                      presets.length > 0
-                        ? `Suggested for ${definition.label.toLowerCase()}: ${presets
-                            .slice(0, 3)
-                            .map((p) => p.label.toLowerCase())
-                            .join(", ")}.`
-                        : "Give teammates the access they need."
-                    }
-                    href={orgPath(ctx.organisationId, "/members#invite")}
-                    action="Invite"
-                  />
-                ) : null}
-                {hasPermission(ctx, "store.update") ? (
-                  <Step
-                    title="Confirm what you're building"
-                    description="Your business type shapes navigation and suggestions. Change it any time."
-                    href={storePath(ctx.storeId, "/settings#business-type")}
-                    action="Change"
-                  />
-                ) : null}
-              </ol>
-            </CardBody>
-          </Card>
+      {preview ? (
+        <Alert
+          tone="neutral"
+          icon={FlaskConical}
+          title="Previewing example data — development only"
+          className="mb-6"
+          actions={
+            <Link
+              href={home}
+              className="inline-flex items-center text-label font-medium text-brand-700 hover:underline max-lg:min-h-11 pointer-coarse:min-h-11"
+            >
+              Show this store&apos;s real state
+            </Link>
+          }
+        >
+          Figures marked Example data are generated for design review. They describe no real
+          business, and deployed environments never show them.
+        </Alert>
+      ) : null}
 
-          {focus.length > 0 ? (
-            <section aria-labelledby="focus-heading">
-              <div className="mb-3">
-                <h2 id="focus-heading" className="text-base font-semibold text-ink">
-                  Built around your {definition.label.toLowerCase()}
-                </h2>
-                <p className="mt-0.5 text-sm text-ink-muted">
-                  What&apos;s coming first for your business type, and when.
-                </p>
-              </div>
-              <ul className="grid gap-3 sm:grid-cols-3">
-                {focus.map((area) => {
-                  const Icon = NAV_ICONS[area.key];
-                  const locked = area.feature !== undefined && !granted.has(area.feature);
-                  return (
-                    <li key={area.key}>
-                      <Link
-                        href={storePath(ctx.storeId, area.segment)}
-                        className="group flex h-full flex-col rounded-card border border-line bg-surface p-4 shadow-xs transition-colors hover:border-line-strong"
-                      >
-                        <span className="flex items-center justify-between">
-                          <Icon
-                            aria-hidden="true"
-                            strokeWidth={ICON_STROKE}
-                            className="size-5 text-ink-muted"
-                          />
-                          {locked ? (
-                            <Lock
-                              aria-label="Not included in your plan"
-                              strokeWidth={ICON_STROKE}
-                              className="size-3.5 text-ink-faint"
-                            />
-                          ) : null}
-                        </span>
-                        <span className="mt-3 font-medium text-ink">{area.label}</span>
-                        <span className="mt-1 flex-1 text-sm text-ink-muted">
-                          {area.description}
-                        </span>
-                        {area.availability ? (
-                          <span className="mt-3 text-xs font-medium text-ink-faint">
-                            Coming in {area.availability}
-                          </span>
-                        ) : null}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
-          ) : null}
-        </div>
-
-        <div className="space-y-6">
-          <Card>
-            <CardHeader
-              title="Store"
-              actions={
-                <Badge>
-                  {store.status === "DRAFT" ? "Not launched" : store.status.toLowerCase()}
-                </Badge>
-              }
-            />
-            <CardBody>
-              <dl className="space-y-3.5 text-sm">
-                <div>
-                  <dt className="text-ink-muted">Web address</dt>
-                  <dd className="mt-0.5 break-all font-medium">{store.primaryHostname}</dd>
-                  <dd className="text-xs text-ink-faint">
-                    Goes live when storefronts launch (Milestone 4)
-                  </dd>
-                </div>
-                <div className="grid grid-cols-2 gap-3.5">
-                  <div>
-                    <dt className="text-ink-muted">Currency</dt>
-                    <dd className="mt-0.5 font-medium">{store.currency}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-ink-muted">Language</dt>
-                    <dd className="mt-0.5 font-medium">{store.locale}</dd>
-                  </div>
-                </div>
-                <div>
-                  <dt className="text-ink-muted">Time zone</dt>
-                  <dd className="mt-0.5 font-medium">{store.timezone}</dd>
-                </div>
-              </dl>
-            </CardBody>
-          </Card>
-          {billing ? (
-            <Card>
-              <CardHeader
-                title={billing.subscription?.planName ?? "Free allowance"}
-                description="Shared by every store in your organisation."
-              />
-              <CardBody>
-                <UsageMeters usage={billing.usage} />
-                <Link
-                  href={orgPath(ctx.organisationId, "/billing")}
-                  className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:underline"
-                >
-                  Plan and usage
-                  <ArrowRight aria-hidden="true" strokeWidth={ICON_STROKE} className="size-4" />
-                </Link>
-              </CardBody>
-            </Card>
-          ) : null}
-        </div>
-      </div>
+      <DashboardGrid
+        layout={layout}
+        density={dashboard.density}
+        render={(widget) => <DashboardWidget widget={widget} scope={scope} live={live} />}
+        tracking={<TrackingCard groups={layout.tracking} billingHref={billingHref} />}
+      />
     </>
   );
 }
