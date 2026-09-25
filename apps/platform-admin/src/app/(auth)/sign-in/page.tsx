@@ -13,12 +13,14 @@ export default async function SignInPage({
   const params = await searchParams;
   if (await getSession()) redirect("/organisations");
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Staff sign in</h1>
-        <p className="mt-1 text-sm text-ink-muted">Use your Storevia staff account.</p>
+    <>
+      <h1 className="font-display text-h3 text-ink">Staff sign in</h1>
+      <p className="mt-1.5 text-body-sm text-ink-muted">
+        Use your Storevia staff account to open platform administration.
+      </p>
+      <div className="mt-7">
+        <SignInForm next={params["next"] ?? ""} />
       </div>
-      <SignInForm next={params["next"] ?? ""} />
-    </div>
+    </>
   );
 }

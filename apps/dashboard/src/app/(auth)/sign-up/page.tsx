@@ -1,6 +1,7 @@
+import { PASSWORD_MIN_LENGTH } from "@storevia/validation";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AuthLink, AuthPage } from "@/components/auth/auth-page";
 import { getSession } from "@/lib/auth";
 import { SignUpForm } from "./sign-up-form";
 
@@ -13,21 +14,21 @@ export default async function SignUpPage({
 }) {
   const params = await searchParams;
   if (await getSession()) redirect("/");
+  const next = params["next"] ?? "";
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Create your Storevia account</h1>
-        <p className="mt-1 text-sm text-ink-muted">
-          Start with an account; you'll set up your business and store next.
-        </p>
-      </div>
-      <SignUpForm next={params["next"] ?? ""} />
-      <p className="text-center text-sm text-ink-muted">
-        Already have an account?{" "}
-        <Link className="font-medium text-brand-700 hover:underline" href="/sign-in">
-          Sign in
-        </Link>
-      </p>
-    </div>
+    <AuthPage
+      title="Create your account"
+      description="Start with your account. You'll set up your business and first store next."
+      footer={
+        <>
+          Already have an account?{" "}
+          <AuthLink href={next ? `/sign-in?next=${encodeURIComponent(next)}` : "/sign-in"}>
+            Sign in
+          </AuthLink>
+        </>
+      }
+    >
+      <SignUpForm next={next} passwordMinLength={PASSWORD_MIN_LENGTH} />
+    </AuthPage>
   );
 }

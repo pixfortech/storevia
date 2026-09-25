@@ -1,34 +1,45 @@
 "use client";
 
-import { useActionState } from "react";
-import { FormMessage, SubmitButton, TextField } from "@/components/forms";
+import { useActionState, useMemo } from "react";
+import { PasswordField, useFieldChecks } from "@/components/auth/fields";
+import { newPasswordRules } from "@/components/auth/validation";
+import { AuthFormMessage } from "@/components/auth/form-message";
+import { SubmitButton } from "@/components/forms";
 import { resetPasswordAction } from "../actions";
 
-export function ResetPasswordForm({ token }: { token: string }) {
+export function ResetPasswordForm({
+  token,
+  passwordMinLength,
+}: {
+  token: string;
+  passwordMinLength: number;
+}) {
   const [state, action] = useActionState(resetPasswordAction, { ok: false });
+  const checks = useFieldChecks(
+    useMemo(() => newPasswordRules(passwordMinLength), [passwordMinLength]),
+  );
+  const error = (name: string) => checks.errors[name] ?? state.fieldErrors?.[name];
   return (
-    <form action={action} className="space-y-4" noValidate>
-      <FormMessage state={state} />
+    <form action={action} {...checks.formProps} className="grid gap-5" noValidate>
+      <AuthFormMessage state={state} hidden={checks.hasErrors} />
       <input type="hidden" name="token" value={token} />
-      <TextField
+      <PasswordField
         label="New password"
         name="password"
-        type="password"
         autoComplete="new-password"
-        minLength={10}
+        minLength={passwordMinLength}
         required
-        state={state}
-        hint="At least 10 characters."
+        hint={`At least ${String(passwordMinLength)} characters.`}
+        error={error("password")}
       />
-      <TextField
+      <PasswordField
         label="Confirm new password"
         name="confirmPassword"
-        type="password"
         autoComplete="new-password"
         required
-        state={state}
+        error={error("confirmPassword")}
       />
-      <SubmitButton className="w-full">Update password</SubmitButton>
+      <SubmitButton className="mt-1 h-11 w-full">Update password</SubmitButton>
     </form>
   );
 }
