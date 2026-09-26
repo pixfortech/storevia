@@ -1,6 +1,7 @@
-// Minimal self-contained HTML for responses that are not store pages: the
-// generic "no store here" 404 (no store data at all) and the coming-soon /
-// unavailable status pages. Text is escaped; there is no script.
+// Minimal self-contained HTML for responses that are not site pages: the
+// "nothing here" 404 for unknown hosts (no site data at all) and status pages
+// (coming soon, unavailable). Text is escaped; there is no script. The copy
+// is the composing app's; the defaults are neutral.
 
 export function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (c) => `&#${String(c.charCodeAt(0))};`);
@@ -26,13 +27,13 @@ export function simplePage(options: {
   );
 }
 
-/** For hosts that aren't an active store domain: nothing about any store. */
+/** For hosts that aren't an active domain: nothing about any site. */
 export function unknownHostPage(nonce?: string): string {
   return simplePage({
-    title: "Store not found",
-    heading: "There's no store here",
+    title: "Site not found",
+    heading: "There's no site here",
     message:
-      "Check the address you entered. If you run this store, its domain may still be setting up.",
+      "Check the address you entered. If you run this site, its domain may still be setting up.",
     ...(nonce ? { nonce } : {}),
   });
 }

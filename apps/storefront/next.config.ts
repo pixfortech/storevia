@@ -22,6 +22,7 @@ const config: NextConfig = {
     "@storevia/media",
     "@storevia/observability",
     "@storevia/security",
+    "@storevia/site-engine",
     "@storevia/types",
     "@storevia/validation",
   ],

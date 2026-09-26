@@ -198,7 +198,6 @@ describe("public read models", () => {
       r.links({
         products: [ids["mug"], ids["draft"], ids["other"], "prod_garbage"] as string[],
         collections: [ids["summer"], ids["winter"]] as string[],
-        pages: [],
       }),
     );
     expect([...links.products]).toEqual([[ids["mug"], "stoneware-mug"]]);
@@ -206,7 +205,7 @@ describe("public read models", () => {
   });
 
   it("published pages come from the page's published version only", async () => {
-    expect(await readStorefront(storeA, (r) => r.publishedPage("HOME"))).toBeNull();
+    expect(await readStorefront(storeA, (_r, site) => site.publishedPage("HOME"))).toBeNull();
     const db = migratorDb();
     const page = "0190f2a4-0000-7000-8000-00000000f001";
     const version = "0190f2a4-0000-7000-8000-00000000f002";
@@ -218,12 +217,12 @@ describe("public read models", () => {
                 '{"schemaVersion":1,"root":[]}', ${"a".repeat(64)}, now(), now())`,
       db.$executeRaw`UPDATE "Page" SET "publishedVersionId" = ${version}::uuid WHERE id = ${page}::uuid`,
     ]);
-    const home = await readStorefront(storeA, (r) => r.publishedPage("HOME"));
+    const home = await readStorefront(storeA, (_r, site) => site.publishedPage("HOME"));
     expect(home).toMatchObject({ kind: "HOME", document: { schemaVersion: 1, root: [] } });
-    expect(await readStorefront(storeB, (r) => r.publishedPage("HOME"))).toBeNull();
+    expect(await readStorefront(storeB, (_r, site) => site.publishedPage("HOME"))).toBeNull();
   });
 
-  it("the sitemap lists sellable products and live collections", async () => {
+  it("the catalogue sitemap lists sellable products and live collections", async () => {
     const entries = await readStorefront(storeA, (r) => r.sitemap());
     expect(entries.map((e) => e.path)).toEqual([
       "/collections/summer",
@@ -245,13 +244,13 @@ describe("public read models", () => {
   });
 });
 
-describe("query budget (M4-09): an uncached page render costs at most 8 queries", () => {
+describe("query budget (M4-09): an uncached page render costs at most 8 queries, site and catalogue reads together", () => {
   it.each([
     [
       "home",
       async () =>
-        readStorefront(storeA, async (r) => {
-          await r.publishedPage("HOME");
+        readStorefront(storeA, async (r, site) => {
+          await site.publishedPage("HOME");
           await r.productLists([
             { source: { type: "catalogue" }, limit: 8 },
             { source: { type: "collection", id: ids["summer"] ?? "" }, limit: 4 },
@@ -259,17 +258,17 @@ describe("query budget (M4-09): an uncached page render costs at most 8 queries"
           await r.links({
             products: [ids["mug"] ?? ""],
             collections: [ids["summer"] ?? ""],
-            pages: [],
           });
-          await r.media([]);
+          await site.pageLinks([]);
+          await site.media([]);
           await r.navigationCollections();
         }),
     ],
     [
       "product",
       async () =>
-        readStorefront(storeA, async (r) => {
-          await r.publishedPage("PRODUCT_TEMPLATE");
+        readStorefront(storeA, async (r, site) => {
+          await site.publishedPage("PRODUCT_TEMPLATE");
           await r.product("stoneware-mug");
           await r.navigationCollections();
         }),
@@ -277,8 +276,8 @@ describe("query budget (M4-09): an uncached page render costs at most 8 queries"
     [
       "collection",
       async () =>
-        readStorefront(storeA, async (r) => {
-          await r.publishedPage("COLLECTION_TEMPLATE");
+        readStorefront(storeA, async (r, site) => {
+          await site.publishedPage("COLLECTION_TEMPLATE");
           await r.collection("summer", 1);
           await r.navigationCollections();
         }),
@@ -286,8 +285,8 @@ describe("query budget (M4-09): an uncached page render costs at most 8 queries"
     [
       "search",
       async () =>
-        readStorefront(storeA, async (r) => {
-          await r.publishedPage("SEARCH_TEMPLATE");
+        readStorefront(storeA, async (r, site) => {
+          await site.publishedPage("SEARCH_TEMPLATE");
           await r.search("mug", 1);
           await r.navigationCollections();
         }),

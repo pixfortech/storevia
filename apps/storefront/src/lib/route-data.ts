@@ -1,7 +1,9 @@
 import "server-only";
 import {
+  catalogueTag,
   normalisePageNumber,
   normaliseSearchQuery,
+  productTag,
   readStorefront,
   type CollectionDto,
   type ImageDto,
@@ -10,18 +12,19 @@ import {
   type ProductDto,
   type SearchDto,
 } from "@storevia/commerce/storefront";
-import { catalogueTag, pagesTag, productTag, storeTag } from "@storevia/domains";
 import { upgradeDocument, validateDocument, type PageDocument } from "@storevia/editor/document";
 import { DEFAULT_REGISTRY, dataRequestKey, type DataRequest } from "@storevia/editor/registry";
 import { collectRequirements } from "@storevia/editor/render";
 import { DEFAULT_TEMPLATES } from "@storevia/editor/templates";
 import { createLogger } from "@storevia/observability";
-import { pageDataCache } from "./cache";
-import type { StoreRequestContext } from "./store-header";
+import { pageDataCache } from "@storevia/site-engine/cache";
+import { pagesTag, storeTag } from "@storevia/site-engine/cache-tags";
+import type { StoreRequestContext } from "@storevia/site-engine/context";
 
 // Everything one storefront route needs, loaded in one read-only storefront
 // transaction (ADR-0028 §7) and cached by store and route, tagged so the
-// outbox can invalidate it (§9). Inputs are normalised before they become
+// outbox can invalidate it (§9). This is the composition (ADR-0029): site
+// content from the Site Engine's reader, catalogue from commerce's. Inputs are normalised before they become
 // cache keys: bounded handles, queries and page numbers only.
 
 const log = createLogger({ component: "storefront" });
@@ -123,8 +126,8 @@ async function loadRoute(
 ): Promise<{ value: RouteData; tags: string[] }> {
   const kind = PAGE_KIND[route.kind];
   const tags = [storeTag(store.storeId), pagesTag(store.storeId), catalogueTag(store.storeId)];
-  const value = await readStorefront(store, async (reader) => {
-    const published = await reader.publishedPage(
+  const value = await readStorefront(store, async (reader, site) => {
+    const published = await site.publishedPage(
       kind,
       route.kind === "page" ? route.handle : undefined,
     );
@@ -166,11 +169,11 @@ async function loadRoute(
     const links = await reader.links({
       products: ids("product"),
       collections: ids("collection"),
-      pages: ids("page"),
     });
+    const pages = await site.pageLinks(ids("page"));
     const media =
       requirements.media.length > 0
-        ? await reader.media(requirements.media)
+        ? await site.media(requirements.media)
         : new Map<string, ImageDto>();
     return {
       found: true,
@@ -190,7 +193,7 @@ async function loadRoute(
       links: {
         products: [...links.products],
         collections: [...links.collections],
-        pages: [...links.pages],
+        pages: [...pages],
       },
       media: [...media],
     } satisfies RouteData;
@@ -219,7 +222,11 @@ export function storeChrome(store: StoreRequestContext): Promise<StoreChrome> {
 /** Sitemap paths for the store (cached like pages). */
 export function storeSitemap(store: StoreRequestContext) {
   return pageDataCache().get(`sitemap:${store.storeId}`, async () => ({
-    value: await readStorefront(store, (r) => r.sitemap()),
+    value: await readStorefront(store, async (reader, site) =>
+      [...(await site.sitemapPages()), ...(await reader.sitemap())].sort((a, b) =>
+        a.path < b.path ? -1 : a.path > b.path ? 1 : 0,
+      ),
+    ),
     tags: [storeTag(store.storeId), catalogueTag(store.storeId), pagesTag(store.storeId)],
   }));
 }

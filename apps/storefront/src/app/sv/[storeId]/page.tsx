@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { AddToCart } from "@/components/add-to-cart";
 import { JsonLd, StorePage } from "@/components/store-page";
 import { renderContext } from "@/lib/render-context";
-import { requestNonce, requestStore } from "@/lib/request-store";
+import { requestNonce, requestStore } from "@storevia/site-engine/request";
 import { routeData } from "@/lib/route-data";
 
 interface Props {

@@ -1,8 +1,8 @@
 import "server-only";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+import { STORE_HEADER, verifyStoreHeader, type StoreRequestContext } from "./context";
 import { internalHeaderKey } from "./env";
-import { STORE_HEADER, verifyStoreHeader, type StoreRequestContext } from "./store-header";
 
 /**
  * The store this request belongs to, from the proxy's signed header. When a

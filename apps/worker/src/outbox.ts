@@ -1,9 +1,9 @@
 import "server-only";
-import { createHmac } from "node:crypto";
+import { storefrontCacheTagsForEvent } from "@storevia/commerce/storefront/cache-tags";
 import { workerDb } from "@storevia/database/worker";
-import { cacheTagsForEvent } from "@storevia/domains";
 import type { JobDefinition } from "@storevia/jobs";
 import { recordMetric } from "@storevia/observability";
+import { REVALIDATE_PATH, revalidationHeaders } from "@storevia/site-engine/revalidate";
 
 // Outbox dispatch (ADR-0028 §9). Claims undispatched events with SKIP
 // LOCKED (so two workers never post the same batch), turns them into cache
@@ -40,20 +40,14 @@ export function httpRevalidator(env: NodeJS.ProcessEnv = process.env): Revalidat
     }
     return null;
   }
-  const url = `${base.replace(/\/+$/, "")}/api/internal/revalidate`;
+  const url = `${base.replace(/\/+$/, "")}${REVALIDATE_PATH}`;
   return {
     async post(tags) {
       for (let i = 0; i < tags.length; i += TAGS_PER_REQUEST) {
         const body = JSON.stringify({ tags: tags.slice(i, i + TAGS_PER_REQUEST) });
-        const timestamp = String(Math.floor(Date.now() / 1000));
-        const signature = createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex");
         const response = await fetch(url, {
           method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${signature}`,
-            "x-storevia-timestamp": timestamp,
-          },
+          headers: revalidationHeaders(body, secret),
           body,
           signal: AbortSignal.timeout(10_000),
         });
@@ -82,7 +76,7 @@ export async function dispatchOutbox(
           LIMIT ${BATCH}
           FOR UPDATE SKIP LOCKED`;
         if (events.length === 0) return 0;
-        const tags = [...new Set(events.flatMap((e) => cacheTagsForEvent(e)))];
+        const tags = [...new Set(events.flatMap((e) => storefrontCacheTagsForEvent(e)))];
         await revalidator?.post(tags);
         await tx.$executeRaw`
           UPDATE "OutboxEvent" SET "dispatchedAt" = now()

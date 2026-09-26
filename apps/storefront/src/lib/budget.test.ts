@@ -1,6 +1,6 @@
 // Performance budget guard (06-storefront.md §10, M4-09). Everything the
 // storefront renders is a server component: the only client module is the
-// error boundary Next.js requires. Store pages therefore ship the framework
+// error boundary Next.js requires (here, in the Site Engine or in the editor). Store pages therefore ship the framework
 // runtime and no application JavaScript; a new "use client" module (here or
 // in the editor's renderers) must be a deliberate, reviewed change.
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 const ROOTS = [
   resolve(import.meta.dirname, ".."),
   resolve(import.meta.dirname, "../../../../packages/editor/src"),
+  resolve(import.meta.dirname, "../../../../packages/site-engine/src"),
 ];
 const ALLOWED = new Set(["app/sv/[storeId]/error.tsx"]);
 

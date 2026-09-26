@@ -8,7 +8,7 @@ import {
 } from "@storevia/editor/registry";
 import { createLogger } from "@storevia/observability";
 import type { RouteData } from "./route-data";
-import type { StoreRequestContext } from "./store-header";
+import type { StoreRequestContext } from "@storevia/site-engine/context";
 
 const log = createLogger({ component: "storefront" });
 

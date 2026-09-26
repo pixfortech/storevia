@@ -1,5 +1,5 @@
 // The resolved store travels from the proxy to pages in one signed header
-// (ADR-0028 §4). Pages and actions trust only a header whose HMAC verifies,
+// (ADR-0028 §4, ADR-0029: part of the Site Engine). Pages and actions trust only a header whose HMAC verifies,
 // so a client can never pick a store by sending the header itself (the proxy
 // also drops any incoming x-sv-* header before setting its own).
 import { createHmac, timingSafeEqual } from "node:crypto";

@@ -6,8 +6,8 @@ import {
   type CartStore,
 } from "@storevia/commerce/storefront";
 import { cookies } from "next/headers";
-import { isSecure } from "./env";
-import type { StoreRequestContext } from "./store-header";
+import { isSecure } from "@storevia/site-engine/env";
+import type { StoreRequestContext } from "@storevia/site-engine/context";
 
 // The cart cookie (06-storefront.md §6, ADR-0028 §8): host-only (no Domain
 // attribute), HttpOnly, SameSite=Lax, Secure with the __Host- prefix over

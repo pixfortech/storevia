@@ -11,11 +11,12 @@
   },
   "dependencies": {
     "@storevia/billing": "workspace:*",
+    "@storevia/commerce": "workspace:*",
     "@storevia/database": "workspace:*",
-    "@storevia/domains": "workspace:*",
     "@storevia/entitlements": "workspace:*",
     "@storevia/jobs": "workspace:*",
     "@storevia/observability": "workspace:*",
+    "@storevia/site-engine": "workspace:*",
     "@storevia/tenancy": "workspace:*",
     "server-only": "0.0.1",
     "tsx": "4.23.15"

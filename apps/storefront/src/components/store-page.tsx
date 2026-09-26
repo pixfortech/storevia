@@ -24,13 +24,4 @@ export function StorePage({
   );
 }
 
-/** JSON-LD, escaped so no value can close the script element. */
-export function JsonLd({ data, nonce }: { data: unknown; nonce: string | undefined }) {
-  const json = JSON.stringify(data)
-    .replace(/</g, "\\u003c")
-    .replace(/>/g, "\\u003e")
-    .replace(/&/g, "\\u0026");
-  return (
-    <script type="application/ld+json" nonce={nonce} dangerouslySetInnerHTML={{ __html: json }} />
-  );
-}
+export { JsonLd } from "@storevia/site-engine/shell";

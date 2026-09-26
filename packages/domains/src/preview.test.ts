@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { cacheTagsForEvent, isCacheTag } from "./cache-tags";
 import { storefrontOrigin } from "./hostname";
 import { PREVIEW_TTL_SECONDS, signPreviewToken, verifyPreviewToken } from "./preview";
 
@@ -43,51 +42,6 @@ describe("preview tokens", () => {
     ).toBeNull();
     expect(() => signPreviewToken(STORE, "short", NOW)).toThrow();
     expect(() => signPreviewToken("not-a-uuid", SECRET, NOW)).toThrow();
-  });
-});
-
-describe("cache tags", () => {
-  const event = (type: string, payload: unknown = {}) => ({
-    type,
-    storeId: STORE,
-    entityType: "Product",
-    entityId: OTHER,
-    payload,
-  });
-
-  it("map each outbox event to the tags it invalidates", () => {
-    expect(cacheTagsForEvent(event("product.changed"))).toEqual([
-      `product:${OTHER}`,
-      `catalogue:${STORE}`,
-    ]);
-    expect(cacheTagsForEvent(event("product.availability_changed"))).toEqual([
-      `product:${OTHER}`,
-      `catalogue:${STORE}`,
-    ]);
-    expect(cacheTagsForEvent(event("collection.changed"))).toEqual([`catalogue:${STORE}`]);
-    expect(cacheTagsForEvent(event("page.changed"))).toEqual([`pages:${STORE}`]);
-    expect(cacheTagsForEvent(event("store.changed"))).toEqual([`store:${STORE}`]);
-    expect(cacheTagsForEvent(event("something.new"))).toEqual([`store:${STORE}`]);
-    expect(cacheTagsForEvent(event("domain.changed", { hostnames: ["a.example", 1] }))).toEqual([
-      `store:${STORE}`,
-      "host:a.example",
-    ]);
-  });
-
-  it("only well-formed tags are accepted", () => {
-    expect(isCacheTag(`store:${STORE}`)).toBe(true);
-    expect(isCacheTag("host:shop.example.com")).toBe(true);
-    for (const bad of [
-      "store:x",
-      "host:",
-      "host:A B",
-      `other:${STORE}`,
-      `store:${STORE} `,
-      1,
-      null,
-    ]) {
-      expect(isCacheTag(bad)).toBe(false);
-    }
   });
 });
 

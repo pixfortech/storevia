@@ -1,0 +1,55 @@
+{
+  "name": "@storevia/site-engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./cache": "./src/cache.ts",
+    "./cache-tags": "./src/cache-tags.ts",
+    "./context": "./src/context.ts",
+    "./env": "./src/env.ts",
+    "./html": "./src/html.ts",
+    "./pipeline": "./src/pipeline.ts",
+    "./read": "./src/read.ts",
+    "./request": "./src/request.ts",
+    "./revalidate": "./src/revalidate.ts",
+    "./seo": "./src/seo.ts",
+    "./shell": "./src/shell.tsx",
+    "./theme": "./src/theme.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests --exclude \"tests/**\"",
+    "test:integration": "vitest run --config vitest.int.config.ts"
+  },
+  "dependencies": {
+    "@storevia/database": "workspace:*",
+    "@storevia/domains": "workspace:*",
+    "@storevia/media": "workspace:*",
+    "@storevia/observability": "workspace:*",
+    "@storevia/security": "workspace:*",
+    "@storevia/types": "workspace:*",
+    "server-only": "0.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "next": "16.3.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "vitest": "4.1.11"
+  },
+  "peerDependencies": {
+    "next": "^16.0.0",
+    "react": "^19.2.0"
+  },
+  "peerDependenciesMeta": {
+    "next": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  }
+}

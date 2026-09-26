@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@storevia/commerce": "workspace:*",
+    "@storevia/site-engine": "workspace:*",
     "@storevia/types": "workspace:*",
     "zod": "4.6.5"
   },

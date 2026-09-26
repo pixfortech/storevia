@@ -1,18 +1,9 @@
 // The base stylesheet for registered components: layout primitives, product
 // cards, product page, pagination, forms. Everything is driven by the theme's
 // custom properties, so a token change restyles it. Emitted once per page in
-// a nonce'd <style>; shared by the storefront and (M5) the editor canvas.
+// a nonce'd <style> after the Site Engine's document rules (SITE_BASE_CSS);
+// shared by the storefront and (M5) the editor canvas.
 export const BASE_CSS = `
-*,*::before,*::after{box-sizing:border-box}
-body{margin:0;background:var(--sv-color-background);color:var(--sv-color-text);font-family:var(--sv-font-body);font-size:var(--sv-fontSize-base);line-height:1.6;-webkit-font-smoothing:antialiased}
-img{max-width:100%;height:auto;display:block}
-a{color:inherit}
-:focus-visible{outline:2px solid var(--sv-color-accent);outline-offset:2px}
-h1,h2,h3,h4{font-family:var(--sv-font-heading);line-height:1.2;margin:0 0 var(--sv-space-md);font-weight:600}
-h1{font-size:var(--sv-fontSize-3xl)}h2{font-size:var(--sv-fontSize-2xl)}h3{font-size:var(--sv-fontSize-lg)}
-p{margin:0 0 var(--sv-space-md)}
-.sv-visually-hidden{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-.sv-container{width:100%;max-width:var(--sv-container-width);margin-inline:auto;padding-inline:var(--sv-space-md)}
 .sv-section{padding-block:var(--sv-space-2xl)}
 .sv-columns{display:grid;grid-template-columns:repeat(var(--sv-columns,2),minmax(0,1fr));gap:var(--sv-space-lg)}
 .sv-spacer{height:var(--sv-spacer,var(--sv-space-xl))}

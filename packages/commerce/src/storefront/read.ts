@@ -1,31 +1,39 @@
 import "server-only";
 import { Prisma, type TenantTx } from "@storevia/database";
 import { withStorefront, type StorefrontScope } from "@storevia/database/storefront";
-import { renditionUrls } from "@storevia/media/urls";
+import {
+  SiteReader,
+  imageDto,
+  type ImageDto,
+  type ImageRow,
+  type SitemapEntry,
+} from "@storevia/site-engine/read";
 import { parseTypeId, toTypeId } from "@storevia/types";
 import { safeRichText, type RichTextDoc } from "../rich-text";
 
-// Storefront read models (06-storefront.md §4, ADR-0028 §7). The storefront's
-// only data access: public DTOs through explicit selects (no cost, no stock
-// counts, no internal fields), batched by kind so an uncached page costs a
-// handful of queries. Everything runs as storevia_storefront inside one
-// read-only transaction scoped to the resolved store, where restrictive row
-// policies already hide anything that isn't sellable; the queries repeat
-// those conditions so they also stay correct, and fast, on their own.
+// Storefront catalogue read models (06-storefront.md §4, ADR-0028 §7,
+// ADR-0029): public product, collection and search DTOs through explicit
+// selects (no cost, no stock counts, no internal fields), batched by kind so
+// an uncached page costs a handful of queries. Site content (published
+// pages, page links, media, content-page sitemap) is the Site Engine's
+// SiteReader; readStorefront gives the composition both readers in one
+// read-only transaction as storevia_storefront, scoped to the resolved
+// store, where restrictive row policies already hide anything that isn't
+// sellable; the queries repeat those conditions so they also stay correct,
+// and fast, on their own.
 
 export type { StorefrontScope };
+export {
+  imageDto,
+  type ImageDto,
+  type ImageRow,
+  type PublishedPageDto,
+  type SitemapEntry,
+} from "@storevia/site-engine/read";
 
 export interface PriceDto {
   readonly amount: string;
   readonly currency: string;
-}
-
-export interface ImageDto {
-  readonly url: string;
-  readonly srcSet: string;
-  readonly width: number | null;
-  readonly height: number | null;
-  readonly alt: string;
 }
 
 export interface ProductCardDto {
@@ -92,17 +100,6 @@ export type PageKindDto =
   | "SEARCH_TEMPLATE"
   | "NOT_FOUND";
 
-export interface PublishedPageDto {
-  readonly id: string;
-  readonly kind: PageKindDto;
-  readonly title: string;
-  readonly handle: string;
-  readonly seoTitle: string | null;
-  readonly seoDescription: string | null;
-  /** The stored document; the caller upgrades and validates it before rendering. */
-  readonly document: unknown;
-}
-
 export type ProductListSource =
   | { readonly type: "catalogue" }
   | { readonly type: "collection"; readonly id: string }
@@ -111,19 +108,12 @@ export type ProductListSource =
 export interface LinkTargets {
   readonly products: readonly string[];
   readonly collections: readonly string[];
-  readonly pages: readonly string[];
 }
 
 export interface ResolvedLinks {
   /** TypeId → handle, for ids that resolve in this store. */
   readonly products: ReadonlyMap<string, string>;
   readonly collections: ReadonlyMap<string, string>;
-  readonly pages: ReadonlyMap<string, string>;
-}
-
-export interface SitemapEntry {
-  readonly path: string;
-  readonly updatedAt: Date;
 }
 
 export const STOREFRONT_PAGE_SIZE = 24;
@@ -145,28 +135,6 @@ export function normalisePageNumber(raw: unknown): number {
 // ---------------------------------------------------------------------------
 // Row mapping
 // ---------------------------------------------------------------------------
-
-export interface ImageRow {
-  readonly renditions: unknown;
-  readonly alt: string | null;
-}
-
-/** The public image for stored renditions (servable keys only), or null. */
-export function imageDto(row: ImageRow | null | undefined, fallbackAlt: string): ImageDto | null {
-  if (!row) return null;
-  const urls = renditionUrls(row.renditions);
-  if (urls.renditions.length === 0) return null;
-  // 640 px reads sharply in cards at 2x; srcset lets the browser pick larger.
-  const chosen = urls.renditions[1] ?? urls.renditions[0];
-  if (!chosen) return null;
-  return {
-    url: chosen.url,
-    srcSet: urls.srcSet,
-    width: chosen.width,
-    height: chosen.height,
-    alt: row.alt ?? fallbackAlt,
-  };
-}
 
 const price = (amount: bigint | string, currency: string): PriceDto => ({
   amount: String(amount),
@@ -234,7 +202,7 @@ const CARD_JOINS = Prisma.sql`
 
 const SELLABLE = Prisma.sql`p.status = 'ACTIVE' AND p."deletedAt" IS NULL`;
 
-const uuids = (kind: "product" | "collection" | "page" | "media", ids: readonly string[]) => [
+const uuids = (kind: "product" | "collection", ids: readonly string[]) => [
   ...new Set(ids.map((id) => parseTypeId(kind, id)).filter((id): id is string => id !== null)),
 ];
 
@@ -253,29 +221,10 @@ const paged = (rows: readonly CardRow[], page: number, pageSize: number): PagedP
 // ---------------------------------------------------------------------------
 
 export class StorefrontReader {
-  constructor(private readonly tx: TenantTx) {}
+  private readonly site: SiteReader;
 
-  /** The published page of a kind (standard pages by handle), or null. */
-  async publishedPage(kind: PageKindDto, handle?: string): Promise<PublishedPageDto | null> {
-    const rows = await this.tx.$queryRaw<
-      {
-        id: string;
-        kind: PageKindDto;
-        title: string;
-        handle: string;
-        seoTitle: string | null;
-        seoDescription: string | null;
-        document: unknown;
-      }[]
-    >`
-      SELECT pg.id, pg.kind, pg.title, pg.handle, pg."seoTitle", pg."seoDescription", v.document
-      FROM "Page" pg
-      JOIN "PageVersion" v ON v.id = pg."publishedVersionId" AND v.state = 'PUBLISHED'
-      WHERE pg."deletedAt" IS NULL AND pg.kind = ${kind}::"PageKind"
-        ${kind === "STANDARD" ? Prisma.sql`AND pg.handle = ${handle ?? ""}` : Prisma.empty}
-      LIMIT 1`;
-    const row = rows[0];
-    return row ? { ...row, id: toTypeId("page", row.id) } : null;
+  constructor(private readonly tx: TenantTx) {
+    this.site = new SiteReader(tx);
   }
 
   /** Product cards for each requested source, in one query per source kind. */
@@ -418,7 +367,7 @@ export class StorefrontReader {
       .map((v) => v.image_id)
       .filter((id): id is string => id !== null && !images.some((i) => i.id === id));
     const extra =
-      extraIds.length > 0 ? await this.mediaByUuid(extraIds) : new Map<string, ImageDto>();
+      extraIds.length > 0 ? await this.site.imagesByUuid(extraIds) : new Map<string, ImageDto>();
     const imageById = (id: string | null) =>
       id ? (images.find((i) => i.id === id)?.view ?? extra.get(id) ?? null) : null;
     return {
@@ -533,57 +482,27 @@ export class StorefrontReader {
     return { query, ...paged(rows, page, pageSize) };
   }
 
-  /** Handles for typed link targets that resolve in this store, in one query. */
+  /** Handles for product and collection TypeIds that resolve in this store, in one query. */
   async links(targets: LinkTargets): Promise<ResolvedLinks> {
     const products = uuids("product", targets.products);
     const collections = uuids("collection", targets.collections);
-    const pages = uuids("page", targets.pages);
-    const out = {
-      products: new Map<string, string>(),
-      collections: new Map<string, string>(),
-      pages: new Map<string, string>(),
-    };
-    if (products.length + collections.length + pages.length === 0) return out;
+    const out = { products: new Map<string, string>(), collections: new Map<string, string>() };
+    if (products.length + collections.length === 0) return out;
     const rows = await this.tx.$queryRaw<
-      { kind: "product" | "collection" | "page"; id: string; handle: string }[]
+      { kind: "product" | "collection"; id: string; handle: string }[]
     >`
       SELECT 'product' AS kind, p.id, p.handle FROM "Product" p
         WHERE p.id = ANY(${products}::uuid[]) AND ${SELLABLE}
       UNION ALL
       SELECT 'collection', c.id, c.handle FROM "Collection" c
-        WHERE c.id = ANY(${collections}::uuid[]) AND c."archivedAt" IS NULL AND c."deletedAt" IS NULL
-      UNION ALL
-      SELECT 'page', pg.id, pg.handle FROM "Page" pg
-        WHERE pg.id = ANY(${pages}::uuid[]) AND pg."deletedAt" IS NULL AND pg."publishedVersionId" IS NOT NULL`;
+        WHERE c.id = ANY(${collections}::uuid[]) AND c."archivedAt" IS NULL AND c."deletedAt" IS NULL`;
     for (const row of rows) {
-      const map =
-        row.kind === "product"
-          ? out.products
-          : row.kind === "collection"
-            ? out.collections
-            : out.pages;
-      map.set(toTypeId(row.kind, row.id), row.handle);
+      (row.kind === "product" ? out.products : out.collections).set(
+        toTypeId(row.kind, row.id),
+        row.handle,
+      );
     }
     return out;
-  }
-
-  /** Images for media TypeIds that are READY in this store. */
-  async media(ids: readonly string[]): Promise<Map<string, ImageDto>> {
-    const byUuid = await this.mediaByUuid(uuids("media", ids));
-    return new Map([...byUuid].map(([id, view]) => [toTypeId("media", id), view]));
-  }
-
-  private async mediaByUuid(ids: readonly string[]): Promise<Map<string, ImageDto>> {
-    if (ids.length === 0) return new Map();
-    const rows = await this.tx.$queryRaw<{ id: string; renditions: unknown; alt: string | null }[]>`
-      SELECT m.id, m.renditions, m."altText" AS alt FROM "MediaAsset" m
-      WHERE m.id = ANY(${[...ids]}::uuid[]) AND m.status = 'READY' AND m."deletedAt" IS NULL`;
-    return new Map(
-      rows.flatMap((row) => {
-        const view = imageDto(row, "");
-        return view ? [[row.id, view] as const] : [];
-      }),
-    );
   }
 
   /** Collections for the store header until navigation menus exist (M5). */
@@ -599,30 +518,29 @@ export class StorefrontReader {
       LIMIT ${Math.min(Math.max(limit, 1), 20)}`;
   }
 
-  /** Every indexable path in the store (sitemap), capped at 50,000. */
+  /** Catalogue paths for the sitemap (products and collections), capped at 50,000. */
   async sitemap(): Promise<SitemapEntry[]> {
-    const rows = await this.tx.$queryRaw<{ path: string; updatedAt: Date }[]>`
+    return this.tx.$queryRaw<SitemapEntry[]>`
       (SELECT '/products/' || p.handle AS path, p."updatedAt" FROM "Product" p WHERE ${SELLABLE}
         AND EXISTS (SELECT 1 FROM "ProductVariant" v WHERE v."productId" = p.id AND v."deletedAt" IS NULL))
       UNION ALL
       (SELECT '/collections/' || c.handle, c."updatedAt" FROM "Collection" c
         WHERE c."archivedAt" IS NULL AND c."deletedAt" IS NULL)
-      UNION ALL
-      (SELECT '/pages/' || pg.handle, pg."updatedAt" FROM "Page" pg
-        WHERE pg.kind = 'STANDARD' AND pg."deletedAt" IS NULL AND pg."publishedVersionId" IS NOT NULL)
       ORDER BY 1
       LIMIT 50000`;
-    return rows;
   }
 }
 
 /**
- * Runs `fn` with a reader bound to one read-only storefront transaction for
- * the resolved store. `scope` must come from the host resolver.
+ * Runs `fn` with the catalogue reader and the Site Engine's site reader,
+ * both bound to one read-only storefront transaction for the resolved
+ * store. `scope` must come from the host resolver.
  */
 export async function readStorefront<T>(
   scope: StorefrontScope,
-  fn: (reader: StorefrontReader) => Promise<T>,
+  fn: (reader: StorefrontReader, site: SiteReader) => Promise<T>,
 ): Promise<T> {
-  return withStorefront(scope, (tx) => fn(new StorefrontReader(tx)), { readOnly: true });
+  return withStorefront(scope, (tx) => fn(new StorefrontReader(tx), new SiteReader(tx)), {
+    readOnly: true,
+  });
 }

@@ -7,6 +7,5 @@ export {
   storefrontOrigin,
   storefrontRootDomain,
 } from "./hostname";
-export * from "./cache-tags";
 export * from "./preview";
 export { RESERVED_STORE_SLUGS, STORE_SLUG_RE, storeSlugSchema } from "@storevia/validation";

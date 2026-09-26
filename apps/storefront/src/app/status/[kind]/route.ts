@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
-import { internalHeaderKey } from "@/lib/env";
-import { simplePage } from "@/lib/pages-html";
-import { STORE_HEADER, verifyStoreHeader } from "@/lib/store-header";
+import { internalHeaderKey } from "@storevia/site-engine/env";
+import { simplePage } from "@storevia/site-engine/html";
+import { STORE_HEADER, verifyStoreHeader } from "@storevia/site-engine/context";
 
 // Store status pages (ADR-0028 §3). The proxy rewrites here: "coming soon"
 // for a DRAFT store without a preview (200), "unavailable" for suspended or

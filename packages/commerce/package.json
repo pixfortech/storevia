@@ -9,7 +9,8 @@
     "./handles": "./src/handles.ts",
     "./rich-text": "./src/rich-text.ts",
     "./variants": "./src/variants.ts",
-    "./storefront": "./src/storefront/index.ts"
+    "./storefront": "./src/storefront/index.ts",
+    "./storefront/cache-tags": "./src/storefront/cache-tags.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -25,6 +26,7 @@
     "@storevia/entitlements": "workspace:*",
     "@storevia/media": "workspace:*",
     "@storevia/security": "workspace:*",
+    "@storevia/site-engine": "workspace:*",
     "@storevia/tenancy": "workspace:*",
     "@storevia/types": "workspace:*",
     "@storevia/validation": "workspace:*",

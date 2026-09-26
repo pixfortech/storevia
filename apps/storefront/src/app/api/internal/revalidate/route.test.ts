@@ -3,7 +3,7 @@
 // minutes, and only on well-formed tags.
 import { createHmac } from "node:crypto";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { pageDataCache } from "@/lib/cache";
+import { pageDataCache } from "@storevia/site-engine/cache";
 import { POST } from "./route";
 
 const SECRET = "revalidate-test-secret-0000000000000000";

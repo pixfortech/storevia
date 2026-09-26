@@ -1,4 +1,4 @@
-// The storefront's data cache (ADR-0028 §9). Page data is cached in process
+// The public site's data cache (ADR-0028 §9, ADR-0029). Page data is cached in process
 // by key and indexed by cache tags; the worker's invalidations (outbox →
 // /api/internal/revalidate) drop every entry carrying a tag. A TTL is only a
 // safety net for a lost invalidation. Concurrent misses for one key share a

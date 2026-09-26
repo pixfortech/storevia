@@ -175,11 +175,12 @@ export default defineConfig(
   },
   {
     // The storefront role (ADR-0028 §2) is for host resolution and the
-    // storefront read models only.
+    // public read models (Site Engine content, commerce catalogue) only.
     files: ["{apps,packages}/**/*.{ts,tsx}"],
     ignores: [
       "packages/database/**",
       "packages/domains/src/resolver.ts",
+      "packages/site-engine/src/read.ts",
       "packages/commerce/src/storefront/**",
       "**/tests/**",
       "**/e2e/**",
@@ -193,7 +194,50 @@ export default defineConfig(
             {
               name: "@storevia/database/storefront",
               message:
-                "The storefront role is for packages/domains' resolver and @storevia/commerce/storefront only (ADR-0028).",
+                "The storefront role is for packages/domains' resolver, the Site Engine's reader and @storevia/commerce/storefront only (ADR-0028, ADR-0029).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // The Site Engine (ADR-0029) is generic public-site infrastructure: it
+    // never imports commerce (or the editor, which imports commerce),
+    // billing, plans, merchant services, auth or an app. Commerce composes
+    // into it, never the other way round. The import-graph test in
+    // packages/site-engine checks the same rule transitively.
+    files: ["packages/site-engine/src/**/*.{ts,tsx}", "packages/domains/src/**/*.ts"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "@storevia/commerce",
+                "@storevia/commerce/*",
+                "@storevia/editor",
+                "@storevia/editor/*",
+                "@storevia/billing",
+                "@storevia/billing/*",
+                "@storevia/entitlements",
+                "@storevia/entitlements/*",
+                "@storevia/tenancy",
+                "@storevia/tenancy/*",
+                "@storevia/auth",
+                "@storevia/auth/*",
+                "@storevia/payments",
+                "@storevia/payments/*",
+                "@storevia/ui",
+                "@storevia/ui/*",
+              ],
+              message:
+                "The Site Engine must not depend on commerce, billing, merchant services or apps (ADR-0029).",
+            },
+            {
+              regex: "^@storevia/media(?!/urls$)",
+              message: "The Site Engine uses only @storevia/media/urls (ADR-0029).",
             },
           ],
         },
@@ -219,6 +263,7 @@ export default defineConfig(
               "@storevia/commerce",
               "@storevia/media",
               "@storevia/security/server",
+              "@storevia/ui",
             ].map((name) => ({
               name,
               allowTypeImports: true,
@@ -230,6 +275,10 @@ export default defineConfig(
             {
               group: ["@storevia/database/*"],
               message: "The storefront never opens a database role directly (ADR-0028 §2).",
+            },
+            {
+              group: ["@storevia/ui/*", "@tiptap/*", "recharts", "recharts/*"],
+              message: "Store pages never ship dashboard UI, editor or chart code (ADR-0029 §4).",
             },
           ],
         },

@@ -6,7 +6,7 @@ import { isDomainError } from "@storevia/types";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cartStore, cartToken, setCartToken } from "@/lib/cart";
-import { isBrowsable, requestStore } from "@/lib/request-store";
+import { isBrowsable, requestStore } from "@storevia/site-engine/request";
 import { routeHandle } from "@/lib/route-data";
 
 // Cart mutations (ADR-0028 §8). The store comes from the proxy's signed

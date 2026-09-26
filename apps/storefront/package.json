@@ -17,6 +17,7 @@
     "@storevia/media": "workspace:*",
     "@storevia/observability": "workspace:*",
     "@storevia/security": "workspace:*",
+    "@storevia/site-engine": "workspace:*",
     "@storevia/types": "workspace:*",
     "next": "16.3.6",
     "pg": "8.23.0",

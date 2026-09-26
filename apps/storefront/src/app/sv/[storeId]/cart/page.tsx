@@ -3,7 +3,7 @@ import { formatPrice, Image } from "@storevia/editor/render";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { cartStore, cartToken } from "@/lib/cart";
-import { isBrowsable, requestStore } from "@/lib/request-store";
+import { isBrowsable, requestStore } from "@storevia/site-engine/request";
 import { removeCartLineAction, updateCartLineAction } from "./actions";
 
 // The cart (06-storefront.md §3: dynamic, private, no-store). Prices are
