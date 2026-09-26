@@ -22,7 +22,8 @@
     "db:migrate:dev": "prisma migrate dev",
     "db:seed": "tsx scripts/seed.ts",
     "db:reset": "tsx scripts/reset.ts",
-    "db:test:prepare": "tsx scripts/reset.ts --target=test"
+    "db:test:prepare": "tsx scripts/reset.ts --target=test",
+    "db:check": "tsx scripts/check-migrations.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.10.0",

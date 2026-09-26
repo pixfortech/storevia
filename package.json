@@ -10,7 +10,7 @@
     "pnpm": ">=10"
   },
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "pnpm db:check && turbo run dev",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "lint": "eslint . --max-warnings=0",
@@ -23,6 +23,7 @@
     "toolchain:check": "node scripts/toolchain-check.mjs",
     "db:setup": "pnpm --filter @storevia/database db:setup",
     "db:migrate": "pnpm --filter @storevia/database db:migrate",
+    "db:check": "pnpm --filter @storevia/database db:check",
     "db:migrate:dev": "pnpm --filter @storevia/database db:migrate:dev",
     "db:reset": "pnpm --filter @storevia/database db:reset",
     "db:seed": "pnpm --filter @storevia/database db:seed",

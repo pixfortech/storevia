@@ -41,17 +41,51 @@ export function redact(value: unknown, depth = 0): unknown {
   return value;
 }
 
-/** Safe description of an error: type, code and a few stack frames, no message. */
+const SQLSTATE = /^[0-9A-Z]{5}$/;
+const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_.]{0,126}$/;
+
+/**
+ * Database diagnostics from a Prisma driver-adapter error: the SQLSTATE and
+ * the schema object named in the message (constraint, relation or column).
+ * Identifiers only, never values, so they are safe to log; they turn "a
+ * database error" into, e.g., 23514 on MediaAsset_storage_key_owned.
+ */
+function databaseFields(error: Error): Record<string, string> {
+  const cause = (error as { meta?: { driverAdapterError?: { cause?: unknown } } }).meta
+    ?.driverAdapterError?.cause as
+    { originalCode?: unknown; originalMessage?: unknown; kind?: unknown } | undefined;
+  if (!cause) return {};
+  const out: Record<string, string> = {};
+  if (typeof cause.originalCode === "string" && SQLSTATE.test(cause.originalCode))
+    out["dbCode"] = cause.originalCode;
+  if (typeof cause.kind === "string" && IDENTIFIER.test(cause.kind)) out["dbKind"] = cause.kind;
+  const message = typeof cause.originalMessage === "string" ? cause.originalMessage : "";
+  for (const [field, re] of [
+    ["dbConstraint", /constraint "([^"]+)"/],
+    ["dbRelation", /relation "([^"]+)"/],
+    ["dbColumn", /column "([^"]+)"/],
+  ] as const) {
+    const name = re.exec(message)?.[1];
+    if (name && IDENTIFIER.test(name)) out[field] = name;
+  }
+  return out;
+}
+
+/** Safe description of an error: type, codes and stack frames, no message. */
 export function errorFields(error: unknown): Record<string, unknown> {
   if (!(error instanceof Error)) return { errorType: typeof error };
   const code = (error as { code?: unknown }).code;
   return {
     errorName: error.name,
     ...(typeof code === "string" ? { errorCode: code } : {}),
+    ...databaseFields(error),
+    // Frames only: some errors (Prisma's) put a multi-line message, which
+    // may echo values, before the first frame.
     stack: error.stack
       ?.split("\n")
-      .slice(1, 8)
-      .map((line) => line.trim()),
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith("at "))
+      .slice(0, 8),
   };
 }
 

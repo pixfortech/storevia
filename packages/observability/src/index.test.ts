@@ -49,6 +49,39 @@ describe("redact", () => {
     expect(out["error"]).toMatchObject({ errorName: "Error", errorCode: "P2002" });
   });
 
+  it("errorFields names the database code and constraint of a Prisma error, never its values", () => {
+    // The shape Prisma 7 raises (P2039) for a database error it has no code for.
+    const error = Object.assign(
+      new Error(
+        '\nInvalid `tx.mediaAsset.create()` invocation:\n\n→ await tx.mediaAsset.create({ filename: "secret.jpg" })\n' +
+          'Database error. Code: `23514`. Message: `new row for relation "MediaAsset" violates check constraint "MediaAsset_storage_key_owned"`',
+      ),
+      {
+        name: "PrismaClientKnownRequestError",
+        code: "P2039",
+        meta: {
+          driverAdapterError: {
+            cause: {
+              originalCode: "23514",
+              kind: "postgres",
+              originalMessage:
+                'new row for relation "MediaAsset" violates check constraint "MediaAsset_storage_key_owned" DETAIL: Failing row contains (secret.jpg)',
+            },
+          },
+        },
+      },
+    );
+    const fields = errorFields(error);
+    expect(fields).toMatchObject({
+      errorCode: "P2039",
+      dbCode: "23514",
+      dbConstraint: "MediaAsset_storage_key_owned",
+      dbRelation: "MediaAsset",
+    });
+    expect(JSON.stringify(fields)).not.toContain("secret.jpg");
+    expect((fields["stack"] as string[]).every((line) => line.startsWith("at "))).toBe(true);
+  });
+
   it("errorFields never includes the message", () => {
     expect(JSON.stringify(errorFields(new Error("secret value")))).not.toContain("secret value");
   });
