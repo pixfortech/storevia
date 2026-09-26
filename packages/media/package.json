@@ -17,6 +17,7 @@
   "dependencies": {
     "@storevia/database": "workspace:*",
     "@storevia/entitlements": "workspace:*",
+    "@storevia/observability": "workspace:*",
     "@storevia/tenancy": "workspace:*",
     "@storevia/types": "workspace:*",
     "server-only": "0.0.1",

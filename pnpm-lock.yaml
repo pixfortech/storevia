@@ -481,6 +481,9 @@ importers:
       '@storevia/entitlements':
         specifier: workspace:*
         version: link:../entitlements
+      '@storevia/observability':
+        specifier: workspace:*
+        version: link:../observability
       '@storevia/tenancy':
         specifier: workspace:*
         version: link:../tenancy

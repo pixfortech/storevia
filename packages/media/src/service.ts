@@ -17,10 +17,11 @@ import {
   type StoreContext,
   type TenantContext,
 } from "@storevia/tenancy";
+import { createLogger } from "@storevia/observability";
 import { DomainError, notFound, toTypeId, uuidv7 } from "@storevia/types";
 import { z } from "zod";
 import { mediaStorage } from "./config";
-import { objectKey } from "./keys";
+import { objectKey, uploadKey } from "./keys";
 import { MediaRejectedError, processImage } from "./process";
 import { MEDIA_LIMITS, precheckUpload } from "./sniff";
 import type { ObjectStorage, UploadTarget } from "./storage";
@@ -126,10 +127,16 @@ const createUploadSchema = z.object({
   contentType: z.string().max(200).optional(),
 });
 
+/** Uploads a store may have started in the last hour and not yet finished. */
+const MAX_PENDING_UPLOADS = 20;
+
 /**
  * Starts an upload: records a PENDING_UPLOAD asset and returns a short-lived
- * target for exactly one object key and at most 20 MB. The declared type and
- * name are only hints; completeMediaUpload decides by the bytes.
+ * target for exactly one upload key, accepting at most the declared size
+ * (itself at most 20 MB). Raw bytes go under the unserved `uploads/` prefix.
+ * The declared type and name are only hints; completeMediaUpload decides by
+ * the bytes. Unfinished uploads are capped per store, because their bytes
+ * aren't counted until they complete.
  */
 export async function createMediaUpload(
   ctx: TenantContext,
@@ -140,11 +147,25 @@ export async function createMediaUpload(
   const problem = precheckUpload({ filename: data.filename, size: data.size });
   if (problem) throw new DomainError("VALIDATION_FAILED", problem, { file: problem });
   const id = uuidv7();
-  const key = objectKey(
-    { organisationId: store.organisationId, storeId: store.storeId, mediaId: id },
-    "upload",
-  );
+  const key = uploadKey({
+    organisationId: store.organisationId,
+    storeId: store.storeId,
+    mediaId: id,
+  });
   await withTenant(scopeOf(store), async (tx) => {
+    const pending = await tx.mediaAsset.count({
+      where: {
+        status: { in: ["PENDING_UPLOAD", "PROCESSING"] },
+        deletedAt: null,
+        createdAt: { gt: new Date(Date.now() - 60 * 60 * 1000) },
+      },
+    });
+    if (pending >= MAX_PENDING_UPLOADS) {
+      throw new DomainError(
+        "RATE_LIMITED",
+        "Too many uploads are still in progress. Wait for them to finish, then try again.",
+      );
+    }
     // A hint only (no lock): the quota is enforced when the upload completes.
     if (
       !(await canConsume(tx, store.organisationId, "media_storage", { amount: BigInt(data.size) }))
@@ -171,17 +192,44 @@ export async function createMediaUpload(
     });
   });
   const upload = await mediaStorage().createUploadTarget(key, {
-    maxBytes: MEDIA_LIMITS.maxBytes,
+    maxBytes: data.size,
     expiresInSeconds: UPLOAD_TTL_SECONDS,
   });
   return { mediaId: toTypeId("media", id), upload };
 }
 
-async function reject(store: StoreContext, id: string, message: string): Promise<never> {
+/** Ends a claimed upload that can't finish, so it never stays PROCESSING. */
+async function markRejected(store: StoreContext, id: string): Promise<void> {
   await withTenant(scopeOf(store), (tx) =>
     tx.mediaAsset.updateMany({ where: { id, status: "PROCESSING" }, data: { status: "REJECTED" } }),
   );
+}
+
+async function reject(store: StoreContext, id: string, message: string): Promise<never> {
+  await markRejected(store, id);
   throw new DomainError("VALIDATION_FAILED", message, { file: message });
+}
+
+/**
+ * Image processing is CPU-heavy and runs on libuv's small thread pool, so a
+ * process handles at most two at a time: a burst of hostile images (tiny
+ * files that decode to 40 MP) can't starve every other request.
+ */
+const PROCESSING_SLOTS = 2;
+let processing = 0;
+const waitingForSlot: (() => void)[] = [];
+
+async function withProcessingSlot<T>(fn: () => Promise<T>): Promise<T> {
+  while (processing >= PROCESSING_SLOTS) {
+    await new Promise<void>((resolve) => waitingForSlot.push(resolve));
+  }
+  processing += 1;
+  try {
+    return await fn();
+  } finally {
+    processing -= 1;
+    waitingForSlot.shift()?.();
+  }
 }
 
 /**
@@ -217,16 +265,16 @@ export async function completeMediaUpload(
     });
   });
 
-  const uploadKey = objectKey(owner, "upload");
+  const rawKey = uploadKey(owner);
   let bytes: Uint8Array;
   try {
-    const info = await storage.head(uploadKey);
+    const info = await storage.head(rawKey);
     if (!info) return await reject(store, id, "The upload didn't arrive. Try again.");
     if (info.size > MEDIA_LIMITS.maxBytes) {
-      await storage.delete(uploadKey);
+      await storage.delete(rawKey);
       return await reject(store, id, "Images can be up to 20 MB.");
     }
-    bytes = await storage.read(uploadKey, { maxBytes: MEDIA_LIMITS.maxBytes });
+    bytes = await storage.read(rawKey, { maxBytes: MEDIA_LIMITS.maxBytes });
   } catch (error) {
     if (error instanceof DomainError) throw error;
     return reject(store, id, "The upload couldn't be read. Try again.");
@@ -234,10 +282,11 @@ export async function completeMediaUpload(
 
   let processed;
   try {
-    processed = await processImage(bytes);
+    processed = await withProcessingSlot(() => processImage(bytes));
   } catch (error) {
-    await storage.delete(uploadKey);
+    await storage.delete(rawKey).catch(() => undefined);
     if (error instanceof MediaRejectedError) return reject(store, id, error.message);
+    await markRejected(store, id);
     throw error;
   }
 
@@ -261,9 +310,11 @@ export async function completeMediaUpload(
     }
   } catch (error) {
     await Promise.all(written.map((k) => storage.delete(k).catch(() => undefined)));
+    await storage.delete(rawKey).catch(() => undefined);
+    await markRejected(store, id);
     throw error;
   }
-  await storage.delete(uploadKey);
+  await storage.delete(rawKey);
   const storedBytes = processed.original.byteLength + renditions.reduce((n, r) => n + r.bytes, 0);
 
   try {
@@ -438,10 +489,17 @@ export async function updateMediaAlt(
  * reference ever dangles. The asset is soft-deleted and stops counting
  * against media_storage; the purge job removes the objects later.
  */
+const log = createLogger({ component: "media" });
+
+/**
+ * Deletes an asset nothing uses: the row is soft-deleted and its bytes stop
+ * counting against the plan, and then its stored files are removed, so
+ * deleting can't be used to keep serving files while freeing the quota.
+ */
 export async function deleteMedia(ctx: TenantContext, mediaPublicId: string): Promise<void> {
   const store = requireStore(ctx, "media.manage", true);
   const id = parsePublicId("media", mediaPublicId);
-  await withTenant(scopeOf(store), async (tx) => {
+  const keys = await withTenant(scopeOf(store), async (tx) => {
     const rows = await tx.$queryRaw<
       {
         id: string;
@@ -449,18 +507,27 @@ export async function deleteMedia(ctx: TenantContext, mediaPublicId: string): Pr
         sizeBytes: bigint | null;
         renditions: unknown;
         filename: string;
+        storageKey: string;
       }[]
     >`
-      SELECT id, status::text AS status, "sizeBytes", renditions, filename FROM "MediaAsset"
+      SELECT id, status::text AS status, "sizeBytes", renditions, filename, "storageKey"
+      FROM "MediaAsset"
       WHERE id = ${id}::uuid AND "deletedAt" IS NULL FOR UPDATE`;
     const asset = rows[0];
     if (!asset) throw notFound();
-    const [products, variants, collections, stores] = await Promise.all([
-      tx.productMedia.count({ where: { mediaAssetId: id, product: { deletedAt: null } } }),
-      tx.productVariant.count({ where: { imageMediaId: id, deletedAt: null } }),
-      tx.collection.count({ where: { imageMediaId: id, deletedAt: null } }),
-      tx.store.count({ where: { OR: [{ logoMediaId: id }, { faviconMediaId: id }] } }),
-    ]);
+    // One query at a time: a transaction has a single connection.
+    const products = await tx.productMedia.count({
+      where: { mediaAssetId: id, product: { deletedAt: null } },
+    });
+    const variants = await tx.productVariant.count({
+      where: { imageMediaId: id, deletedAt: null },
+    });
+    const collections = await tx.collection.count({
+      where: { imageMediaId: id, deletedAt: null },
+    });
+    const stores = await tx.store.count({
+      where: { OR: [{ logoMediaId: id }, { faviconMediaId: id }] },
+    });
     const uses = products + variants + collections + stores;
     if (uses > 0) {
       throw new DomainError(
@@ -494,5 +561,24 @@ export async function deleteMedia(ctx: TenantContext, mediaPublicId: string): Pr
       { type: "MediaAsset", id },
       { filename: asset.filename },
     );
+    const owner = { organisationId: store.organisationId, storeId: store.storeId, mediaId: id };
+    return [
+      ...new Set([
+        asset.storageKey,
+        uploadKey(owner),
+        ...parseRenditions(asset.renditions).map((r) => r.key),
+      ]),
+    ];
   });
+  // After the commit: nothing references the asset any more (deletion is
+  // refused while anything does, and references take a lock on the asset).
+  const storage = mediaStorage();
+  for (const key of keys) {
+    await storage.delete(key).catch((error: unknown) => {
+      log.warn("media object not deleted", {
+        key,
+        error: error instanceof Error ? error.message : "unknown",
+      });
+    });
+  }
 }

@@ -29,6 +29,7 @@ import {
   setMediaStorageForTests,
   updateMediaAlt,
 } from "../src";
+import { uploadKey } from "../src/keys";
 
 process.env["STOREFRONT_ROOT_DOMAIN"] = "storevia.site";
 const root = mkdtempSync(join(tmpdir(), "storevia-media-int-"));
@@ -85,6 +86,16 @@ const jpeg = (width = 800, height = 600) =>
     .toBuffer()
     .then((b) => new Uint8Array(b));
 
+/** A photo-like image (noise): re-encoding and renditions can't shrink it below its upload size. */
+const noisyJpeg = (width: number, height: number) => {
+  const pixels = Buffer.alloc(width * height * 3);
+  for (let i = 0; i < pixels.length; i += 1) pixels[i] = (i * 7919 + (i >> 5) * 104729) % 251;
+  return sharp(pixels, { raw: { width, height, channels: 3 } })
+    .jpeg({ quality: 80 })
+    .toBuffer()
+    .then((b) => new Uint8Array(b));
+};
+
 async function uploadImage(store: StoreContext, bytes: Uint8Array, filename = "photo.jpg") {
   const { mediaId, upload: target } = await createMediaUpload(store, {
     filename,
@@ -97,6 +108,11 @@ async function uploadImage(store: StoreContext, bytes: Uint8Array, filename = "p
 
 const usage = (store: StoreContext) =>
   withTenant(scopeOf(store), (tx) => getUsage(tx, store.organisationId, "media_storage"));
+
+const owner = (store: StoreContext) => ({
+  organisationId: store.organisationId,
+  storeId: store.storeId,
+});
 
 async function expectCode(promise: Promise<unknown>, code: DomainError["code"]): Promise<void> {
   await expect(promise).rejects.toMatchObject({ code });
@@ -154,7 +170,7 @@ describe("upload and completion", () => {
     expect((await migratorDb().mediaAsset.findUniqueOrThrow({ where: { id } })).status).toBe(
       "REJECTED",
     );
-    expect(await storage.head(`${A.organisationId}/${A.storeId}/${id}/upload`)).toBeNull();
+    expect(await storage.head(uploadKey({ ...owner(A), mediaId: id }))).toBeNull();
     expect(await usage(A)).toBe(0n);
   });
 
@@ -175,23 +191,25 @@ describe("upload and completion", () => {
 
   it("enforces media_storage when the upload completes and cleans up on refusal", async () => {
     const db = migratorDb();
+    const bytes = await noisyJpeg(1200, 900);
+    // Room for the upload itself, but not for the original plus its renditions.
+    const limit = bytes.byteLength + 10;
     const feature = await db.feature.findUniqueOrThrow({ where: { key: "media_storage" } });
     await db.organisationFeatureOverride.create({
       data: {
         organisationId: A.organisationId,
         featureId: feature.id,
         enabled: true,
-        limit: 2000n,
+        limit: BigInt(limit),
         reason: "test",
       },
     });
     // Declared size over the limit: refused before any upload.
-    await expectCode(createMediaUpload(A, { filename: "a.jpg", size: 5000 }), "LIMIT_REACHED");
-    // Declared small, but the stored result doesn't fit: refused at completion.
-    const bytes = await jpeg(1200, 900);
+    await expectCode(createMediaUpload(A, { filename: "a.jpg", size: limit + 1 }), "LIMIT_REACHED");
+    // Declared within the limit, but the stored result doesn't fit: refused at completion.
     const { mediaId, upload: target } = await createMediaUpload(A, {
       filename: "a.jpg",
-      size: 1000,
+      size: bytes.byteLength,
     });
     await upload(target.fields, bytes);
     await expectCode(completeMediaUpload(A, mediaId), "LIMIT_REACHED");
@@ -199,6 +217,62 @@ describe("upload and completion", () => {
     expect((await db.mediaAsset.findUniqueOrThrow({ where: { id } })).status).toBe("REJECTED");
     expect(readdirSync(join(root, A.organisationId, A.storeId, id))).toEqual([]);
     expect(await usage(A)).toBe(0n);
+  });
+});
+
+describe("upload targets (security review)", () => {
+  it("accept only the declared size, at a never-served key", async () => {
+    const bytes = await jpeg(100, 100);
+    const { mediaId, upload: target } = await createMediaUpload(A, {
+      filename: "a.jpg",
+      size: bytes.byteLength,
+    });
+    const id = parseTypeId("media", mediaId) ?? "";
+    expect(target.maxBytes).toBe(bytes.byteLength);
+    expect(target.fields["key"]).toBe(uploadKey({ ...owner(A), mediaId: id }));
+    await expect(upload(target.fields, new Uint8Array(bytes.byteLength + 1))).rejects.toThrow(
+      /too large/,
+    );
+  });
+
+  it("cap the uploads a store can leave unfinished", async () => {
+    for (let i = 0; i < 20; i += 1) {
+      await createMediaUpload(A, { filename: `p${String(i)}.jpg`, size: 10 });
+    }
+    await expectCode(createMediaUpload(A, { filename: "one-more.jpg", size: 10 }), "RATE_LIMITED");
+    await createMediaUpload(B, { filename: "other-store.jpg", size: 10 });
+  });
+
+  it("end as REJECTED, with the upload removed, when storage fails mid-way", async () => {
+    class FailingStorage extends LocalObjectStorage {
+      override async write(key: string, body: Uint8Array): Promise<void> {
+        if (key.includes("/original.")) throw new Error("disk full");
+        return super.write(key, body);
+      }
+    }
+    const failing = new FailingStorage({
+      root,
+      uploadUrl: "http://app.localhost/api/media/upload",
+      publicBaseUrl: "http://app.localhost/media",
+      secret: "s".repeat(40),
+    });
+    setMediaStorageForTests(failing);
+    try {
+      const bytes = await jpeg(100, 100);
+      const { mediaId, upload: target } = await createMediaUpload(A, {
+        filename: "a.jpg",
+        size: bytes.byteLength,
+      });
+      await upload(target.fields, bytes);
+      await expect(completeMediaUpload(A, mediaId)).rejects.toThrow(/disk full/);
+      const id = parseTypeId("media", mediaId) ?? "";
+      expect((await migratorDb().mediaAsset.findUniqueOrThrow({ where: { id } })).status).toBe(
+        "REJECTED",
+      );
+      expect(await storage.head(uploadKey({ ...owner(A), mediaId: id }))).toBeNull();
+    } finally {
+      setMediaStorageForTests(storage);
+    }
   });
 });
 
@@ -240,6 +314,12 @@ describe("library edits and deletion", () => {
     expect(await usage(A)).toBe(0n);
     await expectCode(getMedia(A, mediaId), "NOT_FOUND");
     expect(await migratorDb().mediaAsset.count({ where: { id } })).toBe(1);
+    // The files go too: freeing the quota must not leave them served.
+    expect(readdirSync(join(root, A.organisationId, A.storeId, id))).toEqual([]);
+    for (const r of view.renditions) {
+      const key = new URL(r.url).pathname.replace(/^\/media\//, "");
+      expect(await storage.head(key), key).toBeNull();
+    }
   });
 
   it("read-only roles can list but not upload", async () => {

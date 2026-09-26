@@ -120,11 +120,11 @@ verified.
 
 ### 4.5 Files and media
 
-| Threat                                             | Mitigation                                                                                                                                                                                                                                 | Test                | M   |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------- | --- |
-| Malicious upload (HTML/SVG with script, polyglots) | Signed uploads with size + type constraints; server-side magic-byte sniffing; allow-listed types; SVG sanitised or rasterised; served from a separate user-content domain with `Content-Disposition` and `X-Content-Type-Options: nosniff` | upload corpus tests | 3   |
-| Storage exhaustion / cost abuse                    | Per-organisation storage quota (`media_storage` entitlement), upload rate limits, pending-upload expiry                                                                                                                                    | quota tests         | 3   |
-| Image-processing exploits (decompression bombs)    | Pixel-count limits; processing in the worker with memory/time limits                                                                                                                                                                       | bomb fixtures       | 3   |
+| Threat                                             | Mitigation                                                                                                                                                                                                                                    | Test                | M   |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | --- |
+| Malicious upload (HTML/SVG with script, polyglots) | Signed uploads with size + type constraints; server-side magic-byte sniffing; allow-listed types; SVG sanitised or rasterised; served from a separate user-content domain with `Content-Disposition` and `X-Content-Type-Options: nosniff`    | upload corpus tests | 3   |
+| Storage exhaustion / cost abuse                    | Per-organisation storage quota (`media_storage` entitlement); upload targets bound to the declared size; at most 20 pending uploads per store per hour; raw uploads under a never-served, expiring prefix; deleting media deletes its objects | quota tests         | 3   |
+| Image-processing exploits (decompression bombs)    | Pixel-count limits; processing in the worker with memory/time limits                                                                                                                                                                          | bomb fixtures       | 3   |
 
 ### 4.6 Webhooks and payments
 

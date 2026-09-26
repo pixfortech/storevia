@@ -89,6 +89,15 @@ flowchart TB
 | merchant `shop.example.com`            | storefront via custom hostname            | issued and renewed automatically by the edge |
 | `media.storeviausercontent.com`        | object storage via CDN                    | edge certificate                             |
 
+Media bucket and CDN (ADR-0027 §9): the CDN serves only asset keys
+(`{organisationId}/{storeId}/{mediaId}/original.*` and `w*.webp`) and must
+**never serve the `uploads/` prefix**; a lifecycle rule expires `uploads/`
+objects after one day. The CDN adds `X-Content-Type-Options: nosniff`, a
+sandboxing `Content-Security-Policy` and the stored content type to every
+media response. Uploads use S3 POST policies; confirm the provider enforces
+`content-length-range` and exact `Content-Type` conditions before switching
+providers.
+
 Custom domain flow (M7): merchant adds hostname → Storevia shows DNS
 instructions (CNAME `shops.storevia.site` for subdomains; A/ALIAS records or
 a CNAME-flattening provider for apex domains) and a TXT verification record →

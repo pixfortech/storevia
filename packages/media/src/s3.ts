@@ -1,4 +1,4 @@
-import { parseObjectKey } from "./keys";
+import { isStorageKey, parseUploadKey } from "./keys";
 import {
   EMPTY_SHA256,
   sha256Hex,
@@ -58,7 +58,7 @@ export class S3ObjectStorage implements ObjectStorage {
   }
 
   private objectUrl(key: string): URL {
-    if (!parseObjectKey(key)) throw new StorageError("Invalid object key.", "INVALID_KEY");
+    if (!isStorageKey(key)) throw new StorageError("Invalid object key.", "INVALID_KEY");
     return new URL(uriEncode(key, false), this.bucketUrl());
   }
 
@@ -96,7 +96,8 @@ export class S3ObjectStorage implements ObjectStorage {
     key: string,
     options: { maxBytes: number; expiresInSeconds: number },
   ): UploadTarget {
-    if (!parseObjectKey(key)) throw new StorageError("Invalid object key.", "INVALID_KEY");
+    if (!parseUploadKey(key))
+      throw new StorageError("Uploads go to upload keys only.", "INVALID_KEY");
     const now = this.now();
     const expiresAt = new Date(now.getTime() + options.expiresInSeconds * 1000);
     return {

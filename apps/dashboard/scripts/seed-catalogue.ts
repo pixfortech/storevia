@@ -26,7 +26,7 @@ import {
   updateVariants,
 } from "@storevia/commerce";
 import { completeMediaUpload, createMediaUpload, mediaStorage } from "@storevia/media";
-import { objectKey } from "@storevia/media/keys";
+import { uploadKey } from "@storevia/media/keys";
 import { parsePublicId, type StoreContext } from "@storevia/tenancy";
 import type { PlatformContext } from "@storevia/tenancy/platform";
 import { toTypeId } from "@storevia/types";
@@ -110,14 +110,11 @@ async function uploadImage(ctx: StoreContext, filename: string, bytes: Uint8Arra
     size: bytes.byteLength,
     contentType: "image/png",
   });
-  const key = objectKey(
-    {
-      organisationId: ctx.organisationId,
-      storeId: ctx.storeId,
-      mediaId: parsePublicId("media", mediaId),
-    },
-    "upload",
-  );
+  const key = uploadKey({
+    organisationId: ctx.organisationId,
+    storeId: ctx.storeId,
+    mediaId: parsePublicId("media", mediaId),
+  });
   await mediaStorage().write(key, bytes, "image/png");
   await completeMediaUpload(ctx, mediaId);
   return mediaId;

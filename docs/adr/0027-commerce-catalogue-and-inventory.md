@@ -165,7 +165,15 @@ DEFINER` function that sums the organisation's stores and refuses any
   adapter refuses to start when `STOREVIA_ENV=production`. Commerce code
   sees only the interface.
 - Object keys are server-generated (`{organisationId}/{storeId}/{mediaId}/…`);
-  the filename is metadata only.
+  the filename is metadata only. Raw uploads go to a separate prefix,
+  `uploads/{organisationId}/{storeId}/{mediaId}`, which is never served and
+  is deleted once processed (and expired by a bucket lifecycle rule); the
+  database CHECK accepts only these exact key forms. _(Amended after the
+  M3 security review, `docs/architecture/11-testing.md`.)_
+- An upload target is bound to the declared size and to its upload key
+  (never an asset key); the S3 POST policy pins `Content-Type:
+application/octet-stream`. A store may have at most 20 pending uploads
+  started in the last hour.
 - Accepted in M3: JPEG, PNG, WebP, GIF and AVIF images up to 20 MB and 40
   megapixels. The type is decided by **magic bytes**, never the extension or
   the declared type. **SVG is refused** for product media (it can carry
@@ -173,17 +181,26 @@ DEFINER` function that sums the organisation's stores and refuses any
 - Processing (sniff, decode with sharp, strip metadata including EXIF GPS,
   WebP renditions at 320/640/1280/2048 px wide, never upscaled: a smaller
   image gets one rendition at its own width) runs when the upload is
-  completed, in the request, bounded by the limits above. Moving it to the
+  completed, in the request, bounded by the limits above, by two
+  processing slots per process and a 20-second sharp timeout (AVIF at low
+  effort). A processing or write failure deletes the raw upload and marks
+  the asset `REJECTED`. Moving it to the
   worker is a later scaling step; the `PROCESSING` state already exists.
 - `media_storage` (bytes) is consumed when an upload completes (original +
   renditions) and released when an unreferenced asset is soft-deleted.
   Uploads are refused when the plan is at its limit; existing media keeps
-  working. Object purge follows the data-lifecycle purge job (later).
+  working. Deleting media removes its objects (original, renditions, raw
+  upload) after the transaction commits, so released bytes are never still
+  served; a failed object delete is logged by key for the purge job.
+- Media references (variant, collection and product media) must point at
+  `READY`, non-deleted media in the same store; the check locks the asset
+  `FOR SHARE` so it serialises with deletion.
 - Media is served with the stored, sniffed content type, `nosniff` and a
   sandboxing CSP; in production from the user-content domain. In
   development the dashboard serves local objects at `/media/…`, only
   cleaned originals and renditions, never the raw upload; the dashboard CSP
-  allows the configured media origin for images and uploads.
+  allows the configured media origin for images and uploads. The local adapter is allowed only when `STOREVIA_ENV` is `development`
+  or `test` and needs a non-empty upload secret.
 
 ### 10. Rich text
 

@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
-import { parseObjectKey } from "./keys";
+import { isStorageKey, parseUploadKey } from "./keys";
 import { StorageError, type ObjectInfo, type ObjectStorage, type UploadTarget } from "./storage";
 
 // Local filesystem storage for development and tests (ADR-0027 §9). Uploads
@@ -40,7 +40,7 @@ export class LocalObjectStorage implements ObjectStorage {
 
   /** The file for a key, guaranteed to be inside the root. */
   private path(key: string): string {
-    if (!parseObjectKey(key)) throw new StorageError("Invalid object key.", "INVALID_KEY");
+    if (!isStorageKey(key)) throw new StorageError("Invalid object key.", "INVALID_KEY");
     const full = resolve(this.root, ...key.split("/"));
     if (!full.startsWith(this.root + sep))
       throw new StorageError("Invalid object key.", "INVALID_KEY");
@@ -65,7 +65,8 @@ export class LocalObjectStorage implements ObjectStorage {
     key: string,
     options: { maxBytes: number; expiresInSeconds: number },
   ): UploadTarget {
-    this.path(key);
+    if (!parseUploadKey(key))
+      throw new StorageError("Uploads go to upload keys only.", "INVALID_KEY");
     const now = (this.options.now ?? (() => new Date()))();
     const expires = Math.floor(now.getTime() / 1000) + options.expiresInSeconds;
     return {
@@ -92,7 +93,7 @@ export class LocalObjectStorage implements ObjectStorage {
     ) {
       return null;
     }
-    if (!parseObjectKey(key) || !key.endsWith("/upload")) return null;
+    if (!parseUploadKey(key)) return null;
     const max = Number(maxBytes);
     const exp = Number(expires);
     if (!Number.isSafeInteger(max) || max <= 0 || !Number.isSafeInteger(exp)) return null;

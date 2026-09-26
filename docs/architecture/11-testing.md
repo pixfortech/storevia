@@ -153,6 +153,63 @@ catalogue, a store at its product limit) at 320, 375, 390, 430, 768, 1024,
 and axe (WCAG 2.2 AA and best practice) at 390 and 1440 px with no
 violations.
 
+### Milestone 3 security review (after the `milestone-3` tag)
+
+An independent review of everything up to `32ca558` (cross-tenant access,
+RLS and grants, same-store references, limit and quota bypasses, inventory
+locking, rich text, uploads and S3 signing, CSV export, bulk actions,
+archive handling, permissions, id confusion, logging, replay, races). No
+cross-tenant read or write was found. Findings fixed in migration
+`20260930000000_catalogue_review_fixes` and the services, each with a
+regression test:
+
+| Sev    | Finding                                                                                                                                                                            | Fix                                                                                                                                                                                                          | Regression test                                                                                                                              |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| HIGH   | Deleting media released its `media_storage` bytes but never deleted the objects, which stayed publicly served: unlimited storage at no quota cost                                  | `deleteMedia` returns every key (original, renditions, raw upload) and removes them after commit; failures are logged by key only                                                                            | media integration "delete" asserts the files are gone                                                                                        |
+| MEDIUM | A media reference (variant image, collection image, product media) could be written to soft-deleted or unprocessed media, or race `deleteMedia` into pointing at freed media       | the same-store trigger requires `READY`, not deleted, and takes `FOR SHARE` (conflicts with `deleteMedia`'s `FOR UPDATE`); `ProductMedia` gets the trigger too                                               | database "media references need live, ready media" (each table, each state) and the `NOWAIT` lock test (55P03)                               |
+| MEDIUM | `setProductStatus` accepted `"ARCHIVED"` from a server action, archiving through the edit permission path without the archive audit                                                | only `ACTIVE`/`DRAFT` accepted, checked before any database work                                                                                                                                             | products "status changes accept active or draft only"                                                                                        |
+| MEDIUM | Restore (single, or bulk from a stale list or a replayed request) moved an `ACTIVE` product back to `DRAFT`, unpublishing it                                                       | restore is a no-op unless the product is archived                                                                                                                                                            | products "restoring a product that isn't archived changes nothing" (single and bulk)                                                         |
+| MEDIUM | Deactivating a location raced a concurrent adjust or transfer, leaving stock at an inactive location                                                                               | stock writes read the location `FOR SHARE`; deactivation locks the store's active locations `FOR UPDATE`                                                                                                     | inventory "deactivating a location never races a stock write" (12 rounds; fails 3/3 with the lock removed)                                   |
+| MEDIUM | Raw uploads lived under the served asset prefix, weren't bound to the declared size, weren't metered, and could be re-posted                                                       | separate never-served `uploads/{org}/{store}/{media}` prefix; upload target bound to the declared size; POST policy pins `Content-Type: application/octet-stream`; at most 20 pending uploads per store/hour | media unit (upload keys, policy conditions, object keys refused as upload targets); integration "upload targets" (size and key, pending cap) |
+| MEDIUM | Image processing could be driven into long AVIF encodes on the request path (CPU exhaustion)                                                                                       | two processing slots per process, sharp `timeout` (20 s), AVIF effort 2; a failure deletes the raw upload and marks the asset `REJECTED` (no stuck `PROCESSING`)                                             | media integration: failing storage → `REJECTED`, upload removed                                                                              |
+| LOW    | Fixed alongside: options and option values could change parent, ids were updatable; storage-key CHECK accepted `../`; renditions' byte counts unchecked; collection HTML unbounded | immutability triggers; exact key-grammar CHECK; `app_renditions_valid`; `Collection_description_html_length`                                                                                                 | database "parents and ids never move", "key and renditions grammar"                                                                          |
+| LOW    | Fixed alongside: untracked stock didn't block deactivation; a restock was refused on a negative `DENY` level; location creation raced the default location                         | untracked stock counts; positive deltas always apply; an advisory lock serialises location codes per store                                                                                                   | inventory "Milestone 3 security review regressions"                                                                                          |
+| LOW    | Fixed alongside: trigger functions executable by `PUBLIC`; platform role could read rendition keys; system role could call usage functions; local storage allowed any environment  | `REVOKE`s; local storage only for `STOREVIA_ENV` development/test and needs a non-empty secret                                                                                                               | database "role privileges"; media unit "storage configuration"                                                                               |
+
+Recorded, not fixed (LOW; none crosses a tenant boundary or bypasses a
+limit):
+
+- **Export as a GET**: it is audited on every prefetch and, lacking a CSRF
+  token, can be triggered cross-site (the response is not readable
+  cross-origin). Move it to a POST with a download token (M10 import/export).
+- **Cost prices** are visible to every role with `product.read`; a separate
+  `product.cost.read` permission belongs with M8 reporting.
+- **Implicit writes** (the default location created on first stock write,
+  collection membership edited from the product form) check the caller's
+  primary permission, not `location.manage`/`collection.manage`.
+- **Handles** of 97–100 characters can collide after suffixing and return
+  CONFLICT instead of a longer suffix.
+- **Money** above int8 and rendered rich text over the column limit surface
+  as a 500 instead of a field error (the database refuses both).
+- **Collection reorder** of more than 100 products in one request is
+  refused wholesale.
+- **Variant matrix edits** are last-write-wins between two editors (the
+  product form has optimistic concurrency; the matrix doesn't yet).
+- **Removing a variant** while its first stock movement is being written
+  can return a 500 (FK violation) instead of NOT_FOUND.
+- **Export** builds the CSV in memory (bounded by the plan's product limit).
+- **Transfers** take row locks in id order; a theoretical deadlock with a
+  concurrent adjust on the same two levels would fail one request (retryable)
+  rather than hang.
+- **Local upload route** reads the body before verifying the token
+  (development and test only).
+- **S3 deployment**: the media CDN must add `nosniff` and a sandboxing CSP;
+  `uploads/` must not be served and should expire via a lifecycle rule
+  (see `docs/deployment/deployment-architecture.md`); R2's POST-policy
+  support is unverified; AVIF files with a HEIC brand are refused.
+- **Dashboard query strings**: repeated parameters aren't normalised and
+  malformed cursors return a 500 instead of the first page.
+
 ## Runtime compatibility
 
 CI runs every suite on the required Node LTS line (`.nvmrc`, PostgreSQL 17)

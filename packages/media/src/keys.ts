@@ -5,13 +5,20 @@
 
 const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
-/** Files kept for an asset: the raw upload (never served), the cleaned original and WebP renditions. */
+/** Files kept for an asset: the cleaned original and WebP renditions. */
 export const OBJECT_NAME_RE =
-  /^(?:upload|original\.(?:jpg|png|webp|gif|avif)|w(?:320|640|1280|2048)\.webp)$/;
+  /^(?:original\.(?:jpg|png|webp|gif|avif)|w(?:320|640|1280|2048)\.webp)$/;
 
 export const OBJECT_KEY_RE = new RegExp(
-  `^(${UUID})/(${UUID})/(${UUID})/(upload|original\\.(?:jpg|png|webp|gif|avif)|w(?:320|640|1280|2048)\\.webp)$`,
+  `^(${UUID})/(${UUID})/(${UUID})/(original\\.(?:jpg|png|webp|gif|avif)|w(?:320|640|1280|2048)\\.webp)$`,
 );
+
+/**
+ * Raw uploads live under their own top-level prefix, apart from the served
+ * objects: a CDN or bucket policy never serves `uploads/`, and a storage
+ * lifecycle rule expires whatever is left there (docs/deployment).
+ */
+export const UPLOAD_KEY_RE = new RegExp(`^uploads/(${UUID})/(${UUID})/(${UUID})$`);
 
 /** Names that may be served to browsers: never the raw upload. */
 export const SERVABLE_NAME_RE =
@@ -31,15 +38,37 @@ export function parseObjectKey(key: string): ParsedKey | null {
   return { organisationId, storeId, mediaId, name };
 }
 
+export interface MediaOwner {
+  readonly organisationId: string;
+  readonly storeId: string;
+  readonly mediaId: string;
+}
+
+export function parseUploadKey(key: string): MediaOwner | null {
+  const match = UPLOAD_KEY_RE.exec(key);
+  if (!match) return null;
+  const [, organisationId = "", storeId = "", mediaId = ""] = match;
+  return { organisationId, storeId, mediaId };
+}
+
+/** Where the browser uploads an asset's raw bytes. Never served. */
+export function uploadKey(owner: MediaOwner): string {
+  const key = `uploads/${owner.organisationId}/${owner.storeId}/${owner.mediaId}`;
+  if (!parseUploadKey(key)) throw new Error("invalid upload key");
+  return key;
+}
+
+/** Any key a storage adapter may touch: a stored object or a raw upload. */
+export function isStorageKey(key: string): boolean {
+  return parseObjectKey(key) !== null || parseUploadKey(key) !== null;
+}
+
 export function isServableKey(key: string): boolean {
   const parsed = parseObjectKey(key);
   return parsed !== null && SERVABLE_NAME_RE.test(parsed.name);
 }
 
-export function objectKey(
-  owner: { readonly organisationId: string; readonly storeId: string; readonly mediaId: string },
-  name: string,
-): string {
+export function objectKey(owner: MediaOwner, name: string): string {
   const key = `${owner.organisationId}/${owner.storeId}/${owner.mediaId}/${name}`;
   if (!parseObjectKey(key)) throw new Error("invalid object key");
   return key;

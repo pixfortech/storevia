@@ -122,6 +122,9 @@ export function signPostPolicy(
     conditions: [
       { bucket: options.bucket },
       { key: options.key },
+      // Raw uploads are stored as opaque bytes whatever the browser claims,
+      // so nothing uploaded can be served back as HTML or script.
+      { "Content-Type": "application/octet-stream" },
       ["content-length-range", 1, options.maxBytes],
       { "x-amz-algorithm": "AWS4-HMAC-SHA256" },
       { "x-amz-credential": credential },
@@ -137,6 +140,7 @@ export function signPostPolicy(
     .digest("hex");
   return {
     key: options.key,
+    "Content-Type": "application/octet-stream",
     "x-amz-algorithm": "AWS4-HMAC-SHA256",
     "x-amz-credential": credential,
     "x-amz-date": dateTime,

@@ -126,7 +126,7 @@ async function one(sql: string, params: unknown[]): Promise<string> {
 async function seedCatalogue(org: string, store: string): Promise<Catalogue> {
   const media = await one(
     `INSERT INTO "MediaAsset" (id, "organisationId", "storeId", kind, status, filename, "declaredMimeType", "mimeType", "sizeBytes", "storageKey", renditions, "updatedAt")
-     SELECT m, $1::uuid, $2::uuid, 'IMAGE', 'READY', 'shirt.jpg', 'image/jpeg', 'image/jpeg', 1000, $1::text || '/' || $2::text || '/' || m::text || '/original',
+     SELECT m, $1::uuid, $2::uuid, 'IMAGE', 'READY', 'shirt.jpg', 'image/jpeg', 'image/jpeg', 1000, $1::text || '/' || $2::text || '/' || m::text || '/original.jpg',
             '[{"key":"x","width":320,"height":320,"format":"webp","bytes":100}]'::jsonb, now()
      FROM gen_random_uuid() AS m RETURNING id`,
     [org, store],
@@ -638,5 +638,152 @@ describe("search indexes", () => {
     } finally {
       await admin.query("ROLLBACK");
     }
+  });
+});
+
+/** Runs statements as the migrator in one rolled-back transaction; returns the last one's error code. */
+async function adminSequence(
+  steps: readonly (readonly [string, readonly unknown[]])[],
+): Promise<string | null> {
+  await admin.query("BEGIN");
+  try {
+    for (const [sql, params] of steps) await admin.query(sql, [...params]);
+    return null;
+  } catch (error) {
+    return (error as { code?: string }).code ?? "unknown";
+  } finally {
+    await admin.query("ROLLBACK");
+  }
+}
+
+describe("Milestone 3 security review regressions", () => {
+  it("media references need live, ready media in the same store", async () => {
+    const retire = [
+      `UPDATE "MediaAsset" SET "deletedAt" = now(), status = 'DELETED' WHERE id = $1`,
+      [A1().media],
+    ] as const;
+    const processing = [
+      `UPDATE "MediaAsset" SET status = 'PROCESSING' WHERE id = $1`,
+      [A1().media],
+    ] as const;
+    for (const state of [retire, processing]) {
+      expect(
+        await adminSequence([
+          state,
+          [
+            'UPDATE "ProductVariant" SET "imageMediaId" = $1 WHERE id = $2',
+            [A1().media, A1().variant],
+          ],
+        ]),
+      ).toBe("23503");
+      expect(
+        await adminSequence([
+          state,
+          [
+            'UPDATE "Collection" SET "imageMediaId" = $1 WHERE id = $2',
+            [A1().media, A1().collection],
+          ],
+        ]),
+      ).toBe("23503");
+      expect(
+        await adminSequence([
+          state,
+          [
+            `INSERT INTO "ProductMedia" (id, "organisationId", "storeId", "productId", "mediaAssetId", position)
+             VALUES (gen_random_uuid(), $1, $2, $3, $4, 9)`,
+            [A.org, A1().store, A1().product, A1().media],
+          ],
+        ]),
+      ).toBe("23503");
+    }
+  });
+
+  it("a new reference holds the media, so a concurrent delete waits for it", async () => {
+    const other = new pg.Client({ connectionString: process.env["DATABASE_MIGRATOR_URL"] });
+    await other.connect();
+    await admin.query("BEGIN");
+    try {
+      await admin.query('UPDATE "ProductVariant" SET "imageMediaId" = $1 WHERE id = $2', [
+        A1().media,
+        A1().variant,
+      ]);
+      // deleteMedia locks the asset FOR UPDATE before counting references.
+      await other.query("BEGIN");
+      const locked = await other
+        .query('SELECT id FROM "MediaAsset" WHERE id = $1 FOR UPDATE NOWAIT', [A1().media])
+        .then(() => null)
+        .catch((error: unknown) => (error as { code?: string }).code ?? "unknown");
+      await other.query("ROLLBACK");
+      expect(locked).toBe("55P03");
+    } finally {
+      await admin.query("ROLLBACK");
+      await other.end();
+    }
+  });
+
+  it.each([
+    [
+      'UPDATE "ProductOption" SET "productId" = $1 WHERE id = $2',
+      () => [A2().product, A1().option],
+    ],
+    [
+      'UPDATE "ProductOptionValue" SET "optionId" = $1 WHERE id = $2',
+      () => [A2().option, A1().value],
+    ],
+    ['UPDATE "InventoryItem" SET id = gen_random_uuid() WHERE id = $1', () => [A1().item]],
+    ['UPDATE "Location" SET id = gen_random_uuid() WHERE id = $1', () => [A1().location]],
+    ['UPDATE "MediaAsset" SET id = gen_random_uuid() WHERE id = $1', () => [A1().media]],
+    ['UPDATE "Product" SET id = gen_random_uuid() WHERE id = $1', () => [A1().product]],
+    ['UPDATE "ProductVariant" SET id = gen_random_uuid() WHERE id = $1', () => [A1().variant]],
+  ] as const)("parents and ids never move: %s", async (sql, params) => {
+    expect(await adminError(sql, [...params()])).toBe("23514");
+  });
+
+  it("storage keys and renditions follow the key grammar", async () => {
+    const key = (suffix: string) => `${A.org}/${A1().store}/${A1().media}/${suffix}`;
+    const set = (value: string) =>
+      adminError('UPDATE "MediaAsset" SET "storageKey" = $1 WHERE id = $2', [value, A1().media]);
+    expect(await set(key(`../../${B.org}/x/original.jpg`))).toBe("23514");
+    expect(await set(key("upload"))).toBe("23514");
+    expect(await set(key("original.png"))).toBeNull();
+    expect(await set(`uploads/${A.org}/${A1().store}/${A1().media}`)).toBeNull();
+    const renditions = (value: string) =>
+      adminError('UPDATE "MediaAsset" SET renditions = $1::jsonb WHERE id = $2', [
+        value,
+        A1().media,
+      ]);
+    expect(await renditions('[{"key":"x","bytes":-1000}]')).toBe("23514");
+    expect(await renditions('[{"key":"x","bytes":"abc"}]')).toBe("23514");
+    expect(await renditions('[{"key":"x","bytes":1.5}]')).toBe("23514");
+    expect(await renditions('[{"key":"x"}]')).toBe("23514");
+    expect(await renditions('[{"key":"x","bytes":120}]')).toBeNull();
+  });
+
+  it("roles hold only what they use", async () => {
+    const q = async (sql: string) => (await admin.query<{ ok: boolean }>(sql)).rows[0]?.ok;
+    for (const fn of [
+      "app_media_in_same_store()",
+      "app_variant_option_same_product()",
+      "app_variant_currency_matches_store()",
+    ]) {
+      expect(
+        await q(`SELECT has_function_privilege('storevia_app', '${fn}', 'EXECUTE') AS ok`),
+      ).toBe(false);
+    }
+    expect(
+      await q(
+        `SELECT has_column_privilege('storevia_platform', '"MediaAsset"', 'renditions', 'SELECT') AS ok`,
+      ),
+    ).toBe(false);
+    expect(
+      await q(
+        `SELECT has_function_privilege('storevia_system', 'app_usage_media_bytes(uuid)', 'EXECUTE') AS ok`,
+      ),
+    ).toBe(false);
+    expect(
+      await q(
+        `SELECT has_function_privilege('storevia_app', 'app_usage_media_bytes(uuid)', 'EXECUTE') AS ok`,
+      ),
+    ).toBe(true);
   });
 });

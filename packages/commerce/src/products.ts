@@ -371,9 +371,15 @@ async function changeStatus(
 export async function setProductStatus(
   ctx: TenantContext,
   productPublicId: string,
-  status: "ACTIVE" | "DRAFT",
+  /** "ACTIVE" or "DRAFT". Typed loosely because callers (server actions) pass what the browser sent. */
+  status: unknown,
 ): Promise<{ updatedAt: Date }> {
   const productId = internalId("product", productPublicId);
+  // The type isn't a runtime check: a replayed action can send any string,
+  // and "ARCHIVED" here would archive without product.archive.
+  if (status !== "ACTIVE" && status !== "DRAFT") {
+    throw validationError("status", "Choose active or draft.");
+  }
   return inStore(
     ctx,
     "product.update",
@@ -402,13 +408,21 @@ export async function archiveProduct(ctx: TenantContext, productPublicId: string
   );
 }
 
-/** Restores an archived product as a draft. Counts against the plan (LIMIT_REACHED when full). */
+/**
+ * Restores an archived product as a draft. Counts against the plan
+ * (LIMIT_REACHED when full). A product that isn't archived is left as it is:
+ * restoring from a stale list must never unpublish a live product.
+ */
 export async function restoreProduct(ctx: TenantContext, productPublicId: string): Promise<void> {
   const productId = internalId("product", productPublicId);
   await inStore(
     ctx,
     "product.archive",
-    (tx, store) => changeStatus(tx, store, productId, "DRAFT"),
+    async (tx, store) => {
+      const current = await lockProduct(tx, productId);
+      if (current.status !== "ARCHIVED") return;
+      await changeStatus(tx, store, productId, "DRAFT");
+    },
     {
       write: true,
     },

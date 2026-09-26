@@ -34,6 +34,11 @@ export interface LocationView {
 
 const DEFAULT_LOCATION = { name: "Main location", code: "MAIN" } as const;
 
+/** Serialises location creation per store (codes are unique among live locations). */
+async function lockLocationCodes(tx: TenantTx, storeId: string): Promise<void> {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${storeId}:default-location`}, 0))`;
+}
+
 /**
  * The store's first active location, created as "Main location" (MAIN) the
  * first time the catalogue needs one. Serialised per store so two first
@@ -44,18 +49,18 @@ export async function ensureDefaultLocation(
   ctx: StoreContext,
   options: { readonly createIfMissing?: boolean } = {},
 ): Promise<{ id: string } | null> {
-  const existing = await tx.location.findFirst({
-    where: { deletedAt: null, isActive: true },
-    orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
-    select: { id: true },
-  });
+  // Share-locked like any location a stock write uses (see loadLocation in
+  // inventory.ts), so it can't be deactivated under the write.
+  const firstActive = async () =>
+    (
+      await tx.$queryRaw<{ id: string }[]>`
+        SELECT id FROM "Location" WHERE "deletedAt" IS NULL AND "isActive"
+        ORDER BY priority ASC, "createdAt" ASC LIMIT 1 FOR SHARE`
+    )[0] ?? null;
+  const existing = await firstActive();
   if (existing || options.createIfMissing === false) return existing;
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${ctx.storeId}:default-location`}, 0))`;
-  const again = await tx.location.findFirst({
-    where: { deletedAt: null, isActive: true },
-    orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
-    select: { id: true },
-  });
+  await lockLocationCodes(tx, ctx.storeId);
+  const again = await firstActive();
   if (again) return again;
   const { country } = await storeSettings(tx, ctx.storeId);
   // A deactivated MAIN keeps its code, so the default gets a free one.
@@ -160,6 +165,9 @@ export async function createLocation(
       ctx,
       "location.manage",
       async (tx, store) => {
+        // The same lock as the default location, so a first stock write that
+        // creates MAIN can't collide with a "MAIN" created here.
+        await lockLocationCodes(tx, store.storeId);
         const created = await tx.location.create({
           data: {
             organisationId: store.organisationId,
@@ -274,7 +282,8 @@ export async function setLocationActive(
         const stock = await tx.inventoryLevel.aggregate({
           where: {
             locationId: id,
-            inventoryItem: { tracked: true, variant: { deletedAt: null } },
+            // Untracked items count too: tracking can be turned back on.
+            inventoryItem: { variant: { deletedAt: null } },
             OR: [{ available: { not: 0 } }, { reserved: { gt: 0 } }],
           },
           _count: { _all: true },

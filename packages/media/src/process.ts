@@ -8,6 +8,9 @@ import { MEDIA_LIMITS, sniffImage, SNIFF_MESSAGES, type AcceptedImageType } from
 // original and generate WebP renditions. Nothing the uploader wrote into
 // the file survives except pixels.
 
+/** Longest a single encode may run before the upload is refused. */
+const PROCESSING_TIMEOUT_SECONDS = 20;
+
 export class MediaRejectedError extends Error {
   constructor(message: string) {
     super(message);
@@ -77,7 +80,9 @@ export async function processImage(input: Uint8Array): Promise<ProcessedImage> {
   try {
     // rotate() applies the EXIF orientation; sharp drops all metadata on
     // output unless asked to keep it, so none is kept.
-    const oriented = () => base().rotate();
+    // Every encode has a time limit, and AVIF uses a low effort: a tiny file
+    // can declare 40 MP, and a slow encode would hold a processing slot.
+    const oriented = () => base().rotate().timeout({ seconds: PROCESSING_TIMEOUT_SECONDS });
     const original = await (() => {
       switch (sniffed.mimeType) {
         case "image/jpeg":
@@ -89,7 +94,7 @@ export async function processImage(input: Uint8Array): Promise<ProcessedImage> {
         case "image/gif":
           return oriented().gif().toBuffer();
         case "image/avif":
-          return oriented().avif({ quality: 60 }).toBuffer();
+          return oriented().avif({ quality: 60, effort: 2 }).toBuffer();
       }
     })();
     const orientedMeta = await sharp(original, {
@@ -106,6 +111,7 @@ export async function processImage(input: Uint8Array): Promise<ProcessedImage> {
       const out = await sharp(original, { animated, limitInputPixels: MEDIA_LIMITS.maxPixels })
         .resize({ width: Math.min(target, outWidth), withoutEnlargement: true })
         .webp({ quality: 82, effort: 4 })
+        .timeout({ seconds: PROCESSING_TIMEOUT_SECONDS })
         .toBuffer({ resolveWithObject: true });
       renditions.push({
         target,

@@ -52,11 +52,19 @@ interface LocationRow {
   readonly isActive: boolean;
 }
 
+/**
+ * Loads a location with a share lock held to the end of the transaction.
+ * Deactivation locks the location FOR UPDATE before checking it holds no
+ * stock, so a stock write and a deactivation can't interleave: whichever
+ * comes second waits and then sees the other's result (an inactive location
+ * is refused; a location that now holds stock can't be deactivated).
+ */
 async function loadLocation(tx: TenantTx, locationId: string): Promise<LocationRow> {
-  const location = await tx.location.findFirst({
-    where: { id: locationId, deletedAt: null },
-    select: { id: true, name: true, code: true, isActive: true },
-  });
+  const rows = await tx.$queryRaw<LocationRow[]>`
+    SELECT id, name, code, "isActive" FROM "Location"
+    WHERE id = ${locationId}::uuid AND "deletedAt" IS NULL
+    FOR SHARE`;
+  const location = rows[0];
   if (!location) throw notFound();
   return location;
 }
@@ -102,7 +110,8 @@ interface ApplyResult {
 
 /**
  * The conditional update: refuses a result below zero unless the variant may
- * be oversold (CONTINUE), and refuses overflow. The row is already locked;
+ * be oversold (CONTINUE) or the change adds stock (a restock that improves a
+ * negative level is always allowed), and refuses overflow. The row is already locked;
  * the condition still guards the invariant in SQL.
  */
 async function applyDelta(
@@ -115,7 +124,7 @@ async function applyDelta(
     UPDATE "InventoryLevel"
     SET available = available + ${delta}, "updatedAt" = now()
     WHERE id = ${levelId}::uuid
-      AND (available + ${delta} >= 0 OR ${allowNegative})
+      AND (available + ${delta} >= 0 OR ${delta} > 0 OR ${allowNegative})
       AND abs(available::bigint + ${delta}) <= ${INVENTORY_QUANTITY_LIMIT}
     RETURNING available`;
   const row = rows[0];
@@ -353,8 +362,13 @@ export async function moveInventory(
     "inventory.adjust",
     async (tx, store) => {
       const item = await loadItem(tx, variantId);
-      const from = await loadLocation(tx, fromId);
-      const to = await loadLocation(tx, toId);
+      // Lock both locations in id order, as deactivation does.
+      const [first, second] = [fromId, toId].sort();
+      const loaded = new Map<string, LocationRow>();
+      for (const id of [first, second]) if (id) loaded.set(id, await loadLocation(tx, id));
+      const from = loaded.get(fromId);
+      const to = loaded.get(toId);
+      if (!from || !to) throw notFound();
       requireTrackedActive(item, from);
       requireTrackedActive(item, to);
       const levels = await lockLevels(tx, store, item.itemId, [from.id, to.id]);

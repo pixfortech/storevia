@@ -4,7 +4,15 @@ import { join } from "node:path";
 import { crc32 } from "node:zlib";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
-import { contentTypeForKey, isServableKey, objectKey, parseObjectKey } from "./keys";
+import { storageFromEnv } from "./config";
+import {
+  contentTypeForKey,
+  isServableKey,
+  objectKey,
+  parseObjectKey,
+  parseUploadKey,
+  uploadKey,
+} from "./keys";
 import { LocalObjectStorage } from "./local";
 import { MediaRejectedError, processImage } from "./process";
 import { S3ObjectStorage } from "./s3";
@@ -39,11 +47,52 @@ describe("object keys", () => {
     expect(() => objectKey(owner, "../x")).toThrow();
   });
 
+  it("keep raw uploads under their own, never-served prefix", () => {
+    expect(uploadKey(owner)).toBe(`uploads/${ORG}/${STORE}/${MEDIA}`);
+    expect(parseUploadKey(uploadKey(owner))).toEqual(owner);
+    for (const bad of [
+      `uploads/${ORG}/${STORE}/../${MEDIA}`,
+      `uploads/${ORG}/${STORE}/${MEDIA}/`,
+      `${ORG}/${STORE}/${MEDIA}/upload`,
+      `uploads/${ORG}/${STORE}/${MEDIA}/original.jpg`,
+    ]) {
+      expect(parseUploadKey(bad), bad).toBeNull();
+    }
+    expect(parseObjectKey(uploadKey(owner))).toBeNull();
+    expect(isServableKey(uploadKey(owner))).toBe(false);
+    expect(contentTypeForKey(uploadKey(owner))).toBeNull();
+  });
+
   it("never serve the raw upload, and serve with a type from the server-chosen name", () => {
     expect(isServableKey(`${ORG}/${STORE}/${MEDIA}/upload`)).toBe(false);
     expect(isServableKey(`${ORG}/${STORE}/${MEDIA}/original.png`)).toBe(true);
     expect(contentTypeForKey(`${ORG}/${STORE}/${MEDIA}/w320.webp`)).toBe("image/webp");
     expect(contentTypeForKey(`${ORG}/${STORE}/${MEDIA}/upload`)).toBeNull();
+  });
+});
+
+describe("storage configuration", () => {
+  const base = { AUTH_SECRET: "a".repeat(40), DASHBOARD_URL: "http://app.localhost:3001" };
+
+  it("uses local storage only in development and test", () => {
+    for (const env of ["development", "test"]) {
+      expect(storageFromEnv({ ...base, STOREVIA_ENV: env }).kind).toBe("local");
+    }
+    for (const env of ["production", "staging", "preview", undefined]) {
+      expect(() => storageFromEnv({ ...base, STOREVIA_ENV: env, MEDIA_STORAGE: "local" })).toThrow(
+        /development and test only/,
+      );
+      // Without MEDIA_STORAGE, anything but development/test means S3 (which needs its settings).
+      expect(() => storageFromEnv({ ...base, STOREVIA_ENV: env })).toThrow(/S3_ENDPOINT/);
+    }
+  });
+
+  it("treats an empty upload secret as unset, and never falls back to a built-in secret", () => {
+    const empty = { ...base, STOREVIA_ENV: "development", MEDIA_UPLOAD_SECRET: "" };
+    expect(storageFromEnv(empty).kind).toBe("local");
+    expect(() => storageFromEnv({ STOREVIA_ENV: "development", MEDIA_UPLOAD_SECRET: "" })).toThrow(
+      /MEDIA_UPLOAD_SECRET or AUTH_SECRET/,
+    );
   });
 });
 
@@ -125,7 +174,7 @@ describe("SigV4", () => {
       forcePathStyle: true,
       now: () => new Date("2026-09-25T10:00:00Z"),
     });
-    const target = await s3.createUploadTarget(objectKey(owner, "upload"), {
+    const target = await s3.createUploadTarget(uploadKey(owner), {
       maxBytes: 1000,
       expiresInSeconds: 600,
     });
@@ -135,13 +184,20 @@ describe("SigV4", () => {
       conditions: unknown[];
     };
     expect(policy.expiration).toBe("2026-09-25T10:10:00.000Z");
-    expect(policy.conditions).toContainEqual({ key: `${ORG}/${STORE}/${MEDIA}/upload` });
+    expect(policy.conditions).toContainEqual({ key: `uploads/${ORG}/${STORE}/${MEDIA}` });
     expect(policy.conditions).toContainEqual(["content-length-range", 1, 1000]);
+    // Stored as opaque bytes whatever the browser claims: never served as HTML.
+    expect(policy.conditions).toContainEqual({ "Content-Type": "application/octet-stream" });
+    expect(target.fields["Content-Type"]).toBe("application/octet-stream");
     expect(s3.publicUrl(objectKey(owner, "w320.webp"))).toBe(
       `https://cdn.example.test/media/${ORG}/${STORE}/${MEDIA}/w320.webp`,
     );
     await expect(
       s3.createUploadTarget("../../x", { maxBytes: 1, expiresInSeconds: 1 }),
+    ).rejects.toThrow();
+    // A served object can never be an upload target.
+    await expect(
+      s3.createUploadTarget(objectKey(owner, "original.png"), { maxBytes: 1, expiresInSeconds: 1 }),
     ).rejects.toThrow();
   });
 });
@@ -158,20 +214,26 @@ describe("local storage", () => {
 
   it("issues tokens bound to one key, size and expiry", async () => {
     const storage = make();
-    const key = objectKey(owner, "upload");
+    const key = uploadKey(owner);
     const target = await storage.createUploadTarget(key, { maxBytes: 1000, expiresInSeconds: 600 });
     expect(storage.verifyUploadToken(target.fields)).toMatchObject({ key, maxBytes: 1000 });
     expect(storage.verifyUploadToken({ ...target.fields, maxBytes: "999999" })).toBeNull();
     expect(
       storage.verifyUploadToken({
         ...target.fields,
-        key: objectKey({ ...owner, mediaId: STORE }, "upload"),
+        key: uploadKey({ ...owner, mediaId: STORE }),
       }),
     ).toBeNull();
     expect(
       storage.verifyUploadToken({ ...target.fields, key: objectKey(owner, "original.png") }),
     ).toBeNull();
     expect(storage.verifyUploadToken({ ...target.fields, signature: "AAAA" })).toBeNull();
+    await expect(
+      storage.createUploadTarget(objectKey(owner, "original.png"), {
+        maxBytes: 1,
+        expiresInSeconds: 1,
+      }),
+    ).rejects.toMatchObject({ code: "INVALID_KEY" });
     const later = new LocalObjectStorage({
       root: tmpdir(),
       uploadUrl: "x",

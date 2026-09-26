@@ -347,3 +347,95 @@ describe("listInventory", () => {
     expect((await listInventory(storeOf(other))).rows).toEqual([]);
   });
 });
+
+describe("Milestone 3 security review regressions", () => {
+  it("a restock is accepted on a negative level even when the variant can't be oversold", async () => {
+    await updateVariants(store(), productId, {
+      variants: [{ variantId, inventoryPolicy: "CONTINUE" }],
+    });
+    await adjustInventory(store(), {
+      variantId,
+      locationId: main,
+      delta: -13,
+      reason: "CORRECTION",
+    });
+    await updateVariants(store(), productId, {
+      variants: [{ variantId, inventoryPolicy: "DENY" }],
+    });
+    expect(await available()).toBe(-3);
+    await adjustInventory(store(), { variantId, locationId: main, delta: 1, reason: "RESTOCK" });
+    expect(await available()).toBe(-2);
+    // Removing stock is still refused while the level is below zero.
+    await expectCode(
+      adjustInventory(store(), { variantId, locationId: main, delta: -1, reason: "CORRECTION" }),
+      "CONFLICT",
+    );
+    expect(await available()).toBe(-2);
+    expect(await ledgerSum()).toBe(-2);
+  });
+
+  it("stock held for an untracked variant still blocks deactivating its location", async () => {
+    const { locationId: shop } = await createLocation(store(), {
+      name: "Shop",
+      code: "SHOP",
+      countryCode: "IN",
+    });
+    await adjustInventory(store(), { variantId, locationId: shop, delta: 3, reason: "RESTOCK" });
+    await setInventoryTracking(store(), variantId, false);
+    await expectCode(setLocationActive(store(), shop, false), "CONFLICT");
+    const location = await migratorDb().location.findFirstOrThrow({
+      where: { id: parseTypeId("location", shop) ?? "" },
+    });
+    expect(location.isActive).toBe(true);
+  });
+
+  it("deactivating a location never races a stock write into leaving stock behind", async () => {
+    for (let round = 0; round < 12; round++) {
+      const { locationId } = await createLocation(store(), {
+        name: `Pop-up ${String(round)}`,
+        code: `POP${String(round)}`,
+        countryCode: "IN",
+      });
+      const write =
+        round % 2
+          ? adjustInventory(store(), { variantId, locationId, delta: 1, reason: "RESTOCK" })
+          : moveInventory(store(), {
+              variantId,
+              fromLocationId: main,
+              toLocationId: locationId,
+              quantity: 1,
+            });
+      await Promise.allSettled([write, setLocationActive(store(), locationId, false)]);
+      const location = await migratorDb().location.findFirstOrThrow({
+        where: { id: parseTypeId("location", locationId) ?? "" },
+        select: { isActive: true, levels: { select: { available: true } } },
+      });
+      const held = location.levels.reduce((n, l) => n + l.available, 0);
+      // Either the write landed first (deactivation refused) or the
+      // deactivation did (the write refused): never both.
+      expect(location.isActive || held === 0).toBe(true);
+    }
+    const levels = await migratorDb().inventoryLevel.aggregate({ _sum: { available: true } });
+    expect(levels._sum.available).toBe(await ledgerSum());
+  });
+
+  it("the default location created by a first write doesn't collide with a parallel createLocation", async () => {
+    const other = await makeTenant("inv-race");
+    const ctx = storeOf(other);
+    const { productId: bare } = await createProduct(ctx, { title: "Bare" });
+    const bareVariant = (await getProduct(ctx, bare)).variants[0]?.id ?? "";
+    const results = await Promise.allSettled([
+      adjustInventory(ctx, { variantId: bareVariant, delta: 2, reason: "RESTOCK" }),
+      createLocation(ctx, { name: "Main", code: "MAIN", countryCode: "IN" }),
+    ]);
+    // Whichever loses reports a clean domain error, never a raw database one.
+    for (const result of results) {
+      if (result.status === "rejected") {
+        expect((result.reason as { code?: string }).code).toBe("CONFLICT");
+      }
+    }
+    expect(results[0].status).toBe("fulfilled");
+    const codes = (await listLocations(ctx)).map((l) => l.code);
+    expect(new Set(codes).size).toBe(codes.length);
+  });
+});

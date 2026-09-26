@@ -5,6 +5,7 @@ import { parseTypeId } from "@storevia/types";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import {
   archiveProduct,
+  bulkProductAction,
   createProduct,
   getProduct,
   restoreProduct,
@@ -216,6 +217,34 @@ describe("status, archive and restore", () => {
         "product.restored",
       ]),
     );
+  });
+
+  it("status changes accept active or draft only: archiving has its own path (security review)", async () => {
+    const store = storeOf(tenant);
+    const { productId } = await createProduct(store, { title: "Shirt" });
+    for (const status of ["ARCHIVED", "archived", "", null, 1, { status: "ACTIVE" }]) {
+      await expectCode(setProductStatus(store, productId, status), "VALIDATION_FAILED");
+    }
+    const product = await getProduct(store, productId);
+    expect(product).toMatchObject({ status: "DRAFT", archivedAt: null });
+    expect(await migratorDb().auditLog.count({ where: { action: "product.archived" } })).toBe(0);
+  });
+
+  it("restoring a product that isn't archived changes nothing (security review)", async () => {
+    // A stale list (or a replayed request) must never unpublish a live product.
+    const store = storeOf(tenant);
+    const { productId: live } = await createProduct(store, { title: "Live" });
+    const { productId: draft } = await createProduct(store, { title: "Draft" });
+    await setProductStatus(store, live, "ACTIVE");
+    const before = await getProduct(store, live);
+    await restoreProduct(store, live);
+    await restoreProduct(store, draft);
+    const bulk = await bulkProductAction(store, { action: "restore", productIds: [live, draft] });
+    expect(bulk.succeeded).toEqual([live, draft]);
+    const after = await getProduct(store, live);
+    expect(after).toMatchObject({ status: "ACTIVE", publishedAt: before.publishedAt });
+    expect((await getProduct(store, draft)).status).toBe("DRAFT");
+    expect(await migratorDb().auditLog.count({ where: { action: "product.restored" } })).toBe(0);
   });
 
   it("never deletes: the app role has no DELETE on products", async () => {
