@@ -59,7 +59,8 @@ export function storageFromEnv(env: NodeJS.ProcessEnv = process.env): ObjectStor
       .update("storevia-media-upload")
       .digest("hex");
   return new LocalObjectStorage({
-    root: resolve(process.cwd(), env["MEDIA_LOCAL_DIR"] ?? ".media"),
+    // Development and test only (never in production builds' traced output).
+    root: resolve(/*turbopackIgnore: true*/ process.cwd(), env["MEDIA_LOCAL_DIR"] ?? ".media"),
     uploadUrl: `${dashboard}/api/media/upload`,
     publicBaseUrl: `${dashboard}/media`,
     secret,

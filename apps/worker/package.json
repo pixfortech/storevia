@@ -12,6 +12,7 @@
   "dependencies": {
     "@storevia/billing": "workspace:*",
     "@storevia/database": "workspace:*",
+    "@storevia/domains": "workspace:*",
     "@storevia/entitlements": "workspace:*",
     "@storevia/jobs": "workspace:*",
     "@storevia/observability": "workspace:*",

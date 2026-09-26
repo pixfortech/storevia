@@ -62,3 +62,12 @@ export function renditionUrls(
     renditions: list,
   };
 }
+
+/** The origin images are served from, for the storefront's img-src (null if not a URL). */
+export function mediaImageOrigin(storage: ObjectStorage = mediaStorage()): string | null {
+  try {
+    return new URL(storage.publicUrl("origin-probe")).origin;
+  } catch {
+    return null;
+  }
+}

@@ -171,10 +171,16 @@ query-count test harness (M4-09).
 
 ### 9. Caching and invalidation (M4-06)
 
-- The storefront enables Next.js Cache Components. Its data layer wraps each
-  read model in a `"use cache"` function tagged per 06 §5: `store:{id}`,
-  `product:{id}`, `collection:{id}`, `page:{id}`, `domain:{hostname}`.
-  Inputs in cache keys are ids and normalised, bounded values only.
+- Pages render dynamically, so a missing product answers `404` and an
+  unavailable store `503` before anything is sent. (With Next.js Cache
+  Components, routes that read `params` or headers must stream behind
+  `<Suspense>`, which commits a `200` before the data is known; that is
+  wrong for a storefront.) The data behind each page is cached in process
+  by store and normalised route, in a **tag-indexed cache** with
+  single-flight loading, an LRU bound and a 5-minute TTL as a safety net.
+  Tags follow 06 §5: `store:{id}`, `catalogue:{storeId}`,
+  `product:{id}`, `pages:{storeId}`, `host:{hostname}`. Inputs in cache
+  keys are ids and normalised, bounded values only.
 - Every change a shopper could see writes an **`OutboxEvent` in the same
   transaction**, from **database triggers** on the catalogue, inventory
   (only when availability can flip), page, store, domain and organisation
@@ -182,15 +188,19 @@ query-count test harness (M4-09).
   later) can forget to. Payloads hold ids only; services can neither write
   nor read events directly.
 - The worker's `outbox.dispatch` job claims undispatched events
-  (`FOR UPDATE SKIP LOCKED`), maps them to tags and posts them to the
-  storefront's `/api/internal/revalidate` with an HMAC bearer
-  (`STOREFRONT_REVALIDATE_SECRET`), then marks them dispatched. Failures are
-  retried on the next run; dispatched events are purged after 7 days.
-- Revalidation uses `revalidateTag(tag, { expire: 0 })`: content a merchant
-  removed is never served stale. Pages, not the cart, are cached; the cart
-  page and cart actions are dynamic and `no-store`.
-- The in-memory cache is per process. A multi-instance deployment configures
-  a shared cache handler (deployment note); edge purge by tag is M8.
+  (`FOR UPDATE SKIP LOCKED`) every 15 seconds, maps them to tags and posts
+  them to the storefront's `/api/internal/revalidate`, signed with
+  `STOREFRONT_REVALIDATE_SECRET` over a timestamp and the body (stale or
+  forged requests are refused), then marks them dispatched in the same
+  transaction. A failed post leaves them for the next run; dispatched
+  events are purged after 7 days.
+- Invalidation drops every entry with a matching tag at once: content a
+  merchant removed is never served stale, and a load that raced an
+  invalidation of its tags is not stored. Page data, not the cart, is
+  cached; the cart page and cart actions are dynamic and `no-store`.
+- The cache is per process. More than one storefront instance needs the
+  invalidation fanned out to each (or a shared cache); edge caching and
+  purge by tag are M8.
 
 ### 10. SEO (M4-07)
 
@@ -261,7 +271,10 @@ are `noindex`.
 - **Consulting the subscription status in the storefront.** Rejected: it
   duplicates the entitlement rule, would take stores offline on a late
   sweep, and contradicts the over-limit rules; suspension already exists.
-- **`unstable_cache`.** Replaced by `"use cache"` in Next.js 16.
+- **Next.js Cache Components (`"use cache"`) or `unstable_cache`.** Cache
+  Components streams dynamic routes behind `<Suspense>`, committing a
+  `200` before a product is known to exist; `unstable_cache` is replaced in
+  Next.js 16. Both remain options for static parts of a page later.
 - **Passing unprefixed paths through the proxy and blocking `/_store`.**
   Rejected: a deny-list of paths is one routing change away from a bypass;
   always prefixing makes the store segment unreachable by construction.

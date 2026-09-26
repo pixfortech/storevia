@@ -201,6 +201,42 @@ export default defineConfig(
     },
   },
   {
+    // The storefront (ADR-0028 §13) reaches data only through
+    // @storevia/commerce/storefront and the host resolver: no database role
+    // of its own, no merchant or staff services.
+    files: ["apps/storefront/src/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            ...[
+              "@storevia/database",
+              "@storevia/tenancy",
+              "@storevia/auth",
+              "@storevia/billing",
+              "@storevia/entitlements",
+              "@storevia/commerce",
+              "@storevia/media",
+              "@storevia/security/server",
+            ].map((name) => ({
+              name,
+              allowTypeImports: true,
+              message:
+                "The storefront uses @storevia/commerce/storefront and the host resolver only (ADR-0028).",
+            })),
+          ],
+          patterns: [
+            {
+              group: ["@storevia/database/*"],
+              message: "The storefront never opens a database role directly (ADR-0028 §2).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // The public site holds only the marketing role (ADR-0025): no other
     // database role, and no server services that would need one.
     files: ["apps/marketing/src/**/*.{ts,tsx}"],

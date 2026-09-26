@@ -94,6 +94,7 @@ describe("scheduled through the worker", () => {
     expect(rows.map((r) => [r.name, r.intervalSeconds])).toEqual([
       ["billing.subscription-expiry", 300],
       ["entitlements.usage-reconciliation", 86_400],
+      ["storefront.outbox-dispatch", 15],
     ]);
     // Nightly slots are aligned to 03:00 UTC.
     expect(rows[1]?.slot.toISOString()).toMatch(/T03:00:00\.000Z$/);
@@ -108,7 +109,7 @@ describe("scheduled through the worker", () => {
       .poll(async () => migratorDb().jobRun.count({ where: { status: "SUCCEEDED" } }), {
         timeout: 10_000,
       })
-      .toBe(2);
+      .toBe(3);
     expect(worker.health().status).toBe("ok");
     await worker.stop();
     expect(worker.health().status).toBe("stopping");

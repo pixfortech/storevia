@@ -63,7 +63,11 @@ interface Row {
 
 const TTL_MS = 30_000;
 const MAX_ENTRIES = 5_000;
-const cache = new Map<string, { readonly value: ResolvedStore | null; readonly expires: number }>();
+type HostCache = Map<string, { readonly value: ResolvedStore | null; readonly expires: number }>;
+// Process-wide: the request proxy and route handlers may be bundled as
+// separate module instances, and an invalidation must reach both.
+const globalCache = globalThis as typeof globalThis & { __storeviaHostCache?: HostCache };
+const cache: HostCache = (globalCache.__storeviaHostCache ??= new Map());
 
 /**
  * The store served at a normalised hostname, or null. Pass only the output

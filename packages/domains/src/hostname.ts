@@ -46,3 +46,14 @@ export function storefrontRootDomain(env: NodeJS.ProcessEnv = process.env): stri
 export function platformHostname(slug: string, root: string = storefrontRootDomain()): string {
   return `${slug}.${root}`;
 }
+
+/**
+ * The public origin of a storefront host: https unless STOREFRONT_PROTOCOL
+ * says otherwise (plain-HTTP development), with the development port that
+ * STOREFRONT_ROOT_DOMAIN carries, if any.
+ */
+export function storefrontOrigin(hostname: string, env: NodeJS.ProcessEnv = process.env): string {
+  const protocol = env["STOREFRONT_PROTOCOL"] === "http" ? "http" : "https";
+  const port = /:(\d{1,5})$/.exec(env["STOREFRONT_ROOT_DOMAIN"] ?? "")?.[1];
+  return `${protocol}://${hostname}${port ? `:${port}` : ""}`;
+}
