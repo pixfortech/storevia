@@ -206,7 +206,13 @@ for `DATABASE_ADMIN_URL`. `pnpm db:setup` creates the roles and databases,
 `pnpm db:reset` migrates, and `pnpm db:seed:dev` adds demo tenants. Emails go
 to JSON files (`EMAIL_TRANSPORT=file`) or any SMTP server such as Mailpit. A
 `docker compose` file with PostgreSQL, MinIO and Mailpit is planned with the
-media library (M3). Apps run with `pnpm dev`. Local hostnames use
+media library (M3). Apps run with `pnpm dev`, which first runs `pnpm db:check`
+and refuses to start while migrations are pending (after pulling, run
+`pnpm db:migrate`): code written for a migration fails in confusing ways
+against a database without it. Local media is served by the dashboard at
+same-origin paths (`/media/…`, uploads to `/api/media/upload`), so the
+dashboard works on `http://app.localhost:3001` and `http://localhost:3001`
+alike; the storefront gets absolute URLs on `DASHBOARD_URL`. Local hostnames use
 `*.localhost`, which browsers resolve to loopback (Node.js does not, so health
 probes use `localhost`):
 

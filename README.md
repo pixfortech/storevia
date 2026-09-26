@@ -84,24 +84,25 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow.
 
 ## Scripts
 
-| Script                                                | Description                                                                       |
-| ----------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `pnpm dev`                                            | Run all apps in development mode                                                  |
-| `pnpm build`                                          | Production build of every app                                                     |
-| `pnpm lint`                                           | ESLint across the repository                                                      |
-| `pnpm typecheck`                                      | TypeScript checks in every package                                                |
-| `pnpm test`                                           | Unit tests                                                                        |
-| `pnpm test:integration`                               | Integration tests (PostgreSQL)                                                    |
-| `pnpm test:e2e`                                       | Playwright end-to-end tests                                                       |
-| `pnpm format` / `pnpm format:check`                   | Prettier write / verify                                                           |
-| `pnpm db:setup` / `pnpm db:reset` / `pnpm db:migrate` | Create roles and databases / recreate + migrate dev DB / apply pending migrations |
-| `pnpm db:test:prepare`                                | Recreate and migrate the `*_test` database                                        |
-| `pnpm db:seed`                                        | Idempotent reference data: the plan catalogue                                     |
-| `pnpm db:seed:dev`                                    | Idempotent demo data (never in production)                                        |
-| `pnpm --filter @storevia/billing billing:sweep`       | Run the subscription expiry sweep once (the worker runs it every 5 minutes)       |
-| `pnpm db:validate:draft`                              | Validate the draft ERD schema                                                     |
-| `pnpm check:schema`                                   | Live schema agrees with the ERD draft (ADR-0020)                                  |
-| `pnpm verify`                                         | Everything CI runs, locally                                                       |
+| Script                                                | Description                                                                             |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `pnpm dev`                                            | Check the database is migrated (`pnpm db:check`), then run all apps in development mode |
+| `pnpm build`                                          | Production build of every app                                                           |
+| `pnpm lint`                                           | ESLint across the repository                                                            |
+| `pnpm typecheck`                                      | TypeScript checks in every package                                                      |
+| `pnpm test`                                           | Unit tests                                                                              |
+| `pnpm test:integration`                               | Integration tests (PostgreSQL)                                                          |
+| `pnpm test:e2e`                                       | Playwright end-to-end tests                                                             |
+| `pnpm format` / `pnpm format:check`                   | Prettier write / verify                                                                 |
+| `pnpm db:setup` / `pnpm db:reset` / `pnpm db:migrate` | Create roles and databases / recreate + migrate dev DB / apply pending migrations       |
+| `pnpm db:check`                                       | Fail with the list of pending migrations if the dev database is behind the code         |
+| `pnpm db:test:prepare`                                | Recreate and migrate the `*_test` database                                              |
+| `pnpm db:seed`                                        | Idempotent reference data: the plan catalogue                                           |
+| `pnpm db:seed:dev`                                    | Idempotent demo data (never in production)                                              |
+| `pnpm --filter @storevia/billing billing:sweep`       | Run the subscription expiry sweep once (the worker runs it every 5 minutes)             |
+| `pnpm db:validate:draft`                              | Validate the draft ERD schema                                                           |
+| `pnpm check:schema`                                   | Live schema agrees with the ERD draft (ADR-0020)                                        |
+| `pnpm verify`                                         | Everything CI runs, locally                                                             |
 
 ## Security
 
