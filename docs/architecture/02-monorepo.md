@@ -41,7 +41,7 @@ packages/
   billing/           BillingProvider interface, Stripe provider, subscription lifecycle, webhook handling
   commerce/          catalogue, inventory, customers, cart, pricing, discounts, shipping, tax, checkout, orders
   payments/          PaymentProvider interface + provider implementations (merchant payments)
-  storefront-engine/ host→store resolution, route→page resolution, data bindings, render tree
+  site-engine/       generic public sites: request pipeline, signed context, access state, cache and invalidation, SEO, branded shell, content and media reads (ADR-0029)
   editor/            page-document schema + operations, component registry, renderers, editor UI
   themes/            theme manifest schema, package validation, token resolution
   domains/           hostname normalisation, slug rules/reserved slugs, DNS verification, DomainProvisioner
@@ -74,21 +74,21 @@ needs presets, so `config` has not been created. `observability` moves to M2
 with the worker, which is its first real consumer. In M1, server actions log
 unexpected errors as structured JSON with the request ID (`apps/dashboard/src/lib/action.ts`).
 
-| Package                                                                          | Milestone                              | Depends on                                                      |
-| -------------------------------------------------------------------------------- | -------------------------------------- | --------------------------------------------------------------- |
-| `types`, `validation`, `database`, `security`, `email`                           | M1 ✔                                   | foundation only                                                 |
-| `auth`, `tenancy`, `ui`                                                          | M1 ✔                                   | foundation                                                      |
-| `observability`, `entitlements`, `billing`, app `platform-admin`                 | M2 ✔                                   | foundation, tenancy                                             |
-| `jobs`, app `worker` (periodic scheduler, ADR-0023)                              | M2.5 ✔                                 | foundation (`worker` composes billing, entitlements)            |
-| app `marketing` (public site, catalogue-driven pricing, ADR-0025)                | M2.5 ✔                                 | ui, entitlements (catalogue/format), tenancy (client-safe data) |
-| `config`                                                                         | when a second app needs shared presets | —                                                               |
-| `commerce` (catalogue + inventory), `media`                                      | M3                                     | foundation, tenancy, entitlements                               |
-| `editor` (document schema, registry, base renderers: `/document`, `/components`) | M4                                     | foundation, validation                                          |
-| `storefront-engine`, `domains`                                                   | M4                                     | foundation, commerce (read models), editor (renderers)          |
-| `editor` (editor UI `/ui`, full component set)                                   | M5                                     | foundation, validation, ui                                      |
-| `payments`, `commerce` (checkout/orders)                                         | M6                                     | foundation, commerce                                            |
-| `themes`                                                                         | M7                                     | foundation, editor                                              |
-| `analytics`                                                                      | later                                  | foundation                                                      |
+| Package                                                                          | Milestone                              | Depends on                                                                      |
+| -------------------------------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------- |
+| `types`, `validation`, `database`, `security`, `email`                           | M1 ✔                                   | foundation only                                                                 |
+| `auth`, `tenancy`, `ui`                                                          | M1 ✔                                   | foundation                                                                      |
+| `observability`, `entitlements`, `billing`, app `platform-admin`                 | M2 ✔                                   | foundation, tenancy                                                             |
+| `jobs`, app `worker` (periodic scheduler, ADR-0023)                              | M2.5 ✔                                 | foundation (`worker` composes billing, entitlements)                            |
+| app `marketing` (public site, catalogue-driven pricing, ADR-0025)                | M2.5 ✔                                 | ui, entitlements (catalogue/format), tenancy (client-safe data)                 |
+| `config`                                                                         | when a second app needs shared presets | —                                                                               |
+| `commerce` (catalogue + inventory), `media`                                      | M3                                     | foundation, tenancy, entitlements                                               |
+| `editor` (document schema, registry, base renderers: `/document`, `/components`) | M4                                     | foundation, validation                                                          |
+| `site-engine`, `domains` (ADR-0029: the Site Engine; commerce composes into it)  | M4                                     | foundation, `media/urls` (never commerce, editor, billing or merchant services) |
+| `editor` (editor UI `/ui`, full component set)                                   | M5                                     | foundation, validation, ui                                                      |
+| `payments`, `commerce` (checkout/orders)                                         | M6                                     | foundation, commerce                                                            |
+| `themes`                                                                         | M7                                     | foundation, editor                                                              |
+| `analytics`                                                                      | later                                  | foundation                                                                      |
 
 ## 4. Dependency rules
 
@@ -129,9 +129,13 @@ Enforced by lint (`eslint-plugin-boundaries` or equivalent) and a CI check:
    each other, the shared piece moves down a layer or communicates through
    outbox events.
 6. `storefront` may import only the read-side entry points of domain packages
-   (`@storevia/commerce/storefront`, `@storevia/storefront-engine`,
-   `@storevia/editor/document`, `@storevia/editor/components`), never
+   (`@storevia/commerce/storefront`, `@storevia/site-engine/*`,
+   `@storevia/editor/document`, `/registry`, `/render`), never
    administrative mutations.
+7. The Site Engine (`@storevia/site-engine`, `@storevia/domains`) never
+   imports commerce, the editor, billing, entitlements, tenancy, auth or an
+   app; commerce depends on it, not the reverse (ADR-0029, enforced by
+   ESLint and an import-graph test).
 
 ## 5. Conventions
 

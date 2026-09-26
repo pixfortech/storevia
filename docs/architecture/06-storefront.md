@@ -3,7 +3,9 @@
 > Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**. ADR-0013, refined for Milestone 4 by ADR-0028.
 >
 > **Implemented in Milestone 4** (`apps/storefront`, `packages/domains`,
-> `@storevia/commerce/storefront`, `packages/editor`). Where M4 differs from
+> `packages/site-engine`, `@storevia/commerce/storefront`,
+> `packages/editor`). Generic public-site infrastructure is the Site Engine
+> and commerce composes into it (ADR-0029). Where M4 differs from
 > the baseline below, the section says so in an "M4" note; ADR-0028 records
 > why.
 
@@ -216,26 +218,54 @@ format.
 
 ## 10. Performance budget
 
-| Metric                              | Budget                                               | M4 status                                                                                                                              |
-| ----------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Cached HTML TTFB (edge hit)         | < 100 ms p75                                         | no edge yet (M8). Origin with warm data cache: 12–40 ms (local)                                                                        |
-| Uncached render (origin)            | < 500 ms p95                                         | 27–69 ms after the process warmed up; the first request after a start took 573 ms (local)                                              |
-| JS shipped on a product page        | < 90 kB gzip (excluding images)                      | **not met: about 173 kB gzip**, all of it the Next.js App Router runtime (React DOM, router). 0 kB of application code (see below)     |
-| LCP (4G, mid-range phone)           | < 2.5 s p75                                          | not measured; needs field data on real hosting (M8)                                                                                    |
-| DB queries per uncached page render | ≤ 8 (enforced by a test harness that counts queries) | **met and enforced**: home, product, collection and search each ≤ 8; product lists cost the same queries for 2 or 40 products (no N+1) |
+The original fixed budget of "< 90 kB gzip of JavaScript on a product
+page" is withdrawn (ADR-0029 §4): the Next.js App Router's client runtime
+alone is larger, and no application change can meet it. It is replaced by
+measurements and regression controls.
 
-Measured on a local production build (`next build && next start`, one
-process, local PostgreSQL, seeded store); these are development-machine
-numbers, not p75/p95 from real traffic.
+**JavaScript, measured on 2026-09-26** (production build, Next.js 16.3,
+React 19.3; gzip level 6; the E2E check measures the same numbers on
+every CI run):
 
-**The JavaScript budget.** Store pages contain no application client code:
-the storefront and the editor renderers have no `"use client"` module
-besides the error boundary Next.js requires (enforced by
-`apps/storefront/src/lib/budget.test.ts`). What ships is the framework's
-client runtime, which the App Router loads on every page for hydration and
-client navigation, and which alone exceeds 90 kB gzip. Getting under the
-budget needs a framework-level choice, not application work: for example
-rendering store pages without the client router, or a different renderer
-for anonymous store pages. That is a decision for an ADR before M8's
-performance work; until then the budget is recorded as not met rather than
-restated.
+| Route                              | Scripts loaded | Total gzip | Route's own increment |
+| ---------------------------------- | -------------- | ---------- | --------------------- |
+| Home `/`                           | 7              | 173.9 kB   | 0                     |
+| Product `/products/{handle}`       | 7              | 173.9 kB   | 0                     |
+| Collection `/collections/{handle}` | 7              | 173.9 kB   | 0                     |
+| Search `/search?q=`                | 7              | 173.9 kB   | 0                     |
+| Cart `/cart`                       | 7              | 173.9 kB   | 0                     |
+
+Of the shared 173.9 kB, **173.5 kB is the framework runtime** (React DOM,
+the RSC client, the App Router and Turbopack's runtime; six chunks) and
+**0.35 kB is Storevia's own client code**: the error boundary Next.js
+requires, the only `"use client"` module in the storefront, the Site
+Engine and the editor. Every route loads exactly the same scripts, so
+pages add no client JavaScript of their own; add to cart, quantities and
+search are HTML forms.
+
+Regression controls:
+
+- `apps/dashboard/e2e/storefront-budget.spec.ts` loads home, product,
+  collection, search and cart on a live store and fails if a route's own
+  increment exceeds 8 kB gzip, if the shared baseline exceeds the recorded
+  173 kB by more than 15%, or if any loaded script contains code from the
+  editor (ProseMirror/Tiptap), charts, auth, platform-admin or merchant
+  services.
+- `apps/storefront/src/lib/budget.test.ts` fails on any `"use client"`
+  module in the storefront, the Site Engine or the editor besides the error
+  boundary.
+- The storefront's ESLint boundary forbids importing the dashboard UI kit,
+  Tiptap, chart libraries, auth, billing, entitlements, tenancy and merchant
+  commerce services.
+
+Other budgets:
+
+| Metric                              | Budget       | Status                                                                                                                                                       |
+| ----------------------------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Cached HTML TTFB (edge hit)         | < 100 ms p75 | no edge yet (M8). Origin with warm data cache: 12–40 ms (local)                                                                                              |
+| Uncached render (origin)            | < 500 ms p95 | 27–69 ms after the process warmed up; the first request after a start took 573 ms (local)                                                                    |
+| LCP (4G, mid-range phone)           | < 2.5 s p75  | not measured; needs field data on real hosting (M8)                                                                                                          |
+| DB queries per uncached page render | ≤ 8          | **met and enforced**: home, product, collection and search each ≤ 8 with site and catalogue reads together; product lists cost the same for 2 or 40 products |
+
+Timings are development-machine numbers from a local production build
+(one process, local PostgreSQL), not p75/p95 from real traffic.

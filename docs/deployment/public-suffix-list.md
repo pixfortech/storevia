@@ -1,7 +1,34 @@
 # Public Suffix List submission for `storevia.site`
 
-> Milestone 4 (M4-10), ADR-0028 §12. Status: **not yet submitted**. An
-> operational step for whoever owns the `storevia.site` registration.
+> Milestone 4 (M4-10), ADR-0028 §12, ADR-0029 §5. Status: **not yet
+> submitted**. An operational step for whoever owns the `storevia.site`
+> registration.
+
+## Position
+
+- Submission is a **production prerequisite before a broad multi-tenant
+  launch** on `{merchant}.storevia.site`. It does not block development or
+  internal testing, and nothing in the product depends on it being done.
+- Nothing here is marked done until the pull request is merged into the
+  list; this page records the date when it is.
+- Whatever the PSL state, these hold and are tested:
+  - **Cookies are host-only.** Cart and preview cookies are `__Host-`
+    cookies over HTTPS (`sv_cart`/`sv_preview` without `Secure` on plain
+    HTTP in development). The storefront never sets
+    `Domain=.storevia.site`; a unit test (`packages/site-engine/src/boundary.test.ts`)
+    fails if any public code sets a cookie domain, and the storefront E2E
+    checks the cart cookie has none.
+  - **Host validation** is mandatory: every request's `Host` is normalised
+    and resolved to an ACTIVE domain before anything else, and redirects
+    come only from database rows.
+  - **Origin validation** is mandatory on state changes: cart changes are
+    server actions, which Next.js refuses when `Origin` doesn't match the
+    host. The storefront E2E posts the add-to-cart action with a foreign
+    `Origin` and checks it is refused and the cart unchanged, then checks
+    the same request from the store's own origin works.
+  - **Tenant isolation** (store-scoped transactions, RLS and the storefront
+    role's policies) is mandatory; the PSL is defence in depth for
+    browsers, not an isolation mechanism.
 
 ## Why
 

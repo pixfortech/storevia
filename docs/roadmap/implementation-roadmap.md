@@ -261,14 +261,23 @@ Delivered:
 
 Open, with the reason:
 
-| Item                                             | Now           | Why                                                                                                                                                        |
-| ------------------------------------------------ | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Submit `storevia.site` to the Public Suffix List | Operations    | Needs the domain owner; [checklist](../deployment/public-suffix-list.md). Host-only cookies protect stores until then                                      |
-| Product-page JS < 90 kB gzip                     | ADR before M8 | The App Router runtime alone is about 173 kB gzip; store pages ship no application code ([06 §10](../architecture/06-storefront.md#10-performance-budget)) |
-| More than one storefront instance                | M8            | Invalidation reaches one process; needs fan-out or a shared cache handler                                                                                  |
-| Edge caching and purge by tag; LCP measurement   | M8            | Needs the production edge                                                                                                                                  |
-| Handle-change redirects for products and pages   | M5            | Typed links already survive renames; old URLs 404                                                                                                          |
-| Navigation menus                                 | M5            | The header lists collections until menus exist                                                                                                             |
+| Item                                             | Now                     | Why                                                                                                                                                                                                         |
+| ------------------------------------------------ | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Submit `storevia.site` to the Public Suffix List | Operations              | Needs the domain owner; [checklist](../deployment/public-suffix-list.md). Host-only cookies protect stores until then                                                                                       |
+| Product-page JS < 90 kB gzip                     | Withdrawn (ADR-0029 §4) | The App Router runtime alone is 173.5 kB gzip; replaced by per-route regression controls, and store pages add no JavaScript of their own ([06 §10](../architecture/06-storefront.md#10-performance-budget)) |
+| More than one storefront instance                | M8                      | Invalidation reaches one process; needs fan-out or a shared cache handler                                                                                                                                   |
+| Edge caching and purge by tag; LCP measurement   | M8                      | Needs the production edge                                                                                                                                                                                   |
+| Handle-change redirects for products and pages   | M5                      | Typed links already survive renames; old URLs 404                                                                                                                                                           |
+| Navigation menus                                 | M5                      | The header lists collections until menus exist                                                                                                                                                              |
+
+**Site Engine separation** (ADR-0029, after the M4 build): generic
+public-site infrastructure (request pipeline, signed context, access
+state, cache and invalidation protocol, SEO builders, branded shell,
+content and media reads) moved out of `apps/storefront` and
+`@storevia/commerce/storefront` into `packages/site-engine`; commerce and
+the app compose into it. Behaviour is unchanged; the Site Engine is tested
+without commerce, and its dependency direction is enforced by ESLint and an
+import-graph test. The editor's document model is split in M5.
 
 ### Running the Milestone 4 storefront locally
 

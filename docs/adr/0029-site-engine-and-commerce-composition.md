@@ -167,6 +167,11 @@ application change can meet it. It is replaced by regression controls:
 - The unit test that allows no `"use client"` module except the required
   error boundary stays.
 
+Measured when this was adopted: every store route (home, product,
+collection, search, cart) loads the same seven scripts, 173.9 kB gzip, of
+which 0.35 kB is Storevia's error boundary and the rest is the framework
+runtime; no route adds JavaScript of its own (06 §10).
+
 ### 5. Public Suffix List and cookies
 
 - Submitting `storevia.site` to the Public Suffix List is a **production
