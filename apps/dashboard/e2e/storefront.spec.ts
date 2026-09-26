@@ -1,42 +1,11 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
-import { createTenant, type Tenant } from "./helpers";
+import { expect, test } from "@playwright/test";
+import { createTenant } from "./helpers";
+import { addProduct, fetchStore, storefrontOrigin } from "./storefront-helpers";
 
 // Milestone 4, end to end: a merchant's store is "coming soon" until it goes
 // live, can be previewed before that, and then serves its products to
 // shoppers, who can fill a cart. Changes reach the storefront through the
 // outbox, the worker and the cache invalidation endpoint.
-
-/** Node can't resolve *.localhost names (browsers can): send the Host header instead. */
-async function fetchStore(
-  request: APIRequestContext,
-  origin: string,
-  path: string,
-): Promise<{ status: number; headers: Record<string, string>; text: string }> {
-  const url = new URL(path, origin);
-  const response = await request.get(`http://localhost:${url.port}${url.pathname}${url.search}`, {
-    headers: { host: url.host },
-    maxRedirects: 0,
-  });
-  return { status: response.status(), headers: response.headers(), text: await response.text() };
-}
-
-async function storefrontOrigin(page: Page, tenant: Tenant): Promise<string> {
-  await page.goto(`${tenant.storePath}/settings`);
-  const link = page.getByRole("link", { name: /\.store\.localhost/ }).first();
-  return new URL((await link.getAttribute("href")) ?? "").origin;
-}
-
-async function addProduct(page: Page, tenant: Tenant, title: string, price: string, stock: string) {
-  await page.goto(`${tenant.storePath}/products/new`);
-  await page.getByLabel("Title").fill(title);
-  await page.getByLabel("Price", { exact: true }).fill(price);
-  await page.getByLabel("Stock on hand").fill(stock);
-  await page.getByRole("button", { name: "Save product" }).click();
-  await page.waitForURL(/\/products\/prod_[^/]+$/);
-  await page.getByRole("button", { name: "Set as active" }).first().click();
-  await expect(page.getByRole("button", { name: "Set as draft" }).first()).toBeVisible();
-  return page.url();
-}
 
 test("a store goes from coming soon to live, and a shopper fills a cart", async ({
   page,
@@ -115,6 +84,35 @@ test("a store goes from coming soon to live, and a shopper fills a cart", async 
   await expect(shop.getByRole("link", { name: /Cart \(1\)/ })).toBeVisible();
   await shop.getByRole("button", { name: /Remove/ }).click();
   await expect(shop.getByText("Your cart is empty.")).toBeVisible();
+
+  // Cross-site request forgery: the cart's server action posted with a
+  // foreign Origin is refused and changes nothing; the same request from
+  // the store's own origin works (so the refusal is the Origin check).
+  await shop.goto(`${origin}/products/stoneware-mug`);
+  const form = shop.locator("form.sv-add-to-cart");
+  const actionField =
+    (await form.locator('input[name^="$ACTION_ID_"]').first().getAttribute("name")) ?? "";
+  const variantId = (await form.locator('input[name="variantId"]').getAttribute("value")) ?? "";
+  const cartToken = (await shopper.cookies(origin)).find((c) => c.name === "sv_cart")?.value ?? "";
+  expect(actionField).not.toBe("");
+  const postAddToCart = (from: string) =>
+    shopper.request.post(`http://localhost:${new URL(origin).port}/products/stoneware-mug`, {
+      headers: { host: new URL(origin).host, origin: from, cookie: `sv_cart=${cartToken}` },
+      multipart: { [actionField]: "", variantId, product: "stoneware-mug", quantity: "3" },
+      maxRedirects: 0,
+    });
+  const cartText = async () =>
+    (
+      await shopper.request.get(`http://localhost:${new URL(origin).port}/cart`, {
+        headers: { host: new URL(origin).host, cookie: `sv_cart=${cartToken}` },
+      })
+    ).text();
+  const forged = await postAddToCart("http://evil.example");
+  expect(forged.status()).toBeGreaterThanOrEqual(400);
+  expect(await cartText()).toContain("Your cart is empty.");
+  const genuine = await postAddToCart(origin);
+  expect(genuine.status()).toBeLessThan(400);
+  expect(await cartText()).toContain("2,998.50");
 
   // Search, collections of nothing, 404s and the internal store segment.
   await shop.goto(`${origin}/search?q=mug`);
