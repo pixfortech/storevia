@@ -256,13 +256,22 @@ describe("concurrency (no read-modify-write)", () => {
   });
 
   it("parallel mixed adjustments add up exactly", async () => {
+    // Stock starts above the sum of the decrements (15), so every ordering is
+    // valid: the result must not depend on how the transactions interleave.
+    await adjustInventory(store(), {
+      variantId,
+      locationId: main,
+      delta: 10,
+      reason: "CORRECTION",
+    });
     const deltas = [5, -3, 7, -2, 4, -1, 6, -5, 3, -4];
-    await Promise.all(
+    const results = await Promise.allSettled(
       deltas.map((delta) =>
         adjustInventory(store(), { variantId, locationId: main, delta, reason: "CORRECTION" }),
       ),
     );
-    expect(await available()).toBe(10 + deltas.reduce((a, b) => a + b, 0));
+    expect(results.filter((r) => r.status === "rejected")).toEqual([]);
+    expect(await available()).toBe(20 + deltas.reduce((a, b) => a + b, 0));
     expect(await ledgerSum()).toBe(await available());
   });
 
