@@ -4,7 +4,7 @@ import { storefrontDb } from "@storevia/database/storefront";
 // Host resolution (06-storefront.md §2, ADR-0028 §2–§4): the storefront's only
 // cross-tenant read, through app_storefront_resolve(). Results (including
 // "no store") are cached in process for a short time and dropped early by
-// `domain:{hostname}` invalidation events.
+// `host:{hostname}` and `store:{id}` invalidations.
 
 export type StoreStatus = "DRAFT" | "ACTIVE" | "SUSPENDED" | "ARCHIVED";
 export type OrganisationStatus = "ACTIVE" | "SUSPENDED" | "PENDING_DELETION" | "DELETED";
