@@ -70,16 +70,21 @@ describe("POST /api/internal/revalidate", () => {
     expect(await isCached("b")).toBe(true);
   });
 
+  // Options are built when each test runs (not when tests are collected), and
+  // timestamps sit well outside the 300-second window, so neither collection
+  // time nor a clock tick can bring them back inside it.
   it.each([
-    ["no signature", { authorization: "" }],
-    ["a malformed signature", { authorization: "Bearer xyz" }],
-    ["another secret", { secret: "someone-elses-secret-000000000000000000" }],
-    ["a stale timestamp", { timestamp: now() - 301 }],
-    ["a future timestamp", { timestamp: now() + 301 }],
-    ["a non-numeric timestamp", { timestamp: "1e3" }],
+    ["no signature", () => ({ authorization: "" })],
+    ["a malformed signature", () => ({ authorization: "Bearer xyz" })],
+    ["another secret", () => ({ secret: "someone-elses-secret-000000000000000000" })],
+    ["a stale timestamp", () => ({ timestamp: now() - 400 })],
+    ["a future timestamp", () => ({ timestamp: now() + 400 })],
+    ["a non-numeric timestamp", () => ({ timestamp: "1e3" })],
   ])("refuses %s and invalidates nothing", async (_case, options) => {
     await cached("a", `product:${PRODUCT}`);
-    const response = await POST(request(JSON.stringify({ tags: [`product:${PRODUCT}`] }), options));
+    const response = await POST(
+      request(JSON.stringify({ tags: [`product:${PRODUCT}`] }), options()),
+    );
     expect(response.status).toBe(401);
     expect(await isCached("a")).toBe(true);
   });

@@ -4,7 +4,7 @@
 // runtime and no application JavaScript; a new "use client" module (here or
 // in the editor's renderers) must be a deliberate, reviewed change.
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative, resolve } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const ROOTS = [
@@ -26,7 +26,7 @@ describe("storefront client JavaScript", () => {
     const client = ROOTS.flatMap((root) =>
       files(root)
         .filter((path) => /^\s*["']use client["']/.test(readFileSync(path, "utf8")))
-        .map((path) => relative(root, path)),
+        .map((path) => relative(root, path).split(sep).join("/")),
     );
     expect(client.filter((path) => !ALLOWED.has(path))).toEqual([]);
   });
