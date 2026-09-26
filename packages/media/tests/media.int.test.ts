@@ -142,7 +142,8 @@ describe("upload and completion", () => {
       height: 600,
     });
     expect(view.renditions.map((r) => r.width)).toEqual([320, 640, 800]);
-    expect(view.thumbnailUrl).toMatch(/^http:\/\/app\.localhost\/media\/.+\/w320\.webp$/);
+    // Same-origin for the dashboard, whichever host it is opened on.
+    expect(view.thumbnailUrl).toMatch(/^\/media\/.+\/w320\.webp$/);
     const id = parseTypeId("media", mediaId) ?? "";
     const files = readdirSync(join(root, A.organisationId, A.storeId, id)).sort();
     expect(files).toEqual(["original.jpg", "w1280.webp", "w320.webp", "w640.webp"]);
@@ -329,7 +330,7 @@ describe("library edits and deletion", () => {
     // The files go too: freeing the quota must not leave them served.
     expect(readdirSync(join(root, A.organisationId, A.storeId, id))).toEqual([]);
     for (const r of view.renditions) {
-      const key = new URL(r.url).pathname.replace(/^\/media\//, "");
+      const key = r.url.replace(/^\/media\//, "");
       expect(await storage.head(key), key).toBeNull();
     }
   });

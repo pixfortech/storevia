@@ -11,7 +11,7 @@ import { ProductEditor } from "@/components/catalogue/editor/product-editor";
 import type { EditorContext } from "@/components/catalogue/editor/types";
 import { PageHeader } from "@/components/shell/app-shell";
 import { PRODUCT_STATUS, productsPath } from "@/lib/catalogue";
-import { imageSource } from "@/lib/media-urls";
+import { editorImages } from "@/lib/media-urls";
 import { storeContextOr404 } from "@/lib/tenant";
 
 export const metadata: Metadata = { title: "Edit product" };
@@ -103,20 +103,7 @@ export default async function ProductPage({
         imageMediaId: v.imageMediaId,
         hasInventoryHistory: v.hasInventoryHistory,
       })),
-      media: product.media.flatMap((m) => {
-        const source = imageSource({ renditions: m.renditions, altText: m.altText });
-        return source
-          ? [
-              {
-                mediaId: m.mediaId,
-                altText: m.altText,
-                filename: m.filename,
-                src: source.src,
-                srcSet: source.srcSet,
-              },
-            ]
-          : [];
-      }),
+      media: editorImages(product.media),
       collections: product.collections,
     },
   };

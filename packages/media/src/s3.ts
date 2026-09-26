@@ -176,6 +176,7 @@ export class S3ObjectStorage implements ObjectStorage {
     }
   }
 
+  // Always absolute: the CDN or bucket is its own origin.
   publicUrl(key: string): string {
     return `${this.options.publicBaseUrl.replace(/\/+$/, "")}/${uriEncode(key, false)}`;
   }

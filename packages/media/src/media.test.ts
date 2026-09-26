@@ -16,6 +16,7 @@ import {
 import { LocalObjectStorage } from "./local";
 import { MediaRejectedError, processImage } from "./process";
 import { S3ObjectStorage } from "./s3";
+import { mediaImageOrigin, renditionUrls } from "./urls";
 import { amzDate, signRequest, uriEncode } from "./sigv4";
 import { precheckUpload, sniffImage } from "./sniff";
 
@@ -211,6 +212,27 @@ describe("local storage", () => {
       secret: "x".repeat(40),
       now: () => now,
     });
+
+  it("gives the dashboard same-origin URLs, and absolute ones only on request", async () => {
+    // Local media is served by the dashboard: a root-relative URL works on
+    // whichever host it is opened (localhost, app.localhost), where an
+    // absolute one is blocked by the page's CSP on any other host.
+    const storage = make();
+    const key = objectKey(owner, "w320.webp");
+    expect(storage.publicUrl(key)).toBe(`/media/${key}`);
+    expect(storage.publicUrl(key, { absolute: true })).toBe(`http://app.localhost/media/${key}`);
+    const target = await storage.createUploadTarget(uploadKey(owner), {
+      maxBytes: 10,
+      expiresInSeconds: 60,
+    });
+    expect(target.url).toBe("/api/media/upload");
+    const renditions = [{ key, width: 320, height: 320, format: "webp", bytes: 1 }];
+    expect(renditionUrls(renditions, storage).thumbnailUrl).toBe(`/media/${key}`);
+    expect(renditionUrls(renditions, storage, { absolute: true }).thumbnailUrl).toBe(
+      `http://app.localhost/media/${key}`,
+    );
+    expect(mediaImageOrigin(storage)).toBe("http://app.localhost");
+  });
 
   it("issues tokens bound to one key, size and expiry", async () => {
     const storage = make();

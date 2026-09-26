@@ -28,6 +28,21 @@ export interface UploadToken {
   readonly signature: string;
 }
 
+/**
+ * The path (and query) of a dashboard URL. Local media and uploads are served
+ * by the dashboard itself, so a root-relative URL is same-origin on whichever
+ * host it is opened (app.localhost, localhost, a LAN address) and needs no
+ * CSP or CORS exception; an absolute one only works on the configured host.
+ */
+function sameOriginPath(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.pathname}${parsed.search}`;
+  } catch {
+    return url;
+  }
+}
+
 export class LocalObjectStorage implements ObjectStorage {
   readonly kind = "local" as const;
   private readonly root: string;
@@ -70,7 +85,8 @@ export class LocalObjectStorage implements ObjectStorage {
     const now = (this.options.now ?? (() => new Date()))();
     const expires = Math.floor(now.getTime() / 1000) + options.expiresInSeconds;
     return {
-      url: this.options.uploadUrl,
+      // Uploads always go to the dashboard serving the page, whatever its host.
+      url: sameOriginPath(this.options.uploadUrl),
       fields: {
         key,
         maxBytes: String(options.maxBytes),
@@ -135,8 +151,9 @@ export class LocalObjectStorage implements ObjectStorage {
     await rm(this.path(key), { force: true });
   }
 
-  publicUrl(key: string): string {
-    return `${this.options.publicBaseUrl.replace(/\/+$/, "")}/${key}`;
+  publicUrl(key: string, options?: { readonly absolute?: boolean }): string {
+    const url = `${this.options.publicBaseUrl.replace(/\/+$/, "")}/${key}`;
+    return options?.absolute ? url : sameOriginPath(url);
   }
 
   /** Reads a servable object for the serving route (null when missing). */

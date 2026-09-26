@@ -27,8 +27,13 @@ export interface ObjectStorage {
   read(key: string, options: { readonly maxBytes: number }): Promise<Uint8Array>;
   write(key: string, body: Uint8Array, contentType: string): Promise<void>;
   delete(key: string): Promise<void>;
-  /** The URL browsers load a servable object from. */
-  publicUrl(key: string): string;
+  /**
+   * The URL browsers load a servable object from. Local storage is served by
+   * the dashboard, so it answers with a same-origin path (`/media/…`) that
+   * works on whichever host the dashboard is opened; pass `absolute` for
+   * pages on another origin (the storefront). S3/CDN URLs are always absolute.
+   */
+  publicUrl(key: string, options?: { readonly absolute?: boolean }): string;
 }
 
 export class StorageError extends Error {

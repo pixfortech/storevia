@@ -18,6 +18,7 @@ import { Alert, Badge, Card, CardHeader } from "@storevia/ui/surfaces";
 import {
   ArrowLeft,
   ArrowRight,
+  ImageOff,
   ImagePlus,
   Images,
   MoreHorizontal,
@@ -236,15 +237,26 @@ export function MediaCard({
                   index === 0 && "sm:col-span-2 sm:row-span-2",
                 )}
               >
-                <img
-                  src={image.src}
-                  srcSet={image.srcSet}
-                  sizes={index === 0 ? "(min-width: 640px) 320px, 50vw" : "160px"}
-                  alt={image.altText ?? ""}
-                  loading="lazy"
-                  decoding="async"
-                  className="aspect-square w-full object-cover"
-                />
+                {image.src ? (
+                  <img
+                    src={image.src}
+                    srcSet={image.srcSet}
+                    sizes={index === 0 ? "(min-width: 640px) 320px, 50vw" : "160px"}
+                    alt={image.altText ?? ""}
+                    loading="lazy"
+                    decoding="async"
+                    className="aspect-square w-full object-cover"
+                  />
+                ) : (
+                  <div
+                    role="img"
+                    aria-label={`${image.filename}: preview unavailable`}
+                    className="flex aspect-square w-full flex-col items-center justify-center gap-2 p-3 text-center text-caption text-ink-muted"
+                  >
+                    <Icon icon={ImageOff} size="lg" />
+                    Preview unavailable
+                  </div>
+                )}
                 {index === 0 ? (
                   <Badge size="sm" className="absolute top-2 left-2" icon={Star}>
                     Primary
@@ -408,7 +420,13 @@ function ImageMenu({
             setAltOpen(false);
           }}
         >
-          <img src={image.src} alt="" className="max-h-48 w-full rounded-control object-contain" />
+          {image.src ? (
+            <img
+              src={image.src}
+              alt=""
+              className="max-h-48 w-full rounded-control object-contain"
+            />
+          ) : null}
           <Field label="Alt text" description={`For example: "${productTitle} in blue, folded".`}>
             <Input
               value={alt}

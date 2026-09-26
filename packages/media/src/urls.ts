@@ -47,6 +47,7 @@ export function parseRenditions(value: unknown): StoredRendition[] {
 export function renditionUrls(
   renditions: unknown,
   storage: ObjectStorage = mediaStorage(),
+  options?: { readonly absolute?: boolean },
 ): {
   readonly thumbnailUrl: string | null;
   readonly srcSet: string;
@@ -55,7 +56,7 @@ export function renditionUrls(
   const list = parseRenditions(renditions)
     .filter((r) => isServableKey(r.key) && r.width > 0 && r.height > 0)
     .sort((a, b) => a.width - b.width)
-    .map((r) => ({ width: r.width, height: r.height, url: storage.publicUrl(r.key) }));
+    .map((r) => ({ width: r.width, height: r.height, url: storage.publicUrl(r.key, options) }));
   return {
     thumbnailUrl: list[0]?.url ?? null,
     srcSet: list.map((r) => `${r.url} ${String(r.width)}w`).join(", "),
@@ -66,7 +67,7 @@ export function renditionUrls(
 /** The origin images are served from, for the storefront's img-src (null if not a URL). */
 export function mediaImageOrigin(storage: ObjectStorage = mediaStorage()): string | null {
   try {
-    return new URL(storage.publicUrl("origin-probe")).origin;
+    return new URL(storage.publicUrl("origin-probe", { absolute: true })).origin;
   } catch {
     return null;
   }

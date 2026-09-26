@@ -30,7 +30,8 @@ export interface ImageRow {
 /** The public image for stored renditions (servable keys only), or null. */
 export function imageDto(row: ImageRow | null | undefined, fallbackAlt: string): ImageDto | null {
   if (!row) return null;
-  const urls = renditionUrls(row.renditions);
+  // Absolute: store pages are on another origin than the local media server.
+  const urls = renditionUrls(row.renditions, undefined, { absolute: true });
   if (urls.renditions.length === 0) return null;
   // 640 px reads sharply in cards at 2x; srcset lets the browser pick larger.
   const chosen = urls.renditions[1] ?? urls.renditions[0];

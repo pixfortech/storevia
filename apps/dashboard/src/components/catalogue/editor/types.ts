@@ -6,7 +6,8 @@ export interface EditorImage {
   readonly mediaId: string;
   readonly altText: string | null;
   readonly filename: string;
-  readonly src: string;
+  /** null when the asset has no servable rendition: still listed, so it can be removed. */
+  readonly src: string | null;
   readonly srcSet: string;
 }
 
