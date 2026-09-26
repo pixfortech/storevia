@@ -81,7 +81,7 @@ const createUploadSchema = z.object({
   contentType: z.string().max(200).optional(),
 });
 
-/** Uploads a store may have started in the last hour and not yet finished. */
+/** Uploads a store may have started in the last hour without finishing (READY). */
 const MAX_PENDING_UPLOADS = 20;
 
 /**
@@ -107,10 +107,13 @@ export async function createMediaUpload(
     mediaId: id,
   });
   await withTenant(scopeOf(store), async (tx) => {
+    // Every upload started in the last hour that didn't become READY counts,
+    // deleted or rejected ones included: their upload targets stay valid
+    // until they expire, so freeing the slot early would let raw bytes in
+    // that nothing meters.
     const pending = await tx.mediaAsset.count({
       where: {
-        status: { in: ["PENDING_UPLOAD", "PROCESSING"] },
-        deletedAt: null,
+        status: { not: "READY" },
         createdAt: { gt: new Date(Date.now() - 60 * 60 * 1000) },
       },
     });
@@ -437,16 +440,11 @@ export async function updateMediaAlt(
   });
 }
 
-/**
- * Removes an image from the library. Refused while products, variants,
- * collections or the store itself use it (remove it there first), so no
- * reference ever dangles. The asset is soft-deleted and stops counting
- * against media_storage; the purge job removes the objects later.
- */
 const log = createLogger({ component: "media" });
 
 /**
- * Deletes an asset nothing uses: the row is soft-deleted and its bytes stop
+ * Deletes an asset nothing uses (refused while products, variants,
+ * collections or the store use it): the row is soft-deleted and its bytes stop
  * counting against the plan, and then its stored files are removed, so
  * deleting can't be used to keep serving files while freeing the quota.
  */

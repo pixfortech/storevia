@@ -243,6 +243,18 @@ describe("upload targets (security review)", () => {
     await createMediaUpload(B, { filename: "other-store.jpg", size: 10 });
   });
 
+  it("deleting or failing an unfinished upload doesn't free its slot", async () => {
+    // Its upload target stays valid until it expires, so a slot freed early
+    // would let a store post raw bytes nothing meters (review follow-up).
+    const started = [];
+    for (let i = 0; i < 20; i += 1) {
+      started.push(await createMediaUpload(A, { filename: `p${String(i)}.jpg`, size: 10 }));
+    }
+    await deleteMedia(A, started[0]?.mediaId ?? "");
+    await expectCode(completeMediaUpload(A, started[1]?.mediaId ?? ""), "VALIDATION_FAILED");
+    await expectCode(createMediaUpload(A, { filename: "one-more.jpg", size: 10 }), "RATE_LIMITED");
+  });
+
   it("end as REJECTED, with the upload removed, when storage fails mid-way", async () => {
     class FailingStorage extends LocalObjectStorage {
       override async write(key: string, body: Uint8Array): Promise<void> {
