@@ -64,8 +64,11 @@ The storefront connects as **`storevia_storefront`** (`LOGIN NOBYPASSRLS`,
   media; non-deleted pages and `PUBLISHED` page versions. A bug in a read
   model therefore can't show a draft product, an archived collection or an
   unpublished page.
-- **Column grants** omit cost, audit authors, search internals and
-  platform-controlled columns. There is no grant on inventory tables:
+- **Column grants** omit cost, barcode, SKU, audit authors, search
+  internals and platform-controlled columns. Rich text is granted as its
+  validated document (`descriptionDoc`) and rendered by React from the
+  allow-list, never as stored HTML, so a tampered HTML column can't reach a
+  shopper. There is no grant on inventory tables:
   availability comes from `app_storefront_availability(variant_ids)`, a
   `SECURITY DEFINER` function that returns one boolean per variant of the
   current store and never a count.

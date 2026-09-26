@@ -20,6 +20,8 @@ export const ID_PREFIXES = {
   collection: "coll",
   location: "loc",
   media: "media",
+  // Storefront content (ADR-0028).
+  page: "page",
 } as const;
 
 export type IdKind = keyof typeof ID_PREFIXES;

@@ -428,6 +428,37 @@ importers:
         specifier: 4.1.11
         version: 4.1.11(@types/node@24.13.6)(vite@8.3.0(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
 
+  packages/editor:
+    dependencies:
+      '@storevia/commerce':
+        specifier: workspace:*
+        version: link:../commerce
+      '@storevia/types':
+        specifier: workspace:*
+        version: link:../types
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.6
+        version: 24.13.6
+      '@types/react':
+        specifier: 19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 19.3.0
+        version: 19.3.0(@types/react@19.3.0)
+      react:
+        specifier: 19.3.0
+        version: 19.3.0
+      react-dom:
+        specifier: 19.3.0
+        version: 19.3.0(react@19.3.0)
+      vitest:
+        specifier: 4.1.11
+        version: 4.1.11(@types/node@24.13.6)(vite@8.3.0(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+
   packages/email:
     dependencies:
       nodemailer:
@@ -5164,7 +5195,7 @@ snapshots:
 
   '@types/nodemailer@8.0.2':
     dependencies:
-      '@types/node': 22.19.1
+      '@types/node': 24.13.6
 
   '@types/pg@8.23.1':
     dependencies:

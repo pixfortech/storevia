@@ -1,0 +1,33 @@
+{
+  "name": "@storevia/editor",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./document": "./src/document/index.ts",
+    "./registry": "./src/registry/index.ts",
+    "./render": "./src/render/index.ts",
+    "./templates": "./src/templates/index.ts",
+    "./theme": "./src/theme.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@storevia/commerce": "workspace:*",
+    "@storevia/types": "workspace:*",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "vitest": "4.1.11"
+  },
+  "peerDependencies": {
+    "react": "^19.2.0"
+  }
+}

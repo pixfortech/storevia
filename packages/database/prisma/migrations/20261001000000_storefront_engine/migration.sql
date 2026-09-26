@@ -480,9 +480,11 @@ CREATE POLICY storefront_store ON "Cart" AS RESTRICTIVE TO storevia_storefront
 CREATE POLICY storefront_store ON "CartLine" AS RESTRICTIVE TO storevia_storefront
   USING ("storeId" = app_current_store()) WITH CHECK ("storeId" = app_current_store());
 
--- 6d. Column grants: public fields only (no cost, barcode, audit authors,
---     editor JSON, smart-collection rules or storage internals beyond keys).
-GRANT SELECT (id, "organisationId", "storeId", title, handle, status, "descriptionHtml",
+-- 6d. Column grants: public fields only (no cost, barcode, SKU, audit
+--     authors, smart-collection rules or storage internals beyond keys). Rich
+--     text is read as its validated document and rendered by React, never
+--     as stored HTML, so a tampered HTML column can't reach a shopper.
+GRANT SELECT (id, "organisationId", "storeId", title, handle, status, "descriptionDoc",
   "productType", vendor, tags, "seoTitle", "seoDescription", "publishedAt", "createdAt",
   "updatedAt", "deletedAt") ON "Product" TO storevia_storefront;
 GRANT SELECT (id, "organisationId", "storeId", "productId", title, currency, "priceAmount",
@@ -495,7 +497,7 @@ GRANT SELECT ("organisationId", "storeId", "variantId", "optionId", "optionValue
   ON "ProductVariantOptionValue" TO storevia_storefront;
 GRANT SELECT (id, "organisationId", "storeId", "productId", "mediaAssetId", position, "altText")
   ON "ProductMedia" TO storevia_storefront;
-GRANT SELECT (id, "organisationId", "storeId", title, handle, "sortOrder", "descriptionHtml",
+GRANT SELECT (id, "organisationId", "storeId", title, handle, "sortOrder", "descriptionDoc",
   "imageMediaId", "seoTitle", "seoDescription", "createdAt", "updatedAt", "archivedAt", "deletedAt")
   ON "Collection" TO storevia_storefront;
 GRANT SELECT ("organisationId", "storeId", "collectionId", "productId", position, "createdAt")
