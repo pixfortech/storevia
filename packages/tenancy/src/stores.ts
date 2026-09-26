@@ -1,6 +1,7 @@
 import "server-only";
 import { withTenant } from "@storevia/database";
 import { consumeUsage, releaseUsage } from "@storevia/entitlements";
+import { platformHostname, storefrontRootDomain } from "@storevia/domains";
 import { notFound } from "@storevia/types";
 import { conflict, generateTokenSafe } from "./internal";
 import {
@@ -46,11 +47,8 @@ const summarySelect = {
   domains: { where: { isPrimary: true }, select: { hostname: true }, take: 1 },
 } as const;
 
-/** Host part of STOREFRONT_ROOT_DOMAIN (dev values may carry a port). */
-export function storefrontRootDomain(): string {
-  const raw = process.env["STOREFRONT_ROOT_DOMAIN"] ?? "storevia.site";
-  return raw.replace(/:\d+$/, "").toLowerCase();
-}
+/** Host part of STOREFRONT_ROOT_DOMAIN (one definition: @storevia/domains). */
+export { storefrontRootDomain };
 
 /**
  * Creates a store in the context's organisation, plus its platform subdomain
@@ -83,7 +81,7 @@ export async function createStore(
         data: {
           organisationId: ctx.organisationId,
           storeId: store.id,
-          hostname: `${data.slug}.${storefrontRootDomain()}`,
+          hostname: platformHostname(data.slug),
           type: "PLATFORM_SUBDOMAIN",
           status: "ACTIVE",
           isPrimary: true,

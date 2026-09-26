@@ -642,6 +642,9 @@ importers:
       '@storevia/database':
         specifier: workspace:*
         version: link:../database
+      '@storevia/domains':
+        specifier: workspace:*
+        version: link:../domains
       '@storevia/email':
         specifier: workspace:*
         version: link:../email

@@ -12,7 +12,8 @@
 // Catalogue (seed-catalogue.ts, fictional, no sales):
 //   acme-flagship  7 products (5 active, 1 draft, 1 archived), 12 variants, two
 //                  collections, Main location and Bengaluru warehouse, one
-//                  product low on stock and two variants out of stock
+//                  product low on stock and two variants out of stock; its
+//                  storefront is live at http://acme-flagship.store.localhost:3002
 //   globex-home    3 products, at a product limit of 3 (staff override)
 //
 // Plans are assigned through the real Subscription Service as that staff

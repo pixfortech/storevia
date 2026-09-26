@@ -14,6 +14,7 @@ const ALLOWED_METADATA_KEYS = new Set([
   "previousStatus",
   "fields",
   "slug",
+  "previousSlug",
   "name",
   "email",
   "allStores",

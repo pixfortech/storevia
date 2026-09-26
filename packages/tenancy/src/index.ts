@@ -42,4 +42,11 @@ export { recordActorAudit, recordAudit, sanitiseMetadata } from "./audit";
 export { isUniqueViolation, parseInput } from "./errors";
 export type { ActorAuditEntry, AuditMetadata } from "./audit";
 export { listRecentActivity } from "./activity";
+export {
+  changeStoreSlug,
+  getOnlineStore,
+  setStorefrontLive,
+  storefrontPreviewUrl,
+} from "./storefront";
+export type { OnlineStore } from "./storefront";
 export type { ActivityDetailKey, ActivityEntry } from "./activity";

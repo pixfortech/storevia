@@ -16,7 +16,13 @@ import { BusinessTypePicker } from "@/components/business-type-picker";
 import { FormMessage, SelectField, SubmitButton, TextField } from "@/components/forms";
 import { BUSINESS_TYPE_GLYPH } from "@/lib/business-types";
 import { LOCALE_OPTIONS, TIMEZONE_OPTIONS } from "@/lib/options";
-import { archiveStoreAction, changeBusinessTypeAction, updateStoreAction } from "./actions";
+import {
+  archiveStoreAction,
+  changeBusinessTypeAction,
+  changeStoreSlugAction,
+  setStorefrontLiveAction,
+  updateStoreAction,
+} from "./actions";
 
 export function StoreSettingsForm({
   storeId,
@@ -172,6 +178,69 @@ export function BusinessTypeForm({
         <FormMessage state={state} variant="inline" />
         <SubmitButton variant="secondary" className="ml-auto">
           Update business type
+        </SubmitButton>
+      </CardFooter>
+    </form>
+  );
+}
+
+/** Go live / back to coming soon (ADR-0028 §3). */
+export function StorefrontStatusForm({
+  storeId,
+  live,
+  canEdit,
+}: {
+  storeId: string;
+  live: boolean;
+  canEdit: boolean;
+}) {
+  const [state, action] = useActionState(setStorefrontLiveAction.bind(null, storeId), {
+    ok: false,
+  });
+  return (
+    <form action={action}>
+      <input type="hidden" name="live" value={live ? "false" : "true"} />
+      <CardFooter className="justify-between">
+        <FormMessage state={state} variant="inline" />
+        {canEdit ? (
+          <SubmitButton variant={live ? "secondary" : "primary"} className="ml-auto">
+            {live ? "Switch to coming soon" : "Go live"}
+          </SubmitButton>
+        ) : null}
+      </CardFooter>
+    </form>
+  );
+}
+
+/** Changes the store address; the old address keeps redirecting (ADR-0028 §12). */
+export function StoreAddressForm({
+  storeId,
+  slug,
+  rootDomain,
+}: {
+  storeId: string;
+  slug: string;
+  rootDomain: string;
+}) {
+  const [state, action] = useActionState(changeStoreSlugAction.bind(null, storeId), {
+    ok: false,
+  });
+  return (
+    <form action={action} noValidate>
+      <CardBody className="py-6">
+        <TextField
+          label="Store address"
+          name="slug"
+          defaultValue={state.values?.["slug"] ?? slug}
+          required
+          state={state}
+          hint={`Your store is served at <address>.${rootDomain}. Links to the old address keep working: they redirect to the new one, and no other store can ever take it.`}
+        />
+      </CardBody>
+      <CardFooter className="justify-between">
+        <FormMessage state={state} variant="inline" />
+        <SubmitButton variant="secondary" className="ml-auto">
+          Change address
         </SubmitButton>
       </CardFooter>
     </form>

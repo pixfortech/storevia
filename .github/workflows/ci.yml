@@ -240,11 +240,15 @@ jobs:
       MARKETING_URL: http://localhost:3000
       E2E_MARKETING_URL: http://localhost:3000
       CONTACT_INBOX: hello@storevia.test
-      STOREFRONT_ROOT_DOMAIN: store.localhost
+      STOREFRONT_ROOT_DOMAIN: store.localhost:3002
+      STOREFRONT_PROTOCOL: http
+      STOREFRONT_INTERNAL_URL: http://localhost:3002
       # CI-only throwaway values; real secrets come from the secrets manager.
       AUTH_SECRET: ci-only-auth-secret-not-used-anywhere-else-0000
       AUTH_PLATFORM_SECRET: ci-only-platform-auth-secret-not-used-elsewhere-0000
       MOCK_BILLING_WEBHOOK_SECRET: ci-only-mock-billing-secret-not-used-elsewhere-0000
+      STOREFRONT_PREVIEW_SECRET: ci-only-storefront-preview-secret-not-used-elsewhere-0000
+      STOREFRONT_REVALIDATE_SECRET: ci-only-storefront-revalidate-secret-not-used-elsewhere-0000
       # Production builds must opt in to mock billing explicitly (ADR-0022).
       BILLING_MOCK_ENABLED: "true"
       EMAIL_TRANSPORT: file
@@ -281,8 +285,8 @@ jobs:
       - name: Apply migrations and load reference data (plans)
         run: pnpm db:migrate && pnpm db:seed
 
-      - name: Build the dashboard, platform-admin and marketing site
-        run: pnpm --filter @storevia/dashboard --filter @storevia/platform-admin --filter @storevia/marketing build
+      - name: Build the dashboard, platform-admin, marketing site and storefront
+        run: pnpm --filter @storevia/dashboard --filter @storevia/platform-admin --filter @storevia/marketing --filter @storevia/storefront build
 
       - name: Install Playwright Chromium
         run: pnpm --filter @storevia/dashboard exec playwright install --with-deps chromium

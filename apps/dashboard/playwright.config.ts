@@ -9,6 +9,7 @@ if (existsSync(rootEnv) && !process.env["CI"]) process.loadEnvFile(rootEnv);
 const baseURL = process.env["E2E_BASE_URL"] ?? "http://app.localhost:3001";
 const adminURL = process.env["E2E_ADMIN_URL"] ?? "http://admin.localhost:3003";
 const marketingURL = process.env["E2E_MARKETING_URL"] ?? "http://localhost:3000";
+const storefrontURL = process.env["E2E_STOREFRONT_URL"] ?? "http://localhost:3002";
 // Node does not resolve *.localhost names (browsers do): probe via localhost.
 const probe = (url: string) =>
   `${new URL(url).protocol}//localhost:${new URL(url).port || "80"}/api/health`;
@@ -42,6 +43,23 @@ export default defineConfig({
       // Platform-admin (staff) app: plan assignment and mock billing (ADR-0022).
       command: "pnpm --filter @storevia/platform-admin start",
       url: probe(adminURL),
+      reuseExistingServer: !process.env["CI"],
+      timeout: 120_000,
+      stdout: "pipe",
+    },
+    {
+      // Storefront (ADR-0028): every store's public site, by Host header.
+      command: "pnpm --filter @storevia/storefront start",
+      url: probe(storefrontURL),
+      reuseExistingServer: !process.env["CI"],
+      timeout: 120_000,
+      stdout: "pipe",
+    },
+    {
+      // Worker: dispatches outbox events to the storefront's cache invalidation.
+      command: "pnpm --filter @storevia/worker start",
+      url: "http://127.0.0.1:3004/health",
+      env: { WORKER_POLL_INTERVAL_MS: "1000" },
       reuseExistingServer: !process.env["CI"],
       timeout: 120_000,
       stdout: "pipe",
