@@ -147,13 +147,13 @@ acknowledge it. Provider-side downgrades are applied and then flagged.
 
 ### 2.1 States and the entitlement rule
 
-| Status      | Grants entitlements while                   | Dashboard                           | Storefront                                   |
-| ----------- | ------------------------------------------- | ----------------------------------- | -------------------------------------------- |
-| `TRIAL`     | `now < trialEndsAt`                         | full                                | live                                         |
-| `ACTIVE`    | `expiresAt` is null or `now < expiresAt`    | full                                | live                                         |
-| `PAST_DUE`  | `now < graceEndsAt` (default grace 14 days) | full + banner                       | live                                         |
-| `CANCELLED` | `now < expiresAt` (access end)              | full until access ends, banner      | live until access ends                       |
-| `EXPIRED`   | never                                       | system-default floor + billing page | per system default (storefront policy in M4) |
+| Status      | Grants entitlements while                   | Dashboard                           | Storefront                                     |
+| ----------- | ------------------------------------------- | ----------------------------------- | ---------------------------------------------- |
+| `TRIAL`     | `now < trialEndsAt`                         | full                                | live                                           |
+| `ACTIVE`    | `expiresAt` is null or `now < expiresAt`    | full                                | live                                           |
+| `PAST_DUE`  | `now < graceEndsAt` (default grace 14 days) | full + banner                       | live                                           |
+| `CANCELLED` | `now < expiresAt` (access end)              | full until access ends, banner      | live until access ends                         |
+| `EXPIRED`   | never                                       | system-default floor + billing page | live on the system-default floor (ADR-0028 §3) |
 
 Without an entitling subscription, organisations fall back to the system
 defaults (§1.1). Because the rule is time-aware, a late expiry sweep can never

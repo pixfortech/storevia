@@ -32,8 +32,11 @@ Accepted, Superseded by ADR-XXXX, Deprecated.
 | [0024](./0024-business-types-and-role-presets.md)                 | Business types and role presets                                    | Accepted |
 | [0025](./0025-marketing-site-catalogue-and-contact.md)            | Marketing site: public catalogue and contact form                  | Accepted |
 | [0026](./0026-evergreen-toolchain-and-controlled-updates.md)      | Evergreen toolchain and controlled updates                         | Accepted |
+| [0027](./0027-commerce-catalogue-and-inventory.md)                | Commerce catalogue and inventory (Milestone 3)                     | Accepted |
+| [0028](./0028-storefront-engine.md)                               | Storefront engine (Milestone 4)                                    | Accepted |
 
 ADRs 0002–0019 were accepted with the Milestone 0 review on 2026-09-24.
 ADRs 0020–0021 were recorded during Milestone 1 and ADR-0022 for the Milestone 2
 revision (no real payment gateway; manual and mock subscription sources).
 ADRs 0023–0025 were recorded during Milestone 2.5, and ADR-0026 with the toolchain policy revision.
+ADR-0027 was recorded for Milestone 3 and ADR-0028 for Milestone 4.

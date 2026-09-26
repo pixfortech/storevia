@@ -1,6 +1,6 @@
 # 06 — Storefront architecture
 
-> Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**. ADR-0013.
+> Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**. ADR-0013, refined for Milestone 4 by ADR-0028.
 
 ## 1. One engine, every store
 
@@ -35,24 +35,31 @@ sequenceDiagram
   else store not ACTIVE
     P-->>U: rewrite → /_status/{draft|suspended|unavailable}
   else
-    P->>P: rewrite → /_store/{storeId}/products/blue-shirt (internal route)
+    P->>P: rewrite → /sv/{storeId}/products/blue-shirt (internal route)
   end
 ```
 
 - **Hostname normalisation** (`packages/domains`): lower-case, strip port and
   trailing dot, IDNA → punycode, reject IP literals and anything not matching
   hostname syntax. Unknown hosts get a generic 404 page with no store data.
-- The internal `/_store/{storeId}/…` segment is **not reachable directly**:
-  the proxy strips any incoming path starting with `/_store` or `/_status`, so
-  a shopper can't pick a different store by path.
+- The internal `/sv/{storeId}/…` segment is **not reachable directly**:
+  the proxy prefixes **every** path with the resolved store, so a request
+  for `/sv/{other}/…` becomes `/sv/{this}/sv/{other}/…` and 404s, and the
+  store layout also checks a signed header set by the proxy (ADR-0028 §4).
 - **Canonical host:** each store has one `isPrimary` domain. All other active
   domains (including the `storevia.site` subdomain once a custom domain is
   primary) redirect `301` to it, preserving path and query. Redirect targets
   come only from `StoreDomain` rows, never from request input, so there is no
   open redirect.
 - **Store status:** `ACTIVE` → serve; `DRAFT` → "coming soon" page (the
-  merchant previews with a signed preview token); `SUSPENDED` → unavailable
-  page; `ARCHIVED` or subscription `EXPIRED` → 503 unavailable page.
+  merchant previews with a signed preview token); `SUSPENDED` (store or
+  organisation), `ARCHIVED` or an organisation pending deletion → 503
+  unavailable page. The subscription status is not consulted: an expired
+  subscription falls back to the system-default floor (ADR-0028 §3).
+- **Database access:** the storefront connects as `storevia_storefront`,
+  resolves hosts through one narrow `SECURITY DEFINER` function, and reads
+  everything else under restrictive, sellable-only row policies and column
+  grants (ADR-0028 §2).
 
 ## 3. Routes
 

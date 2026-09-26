@@ -685,6 +685,7 @@ model Store {
 
   memberAccess          MembershipStoreAccess[]
   domains               StoreDomain[]
+  slugHistory           StoreSlugHistory[]
   media                 MediaAsset[]
   products              Product[]
   productOptions        ProductOption[]
@@ -779,6 +780,21 @@ model StoreDomain {
 
   @@index([storeId])
   @@index([status, lastCheckedAt])
+}
+
+/// A slug a store used before (ADR-0028 §12). Kept forever: no other store
+/// can claim it, so old links can't be taken over. The old platform hostname
+/// stays as a non-primary StoreDomain and redirects to the primary.
+model StoreSlugHistory {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organisationId String   @db.Uuid
+  storeId        String   @db.Uuid
+  slug           String   @unique
+  retiredAt      DateTime @default(now()) @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+
+  @@index([storeId])
 }
 
 // -----------------------------------------------------------------------------
