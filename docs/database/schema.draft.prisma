@@ -2181,8 +2181,8 @@ model PageVersion {
   publishedFor Page? @relation("PagePublishedVersion")
 
   @@unique([pageId, versionNumber])
-  /// Target of the SQL composite FK (publishedVersionId, id) -> (id, pageId):
-  /// a page can only publish one of its own versions.
+  /// Lets the deferred Page_published_pointer trigger check that a page only
+  /// publishes one of its own versions (Prisma can't model the composite FK).
   @@unique([id, pageId])
   @@index([pageId, state])
   @@index([storeId])

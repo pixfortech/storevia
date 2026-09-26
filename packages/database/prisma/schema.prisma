@@ -181,6 +181,7 @@ model ProductVariant {
   product       Product                     @relation(fields: [productId, storeId], references: [id, storeId], onDelete: Cascade)
   optionValues  ProductVariantOptionValue[]
   inventoryItem InventoryItem?
+  cartLines     CartLine[]
 
   @@unique([productId, optionSignature])
   @@unique([id, storeId])
@@ -716,6 +717,12 @@ model Store {
   organisation        Organisation                @relation(fields: [organisationId], references: [id], onDelete: Restrict)
   memberAccess        MembershipStoreAccess[]
   domains             StoreDomain[]
+  slugHistory         StoreSlugHistory[]
+  carts               Cart[]
+  cartLines           CartLine[]
+  pages               Page[]
+  pageVersions        PageVersion[]
+  outboxEvents        OutboxEvent[]
   media               MediaAsset[]
   products            Product[]
   productOptions      ProductOption[]
@@ -1119,4 +1126,169 @@ model JobRun {
 
   @@unique([jobName, slot, attempt])
   @@index([jobName, startedAt])
+}
+
+// -----------------------------------------------------------------------------
+// Storefront engine (Milestone 4, ADR-0028)
+// -----------------------------------------------------------------------------
+
+/// A slug a store used before (ADR-0028 §12). Kept forever: no other store
+/// can claim it, so old links can't be taken over. The old platform hostname
+/// stays as a non-primary StoreDomain and redirects to the primary.
+model StoreSlugHistory {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organisationId String   @db.Uuid
+  storeId        String   @db.Uuid
+  slug           String   @unique
+  retiredAt      DateTime @default(now()) @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+
+  @@index([storeId])
+}
+
+enum CartStatus {
+  ACTIVE
+  CONVERTED
+  ABANDONED
+  MERGED
+}
+
+/// Carts never store prices — prices are always recomputed server-side.
+model Cart {
+  id             String     @id @default(uuid(7)) @db.Uuid
+  organisationId String     @db.Uuid
+  storeId        String     @db.Uuid
+  /// Hash of the opaque cart cookie token.
+  tokenHash      String     @unique
+  customerId     String?    @db.Uuid
+  currency       String     @db.Char(3)
+  status         CartStatus @default(ACTIVE)
+  expiresAt      DateTime   @db.Timestamptz(3)
+  createdAt      DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime   @updatedAt @db.Timestamptz(3)
+
+  store Store      @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  lines CartLine[]
+
+  @@unique([id, storeId])
+  @@index([storeId, status, updatedAt])
+  @@index([customerId])
+}
+
+model CartLine {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organisationId String   @db.Uuid
+  storeId        String   @db.Uuid
+  cartId         String   @db.Uuid
+  variantId      String   @db.Uuid
+  quantity       Int
+  attributes     Json?
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+
+  store   Store          @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  cart    Cart           @relation(fields: [cartId, storeId], references: [id, storeId], onDelete: Cascade)
+  variant ProductVariant @relation(fields: [variantId, storeId], references: [id, storeId], onDelete: Cascade)
+
+  @@unique([cartId, variantId])
+  @@index([storeId])
+  @@index([variantId])
+}
+
+enum PageKind {
+  HOME
+  STANDARD
+  PRODUCT_TEMPLATE
+  COLLECTION_TEMPLATE
+  SEARCH_TEMPLATE
+  NOT_FOUND
+}
+
+/// Pages belong to the store, not to a theme (ADR-0012).
+/// SQL: partial unique (storeId, handle) WHERE deletedAt IS NULL;
+///      partial unique (storeId, kind) WHERE kind <> 'STANDARD' AND deletedAt IS NULL.
+model Page {
+  id                 String    @id @default(uuid(7)) @db.Uuid
+  organisationId     String    @db.Uuid
+  storeId            String    @db.Uuid
+  kind               PageKind  @default(STANDARD)
+  title              String
+  handle             String
+  seoTitle           String?
+  seoDescription     String?
+  /// The live version. Changed only by publishPage()/unpublishPage().
+  publishedVersionId String?   @unique @db.Uuid
+  createdAt          DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @db.Timestamptz(3)
+  deletedAt          DateTime? @db.Timestamptz(3)
+
+  store            Store         @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  versions         PageVersion[] @relation("PageVersions")
+  publishedVersion PageVersion?  @relation("PagePublishedVersion", fields: [publishedVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([id, storeId])
+  @@index([storeId, kind])
+}
+
+enum PageVersionState {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+/// document = PageDocument JSON (docs/architecture/07-page-builder-document.md).
+/// SQL: partial unique (pageId) WHERE state = 'DRAFT';
+///      partial unique (pageId) WHERE state = 'PUBLISHED';
+///      trigger: document is immutable once state <> 'DRAFT'.
+model PageVersion {
+  id               String           @id @default(uuid(7)) @db.Uuid
+  organisationId   String           @db.Uuid
+  storeId          String           @db.Uuid
+  pageId           String           @db.Uuid
+  versionNumber    Int
+  state            PageVersionState @default(DRAFT)
+  schemaVersion    Int
+  document         Json
+  documentHash     String
+  /// Optimistic-concurrency counter for autosave (If-Match style).
+  revision         Int              @default(0)
+  basedOnVersionId String?          @db.Uuid
+  createdById      String?          @db.Uuid
+  updatedById      String?          @db.Uuid
+  publishedById    String?          @db.Uuid
+  publishedAt      DateTime?        @db.Timestamptz(3)
+  createdAt        DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime         @updatedAt @db.Timestamptz(3)
+
+  store        Store @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  page         Page  @relation("PageVersions", fields: [pageId, storeId], references: [id, storeId], onDelete: Restrict)
+  publishedFor Page? @relation("PagePublishedVersion")
+
+  @@unique([pageId, versionNumber])
+  /// Lets the deferred Page_published_pointer trigger check that a page only
+  /// publishes one of its own versions (Prisma can't model the composite FK).
+  @@unique([id, pageId])
+  @@index([pageId, state])
+  @@index([storeId])
+}
+
+/// Transactional outbox: domain events written in the same transaction as the
+/// state change, dispatched by the worker (webhooks, cache purge, email...).
+model OutboxEvent {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organisationId String    @db.Uuid
+  storeId        String    @db.Uuid
+  type           String
+  entityType     String
+  entityId       String    @db.Uuid
+  payload        Json
+  occurredAt     DateTime  @default(now()) @db.Timestamptz(3)
+  dispatchedAt   DateTime? @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+
+  @@unique([id, storeId])
+  @@index([dispatchedAt, occurredAt])
+  @@index([storeId])
 }

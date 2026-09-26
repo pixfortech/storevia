@@ -140,6 +140,7 @@ jobs:
       DATABASE_BILLING_URL: postgresql://storevia_billing:ci-billing@localhost:5432/storevia
       DATABASE_WORKER_URL: postgresql://storevia_worker:ci-worker@localhost:5432/storevia
       DATABASE_MARKETING_URL: postgresql://storevia_marketing:ci-marketing@localhost:5432/storevia
+      DATABASE_STOREFRONT_URL: postgresql://storevia_storefront:ci-storefront@localhost:5432/storevia
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -231,6 +232,7 @@ jobs:
       DATABASE_BILLING_URL: postgresql://storevia_billing:ci-billing@localhost:5432/storevia
       DATABASE_WORKER_URL: postgresql://storevia_worker:ci-worker@localhost:5432/storevia
       DATABASE_MARKETING_URL: postgresql://storevia_marketing:ci-marketing@localhost:5432/storevia
+      DATABASE_STOREFRONT_URL: postgresql://storevia_storefront:ci-storefront@localhost:5432/storevia
       DASHBOARD_URL: http://app.localhost:3001
       E2E_BASE_URL: http://app.localhost:3001
       PLATFORM_ADMIN_URL: http://admin.localhost:3003
@@ -316,6 +318,7 @@ jobs:
       DATABASE_BILLING_URL: postgresql://storevia_billing:ci-billing@localhost:5432/storevia
       DATABASE_WORKER_URL: postgresql://storevia_worker:ci-worker@localhost:5432/storevia
       DATABASE_MARKETING_URL: postgresql://storevia_marketing:ci-marketing@localhost:5432/storevia
+      DATABASE_STOREFRONT_URL: postgresql://storevia_storefront:ci-storefront@localhost:5432/storevia
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
