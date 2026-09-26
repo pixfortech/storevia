@@ -7,6 +7,8 @@ const rootEnv = resolve(import.meta.dirname, "../.env");
 if (existsSync(rootEnv) && !process.env["CI"]) process.loadEnvFile(rootEnv);
 
 process.env["STOREVIA_ENV"] = "test";
+// Query events for the query-count harness (packages/database/src/testing.ts).
+process.env["STOREVIA_QUERY_EVENTS"] = "1";
 const base = new URL(process.env["DATABASE_URL"] ?? "postgresql://localhost/storevia");
 const testDb =
   process.env["STOREVIA_TEST_DATABASE"] ??

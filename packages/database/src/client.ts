@@ -1,7 +1,8 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./generated/prisma/client";
 
-export type DatabaseRole = "app" | "system" | "platform" | "billing" | "worker" | "marketing";
+export type DatabaseRole =
+  "app" | "system" | "platform" | "billing" | "worker" | "marketing" | "storefront";
 
 const URL_ENV: Record<DatabaseRole, string> = {
   app: "DATABASE_URL",
@@ -10,6 +11,7 @@ const URL_ENV: Record<DatabaseRole, string> = {
   billing: "DATABASE_BILLING_URL",
   worker: "DATABASE_WORKER_URL",
   marketing: "DATABASE_MARKETING_URL",
+  storefront: "DATABASE_STOREFRONT_URL",
 };
 
 // One client (and pg pool) per role per process. Cached on globalThis so that
@@ -18,13 +20,30 @@ const globalCache = globalThis as typeof globalThis & {
   __storeviaPrisma?: Partial<Record<DatabaseRole, PrismaClient>>;
 };
 
+type QueryListener = (query: string) => void;
+const queryListeners = new Set<QueryListener>();
+
+/**
+ * Subscribes to every statement sent by clients created while
+ * STOREVIA_QUERY_EVENTS=1 (tests only: the query-count harness, M4-09).
+ * Returns the unsubscribe function.
+ */
+export function onDatabaseQuery(listener: QueryListener): () => void {
+  queryListeners.add(listener);
+  return () => queryListeners.delete(listener);
+}
+
 export function createPrismaClient(connectionString: string): PrismaClient {
-  return new PrismaClient({
-    adapter: new PrismaPg({
-      connectionString,
-      max: Number(process.env["DATABASE_POOL_MAX"] ?? 10),
-    }),
+  const adapter = new PrismaPg({
+    connectionString,
+    max: Number(process.env["DATABASE_POOL_MAX"] ?? 10),
   });
+  if (process.env["STOREVIA_QUERY_EVENTS"] !== "1") return new PrismaClient({ adapter });
+  const client = new PrismaClient({ adapter, log: [{ emit: "event", level: "query" }] });
+  client.$on("query", (event) => {
+    for (const listener of queryListeners) listener(event.query);
+  });
+  return client;
 }
 
 export function getClient(role: DatabaseRole): PrismaClient {

@@ -174,6 +174,33 @@ export default defineConfig(
     },
   },
   {
+    // The storefront role (ADR-0028 §2) is for host resolution and the
+    // storefront read models only.
+    files: ["{apps,packages}/**/*.{ts,tsx}"],
+    ignores: [
+      "packages/database/**",
+      "packages/domains/src/resolver.ts",
+      "packages/commerce/src/storefront/**",
+      "**/tests/**",
+      "**/e2e/**",
+      "**/scripts/**",
+    ],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@storevia/database/storefront",
+              message:
+                "The storefront role is for packages/domains' resolver and @storevia/commerce/storefront only (ADR-0028).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // The public site holds only the marketing role (ADR-0025): no other
     // database role, and no server services that would need one.
     files: ["apps/marketing/src/**/*.{ts,tsx}"],

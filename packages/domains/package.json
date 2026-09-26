@@ -1,14 +1,11 @@
 {
-  "name": "@storevia/media",
+  "name": "@storevia/domains",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./keys": "./src/keys.ts",
-    "./sniff": "./src/sniff.ts",
-    "./storage": "./src/storage.ts",
-    "./urls": "./src/urls.ts"
+    "./resolver": "./src/resolver.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -17,15 +14,11 @@
   },
   "dependencies": {
     "@storevia/database": "workspace:*",
-    "@storevia/entitlements": "workspace:*",
-    "@storevia/observability": "workspace:*",
-    "@storevia/tenancy": "workspace:*",
-    "@storevia/types": "workspace:*",
-    "server-only": "0.0.1",
-    "sharp": "0.35.4",
-    "zod": "4.6.5"
+    "@storevia/validation": "workspace:*",
+    "server-only": "0.0.1"
   },
   "devDependencies": {
+    "@types/node": "24.13.6",
     "vitest": "4.1.11"
   }
 }

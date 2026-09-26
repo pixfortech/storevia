@@ -175,10 +175,12 @@ query-count test harness (M4-09).
   read model in a `"use cache"` function tagged per 06 §5: `store:{id}`,
   `product:{id}`, `collection:{id}`, `page:{id}`, `domain:{hostname}`.
   Inputs in cache keys are ids and normalised, bounded values only.
-- Services that change what a shopper sees write an **`OutboxEvent` in the
-  same transaction** as the change (products, variants, media, inventory
-  availability, collections, store settings and status, domains, pages).
-  Payloads hold ids only.
+- Every change a shopper could see writes an **`OutboxEvent` in the same
+  transaction**, from **database triggers** on the catalogue, inventory
+  (only when availability can flip), page, store, domain and organisation
+  tables, so no service (dashboard, platform staff, worker, or one written
+  later) can forget to. Payloads hold ids only; services can neither write
+  nor read events directly.
 - The worker's `outbox.dispatch` job claims undispatched events
   (`FOR UPDATE SKIP LOCKED`), maps them to tags and posts them to the
   storefront's `/api/internal/revalidate` with an HMAC bearer
@@ -216,7 +218,8 @@ are `noindex`.
 
 - `@storevia/domains` owns hostname normalisation (lower-case, no port or
   trailing dot, IDNA to ASCII, no IP literals, RFC 1123 labels, ≤ 253
-  characters) and the reserved slug list, which store creation shares.
+  characters) and re-exports the reserved slug list that store creation
+  validates against (`@storevia/validation`).
 - A store's slug can change (`domain.manage`). The old platform hostname
   stays as a non-primary `ACTIVE` domain, so old links redirect, and the
   old slug is recorded in `StoreSlugHistory`, which no other store can ever
@@ -243,8 +246,9 @@ are `noindex`.
   visible, and tests assert it per table.
 - Stores go live without the page editor: default templates render every
   route, and M5 only adds a way to publish pages over them.
-- Every service that changes shopper-visible data must write an outbox
-  event. A test per event type checks the tags it invalidates.
+- Shopper-visible changes emit outbox events by construction (triggers).
+  A test per event source checks the event, and the dispatcher's tests
+  check the tags each event invalidates.
 - Operations gains a role, three secrets (`DATABASE_STOREFRONT_URL`,
   `STOREFRONT_REVALIDATE_SECRET`, `STOREFRONT_PREVIEW_SECRET`) and, for more
   than one storefront instance, a shared cache handler.

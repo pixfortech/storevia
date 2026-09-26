@@ -10,7 +10,8 @@
     "./testing": "./src/testing.ts",
     "./billing": "./src/billing.ts",
     "./worker": "./src/worker.ts",
-    "./marketing": "./src/marketing.ts"
+    "./marketing": "./src/marketing.ts",
+    "./storefront": "./src/storefront.ts"
   },
   "scripts": {
     "generate": "prisma generate",

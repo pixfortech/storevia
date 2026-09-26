@@ -172,6 +172,20 @@ function validateNode(raw: unknown, parent: string, depth: number, budget: Budge
  * a normalised copy with unknown attributes dropped. Throws RichTextError.
  * An empty document (no text at all) normalises to null.
  */
+/**
+ * A stored or submitted document object, validated, or null for anything
+ * outside the allow-list. Never throws (parseRichText does) and never parses
+ * strings, so renderers can call it on untrusted values.
+ */
+export function safeRichText(value: unknown): RichTextDoc | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  try {
+    return parseRichText(value);
+  } catch {
+    return null;
+  }
+}
+
 export function parseRichText(input: unknown): RichTextDoc | null {
   if (input === null || input === undefined || input === "") return null;
   let value: unknown = input;

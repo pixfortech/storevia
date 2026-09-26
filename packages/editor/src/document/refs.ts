@@ -3,9 +3,11 @@
 // kind; external links are http(s), mailto or tel only. On publish the server
 // checks every id belongs to the same store (M5); at render time an id that
 // doesn't resolve in the current store renders as nothing. Pure.
-import { isSafeHref, parseRichText, type RichTextDoc } from "@storevia/commerce/rich-text";
+import { isSafeHref, safeRichText, type RichTextDoc } from "@storevia/commerce/rich-text";
 import { parseTypeId } from "@storevia/types";
 import { z } from "zod";
+
+export { safeRichText };
 
 const typeId = (kind: "product" | "collection" | "page" | "media") =>
   z
@@ -47,15 +49,6 @@ export const mediaRefSchema = z.strictObject({
   alt: z.string().max(512).optional(),
 });
 export type MediaRef = z.infer<typeof mediaRefSchema>;
-
-/** The validated document, or null for anything outside the allow-list (parseRichText throws). */
-export function safeRichText(value: unknown): RichTextDoc | null {
-  try {
-    return parseRichText(value);
-  } catch {
-    return null;
-  }
-}
 
 export const richTextSchema = z.custom<RichTextDoc>(
   (value) => safeRichText(value) !== null,

@@ -809,25 +809,110 @@ describe("slug history", () => {
 });
 
 describe("outbox", () => {
-  const insert = (s: Store, type = "product.updated", payload = "{}") =>
+  const events = async (since: Date) =>
+    (
+      await admin.query<{
+        type: string;
+        entityType: string;
+        entityId: string;
+        storeId: string;
+        payload: unknown;
+      }>(
+        `SELECT type, "entityType", "entityId", "storeId", payload FROM "OutboxEvent"
+         WHERE "occurredAt" >= $1 ORDER BY "occurredAt", type`,
+        [since],
+      )
+    ).rows;
+  const now = async () =>
+    (await admin.query<{ now: Date }>("SELECT clock_timestamp() AS now")).rows[0]?.now ??
+    new Date(0);
+  const insert = (s: Store, type = "product.changed", payload = "{}") =>
     `INSERT INTO "OutboxEvent" (id, "organisationId", "storeId", type, "entityType", "entityId", payload)
      VALUES (gen_random_uuid(), '${s.org}', '${s.id}', '${type}', 'Product', '${s.live}', '${payload}')`;
 
-  it("the app role writes events for its own store and can't read them back", async () => {
+  it("services can't write or read events directly: the database writes them", async () => {
     const scope = { org: ORG_A, store: A().id };
-    expect(await errorCode(app, scope, insert(A()))).toBeNull();
-    expect(await errorCode(app, scope, insert(B()))).toBe("42501");
+    expect(await errorCode(app, scope, insert(A()))).toBe("42501");
     expect(await errorCode(app, scope, `SELECT id FROM "OutboxEvent"`)).toBe("42501");
   });
 
+  it("a product change by the app role writes an event in the same transaction", async () => {
+    const since = await now();
+    await scoped(app, { org: ORG_A, store: A().id }, async (c) => {
+      await c.query(`UPDATE "Product" SET title = 'Renamed' WHERE id = $1`, [A().live]);
+      // Rolled back below: the event must disappear with the change.
+    });
+    expect(await events(since)).toEqual([]);
+    await admin.query(`UPDATE "Product" SET title = 'Renamed' WHERE id = $1`, [A().live]);
+    await admin.query(`UPDATE "ProductVariant" SET "priceAmount" = 1200 WHERE id = $1`, [
+      A().liveVariant,
+    ]);
+    expect(await events(since)).toEqual([
+      {
+        type: "product.changed",
+        entityType: "Product",
+        entityId: A().live,
+        storeId: A().id,
+        payload: {},
+      },
+      {
+        type: "product.changed",
+        entityType: "Product",
+        entityId: A().live,
+        storeId: A().id,
+        payload: {},
+      },
+    ]);
+  });
+
+  it("stock movements emit only when availability can flip", async () => {
+    const since = await now();
+    const level = `UPDATE "InventoryLevel" SET available = $2
+      WHERE "inventoryItemId" = (SELECT id FROM "InventoryItem" WHERE "variantId" = $1)`;
+    await admin.query(level, [A().liveVariant, 5]); // 3 -> 5: still in stock
+    expect(await events(since)).toEqual([]);
+    await admin.query(level, [A().liveVariant, 0]); // sold out
+    await admin.query(level, [A().liveVariant, 3]); // back in stock
+    expect((await events(since)).map((e) => [e.type, e.entityId])).toEqual([
+      ["product.availability_changed", A().live],
+      ["product.availability_changed", A().live],
+    ]);
+  });
+
+  it("collections, pages, the store, its domains and its organisation's status emit too", async () => {
+    const since = await now();
+    await admin.query(`UPDATE "Collection" SET title = 'Summer sale' WHERE id = $1`, [
+      A().collection,
+    ]);
+    await admin.query(`UPDATE "Store" SET name = 'Renamed store' WHERE id = $1`, [A().id]);
+    await admin.query(
+      `UPDATE "Store" SET "nextOrderNumber" = "nextOrderNumber" + 1 WHERE id = $1`,
+      [A().id],
+    );
+    await admin.query(
+      `UPDATE "StoreDomain" SET hostname = 'www2.a0.example' WHERE hostname = 'www.a0.example'`,
+    );
+    await admin.query(`UPDATE "Organisation" SET status = 'SUSPENDED' WHERE id = $1`, [ORG_A]);
+    await admin.query(`UPDATE "Organisation" SET status = 'ACTIVE' WHERE id = $1`, [ORG_A]);
+    await admin.query(
+      `UPDATE "StoreDomain" SET hostname = 'www.a0.example' WHERE hostname = 'www2.a0.example'`,
+    );
+    const seen = (await events(since)).map((e) => [e.type, e.storeId]);
+    expect(seen.filter(([t]) => t === "collection.changed")).toEqual([
+      ["collection.changed", A().id],
+    ]);
+    // Name change once; order numbers never; two organisation status changes × two stores.
+    expect(seen.filter(([t]) => t === "store.changed")).toHaveLength(1 + 2 * 2);
+    const domain = (await events(since)).find((e) => e.type === "domain.changed");
+    expect(domain?.payload).toEqual({ hostnames: ["www.a0.example", "www2.a0.example"] });
+  });
+
   it("refuses malformed events", async () => {
-    const scope = { org: ORG_A, store: A().id };
-    expect(await errorCode(app, scope, insert(A(), "Product Updated"))).toBe("23514");
-    expect(await errorCode(app, scope, insert(A(), "product.updated", "[]"))).toBe("23514");
+    expect(await adminTx([[insert(A(), "Product Updated"), []]])).toBe("23514");
+    expect(await adminTx([[insert(A(), "product.changed", "[]"), []]])).toBe("23514");
   });
 
   it("the worker claims and marks events, but can't rewrite them", async () => {
-    await admin.query(insert(A()));
     await worker.query("BEGIN");
     try {
       const { rows } = await worker.query<{ id: string }>(

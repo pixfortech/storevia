@@ -8,7 +8,8 @@
     "./money": "./src/money.ts",
     "./handles": "./src/handles.ts",
     "./rich-text": "./src/rich-text.ts",
-    "./variants": "./src/variants.ts"
+    "./variants": "./src/variants.ts",
+    "./storefront": "./src/storefront/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -22,6 +23,8 @@
   "dependencies": {
     "@storevia/database": "workspace:*",
     "@storevia/entitlements": "workspace:*",
+    "@storevia/media": "workspace:*",
+    "@storevia/security": "workspace:*",
     "@storevia/tenancy": "workspace:*",
     "@storevia/types": "workspace:*",
     "@storevia/validation": "workspace:*",

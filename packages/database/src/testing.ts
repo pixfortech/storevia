@@ -1,5 +1,5 @@
 // Test-only helpers. Refuses to run against anything but a *_test database.
-import { createPrismaClient, disconnectAll } from "./client";
+import { createPrismaClient, disconnectAll, onDatabaseQuery } from "./client";
 import { Prisma, type PrismaClient } from "./generated/prisma/client";
 
 let migrator: PrismaClient | undefined;
@@ -75,4 +75,25 @@ export async function disconnectTestClients(): Promise<void> {
   await migrator?.$disconnect();
   migrator = undefined;
   await disconnectAll();
+}
+
+// Transaction plumbing is not a query for the budget (06 §10).
+const PLUMBING = /^(BEGIN|COMMIT|ROLLBACK|SET TRANSACTION|SELECT\s+set_config\()/i;
+
+/**
+ * Runs `fn` and returns the data statements it sent (M4-09 query budget).
+ * Requires STOREVIA_QUERY_EVENTS=1 (set by tooling/vitest-db-env.ts).
+ */
+export async function countQueries<T>(
+  fn: () => Promise<T>,
+): Promise<{ result: T; queries: string[] }> {
+  const queries: string[] = [];
+  const stop = onDatabaseQuery((query) => {
+    if (!PLUMBING.test(query.trim())) queries.push(query);
+  });
+  try {
+    return { result: await fn(), queries };
+  } finally {
+    stop();
+  }
 }

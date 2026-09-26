@@ -22,6 +22,12 @@ import { DomainError, notFound, toTypeId, uuidv7 } from "@storevia/types";
 import { z } from "zod";
 import { mediaStorage } from "./config";
 import { objectKey, uploadKey } from "./keys";
+import {
+  parseRenditions,
+  renditionUrls,
+  type MediaRenditionView,
+  type StoredRendition,
+} from "./urls";
 import { MediaRejectedError, processImage } from "./process";
 import { MEDIA_LIMITS, precheckUpload } from "./sniff";
 import type { ObjectStorage, UploadTarget } from "./storage";
@@ -32,12 +38,6 @@ import type { ObjectStorage, UploadTarget } from "./storage";
 // READY and count against media_storage. Every step is store-scoped.
 
 const UPLOAD_TTL_SECONDS = 10 * 60;
-
-export interface MediaRenditionView {
-  readonly width: number;
-  readonly height: number;
-  readonly url: string;
-}
 
 export interface MediaView {
   readonly id: string;
@@ -57,14 +57,6 @@ export interface MediaView {
   readonly productCount: number;
 }
 
-interface StoredRendition {
-  readonly key: string;
-  readonly width: number;
-  readonly height: number;
-  readonly format: string;
-  readonly bytes: number;
-}
-
 function requireStore(ctx: TenantContext, permission: Permission, write: boolean): StoreContext {
   if (ctx.kind !== "store") throw notFound();
   requirePermission(ctx, permission);
@@ -72,44 +64,6 @@ function requireStore(ctx: TenantContext, permission: Permission, write: boolean
     throw new DomainError("CONFLICT", "This store's media can't be changed right now.");
   }
   return ctx;
-}
-
-function parseRenditions(value: unknown): StoredRendition[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((r: unknown) => {
-    if (typeof r !== "object" || r === null) return [];
-    const { key, width, height, format, bytes } = r as Record<string, unknown>;
-    return typeof key === "string" && typeof width === "number" && typeof height === "number"
-      ? [
-          {
-            key,
-            width,
-            height,
-            format: typeof format === "string" ? format : "webp",
-            bytes: typeof bytes === "number" ? bytes : 0,
-          },
-        ]
-      : [];
-  });
-}
-
-/** Browser URLs for an asset's renditions (never the raw upload). */
-export function renditionUrls(
-  renditions: unknown,
-  storage: ObjectStorage = mediaStorage(),
-): {
-  readonly thumbnailUrl: string | null;
-  readonly srcSet: string;
-  readonly renditions: readonly MediaRenditionView[];
-} {
-  const list = parseRenditions(renditions)
-    .sort((a, b) => a.width - b.width)
-    .map((r) => ({ width: r.width, height: r.height, url: storage.publicUrl(r.key) }));
-  return {
-    thumbnailUrl: list[0]?.url ?? null,
-    srcSet: list.map((r) => `${r.url} ${String(r.width)}w`).join(", "),
-    renditions: list,
-  };
 }
 
 const cleanFilename = (name: string) =>

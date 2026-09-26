@@ -17,7 +17,7 @@ export {
   deleteMedia,
   getMedia,
   listMedia,
-  renditionUrls,
   updateMediaAlt,
 } from "./service";
-export type { MediaRenditionView, MediaView } from "./service";
+export type { MediaView } from "./service";
+export { renditionUrls, type MediaRenditionView } from "./urls";
