@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { paginationRange, type PaginationRangeItem } from "./control-helpers";
+import { paginationRange } from "./control-helpers";
 import { Breadcrumb, Pagination, Tabs, TabsContent, TabsList, TabsTrigger } from "./navigation";
 
 const E = "ellipsis" as const;
@@ -50,37 +50,48 @@ describe("paginationRange", () => {
   });
 
   it("keeps its invariants for every page of many totals", () => {
-    const gaps = (items: PaginationRangeItem[]) => items.filter((item) => item === E).length;
+    // Plain checks collected per case and asserted once: ~2,500 cases with an
+    // expect() per invariant made this test CPU-bound on busy CI runners.
+    const violations: string[] = [];
     for (const siblings of [0, 1, 2]) {
       for (let total = 1; total <= 40; total += 1) {
         const slots = Math.min(total, 2 * siblings + 5);
         for (let page = 1; page <= total; page += 1) {
           const items = paginationRange(page, total, siblings);
           const numbers = items.filter((item): item is number => item !== E);
+          const fail = (why: string) => {
+            violations.push(
+              `page ${String(page)}/${String(total)} siblings ${String(siblings)}: ${why}`,
+            );
+          };
           // Constant length, so the controls never jump while paging.
-          expect(items).toHaveLength(slots);
-          expect(numbers).toContain(1);
-          expect(numbers).toContain(total);
-          expect(numbers).toContain(page);
+          if (items.length !== slots)
+            fail(`length ${String(items.length)}, expected ${String(slots)}`);
+          for (const must of [1, total, page]) {
+            if (!numbers.includes(must)) fail(`missing page ${String(must)}`);
+          }
           // Ascending, no duplicates, at most two ellipses, never adjacent.
-          expect(numbers).toEqual([...new Set(numbers)].sort((a, b) => a - b));
-          expect(gaps(items)).toBeLessThanOrEqual(2);
+          if (numbers.some((n, i) => i > 0 && n <= (numbers[i - 1] ?? 0))) fail("not ascending");
+          if (items.filter((item) => item === E).length > 2) fail("more than two ellipses");
           items.forEach((item, index) => {
             if (item !== E) return;
-            expect(items[index + 1]).not.toBe(E);
+            if (items[index + 1] === E) fail("adjacent ellipses");
             // An ellipsis always stands for two or more pages.
             const before = items[index - 1] as number;
             const after = items[index + 1] as number;
-            expect(after - before - 1).toBeGreaterThanOrEqual(2);
+            if (after - before - 1 < 2) fail(`ellipsis for ${String(after - before - 1)} page`);
           });
           // Siblings of the current page are always shown.
           for (let s = 1; s <= siblings; s += 1) {
-            if (page - s >= 1) expect(numbers).toContain(page - s);
-            if (page + s <= total) expect(numbers).toContain(page + s);
+            if (page - s >= 1 && !numbers.includes(page - s))
+              fail(`missing sibling ${String(page - s)}`);
+            if (page + s <= total && !numbers.includes(page + s))
+              fail(`missing sibling ${String(page + s)}`);
           }
         }
       }
     }
+    expect(violations).toEqual([]);
   });
 });
 
