@@ -5,7 +5,7 @@
 // and outbox grants. The storefront's own code comes on top of these; these
 // tests prove the database refuses on its own.
 import pg from "pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { disconnectTestClients, truncateAll } from "../src/testing";
 
 const uuid = (n: number) => `0190f2a4-0000-7000-8000-${n.toString(16).padStart(12, "0")}`;
@@ -809,7 +809,9 @@ describe("slug history", () => {
 });
 
 describe("outbox", () => {
-  const events = async (since: Date) =>
+  // Each test starts from an empty outbox (occurredAt is stored to the
+  // millisecond, rounded, so a time window could catch the previous test's events).
+  const events = async () =>
     (
       await admin.query<{
         type: string;
@@ -818,14 +820,12 @@ describe("outbox", () => {
         storeId: string;
         payload: unknown;
       }>(
-        `SELECT type, "entityType", "entityId", "storeId", payload FROM "OutboxEvent"
-         WHERE "occurredAt" >= $1 ORDER BY "occurredAt", type`,
-        [since],
+        `SELECT type, "entityType", "entityId", "storeId", payload FROM "OutboxEvent" ORDER BY "occurredAt", type`,
       )
     ).rows;
-  const now = async () =>
-    (await admin.query<{ now: Date }>("SELECT clock_timestamp() AS now")).rows[0]?.now ??
-    new Date(0);
+  beforeEach(async () => {
+    await admin.query(`DELETE FROM "OutboxEvent"`);
+  });
   const insert = (s: Store, type = "product.changed", payload = "{}") =>
     `INSERT INTO "OutboxEvent" (id, "organisationId", "storeId", type, "entityType", "entityId", payload)
      VALUES (gen_random_uuid(), '${s.org}', '${s.id}', '${type}', 'Product', '${s.live}', '${payload}')`;
@@ -837,17 +837,16 @@ describe("outbox", () => {
   });
 
   it("a product change by the app role writes an event in the same transaction", async () => {
-    const since = await now();
     await scoped(app, { org: ORG_A, store: A().id }, async (c) => {
       await c.query(`UPDATE "Product" SET title = 'Renamed' WHERE id = $1`, [A().live]);
       // Rolled back below: the event must disappear with the change.
     });
-    expect(await events(since)).toEqual([]);
+    expect(await events()).toEqual([]);
     await admin.query(`UPDATE "Product" SET title = 'Renamed' WHERE id = $1`, [A().live]);
     await admin.query(`UPDATE "ProductVariant" SET "priceAmount" = 1200 WHERE id = $1`, [
       A().liveVariant,
     ]);
-    expect(await events(since)).toEqual([
+    expect(await events()).toEqual([
       {
         type: "product.changed",
         entityType: "Product",
@@ -866,21 +865,19 @@ describe("outbox", () => {
   });
 
   it("stock movements emit only when availability can flip", async () => {
-    const since = await now();
     const level = `UPDATE "InventoryLevel" SET available = $2
       WHERE "inventoryItemId" = (SELECT id FROM "InventoryItem" WHERE "variantId" = $1)`;
     await admin.query(level, [A().liveVariant, 5]); // 3 -> 5: still in stock
-    expect(await events(since)).toEqual([]);
+    expect(await events()).toEqual([]);
     await admin.query(level, [A().liveVariant, 0]); // sold out
     await admin.query(level, [A().liveVariant, 3]); // back in stock
-    expect((await events(since)).map((e) => [e.type, e.entityId])).toEqual([
+    expect((await events()).map((e) => [e.type, e.entityId])).toEqual([
       ["product.availability_changed", A().live],
       ["product.availability_changed", A().live],
     ]);
   });
 
   it("collections, pages, the store, its domains and its organisation's status emit too", async () => {
-    const since = await now();
     await admin.query(`UPDATE "Collection" SET title = 'Summer sale' WHERE id = $1`, [
       A().collection,
     ]);
@@ -897,13 +894,13 @@ describe("outbox", () => {
     await admin.query(
       `UPDATE "StoreDomain" SET hostname = 'www.a0.example' WHERE hostname = 'www2.a0.example'`,
     );
-    const seen = (await events(since)).map((e) => [e.type, e.storeId]);
+    const seen = (await events()).map((e) => [e.type, e.storeId]);
     expect(seen.filter(([t]) => t === "collection.changed")).toEqual([
       ["collection.changed", A().id],
     ]);
     // Name change once; order numbers never; two organisation status changes × two stores.
     expect(seen.filter(([t]) => t === "store.changed")).toHaveLength(1 + 2 * 2);
-    const domain = (await events(since)).find((e) => e.type === "domain.changed");
+    const domain = (await events()).find((e) => e.type === "domain.changed");
     expect(domain?.payload).toEqual({ hostnames: ["www.a0.example", "www2.a0.example"] });
   });
 
@@ -913,6 +910,7 @@ describe("outbox", () => {
   });
 
   it("the worker claims and marks events, but can't rewrite them", async () => {
+    await admin.query(insert(A()));
     await worker.query("BEGIN");
     try {
       const { rows } = await worker.query<{ id: string }>(
