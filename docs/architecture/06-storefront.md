@@ -1,6 +1,11 @@
 # 06 — Storefront architecture
 
 > Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**. ADR-0013, refined for Milestone 4 by ADR-0028.
+>
+> **Implemented in Milestone 4** (`apps/storefront`, `packages/domains`,
+> `@storevia/commerce/storefront`, `packages/editor`). Where M4 differs from
+> the baseline below, the section says so in an "M4" note; ADR-0028 records
+> why.
 
 ## 1. One engine, every store
 
@@ -24,16 +29,16 @@ sequenceDiagram
   U->>E: GET https://shop.example.com/products/blue-shirt
   E->>P: forwarded with Host header (edge validates host is a known hostname)
   P->>R: resolveStoreFromHostname("shop.example.com")
-  R->>C: domain:{hostname}
+  R->>C: host:{hostname}
   alt miss
-    R->>DB: StoreDomain + Store (narrow system query)
-    R->>C: set (short TTL + tag domain:{hostname})
+    R->>DB: app_storefront_resolve(hostname)
+    R->>C: set (30 s, dropped early by host:/store: invalidations)
   end
   R-->>P: {storeId, organisationId, status, primaryHostname}
   alt host is not primary
     P-->>U: 301 → https://{primary}/products/blue-shirt
   else store not ACTIVE
-    P-->>U: rewrite → /_status/{draft|suspended|unavailable}
+    P-->>U: rewrite → /status/{coming-soon|unavailable}
   else
     P->>P: rewrite → /sv/{storeId}/products/blue-shirt (internal route)
   end
@@ -56,6 +61,10 @@ sequenceDiagram
   organisation), `ARCHIVED` or an organisation pending deletion → 503
   unavailable page. The subscription status is not consulted: an expired
   subscription falls back to the system-default floor (ADR-0028 §3).
+- **M4:** the status pages are `/status/coming-soon` (`200`, `noindex`)
+  and `/status/unavailable` (`503`, `noindex`); neither shows
+  store data beyond its name. Unknown hosts get a generic `404` built in the
+  proxy.
 - **Database access:** the storefront connects as `storevia_storefront`,
   resolves hosts through one narrow `SECURITY DEFINER` function, and reads
   everything else under restrictive, sellable-only row policies and column
@@ -75,6 +84,12 @@ sequenceDiagram
 | `/account/*` (after M6)       | customer pages                                                 | dynamic                                            |
 | `/sitemap.xml`, `/robots.txt` | generated per store                                            | cached                                             |
 | anything else                 | `Page(kind=NOT_FOUND)` with status 404                         | cached                                             |
+
+**M4:** checkout and customer accounts arrive with M6. The cache column is
+the baseline design; M4 caches page data in process under the tags in §5
+(`store`, `catalogue`, `product`, `pages`, `host`), and `/search` results
+are cached by the normalised query and page. `/cart` and cart actions are
+dynamic and `private, no-store`.
 
 Routes are Storevia-defined. Merchants control page content and handles, not
 the routing table. Products, collections and pages use typed references
@@ -97,6 +112,13 @@ breaking navigation.
    drawer, search box) are client components.
 6. Design tokens from theme settings are emitted once as CSS custom properties
    on `:root` (`--sv-color-primary`, …); node styles compile to scoped classes.
+
+**M4:** stores render from Storevia's default page documents and a fixed
+default theme (ADR-0028 §6); M5 lets merchants publish pages over them and
+M7 adds store themes. There are **no client components** on store pages:
+add to cart, quantity changes and search are HTML forms posting to server
+actions or `GET` routes, so they work without JavaScript. The only client
+module is the error boundary Next.js requires, guarded by a unit test (§10).
 
 All storefront data access goes through `@storevia/commerce/storefront`
 read models, which return **public DTOs** (explicit field selection: no cost
@@ -121,11 +143,34 @@ only `ACTIVE`, published, non-deleted records.
   (search query, page number), to prevent cache poisoning and key
   explosion.
 
+**M4 implementation** (ADR-0028 §9):
+
+- Pages render dynamically (so `404` and `503` are real status codes), over
+  an in-process **tag-indexed data cache**: single-flight loads, an LRU
+  bound of 5,000 entries and a 5-minute TTL as a safety net. Tags are
+  `store:{id}`, `catalogue:{storeId}`, `product:{id}`, `pages:{storeId}` and
+  `host:{hostname}`; `@storevia/domains` maps each outbox event to its tags
+  for both the worker and the storefront.
+- Outbox events are written by **database triggers** on every table a
+  shopper can see (catalogue, availability-changing stock movements,
+  pages, store, domains, organisation status), in the same transaction as
+  the change. The worker's `storefront.outbox-dispatch` job posts the tags
+  every 15 seconds to `/api/internal/revalidate`, signed with
+  `STOREFRONT_REVALIDATE_SECRET` over a timestamp and the body.
+- The cache is per process: running more than one storefront instance
+  needs the invalidation fanned out to every instance or a shared cache
+  handler. Edge caching and CDN purge by tag are M8.
+
 ## 6. Cart
 
 - Cart identity: an opaque 256-bit token in a host-only cookie
   `__Host-sv_cart` (`Secure`, `HttpOnly`, `SameSite=Lax`); the DB stores its
-  hash.
+  SHA-256. Plain-HTTP development uses `sv_cart` without `Secure`.
+- **M4:** carts expire 30 days after their last change and hold at most 50
+  lines of 1–99 each. Mutations are rate limited per client address and
+  per cart. Stock is checked but not reserved (reservations are M6). The
+  cart page shows lines whose product stopped being sellable as
+  unavailable and leaves them out of the subtotal.
 - Cart mutations are server actions on the storefront. They validate the
   variant belongs to **this** store, is `ACTIVE` and purchasable, and clamp
   quantities.
@@ -148,6 +193,15 @@ The dashboard requests a **preview token** (signed, 15 min, bound to
 draft with `Cache-Control: no-store`, `X-Robots-Tag: noindex` and a preview
 banner. Preview tokens never grant access to other stores or to admin data.
 
+**M4:** the only scope is `store` (see a "coming soon" store as it will
+look live). Store settings → Storefront → "Preview storefront" (needs
+`design.edit`) opens `https://{primary}/?preview={token}`; the proxy
+verifies the token against the resolved store, moves it into a host-only
+`HttpOnly` cookie (`__Host-sv_preview`) that expires with it, and
+redirects to the same URL without the token, with `Referrer-Policy:
+no-referrer`. `page-version` (M5) and `store-theme` (M7) scopes reuse the
+format.
+
 ## 9. Security
 
 - The storefront has **no merchant-admin endpoints**. It imports only read
@@ -160,12 +214,28 @@ banner. Preview tokens never grant access to other stores or to admin data.
 - SEO: canonical URLs point at the primary domain; draft/preview/password
   pages are `noindex`.
 
-## 10. Performance budget (initial)
+## 10. Performance budget
 
-| Metric                              | Budget                                               |
-| ----------------------------------- | ---------------------------------------------------- |
-| Cached HTML TTFB (edge hit)         | < 100 ms p75                                         |
-| Uncached render (origin)            | < 500 ms p95                                         |
-| JS shipped on a product page        | < 90 kB gzip (excluding images)                      |
-| LCP (4G, mid-range phone)           | < 2.5 s p75                                          |
-| DB queries per uncached page render | ≤ 8 (enforced by a test harness that counts queries) |
+| Metric                              | Budget                                               | M4 status                                                                                                                              |
+| ----------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Cached HTML TTFB (edge hit)         | < 100 ms p75                                         | no edge yet (M8). Origin with warm data cache: 12–40 ms (local)                                                                        |
+| Uncached render (origin)            | < 500 ms p95                                         | 27–69 ms after the process warmed up; the first request after a start took 573 ms (local)                                              |
+| JS shipped on a product page        | < 90 kB gzip (excluding images)                      | **not met: about 173 kB gzip**, all of it the Next.js App Router runtime (React DOM, router). 0 kB of application code (see below)     |
+| LCP (4G, mid-range phone)           | < 2.5 s p75                                          | not measured; needs field data on real hosting (M8)                                                                                    |
+| DB queries per uncached page render | ≤ 8 (enforced by a test harness that counts queries) | **met and enforced**: home, product, collection and search each ≤ 8; product lists cost the same queries for 2 or 40 products (no N+1) |
+
+Measured on a local production build (`next build && next start`, one
+process, local PostgreSQL, seeded store); these are development-machine
+numbers, not p75/p95 from real traffic.
+
+**The JavaScript budget.** Store pages contain no application client code:
+the storefront and the editor renderers have no `"use client"` module
+besides the error boundary Next.js requires (enforced by
+`apps/storefront/src/lib/budget.test.ts`). What ships is the framework's
+client runtime, which the App Router loads on every page for hydration and
+client navigation, and which alone exceeds 90 kB gzip. Getting under the
+budget needs a framework-level choice, not application work: for example
+rendering store pages without the client router, or a different renderer
+for anonymous store pages. That is a decision for an ADR before M8's
+performance work; until then the budget is recorded as not met rather than
+restated.

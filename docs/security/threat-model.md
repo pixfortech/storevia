@@ -140,22 +140,33 @@ verified.
 
 ### 4.7 Domains and storefronts
 
-| Threat                                          | Mitigation                                                                                                         | Test                     | M   |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------ | --- |
-| Domain hijack (claiming someone else's domain)  | TXT verification token per store; periodic re-verification; domain unique globally                                 | verification tests       | 7   |
-| Dangling DNS / subdomain takeover after removal | On removal, remove edge custom-hostname immediately; re-verification before re-activation                          | lifecycle tests          | 7   |
-| Cookie tossing between stores                   | `storevia.site` on the Public Suffix List; host-only `__Host-` cookies                                             | PSL submission checklist | 4   |
-| Phishing using reserved or look-alike slugs     | Reserved-slug list, confusable/homoglyph checks, abuse reporting and suspension                                    | slug tests               | 1   |
-| Host header injection / cache poisoning         | Edge accepts only known hostnames; the app never builds absolute URLs from unvalidated Host; cache keys normalised | tests                    | 4   |
+| Threat                                          | Mitigation                                                                                                         | Test                                                                                                                                       | M   |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ | --- |
+| Domain hijack (claiming someone else's domain)  | TXT verification token per store; periodic re-verification; domain unique globally                                 | verification tests                                                                                                                         | 7   |
+| Dangling DNS / subdomain takeover after removal | On removal, remove edge custom-hostname immediately; re-verification before re-activation                          | lifecycle tests                                                                                                                            | 7   |
+| Cookie tossing between stores                   | `storevia.site` on the Public Suffix List; host-only `__Host-` cookies                                             | E2E: cart cookie is host-only, `HttpOnly`, `SameSite=Lax`; PSL checklist (`docs/deployment/public-suffix-list.md`), **not yet submitted**  | 4 ✔ |
+| Phishing using reserved or look-alike slugs     | Reserved-slug list, confusable/homoglyph checks, abuse reporting and suspension                                    | slug tests                                                                                                                                 | 1   |
+| Host header injection / cache poisoning         | Edge accepts only known hostnames; the app never builds absolute URLs from unvalidated Host; cache keys normalised | domains unit (normalisation); redirects and canonical URLs come from `StoreDomain` rows only; E2E: unknown host → 404, `/sv/{other}` → 404 | 4 ✔ |
+
+Milestone 4 adds these storefront rows:
+
+| Threat                                                       | Mitigation                                                                                                                                               | Test                                                                | M   |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | --- |
+| A storefront bug reads drafts, costs or another store        | `storevia_storefront` role: restrictive sellable-only policies, column grants, store scope required, host resolution through one narrow definer function | database `storefront.int.test.ts` + mutation checks (11-testing.md) | 4 ✔ |
+| Choosing the store from the request (path, header, cookie)   | the proxy rewrites every path under the resolved store and signs the context; the layout refuses an unsigned or stale header                             | storefront unit (signed header); E2E `/sv/{other}` → 404            | 4 ✔ |
+| Forged cache invalidation (stale content or cache flushing)  | HMAC over timestamp and body, 5-minute window, well-formed tags only; private address                                                                    | storefront unit `revalidate/route.test.ts` + mutation checks        | 4 ✔ |
+| Preview link reuse on another store, or leaking via referrer | store-bound 15-minute HMAC token; moved into a host-only cookie and removed from the URL with `Referrer-Policy: no-referrer`                             | domains unit; E2E preview flow                                      | 4 ✔ |
+| Cart price tampering or cross-store carts                    | carts hold no prices; server-side pricing; variants validated against the store; token hashed at rest                                                    | commerce `storefront.int.test.ts`; E2E cart                         | 4 ✔ |
+| An old store address taken over by another store             | `StoreSlugHistory`: a retired slug can never be claimed by another store; the old host keeps redirecting                                                 | database and tenancy slug history tests; E2E address change         | 4 ✔ |
 
 ### 4.8 Availability and abuse
 
-| Threat                              | Mitigation                                                                                     | M    |
-| ----------------------------------- | ---------------------------------------------------------------------------------------------- | ---- |
-| Rate abuse / scraping / DoS         | Edge WAF + rate limiting; app-level limits per IP/user/key/store; bounded queries and payloads | 1, 8 |
-| Noisy neighbour                     | Per-tenant quotas; storefront caching; query budgets                                           | 4, 8 |
-| Expensive builder documents         | Node/depth/size limits                                                                         | 4    |
-| Fraudulent stores (phishing, scams) | Abuse reporting, platform-admin review and suspension, signup risk checks                      | 8    |
+| Threat                              | Mitigation                                                                                          | M    |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------- | ---- |
+| Rate abuse / scraping / DoS         | Edge WAF + rate limiting; app-level limits per IP/user/key/store; bounded queries and payloads      | 1, 8 |
+| Noisy neighbour                     | Per-tenant quotas; storefront caching; query budgets (M4: ≤ 8 queries per render, enforced by test) | 4, 8 |
+| Expensive builder documents         | Node/depth/size/data-binding limits in `validateDocument` (M4, editor tests)                        | 4    |
+| Fraudulent stores (phishing, scams) | Abuse reporting, platform-admin review and suspension, signup risk checks                           | 8    |
 
 ### 4.9 Secrets and supply chain
 

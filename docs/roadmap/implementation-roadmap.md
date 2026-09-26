@@ -102,15 +102,15 @@ in [11-testing.md](../architecture/11-testing.md).
 
 Moved out of Milestone 2, with the reason:
 
-| Item                                                                                                       | Now                                           | Why                                                                                                                 |
-| ---------------------------------------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Real providers (Stripe/Razorpay), checkout, billing portal, payment methods, invoices, production webhooks | Commercialisation phase                       | Explicitly deferred by the Milestone 2 revision; they arrive as `BillingProvider` adapters (Q3 decides which first) |
-| M2-04 Worker and job queue                                                                                 | M3                                            | No production webhook traffic yet; the pipeline runs inline and the expiry sweep runs as `pnpm billing:sweep`       |
-| Nightly usage reconciliation job                                                                           | M3 (with the worker)                          | `reconcileUsage` exists and staff can run it per organisation                                                       |
-| M2-11 Pricing page and M1-21 marketing skeleton                                                            | M3                                            | Not part of the revised Milestone 2 scope; the pricing page will read the plan catalogue                            |
-| Merchant self-service plan changes (upgrade/downgrade/cancel)                                              | Commercialisation phase                       | Needs a payment provider; until then plan changes are staff actions                                                 |
-| Storefront behaviour per subscription status (M2-08)                                                       | M4 (storefront engine)                        | No storefront exists yet; the dashboard shows status banners                                                        |
-| MFA/SSO for platform staff                                                                                 | Before platform-admin goes to production (M8) | Doc 04 §6; platform-admin must not be deployed to production before it                                              |
+| Item                                                                                                       | Now                                           | Why                                                                                                                            |
+| ---------------------------------------------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Real providers (Stripe/Razorpay), checkout, billing portal, payment methods, invoices, production webhooks | Commercialisation phase                       | Explicitly deferred by the Milestone 2 revision; they arrive as `BillingProvider` adapters (Q3 decides which first)            |
+| M2-04 Worker and job queue                                                                                 | M3                                            | No production webhook traffic yet; the pipeline runs inline and the expiry sweep runs as `pnpm billing:sweep`                  |
+| Nightly usage reconciliation job                                                                           | M3 (with the worker)                          | `reconcileUsage` exists and staff can run it per organisation                                                                  |
+| M2-11 Pricing page and M1-21 marketing skeleton                                                            | M3                                            | Not part of the revised Milestone 2 scope; the pricing page will read the plan catalogue                                       |
+| Merchant self-service plan changes (upgrade/downgrade/cancel)                                              | Commercialisation phase                       | Needs a payment provider; until then plan changes are staff actions                                                            |
+| Storefront behaviour per subscription status (M2-08)                                                       | Done in M4                                    | ADR-0028 §3: store and organisation status decide availability; an expired subscription falls back to the system-default floor |
+| MFA/SSO for platform staff                                                                                 | Before platform-admin goes to production (M8) | Doc 04 §6; platform-admin must not be deployed to production before it                                                         |
 
 ## Milestone 2.5 status: product experience and commercial foundation
 
@@ -227,6 +227,60 @@ pnpm dev
 - `owner@globex.test` → Globex Home: at a product limit of 3 (a staff
   override), so "Add product" is gone and saving a fourth is refused.
 - `staff@storevia.test` → platform-admin: Acme Supplies → Catalogue.
+
+## Milestone 4 status: storefront engine
+
+**Implemented on `claude/cool-thompson-c7u8qp`, awaiting review** (not
+tagged). Decisions: [ADR-0028](../adr/0028-storefront-engine.md); design:
+[06-storefront.md](../architecture/06-storefront.md); what is proven where:
+[11-testing.md](../architecture/11-testing.md#milestone-4-storefront-engine-what-is-proven-where).
+The Milestone 3 security review was fixed first (`fe2c376`). No page
+builder UI (M5), checkout or orders (M6), themes or custom domains (M7) and
+no payment gateway.
+
+Delivered:
+
+- **Database**: `Page`, `PageVersion`, `Cart`, `CartLine`, `OutboxEvent`
+  and `StoreSlugHistory` with forced RLS; the `storevia_storefront` role
+  (restrictive sellable-only policies, column grants, host resolution and
+  availability through narrow definer functions); outbox triggers on every
+  shopper-visible table (migrations `20261001000000_storefront_engine`,
+  `20261001010000_storefront_outbox`).
+- **`@storevia/editor`** (M4-00): `PageDocument` v1, validation and limits,
+  the component registry, base server renderers and default templates.
+- **`@storevia/domains`**: hostname normalisation, the cached resolver,
+  preview tokens and cache tags.
+- **`@storevia/commerce/storefront`**: public read models and carts.
+- **`apps/storefront`**: proxy (host resolution, canonical redirects,
+  preview exchange, signed store context), home, product, collection,
+  page, search, cart and 404 routes, status pages, sitemap and robots,
+  JSON-LD, and the tag cache with the signed invalidation endpoint.
+- **Worker**: `storefront.outbox-dispatch`.
+- **Dashboard**: store settings → Storefront (go live / coming soon,
+  preview link, store address change with redirects).
+
+Open, with the reason:
+
+| Item                                             | Now           | Why                                                                                                                                                        |
+| ------------------------------------------------ | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Submit `storevia.site` to the Public Suffix List | Operations    | Needs the domain owner; [checklist](../deployment/public-suffix-list.md). Host-only cookies protect stores until then                                      |
+| Product-page JS < 90 kB gzip                     | ADR before M8 | The App Router runtime alone is about 173 kB gzip; store pages ship no application code ([06 §10](../architecture/06-storefront.md#10-performance-budget)) |
+| More than one storefront instance                | M8            | Invalidation reaches one process; needs fan-out or a shared cache handler                                                                                  |
+| Edge caching and purge by tag; LCP measurement   | M8            | Needs the production edge                                                                                                                                  |
+| Handle-change redirects for products and pages   | M5            | Typed links already survive renames; old URLs 404                                                                                                          |
+| Navigation menus                                 | M5            | The header lists collections until menus exist                                                                                                             |
+
+### Running the Milestone 4 storefront locally
+
+After the Milestone 3 steps above (`pnpm db:migrate` picks up the M4
+migrations; `pnpm db:seed:dev` takes Acme Flagship live), `pnpm dev` also
+starts the storefront and the worker:
+
+- <http://acme-flagship.store.localhost:3002>: the live flagship store.
+- Dashboard → Acme Flagship → Settings → Storefront: go live or back to
+  coming soon, open a preview, change the store address.
+- Changes reach the storefront within about 15 seconds (the worker's
+  dispatch interval).
 
 ## Milestone 1 plan (as scheduled at M0)
 

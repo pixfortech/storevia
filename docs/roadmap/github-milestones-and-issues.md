@@ -295,13 +295,13 @@ gateway in this milestone.
 - [x] Raw-body signature verification with replay window; unique event ledger; per-subscription lock; stale-snapshot guard; retries of failed deliveries
 - [x] Tests: invalid signature, replay, invalid schema, duplicate (incl. concurrent), out-of-order, unknown subscription, illegal transition, failure/retry
 
-#### M2-08 Lifecycle behaviour (dashboard ✔, storefront → M4)
+#### M2-08 Lifecycle behaviour ✔ (dashboard M2, storefront M4)
 
 `area:billing` `type:feature` `priority:p1`
 
 - [x] Source-independent state machine; time-aware entitlement rule; expiry sweep
 - [x] Dashboard banners for past-due, cancelled and over-limit states
-- [ ] Storefront availability per status (M4)
+- [x] Storefront availability per status (M4)
 
 #### M2-09 Billing page (informational) ✔
 
@@ -348,17 +348,17 @@ gateway in this milestone.
 
 ## Milestone 4 — Storefront engine
 
-- **M4-00** `@storevia/editor` document + render entry points: `PageDocument` v1 schema, validation and limits, component registry, base renderers (moved forward from M5-01/M5-02) — `area:editor`
-- **M4-01** `@storevia/domains`: hostname normalisation, reserved slugs, resolver with cache — `area:domains` `security`
-- **M4-02** Storefront app: proxy, internal routing guard, status pages, canonical redirects — `area:storefront` `security`
-- **M4-03** Storefront read models (public DTOs only) — `area:storefront` `tenant-isolation`
-- **M4-04** Storefront routes (home, product, collection, search, 404) rendered with the M4-00 renderers and default theme tokens — `area:storefront`
-- **M4-05** Cart: token cookie, server actions, server-side subtotal — `area:storefront`
-- **M4-06** Caching with tags + outbox-driven invalidation — `area:storefront`
-- **M4-07** SEO: sitemap, robots, canonical URLs, JSON-LD — `area:storefront`
-- **M4-08** Signed preview tokens — `area:storefront` `security`
-- **M4-09** Performance budget checks and DB query-count test harness — `type:test`
-- **M4-10** Submit `storevia.site` to the Public Suffix List; store slug history — `area:domains` `security`
+- **M4-00** ✔ `@storevia/editor` document + render entry points: `PageDocument` v1 schema, validation and limits, component registry, base renderers (moved forward from M5-01/M5-02) — `area:editor`
+- **M4-01** ✔ `@storevia/domains`: hostname normalisation, reserved slugs, resolver with cache — `area:domains` `security`
+- **M4-02** ✔ Storefront app: proxy, internal routing guard, status pages, canonical redirects — `area:storefront` `security`
+- **M4-03** ✔ Storefront read models (public DTOs only) — `area:storefront` `tenant-isolation`
+- **M4-04** ✔ Storefront routes (home, product, collection, search, 404) rendered with the M4-00 renderers and default theme tokens — `area:storefront`
+- **M4-05** ✔ Cart: token cookie, server actions, server-side subtotal — `area:storefront`
+- **M4-06** ✔ Caching with tags + outbox-driven invalidation — `area:storefront`
+- **M4-07** ✔ SEO: sitemap, robots, canonical URLs, JSON-LD — `area:storefront`
+- **M4-08** ✔ Signed preview tokens — `area:storefront` `security`
+- **M4-09** ✔ Performance budget checks and DB query-count test harness (query budget and "no client code" enforced; the 90 kB JS budget is not met by the framework runtime, see 06 §10) — `type:test`
+- **M4-10** Submit `storevia.site` to the Public Suffix List; store slug history (slug history ✔; PSL checklist written, submission is an operational step still open) — `area:domains` `security`
 
 ## Milestone 5 — Page builder
 

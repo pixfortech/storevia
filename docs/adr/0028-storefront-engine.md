@@ -187,7 +187,7 @@ query-count test harness (M4-09).
   tables, so no service (dashboard, platform staff, worker, or one written
   later) can forget to. Payloads hold ids only; services can neither write
   nor read events directly.
-- The worker's `outbox.dispatch` job claims undispatched events
+- The worker's `storefront.outbox-dispatch` job claims undispatched events
   (`FOR UPDATE SKIP LOCKED`) every 15 seconds, maps them to tags and posts
   them to the storefront's `/api/internal/revalidate`, signed with
   `STOREFRONT_REVALIDATE_SECRET` over a timestamp and the body (stale or

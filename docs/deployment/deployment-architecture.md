@@ -98,6 +98,46 @@ media response. Uploads use S3 POST policies; confirm the provider enforces
 `content-length-range` and exact `Content-Type` conditions before switching
 providers.
 
+### Storefront (Milestone 4)
+
+What operating `apps/storefront` needs (ADR-0028):
+
+| Setting                        | Used by               | Notes                                                                                                                                                                                                         |
+| ------------------------------ | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_STOREFRONT_URL`      | storefront            | the `storevia_storefront` role: `LOGIN NOBYPASSRLS`, no other attributes. Grants come from migrations. Through the pooler in transaction mode, like the app role                                              |
+| `STOREFRONT_ROOT_DOMAIN`       | storefront, dashboard | `storevia.site` in production; store hosts are `{slug}.{root}`                                                                                                                                                |
+| `STOREFRONT_PROTOCOL`          | storefront, dashboard | unset (HTTPS) everywhere but plain-HTTP local and CI runs, which set `http`                                                                                                                                   |
+| `STOREFRONT_PREVIEW_SECRET`    | storefront, dashboard | ≥ 32 random characters. Signs preview links; the storefront derives its internal header key from it with a separate label                                                                                     |
+| `STOREFRONT_REVALIDATE_SECRET` | storefront, worker    | ≥ 32 random characters, different from the preview secret. Signs cache invalidations                                                                                                                          |
+| `STOREFRONT_INTERNAL_URL`      | worker                | the storefront's private address (not through the edge). Required outside development and test: without it every dispatch run fails (visible in staff job health)                                             |
+| `TRUSTED_CLIENT_IP_HEADER`     | storefront            | the header the edge sets to the client address (e.g. `CF-Connecting-IP`). **Set it in every deployed environment**: without it only existing carts are rate limited, and creating carts is not limited at all |
+
+- **Edge:** forward the original `Host` header, overwrite the client-IP
+  header named above, and don't forward `/api/internal/*` from the public
+  internet (it is signed and time-limited anyway). Store HTML is dynamic
+  (`no-store` for previews, carts and status pages); edge caching of
+  store pages and purge by tag are M8.
+- **HSTS:** the storefront sends `Strict-Transport-Security:
+max-age=31536000` on every host it serves, without `includeSubDomains`
+  or `preload`, because custom domains belong to merchants and those
+  directives would force HTTPS onto their other subdomains. The
+  `storevia.site` apex (served by the edge, not the storefront) carries
+  `includeSubDomains; preload` as the
+  [threat model §5](../security/threat-model.md#5-security-headers-all-web-apps)
+  requires, which covers every store subdomain. The edge must not add
+  `includeSubDomains` to custom-domain responses.
+- **One instance for now:** the page-data cache and the host cache are per
+  process, and the worker posts each invalidation to one URL. With more
+  than one storefront instance, the others would keep serving changed or
+  removed content until their 5-minute TTL. Run a single instance (with a
+  restart policy) until invalidations are fanned out to every instance or
+  a shared cache handler is added (M8).
+- **Outbox:** the worker's `storefront.outbox-dispatch` job runs every 15
+  seconds and purges dispatched events after 7 days. A growing count of
+  undispatched events means the storefront is unreachable or refusing the
+  signature; `storefront.outbox_dispatched` is recorded as a metric.
+- **Public Suffix List:** see [public-suffix-list.md](./public-suffix-list.md).
+
 Custom domain flow (M7): merchant adds hostname → Storevia shows DNS
 instructions (CNAME `shops.storevia.site` for subdomains; A/ALIAS records or
 a CNAME-flattening provider for apex domains) and a TXT verification record →
