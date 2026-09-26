@@ -34,6 +34,7 @@ Accepted, Superseded by ADR-XXXX, Deprecated.
 | [0026](./0026-evergreen-toolchain-and-controlled-updates.md)      | Evergreen toolchain and controlled updates                         | Accepted |
 | [0027](./0027-commerce-catalogue-and-inventory.md)                | Commerce catalogue and inventory (Milestone 3)                     | Accepted |
 | [0028](./0028-storefront-engine.md)                               | Storefront engine (Milestone 4)                                    | Accepted |
+| [0029](./0029-site-engine-and-commerce-composition.md)            | Site Engine and Storevia Commerce composition                      | Accepted |
 
 ADRs 0002–0019 were accepted with the Milestone 0 review on 2026-09-24.
 ADRs 0020–0021 were recorded during Milestone 1 and ADR-0022 for the Milestone 2

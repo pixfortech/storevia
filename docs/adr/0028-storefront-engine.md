@@ -5,6 +5,10 @@
 - Refines: ADR-0011 (page documents), ADR-0012 (themes and pages),
   ADR-0013 (one storefront), ADR-0016 (hosting, domains), ADR-0020 (staged
   schema), ADR-0022 (subscription lifecycle)
+- Refined by: [ADR-0029](./0029-site-engine-and-commerce-composition.md)
+  (generic Site Engine separated from commerce; package boundaries in §13,
+  cache-tag ownership in §9 and the performance budget are superseded
+  there)
 
 ## Context
 
