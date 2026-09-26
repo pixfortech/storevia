@@ -1,4 +1,5 @@
 import { PrismaPg } from "@prisma/adapter-pg";
+import pg from "pg";
 import { PrismaClient } from "./generated/prisma/client";
 
 export type DatabaseRole =
@@ -33,10 +34,45 @@ export function onDatabaseQuery(listener: QueryListener): () => void {
   return () => queryListeners.delete(listener);
 }
 
+/**
+ * A pg client that runs promise-style queries one at a time.
+ *
+ * Prisma's query interpreter loads included relations in parallel. Inside an
+ * interactive transaction (every withTenant call, where the RLS settings
+ * live) all of them go through the transaction's single connection, and pg
+ * queues the overlapping calls with a deprecation warning; pg@9 refuses
+ * them. Chaining each call after the previous one keeps the transaction on
+ * its one connection (so its RLS scope is untouched) and never has two
+ * queries in flight on it. Callback-style calls (the pool's own) and
+ * submittables (cursors) pass straight through.
+ */
+// Always called with an explicit client via apply(), never detached.
+// eslint-disable-next-line @typescript-eslint/unbound-method
+const baseQuery = pg.Client.prototype.query as (this: pg.Client, ...args: unknown[]) => unknown;
+
+export class SerialClient extends pg.Client {
+  #tail: Promise<unknown> = Promise.resolve();
+
+  // Typed as a pass-through: pg's query has a dozen overloads and this only
+  // reorders calls, it never changes what is sent or returned.
+  override query(...args: unknown[]): never {
+    const [config, values, callback] = args;
+    const submittable = typeof config === "object" && config !== null && "submit" in config;
+    if (submittable || typeof values === "function" || typeof callback === "function") {
+      return baseQuery.apply(this, args) as never;
+    }
+    const run = () => baseQuery.apply(this, args) as Promise<unknown>;
+    const result = this.#tail.then(run, run);
+    this.#tail = result.catch(() => undefined);
+    return result as never;
+  }
+}
+
 export function createPrismaClient(connectionString: string): PrismaClient {
   const adapter = new PrismaPg({
     connectionString,
     max: Number(process.env["DATABASE_POOL_MAX"] ?? 10),
+    Client: SerialClient,
   });
   if (process.env["STOREVIA_QUERY_EVENTS"] !== "1") return new PrismaClient({ adapter });
   const client = new PrismaClient({ adapter, log: [{ emit: "event", level: "query" }] });
