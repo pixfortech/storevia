@@ -103,7 +103,12 @@ describe("releasesByDay", () => {
   });
 
   it("names the tagged milestones, oldest first", () => {
-    expect(taggedMilestones()).toEqual(["Milestone 0", "Milestone 1", "Milestone 2"]);
+    expect(taggedMilestones()).toEqual([
+      "Milestone 0",
+      "Milestone 1",
+      "Milestone 2",
+      "Milestone 3",
+    ]);
   });
 });
 

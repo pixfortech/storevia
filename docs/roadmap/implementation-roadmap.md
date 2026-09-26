@@ -78,7 +78,8 @@ regression tests and recorded as ADR-0022 amendments A1–A10. All four CI
 jobs were green before the tag.
 
 Recovery points: `milestone-0` (architecture baseline), `milestone-1`
-(commit `d3ccbf9`, platform foundation), `milestone-2`.
+(commit `d3ccbf9`, platform foundation), `milestone-2`, `milestone-3`
+(commit `32ca558`, commerce catalogue).
 
 Revised before implementation: payment-gateway registration is pending, so
 **no real payment gateway is integrated in Milestone 2**
@@ -166,8 +167,10 @@ the responsive mode of the developer tools.
 
 ## Milestone 3 status: commerce catalogue
 
-**Built. Waiting at the Milestone 3 review.** Storefront (M4), Orders and
-Checkout (M6) and the Visual Builder (M5) have not started. No payment
+**Complete** (tag `milestone-3`). Approved and closed on 2026-09-26; the
+final Milestone 3 head is `32ca558` (committed 2026-09-25), with CI green
+and no secrets found by gitleaks. Storefront (M4), Orders and Checkout (M6)
+and the Visual Builder (M5) have not started. No payment
 gateway or POS work was done, and no sales, orders or revenue figures exist
 anywhere in the product.
 
@@ -208,7 +211,7 @@ Moved out of Milestone 3, with the reason:
 | docker compose with MinIO                            | Open                         | Container registries were unreachable in the build environment; S3 signing is unit-tested |
 | Purge of deleted media objects and soft-deleted rows | With the data-lifecycle jobs | [data-lifecycle.md](../database/data-lifecycle.md); nothing is hard-deleted in M3         |
 
-### Milestone 3 review (how to run it)
+### Running the Milestone 3 catalogue locally
 
 ```sh
 git fetch origin claude/cool-thompson-c7u8qp && git checkout claude/cool-thompson-c7u8qp

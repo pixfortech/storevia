@@ -24,9 +24,10 @@ export const RELEASES: readonly Release[] = [
     date: "2026-09-25",
     label: "Milestone 3",
     title: "Catalogue, inventory and media",
-    status: "in-progress",
+    status: "released",
+    tag: "milestone-3",
     summary:
-      "Stores get real product data: products with variants, stock by location with a full history, and a media library. Built and tested; waiting for its review before release.",
+      "Stores get real product data: products with variants, stock by location with a full history, and a media library.",
     changes: [
       "Products with descriptions, options, variants, prices, SKUs and barcodes, saved as drafts until you activate them, and archived rather than deleted",
       "Collections you arrange by hand",
