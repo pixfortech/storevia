@@ -65,6 +65,13 @@ const ALLOWED_METADATA_KEYS = new Set([
   "filename",
   "bytes",
   "note",
+  // Site presentation (ADR-0030): identifiers and counts, never documents.
+  "kind",
+  "versionNumber",
+  "sections",
+  "preset",
+  "menu",
+  "items",
 ]);
 
 /** Longer free text allowed for these keys (staff-entered reasons). */

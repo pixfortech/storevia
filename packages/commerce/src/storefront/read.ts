@@ -530,7 +530,12 @@ export class StorefrontReader {
       `${JSON.stringify(source)}:${String(limit)}`;
     const limitOf = (limit: number) =>
       Math.min(Math.max(Math.trunc(limit), 1), MAX_COLLECTION_LIST);
-    interface Row { id: string; handle: string; title: string; image: ImageRow | null }
+    interface Row {
+      id: string;
+      handle: string;
+      title: string;
+      image: ImageRow | null;
+    }
     const cardOf = (row: Row): CollectionCardDto => ({
       id: toTypeId("collection", row.id),
       handle: row.handle,

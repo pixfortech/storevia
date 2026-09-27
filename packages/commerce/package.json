@@ -11,7 +11,8 @@
     "./variants": "./src/variants.ts",
     "./storefront": "./src/storefront/index.ts",
     "./storefront/cache-tags": "./src/storefront/cache-tags.ts",
-    "./blocks": "./src/blocks/index.ts"
+    "./blocks": "./src/blocks/index.ts",
+    "./site": "./src/site.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -24,7 +25,8 @@
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "@storevia/site-admin": "workspace:*"
   },
   "dependencies": {
     "@storevia/database": "workspace:*",

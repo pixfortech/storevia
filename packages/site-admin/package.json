@@ -1,0 +1,30 @@
+{
+  "name": "@storevia/site-admin",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests --exclude \"tests/**\"",
+    "test:integration": "vitest run --config vitest.int.config.ts"
+  },
+  "dependencies": {
+    "@storevia/database": "workspace:*",
+    "@storevia/editor": "workspace:*",
+    "@storevia/entitlements": "workspace:*",
+    "@storevia/observability": "workspace:*",
+    "@storevia/site-engine": "workspace:*",
+    "@storevia/tenancy": "workspace:*",
+    "@storevia/types": "workspace:*",
+    "server-only": "0.0.1",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.6",
+    "@types/react": "19.3.0",
+    "vitest": "4.1.11"
+  }
+}

@@ -469,6 +469,9 @@ importers:
         specifier: 4.6.5
         version: 4.6.5
     devDependencies:
+      '@storevia/site-admin':
+        specifier: workspace:*
+        version: link:../site-admin
       '@types/react':
         specifier: 19.3.0
         version: 19.3.0
@@ -660,6 +663,46 @@ importers:
         specifier: 0.0.1
         version: 0.0.1
     devDependencies:
+      vitest:
+        specifier: 4.1.11
+        version: 4.1.11(@types/node@24.13.6)(vite@8.3.0(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
+
+  packages/site-admin:
+    dependencies:
+      '@storevia/database':
+        specifier: workspace:*
+        version: link:../database
+      '@storevia/editor':
+        specifier: workspace:*
+        version: link:../editor
+      '@storevia/entitlements':
+        specifier: workspace:*
+        version: link:../entitlements
+      '@storevia/observability':
+        specifier: workspace:*
+        version: link:../observability
+      '@storevia/site-engine':
+        specifier: workspace:*
+        version: link:../site-engine
+      '@storevia/tenancy':
+        specifier: workspace:*
+        version: link:../tenancy
+      '@storevia/types':
+        specifier: workspace:*
+        version: link:../types
+      server-only:
+        specifier: 0.0.1
+        version: 0.0.1
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
+    devDependencies:
+      '@types/node':
+        specifier: 24.13.6
+        version: 24.13.6
+      '@types/react':
+        specifier: 19.3.0
+        version: 19.3.0
       vitest:
         specifier: 4.1.11
         version: 4.1.11(@types/node@24.13.6)(vite@8.3.0(@types/node@24.13.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15))
