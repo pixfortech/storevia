@@ -35,6 +35,7 @@ Accepted, Superseded by ADR-XXXX, Deprecated.
 | [0027](./0027-commerce-catalogue-and-inventory.md)                | Commerce catalogue and inventory (Milestone 3)                     | Accepted |
 | [0028](./0028-storefront-engine.md)                               | Storefront engine (Milestone 4)                                    | Accepted |
 | [0029](./0029-site-engine-and-commerce-composition.md)            | Site Engine and Storevia Commerce composition                      | Accepted |
+| [0030](./0030-site-presentation-builder-themes-navigation.md)     | Site presentation: structured builder, theme engine and navigation | Accepted |
 
 ADRs 0002–0019 were accepted with the Milestone 0 review on 2026-09-24.
 ADRs 0020–0021 were recorded during Milestone 1 and ADR-0022 for the Milestone 2
