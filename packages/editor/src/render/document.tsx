@@ -2,7 +2,7 @@
 // collecting everything the page needs before it renders (06 §4): one walk
 // gathers the data requests, typed links and media references, so the host
 // resolves each kind in one batch instead of per node.
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import type { LinkTarget } from "../document/refs";
 import { collectRefs } from "../document/refs";
 import type { BuilderNode, PageDocument } from "../document/types";
@@ -85,12 +85,26 @@ export function RenderDocument<C extends SiteRenderContext>({
   document,
   registry,
   ctx,
+  wrapSection,
 }: {
   document: PageDocument;
   registry: Registry<C>;
   ctx: C;
+  /** The builder canvas wraps each section (selection, outlines); the public site never does. */
+  wrapSection?: (node: BuilderNode, position: number, content: ReactNode) => ReactNode;
 }) {
-  return <>{document.root.map((node, i) => renderNode(node, registry, ctx, i))}</>;
+  return (
+    <>
+      {document.root.map((node, i) => {
+        const content = renderNode(node, registry, ctx, i);
+        return wrapSection ? (
+          <Fragment key={node.id}>{wrapSection(node, i, content)}</Fragment>
+        ) : (
+          content
+        );
+      })}
+    </>
+  );
 }
 
 /**

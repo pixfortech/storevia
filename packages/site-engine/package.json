@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./base-css": "./src/base-css.ts",
     "./cache": "./src/cache.ts",
     "./cache-tags": "./src/cache-tags.ts",
     "./context": "./src/context.ts",

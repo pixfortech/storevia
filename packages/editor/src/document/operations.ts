@@ -4,7 +4,6 @@
 // most DOCUMENT_LIMITS.maxSections sections; known section types), so the
 // builder can never produce an impossible state. Only top-level sections
 // are edited; their settings are their props.
-import type { Registry } from "../registry/types";
 import {
   DOCUMENT_LIMITS,
   NODE_ID_RE,
@@ -65,7 +64,9 @@ const withRoot = (document: PageDocument, root: readonly BuilderNode[]): PageDoc
 
 /** A section of a registered section type, with its default settings. */
 export function createSection(
-  registry: Pick<Registry, "get">,
+  registry: {
+    get(type: string): { readonly section?: boolean; readonly defaultProps: unknown } | undefined;
+  },
   type: string,
   document: PageDocument,
   generate: () => string = newNodeId,

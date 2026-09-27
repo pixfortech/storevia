@@ -56,6 +56,9 @@ importers:
       '@storevia/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@storevia/editor':
+        specifier: workspace:*
+        version: link:../../packages/editor
       '@storevia/email':
         specifier: workspace:*
         version: link:../../packages/email
@@ -71,6 +74,12 @@ importers:
       '@storevia/security':
         specifier: workspace:*
         version: link:../../packages/security
+      '@storevia/site-admin':
+        specifier: workspace:*
+        version: link:../../packages/site-admin
+      '@storevia/site-engine':
+        specifier: workspace:*
+        version: link:../../packages/site-engine
       '@storevia/tenancy':
         specifier: workspace:*
         version: link:../../packages/tenancy
