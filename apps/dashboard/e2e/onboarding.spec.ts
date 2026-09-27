@@ -35,8 +35,12 @@ test("a new user registers, creates an organisation as OWNER, creates the first 
   const row = page.getByTestId("member-row").filter({ hasText: tenant.email });
   await expect(row.getByText("Owner", { exact: true })).toBeVisible();
 
-  // Placeholders are clearly marked and have no controls.
+  // Orders are live: a new store has none yet, and says so.
   await page.goto(`${tenant.storePath}/orders`);
-  await expect(page.getByText("Orders is coming in Milestone 6")).toBeVisible();
+  await expect(page.getByText("No orders yet")).toBeVisible();
+
+  // Areas still to come are clearly marked and have no controls.
+  await page.goto(`${tenant.storePath}/posts`);
+  await expect(page.getByText("Posts is coming in a later release")).toBeVisible();
   await expect(page.getByRole("main").getByRole("button")).toHaveCount(0);
 });

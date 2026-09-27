@@ -68,7 +68,9 @@ test("a VIEWER gets permission-aware navigation and read-only settings", async (
   await expect(member.getByLabel("Store name")).toBeDisabled();
   await expect(member.getByRole("button", { name: "Save changes" })).toHaveCount(0);
   await member.goto(`${A.storePath}/orders`);
-  await expect(member.getByText("You don't have access to this area")).toBeVisible();
+  await expect(member.getByText("You don't have access to orders")).toBeVisible();
+  await member.goto(`${A.storePath}/customers`);
+  await expect(member.getByText(/You don't have access to customers/)).toBeVisible();
   await member.goto(`${A.orgPath}/members`);
   await expect(member.getByText("You don't have access to the member list")).toBeVisible();
   await member.goto(`${A.orgPath}/stores/new`);
