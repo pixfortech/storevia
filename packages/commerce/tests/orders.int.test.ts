@@ -317,7 +317,10 @@ describe("fulfilment", () => {
       available: before.available - 3,
       reserved: before.reserved + 2,
     });
-    await expectCode(fulfilOrder(s, id, { lines: [{ lineId, quantity: 3 }] }), "CONFLICT");
+    await expect(fulfilOrder(s, id, { lines: [{ lineId, quantity: 3 }] })).rejects.toMatchObject({
+      code: "CONFLICT",
+      message: "Only 2 of tee are left to fulfil.",
+    });
     await expectCode(
       fulfilOrder(s, id, { trackingUrl: "javascript:alert(1)" }),
       "VALIDATION_FAILED",
@@ -403,6 +406,32 @@ describe("refunds", () => {
     await refundOrder(s, id, { amount: (Number(remaining) / 100).toFixed(2) });
     expect((await getOrder(s, id)).paymentStatus).toBe("REFUNDED");
     await expectCode(refundOrder(s, id, { amount: "1" }), "VALIDATION_FAILED");
+  });
+
+  it("a refund the provider hasn't confirmed still counts against the bound", async () => {
+    const id = await placeOrder([["cap", 1]]);
+    const s = storeOf(a);
+    const orderId = parseTypeId("order", id) ?? "";
+    const payment = await migratorDb().payment.findFirstOrThrow({ where: { orderId } });
+    // An earlier refund still waiting for the provider (e.g. a timeout on its call).
+    await migratorDb().refund.create({
+      data: {
+        organisationId: payment.organisationId,
+        storeId: payment.storeId,
+        orderId,
+        paymentId: payment.id,
+        status: "PENDING",
+        currency: payment.currency,
+        amount: 10000n,
+        idempotencyKey: `refund:pending-${orderId}`,
+      },
+    });
+    const refundable = (await getOrder(s, id)).payments[0]?.refundable.amount;
+    expect(refundable).toBe((payment.capturedAmount - 10000n).toString());
+    const total = (Number(payment.capturedAmount) / 100).toFixed(2);
+    await expect(refundOrder(s, id, { amount: total })).rejects.toMatchObject({
+      code: "VALIDATION_FAILED",
+    });
   });
 
   it("two refunds of the full amount at once: exactly one goes through", async () => {

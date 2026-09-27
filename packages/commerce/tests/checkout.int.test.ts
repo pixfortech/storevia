@@ -453,8 +453,23 @@ describe("paying and creating the order", () => {
     ).toEqual(["order.created", "order.paid"]);
 
     // Snapshots are immutable, even for the migrator.
+    // (Fields no CHECK constrains, so only the immutability trigger refuses them.)
     await expect(
-      db.order.update({ where: { id: order.id }, data: { totalAmount: 1n } }),
+      db.order.update({ where: { id: order.id }, data: { email: "changed@example.test" } }),
+    ).rejects.toThrow(/immutable|can't change|cannot/i);
+    await expect(
+      db.orderLine.update({
+        where: { id: order.lines[0]?.id ?? "" },
+        data: { productTitle: "Something else" },
+      }),
+    ).rejects.toThrow();
+    // A payment can never be refunded beyond what it captured.
+    const paid = await db.payment.findFirstOrThrow({ where: { orderId: order.id } });
+    await expect(
+      db.payment.update({
+        where: { id: paid.id },
+        data: { refundedAmount: paid.capturedAmount + 1n },
+      }),
     ).rejects.toThrow();
 
     // A second order from the same customer email reuses the customer.
