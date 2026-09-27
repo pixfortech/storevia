@@ -9,12 +9,18 @@
 //   owner@globex.test    OWNER of "Globex Home" (Starter trial; store: globex-home)
 //   staff@storevia.test  Platform staff (SUPER_ADMIN), signs in at PLATFORM_ADMIN_URL
 //
-// Catalogue (seed-catalogue.ts, fictional, no sales):
+// Catalogue (seed-catalogue.ts, fictional):
 //   acme-flagship  7 products (5 active, 1 draft, 1 archived), 12 variants, two
 //                  collections, Main location and Bengaluru warehouse, one
 //                  product low on stock and two variants out of stock; its
 //                  storefront is live at http://acme-flagship.store.localhost:3002
 //   globex-home    3 products, at a product limit of 3 (staff override)
+//
+// Commerce (seed-commerce.ts, Milestone 6): acme-flagship ships within India
+// (Standard ₹60, free from ₹1,999), prices include 18% GST, discount codes
+// WELCOME10 / FLAT200 / ONEUSE / SPRING (ended) / LAUNCH (scheduled), the Test
+// Payment Provider is connected, and orders #1001 (paid), #1002 (shipped)
+// and #1003 (partly refunded) were placed through the real checkout.
 //
 // Plans are assigned through the real Subscription Service as that staff
 // member (ADR-0022), exactly as platform-admin would.
@@ -39,6 +45,7 @@ import { requirePlatformStaff, type PlatformContext } from "@storevia/tenancy/pl
 import { toTypeId, uuidv7 } from "@storevia/types";
 import pg from "pg";
 import { seedAcmeCatalogue, seedGlobexAtLimit } from "./seed-catalogue";
+import { seedAcmeCommerce } from "./seed-commerce";
 
 const rootEnv = resolve(import.meta.dirname, "../../../.env");
 if (existsSync(rootEnv)) process.loadEnvFile(rootEnv);
@@ -208,8 +215,11 @@ async function main(): Promise<void> {
     if (!found) throw new Error(`store ${slug} is missing`);
     return requireStoreAccess(owner, toTypeId("store", found.id));
   };
-  if (await seedAcmeCatalogue(await storeContext(acmeOwner, acmeId, "acme-flagship")))
-    console.log("Seeded the Acme Flagship catalogue.");
+  const flagship = await storeContext(acmeOwner, acmeId, "acme-flagship");
+  if (await seedAcmeCatalogue(flagship)) console.log("Seeded the Acme Flagship catalogue.");
+  if (await seedAcmeCommerce(flagship)) {
+    console.log("Seeded Acme Flagship shipping, tax, discount codes, test payments and orders.");
+  }
   if (
     await seedGlobexAtLimit(
       staffCtx,

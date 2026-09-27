@@ -86,11 +86,18 @@ per-entity policies; the values below are defaults.
 | Sessions, verifications                          | Until expiry + 7 days                                               | Daily cleanup                                                                                                 |
 | Webhook delivery attempts                        | 30 days                                                             | Daily cleanup                                                                                                 |
 | Inbound webhook events (billing/payments)        | 90 days                                                             | Daily cleanup                                                                                                 |
-| Carts / abandoned checkouts                      | 90 days                                                             | Daily cleanup                                                                                                 |
+| Carts                                            | 90 days                                                             | Daily cleanup                                                                                                 |
+| Expired checkouts (email, addresses, quote)      | 30 days after expiry, then contact details and the quote are erased | `checkout.purge` worker job (M6); the row keeps ids, status and amounts                                       |
+| Order notification queue                         | With the order                                                      | Sent rows keep kind, recipient and timestamps only (no content)                                               |
 | Cancelled/expired organisations                  | 90 days after expiry → export offered → purge of non-financial data | Organisation deletion workflow                                                                                |
 | Backups                                          | 35 days PITR + monthly snapshots for 12 months                      | Managed database                                                                                              |
 
 ## 5. Erasure requests (storefront customers)
+
+> Milestone 6 stores guest customers (one per store and email) with name,
+> email and phone copied from their orders, plus a merchant note and tags.
+> The erasure workflow below is not built yet (M8); until then it is a
+> documented manual procedure run by staff.
 
 A merchant (or Storevia on the merchant's behalf) can erase a customer:
 `Customer` PII fields are nulled and `anonymisedAt` set; addresses deleted;

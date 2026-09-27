@@ -1616,6 +1616,6 @@ GRANT UPDATE (email, "shippingAddress", "billingAddress", quote, "updatedAt") ON
 GRANT SELECT (id, "organisationId", "storeId", "checkoutId", status, "expiresAt") ON "Payment" TO storevia_worker;
 GRANT SELECT, UPDATE (status, attempts, "nextAttemptAt", "lastError", "sentAt", "updatedAt")
   ON "OrderNotification" TO storevia_worker;
-GRANT SELECT ON "Order", "OrderLine", "OrderAddress", "OrderShippingLine", "Refund", "Fulfilment"
-  TO storevia_worker;
+GRANT SELECT ON "Order", "OrderLine", "OrderAddress", "OrderShippingLine", "Refund", "Fulfilment",
+  "FulfilmentLine" TO storevia_worker;
 GRANT SELECT (name, currency, locale) ON "Store" TO storevia_worker;

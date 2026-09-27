@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { cartStore, cartToken } from "@/lib/cart";
 import { isBrowsable, requestStore } from "@storevia/site-engine/request";
+import { startCheckoutAction } from "../checkout/actions";
 import { removeCartLineAction, updateCartLineAction } from "./actions";
 
 // The cart (06-storefront.md §3: dynamic, private, no-store). Prices are
@@ -17,6 +18,7 @@ const ERRORS: Record<string, string> = {
   unavailable: "That item is no longer available.",
   busy: "Too many changes at once. Please wait a moment and try again.",
   full: "Your cart is full. Remove something before adding more.",
+  checkout: "We couldn't start checkout. Your cart may be empty or have changed; please try again.",
 };
 
 interface Props {
@@ -107,9 +109,12 @@ export default async function CartPage({ params, searchParams }: Props) {
               Items that are no longer available aren't included in the subtotal.
             </p>
           ) : null}
-          <p className="sv-muted">
-            Taxes and shipping are calculated at checkout. Checkout isn&apos;t available yet.
-          </p>
+          <p className="sv-muted">Taxes and shipping are calculated at checkout.</p>
+          <form action={startCheckoutAction}>
+            <button className="sv-button" type="submit">
+              Check out
+            </button>
+          </form>
         </>
       )}
     </main>

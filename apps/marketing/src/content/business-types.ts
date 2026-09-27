@@ -34,7 +34,7 @@ const when = (area: keyof typeof STORE_AREAS) =>
 export const SOLUTION_COPY: Readonly<Record<BusinessType, { headline: string; lead: string }>> = {
   ECOMMERCE: {
     headline: "A store run from one place",
-    lead: `Your navigation starts with orders, products and customers, and your store's home with your catalogue and storefront. The catalogue arrives in ${when("products")}, and checkout and orders in ${when("orders")}.`,
+    lead: "Your navigation starts with orders, products and customers, and your store's home with your sales and stock. Shoppers check out on your storefront and pay through your own provider.",
   },
   BUSINESS: {
     headline: "A professional website, without the clutter",

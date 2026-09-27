@@ -11,6 +11,10 @@
 > the refinements (archive instead of delete, the reconciliation of option
 > edits, `product_limit` and `media_storage` as gauges, the single inventory
 > write path). Everything from carts onwards is Milestone 6.
+>
+> **Milestone 6 status:** carts through refunds are implemented as decided in
+> [ADR-0031](../adr/0031-checkout-orders-payments.md). Where the baseline
+> below differs, the ADR and the summary in §11 win.
 
 ## 1. Money
 
@@ -212,3 +216,26 @@ parallel checkouts with `DENY`); discount rule table; tax inclusive and
 exclusive; quote recomputation detects price change; idempotent order
 creation under webhook/redirect race; refund totals never exceed captured
 amounts.
+
+## 11. As built in Milestone 6 (ADR-0031)
+
+What the sections above describe, as implemented, with the refinements:
+
+| Area                  | Implementation                                                                                                                        | Refinement of the baseline                                                                                                                                                                                                                          |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pricing (§4)          | `priceCheckout()` in `commerce/src/checkout/pricing.ts`, pure; `quoteHash()` over the quote                                           | One code discount per checkout; no automatic discounts; manual tax only (country + optional region rates, inclusive or exclusive, optional shipping tax)                                                                                            |
+| Checkout (§5)         | `commerce/src/checkout/service.ts` under the `storevia_checkout` role                                                                 | Reservation happens in `beginPayment`, with the payment row, before any provider call; the attempt window is 15 minutes, the checkout 60 minutes after its last change                                                                              |
+| Order creation (§5.4) | `commerce/src/checkout/confirm.ts`                                                                                                    | Idempotent per checkout; outbox events come from database triggers, not the service; the audit trail is the order timeline (`OrderEvent`) because the shopper has no user identity                                                                  |
+| Late capture (§5.5)   | Expiry sweep asks the provider first; a later capture re-claims stock                                                                 | Not configurable: an order is always created, with `stockShortage` when stock had to go negative                                                                                                                                                    |
+| Orders (§6)           | `commerce/src/orders/{read,manage}.ts`                                                                                                | `status` (`OPEN`/`CANCELLED`) replaces the `CANCELLED` fulfilment status; cancellation only while nothing is fulfilled                                                                                                                              |
+| Payments (§7)         | `packages/payments`: `createPayment`, `getPayment`, `verifyReturn`, `verifyWebhook`, `parseWebhook`, `cancelPayment`, `refundPayment` | Automatic capture only (no `authorise`/`capture` split); first provider Razorpay Payment Links with the merchant's own keys (AES-256-GCM, bound to the connection); the test provider's outcomes are chosen on its hosted page, not by card numbers |
+| Discounts (§8)        | `commerce/src/settings/discounts.ts`                                                                                                  | `CODE`, order-wide `PERCENTAGE`/`FIXED_AMOUNT`, minimum subtotal, dates, active flag, total usage limit (reserved at payment start under the discount row lock). Targeting, per-customer limits, free shipping and combinability are later          |
+| Customers (§9)        | `commerce/src/customers.ts`                                                                                                           | Created only at checkout, one per store and email (case-insensitive); merchants keep a note and tags; no consent is stored or inferred                                                                                                              |
+| Refunds               | `refundOrder()`                                                                                                                       | Bounded by captured − (succeeded + pending) under the payment row lock; the provider is called after commit; restock only for fulfilled units, explicitly per line                                                                                  |
+| Fulfilment            | `fulfilOrder()`                                                                                                                       | Per-line quantities under row locks and a conditional update; reserved stock ships from the reservation's location                                                                                                                                  |
+| Emails                | `commerce/src/orders/notifications.ts`, worker job `orders.notifications`                                                             | Queued in the changing transaction, sent at least once with backoff; a failure never touches the order                                                                                                                                              |
+
+Tests (§10) live in `packages/commerce/src/checkout/*.test.ts` (pricing,
+state machines), `packages/commerce/tests/checkout.int.test.ts`,
+`orders.int.test.ts` and `packages/database/tests/checkout-orders.int.test.ts`;
+[11-testing.md](./11-testing.md) lists what each covers.

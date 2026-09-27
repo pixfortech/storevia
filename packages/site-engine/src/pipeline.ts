@@ -26,6 +26,8 @@ export interface PublicPipelineOptions {
   readonly internalPrefix?: string;
   /** The page for hosts that aren't an active domain (no site data). */
   readonly unknownHostHtml?: (nonce: string) => string;
+  /** Origins a form may redirect to (e.g. payment providers' hosted pages). */
+  readonly formActionOrigins?: readonly string[];
 }
 
 const PREVIEW_PARAM = "preview";
@@ -70,6 +72,7 @@ export async function handlePublicRequest(
     isDevelopment: process.env["NODE_ENV"] !== "production",
     secure,
     imageOrigins: imageOrigin ? [imageOrigin] : [],
+    formActionOrigins: options.formActionOrigins ?? [],
   });
   const url = request.nextUrl;
 

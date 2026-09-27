@@ -6,7 +6,7 @@ import { robotsTxt } from "@storevia/site-engine/seo";
 // preview) isn't crawled at all.
 export async function GET(_request: Request, { params }: { params: Promise<{ storeId: string }> }) {
   const store = await requestStore((await params).storeId);
-  return new Response(robotsTxt(store, { disallow: ["/cart", "/search"] }), {
+  return new Response(robotsTxt(store, { disallow: ["/cart", "/checkout", "/search"] }), {
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "public, max-age=300",

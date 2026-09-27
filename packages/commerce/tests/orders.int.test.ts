@@ -46,6 +46,8 @@ import {
   type CheckoutStore,
 } from "../src/checkout";
 import { addToCart } from "../src/storefront";
+import { sendOrderNotifications } from "../src/orders/notifications";
+import type { EmailMessage, EmailSender } from "@storevia/email";
 import { expectCode, makeTenant, memberContext, storeOf, type Tenant } from "./fixtures";
 
 let a: Tenant;
@@ -483,5 +485,38 @@ describe("customers", () => {
     const metrics = await orderMetrics(storeOf(a));
     expect(metrics.ordersToday).toBeGreaterThan(5);
     expect(metrics.revenue30d?.currency).toBe("INR");
+  });
+});
+
+describe("order emails", () => {
+  it("sends each queued email once; a failing sender retries later and never touches the order", async () => {
+    const sent: EmailMessage[] = [];
+    const ok: EmailSender = {
+      send: (m) => {
+        sent.push(m);
+        return Promise.resolve();
+      },
+    };
+    for (let i = 0; i < 20; i++) {
+      if ((await sendOrderNotifications(ok, 100)).sent === 0) break;
+    }
+    const templates = new Set(sent.map((m) => m.template));
+    for (const t of ["order-confirmation", "order-fulfilled", "order-cancelled", "order-refund"]) {
+      expect(templates.has(t)).toBe(true);
+    }
+    const confirmation = sent.find((m) => m.template === "order-confirmation");
+    expect(confirmation?.subject).toMatch(/^Order #\d+ confirmed – Store /);
+    expect((await sendOrderNotifications(ok, 100)).sent).toBe(0);
+
+    const id = await placeOrder([["cap", 1]], { email: "retry@example.test" });
+    const failing: EmailSender = { send: () => Promise.reject(new Error("smtp down")) };
+    expect(await sendOrderNotifications(failing, 100)).toMatchObject({ retrying: 1, sent: 0 });
+    const orderId = parseTypeId("order", id) ?? "";
+    const row = await migratorDb().orderNotification.findFirstOrThrow({ where: { orderId } });
+    expect(row).toMatchObject({ status: "PENDING", attempts: 1, lastError: "Error" });
+    expect(row.nextAttemptAt.getTime()).toBeGreaterThan(Date.now());
+    expect((await getOrder(storeOf(a), id)).paymentStatus).toBe("PAID");
+    // Nothing is due yet, so nothing is sent twice.
+    expect((await sendOrderNotifications(ok, 100)).sent).toBe(0);
   });
 });

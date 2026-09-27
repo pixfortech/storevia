@@ -1,3 +1,4 @@
+import { ALL_HOSTED_PAYMENT_ORIGINS } from "@storevia/payments/origins";
 import { handlePublicRequest } from "@storevia/site-engine/pipeline";
 import { simplePage } from "@storevia/site-engine/html";
 import type { NextRequest, NextResponse } from "next/server";
@@ -18,7 +19,11 @@ const unknownHostHtml = (nonce: string) =>
   });
 
 export function proxy(request: NextRequest): Promise<NextResponse> {
-  return handlePublicRequest(request, { internalPaths: INTERNAL_PATHS, unknownHostHtml });
+  return handlePublicRequest(request, {
+    internalPaths: INTERNAL_PATHS,
+    unknownHostHtml,
+    formActionOrigins: ALL_HOSTED_PAYMENT_ORIGINS,
+  });
 }
 
 export const config = {

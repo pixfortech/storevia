@@ -74,6 +74,20 @@ describe("contentSecurityPolicy", () => {
     expect(csp).not.toContain("javascript");
   });
 
+  it("lets forms land only on the listed payment page origins (checked on redirects too)", () => {
+    const csp = contentSecurityPolicy({
+      nonce: "abc",
+      isDevelopment: false,
+      secure: true,
+      formActionOrigins: ["https://rzp.io", "https://evil.example/path", "*", "data:x"],
+    });
+    expect(csp).toContain("form-action 'self' https://rzp.io https://evil.example;");
+    expect(csp).not.toContain("form-action 'self' https://rzp.io https://evil.example *");
+    expect(contentSecurityPolicy({ nonce: "abc", isDevelopment: false, secure: true })).toContain(
+      "form-action 'self';",
+    );
+  });
+
   it("uses a nonce and forbids framing and plugins", () => {
     const csp = contentSecurityPolicy({ nonce: "abc", isDevelopment: false, secure: true });
     expect(csp).toContain("script-src 'self' 'nonce-abc' 'strict-dynamic'");

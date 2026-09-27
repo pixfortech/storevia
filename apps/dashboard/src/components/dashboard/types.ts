@@ -3,6 +3,7 @@ import type { ActivityItem } from "@/lib/dashboard/activity";
 import type { FocusArea } from "@/lib/dashboard/compose";
 import type { ExampleFormat } from "@/lib/dashboard/example-data";
 import type { DashboardPeriod } from "@/lib/dashboard/preview";
+import type { CustomerFigures, SalesFigures } from "@/lib/dashboard/sales";
 import type { SetupTask } from "@/lib/dashboard/setup";
 
 /** What every widget may need, resolved once by the page. */
@@ -92,6 +93,20 @@ export interface ContentSummary {
   readonly pagesHref: string;
 }
 
+/** Real order figures for the period (Revenue, Orders, Sales, Top products). */
+export interface SalesSummary {
+  readonly figures: SalesFigures;
+  /** The orders list. */
+  readonly ordersHref: string;
+}
+
+/** Real new-customer figures for the period (Customers). */
+export interface CustomersSummary {
+  readonly figures: CustomerFigures;
+  /** The customers list. */
+  readonly customersHref: string;
+}
+
 /** Real data for the live widgets. Null where the member may not read it. */
 export interface LiveData {
   readonly setup: readonly SetupTask[];
@@ -99,8 +114,12 @@ export interface LiveData {
   readonly plan: PlanSummary | null;
   readonly team: TeamSummary | null;
   readonly activity: readonly ActivityItem[] | null;
-  /** Real catalogue numbers (never revenue, orders or customers: those don't exist yet). */
+  /** Real catalogue numbers. */
   readonly catalogue: CatalogueSummary | null;
+  /** Order figures (order.read), not loaded in a preview, which shows example data instead. */
+  readonly sales: SalesSummary | null;
+  /** New customers (customer.read), likewise. */
+  readonly customers: CustomersSummary | null;
   /** The site's pages, for members who may edit them. */
   readonly content: ContentSummary | null;
   readonly focus: readonly (FocusArea & { readonly href: string })[];

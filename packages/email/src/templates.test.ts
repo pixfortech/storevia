@@ -53,3 +53,49 @@ describe("contactRequestMessage", () => {
     expect(message.template).toBe("contact-request");
   });
 });
+
+describe("order emails", () => {
+  const order = {
+    storeName: "Asha's <Shop>",
+    orderNumber: 1001,
+    lines: [{ title: "Mug <b>", quantity: 2, total: "₹2,000.00" }],
+    totals: [
+      ["Subtotal", "₹2,000.00"],
+      ["Total", "₹2,360.00"],
+    ] as const,
+    shippingAddress: ["Asha Rao", "12 MG Road"],
+  };
+
+  it("escapes store and product names and carries no links with tokens", async () => {
+    const { orderConfirmationMessage } = await import("./orders");
+    const message = orderConfirmationMessage("a@example.test", order);
+    expect(message.template).toBe("order-confirmation");
+    expect(message.subject).toContain("#1001");
+    expect(message.html).not.toContain("<b>");
+    expect(message.html).toContain("Mug &lt;b&gt;");
+    expect(message.html).toContain("Asha&#39;s &lt;Shop&gt;");
+    expect(message.html).not.toMatch(/href=/);
+    expect(message.text).toContain("Total: ₹2,360.00");
+  });
+
+  it("links a tracking URL only when it is http(s)", async () => {
+    const { orderFulfilledMessage } = await import("./orders");
+    const shipment = {
+      items: [{ title: "Mug", quantity: 1 }],
+      trackingCompany: "DHL",
+      trackingNumber: "123",
+    };
+    expect(
+      orderFulfilledMessage("a@example.test", order, {
+        ...shipment,
+        trackingUrl: "javascript:alert(1)",
+      }).html,
+    ).not.toMatch(/href=/);
+    expect(
+      orderFulfilledMessage("a@example.test", order, {
+        ...shipment,
+        trackingUrl: "https://t.example/1",
+      }).html,
+    ).toContain('href="https://t.example/1"');
+  });
+});

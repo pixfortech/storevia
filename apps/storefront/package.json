@@ -16,6 +16,7 @@
     "@storevia/editor": "workspace:*",
     "@storevia/media": "workspace:*",
     "@storevia/observability": "workspace:*",
+    "@storevia/payments": "workspace:*",
     "@storevia/security": "workspace:*",
     "@storevia/site-engine": "workspace:*",
     "@storevia/types": "workspace:*",

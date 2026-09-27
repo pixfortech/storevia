@@ -291,7 +291,7 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
     title: "Commerce",
     glyph: "commerce",
     capability: "commerce",
-    summary: "A catalogue built for real stock today; checkout, orders and customers follow.",
+    summary: "A catalogue built for real stock, with checkout, orders and customers.",
     items: [
       planFeature(
         "product_limit",
@@ -323,23 +323,26 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
       ),
       {
         title: "Checkout and payments",
-        description: "A checkout with prices worked out on the server, then payments.",
-        status: "roadmap",
-        milestone: M.orders,
+        description:
+          "A guest checkout with prices, shipping and tax worked out on the server, paid on your payment provider's secure page.",
+        status: "available",
       },
       {
         title: "Orders, refunds and fulfilment",
         description: "Every order with its payment and fulfilment status, refunds included.",
-        status: "roadmap",
-        milestone: M.orders,
+        status: "available",
       },
       {
         title: "Customers",
-        description: "Customer records with their addresses and order history.",
-        status: "roadmap",
-        milestone: M.customers,
+        description: "A record for every customer who orders, with their order history.",
+        status: "available",
       },
-      planFeature("discounts", "Discounts", "Discount codes and automatic discounts.", M.discounts),
+      planFeature(
+        "discounts",
+        "Discount codes",
+        "Percentage or fixed-amount codes with minimums, dates and usage limits.",
+        M.discounts,
+      ),
       planFeature("abandoned_cart", "Abandoned cart recovery", "Recover abandoned checkouts."),
     ],
   },

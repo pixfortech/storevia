@@ -147,6 +147,8 @@ export interface CheckoutView {
   /** Why the last attempt ended without payment, if it did. */
   readonly lastPaymentProblem: "DECLINED" | "CANCELLED" | "ERROR" | null;
   readonly order: { readonly number: number } | null;
+  /** Countries the store ships to (ISO codes), for the address form. */
+  readonly shippingCountries: readonly string[];
 }
 
 const m = (amount: string, currency: string): MoneyDto => ({ amount, currency });
@@ -160,6 +162,7 @@ function view(
     readonly redirectUrl: string | null;
     readonly lastProblem: CheckoutView["lastPaymentProblem"];
     readonly orderNumber: number | null;
+    readonly shippingCountries: readonly string[];
   },
 ): CheckoutView {
   const c = quote.currency;
@@ -223,6 +226,7 @@ function view(
     paymentRedirectUrl: extra.redirectUrl,
     lastPaymentProblem: extra.lastProblem,
     order: extra.orderNumber === null ? null : { number: extra.orderNumber },
+    shippingCountries: extra.shippingCountries,
   };
 }
 
@@ -276,7 +280,12 @@ async function buildView(
       SELECT "orderNumber" AS n FROM "Order" WHERE id = ${checkout.completedOrderId}::uuid`;
     orderNumber = rows[0]?.n ?? null;
   }
+  const countries = await tx.$queryRaw<{ code: string }[]>`
+    SELECT DISTINCT trim(c."countryCode") AS code FROM "ShippingZoneCountry" c
+    WHERE EXISTS (SELECT 1 FROM "ShippingRate" r WHERE r."zoneId" = c."zoneId" AND r.active)
+    ORDER BY 1`;
   return view(checkout, quote, hash, {
+    shippingCountries: countries.map((c) => c.code),
     paymentsAvailable:
       checkout.status === "OPEN" ? await paymentsAvailable(tx, store.currency) : false,
     redirectUrl: checkout.status === "PAYMENT_PENDING" ? (last?.redirect ?? null) : null,

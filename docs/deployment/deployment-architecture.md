@@ -120,6 +120,30 @@ What operating `apps/storefront` needs (ADR-0028):
 | `STOREFRONT_INTERNAL_URL`      | worker                | the storefront's private address (not through the edge). Required outside development and test: without it every dispatch run fails (visible in staff job health)                                             |
 | `TRUSTED_CLIENT_IP_HEADER`     | storefront            | the header the edge sets to the client address (e.g. `CF-Connecting-IP`). **Set it in every deployed environment**: without it only existing carts are rate limited, and creating carts is not limited at all |
 
+### Checkout and payments (Milestone 6)
+
+What checkout, order confirmation and merchant payments need (ADR-0031):
+
+| Setting                                     | Used by                                          | Notes                                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `DATABASE_CHECKOUT_URL`                     | storefront, dashboard (payment webhooks), worker | the `storevia_checkout` role: `LOGIN NOBYPASSRLS`, no other attributes (`pnpm db:setup` creates it locally). Grants and restrictive policies come from migrations. Through the pooler in transaction mode                                                                                                                |
+| `PAYMENT_CREDENTIALS_KEYS`                  | dashboard, storefront, worker                    | versioned AES-256-GCM keyring for merchants' payment credentials: `1:<base64 32 bytes>[,2:<base64>]`. The highest version seals; every listed version opens. From KMS/Secrets Manager in production; rotate by adding a version, never by removing one still in use. Losing it means merchants reconnect their providers |
+| `TEST_PAYMENTS_ENABLED`                     | storefront, dashboard                            | `true` only in local production builds and CI E2E. The Test Payment Provider also requires `STOREVIA_ENV` = `development` or `test`, so it can't be enabled in staging, preview or production                                                                                                                            |
+| `RAZORPAY_API_URL`                          | dashboard, storefront, worker                    | unset (Razorpay's API). Only for pointing tests at a stub                                                                                                                                                                                                                                                                |
+| `EMAIL_TRANSPORT`, `SMTP_URL`, `EMAIL_FROM` | worker                                           | order emails (confirmation, shipment, cancellation, refund) go out from the worker's queue; a failing relay retries with backoff and never affects orders                                                                                                                                                                |
+
+- **Webhooks:** each connection's endpoint is
+  `https://{dashboard host}/api/webhooks/payments/{connectionId}` (shown on
+  the store's Payments settings). It is public, unauthenticated by cookie,
+  and verified per connection; keep it reachable from the providers and
+  don't cache it.
+- **Storefront CSP:** `form-action` includes the providers' hosted-page
+  origins (`packages/payments/src/origins.ts`); a new provider adds its
+  origins there.
+- **Worker jobs:** `checkout.expiry` (every minute), `checkout.purge`
+  (hourly) and `orders.notifications` (every 30 s) must run in every
+  environment that takes orders.
+
 - **Edge:** forward the original `Host` header, overwrite the client-IP
   header named above, and don't forward `/api/internal/*` from the public
   internet (it is signed and time-limited anyway). Store HTML is dynamic

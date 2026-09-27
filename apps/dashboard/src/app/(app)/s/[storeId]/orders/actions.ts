@@ -1,0 +1,160 @@
+"use server";
+
+import {
+  cancelOrder,
+  fulfilOrder,
+  refundOrder,
+  resolvePendingRefund,
+  updateOrderNote,
+  type RefundOutcome,
+} from "@storevia/commerce";
+import { revalidatePath } from "next/cache";
+import { runAction, type ActionState } from "@/lib/action";
+import { customersPath, ordersPath } from "@/lib/orders";
+import { inventoryPath } from "@/lib/catalogue";
+import { storeActionContext } from "@/lib/store-action";
+
+// Order actions: the commerce order services do the work (row locks,
+// quantity bounds, refund bounds, permissions, timeline and audit). The
+// store id is re-verified against the session on every call.
+
+function refresh(storeId: string) {
+  revalidatePath(ordersPath(storeId), "layout");
+  revalidatePath(customersPath(storeId), "layout");
+  // Fulfilment, cancellation and restocks move stock.
+  revalidatePath(inventoryPath(storeId), "layout");
+}
+
+/** A refund's outcome in words; a failed refund is reported as a failure. */
+function refundState(outcome: RefundOutcome, prefix = ""): ActionState {
+  if (outcome.status === "SUCCEEDED") return { ok: true, message: `${prefix}Refund issued.` };
+  if (outcome.status === "PENDING") {
+    return {
+      ok: true,
+      message:
+        `${prefix}Refund requested. ` +
+        (outcome.message ?? "It will show as refunded once the payment provider confirms it."),
+    };
+  }
+  return {
+    ok: false,
+    message: `${prefix}The refund failed: ${outcome.message ?? "the payment provider declined it."}`,
+  };
+}
+
+export async function fulfilOrderAction(
+  storeId: string,
+  orderId: string,
+  input: {
+    lines: readonly { lineId: string; quantity: string }[];
+    trackingCompany: string;
+    trackingNumber: string;
+    trackingUrl: string;
+  },
+): Promise<ActionState> {
+  return runAction(async () => {
+    const ctx = await storeActionContext(storeId);
+    const lines = input.lines.filter((l) => l.quantity.trim() !== "" && l.quantity.trim() !== "0");
+    if (lines.length === 0) {
+      return {
+        ok: false,
+        message: "Choose at least one item to fulfil.",
+        fieldErrors: { lines: "Choose at least one item to fulfil." },
+      };
+    }
+    await fulfilOrder(ctx, orderId, {
+      lines: lines.map((l) => ({ lineId: l.lineId, quantity: l.quantity.trim() })),
+      trackingCompany: input.trackingCompany,
+      trackingNumber: input.trackingNumber,
+      trackingUrl: input.trackingUrl,
+    });
+    refresh(ctx.storeId);
+    return { ok: true, message: "Items marked as fulfilled." };
+  });
+}
+
+export async function cancelOrderAction(
+  storeId: string,
+  orderId: string,
+  input: { reason: string; refund: boolean },
+): Promise<ActionState> {
+  return runAction(async () => {
+    const ctx = await storeActionContext(storeId);
+    const result = await cancelOrder(ctx, orderId, { reason: input.reason, refund: input.refund });
+    refresh(ctx.storeId);
+    if (result.refund) return refundState(result.refund, "Order cancelled. ");
+    return {
+      ok: true,
+      message: result.cancelled ? "Order cancelled." : "Order already cancelled.",
+    };
+  });
+}
+
+export async function refundOrderAction(
+  storeId: string,
+  orderId: string,
+  input: {
+    amount: string;
+    reason: string;
+    paymentId: string;
+    locationId: string;
+    lines: readonly { lineId: string; quantity: string; restock: boolean }[];
+  },
+): Promise<ActionState> {
+  return runAction(async () => {
+    const ctx = await storeActionContext(storeId);
+    const lines = input.lines
+      .filter((l) => l.quantity.trim() !== "" && l.quantity.trim() !== "0")
+      .map((l) => ({ lineId: l.lineId, quantity: l.quantity.trim(), restock: l.restock }));
+    const outcome = await refundOrder(ctx, orderId, {
+      amount: input.amount.trim(),
+      reason: input.reason,
+      lines,
+      ...(input.paymentId ? { paymentId: input.paymentId } : {}),
+      ...(lines.some((l) => l.restock) && input.locationId ? { locationId: input.locationId } : {}),
+    });
+    refresh(ctx.storeId);
+    return refundState(outcome);
+  });
+}
+
+export async function resolveRefundAction(
+  storeId: string,
+  orderId: string,
+  refundId: string,
+  outcome: "succeeded" | "failed",
+): Promise<ActionState> {
+  return runAction(async () => {
+    const ctx = await storeActionContext(storeId);
+    const result = await resolvePendingRefund(
+      ctx,
+      orderId,
+      refundId,
+      outcome === "succeeded" ? "succeeded" : "failed",
+    );
+    refresh(ctx.storeId);
+    return {
+      ok: true,
+      message:
+        result.status === "SUCCEEDED"
+          ? "Refund marked as refunded."
+          : result.status === "FAILED"
+            ? "Refund marked as failed."
+            : "The refund is still pending.",
+    };
+  });
+}
+
+export async function saveOrderNoteAction(
+  storeId: string,
+  orderId: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const ctx = await storeActionContext(storeId);
+    await updateOrderNote(ctx, orderId, { note: formData.get("note") ?? "" });
+    refresh(ctx.storeId);
+    return { ok: true, message: "Note saved." };
+  }, formData);
+}

@@ -1,5 +1,12 @@
 import "server-only";
 import { sweepSubscriptionExpiry } from "@storevia/billing";
+import {
+  purgeExpiredCheckouts,
+  sweepExpiredCheckouts,
+  sweepExpiredPayments,
+} from "@storevia/commerce/checkout";
+import { sendOrderNotifications } from "@storevia/commerce/notifications";
+import { getEmailSender } from "@storevia/email";
 import { workerDb } from "@storevia/database/worker";
 import { reconcileUsage } from "@storevia/entitlements";
 import type { JobDefinition } from "@storevia/jobs";
@@ -85,7 +92,49 @@ export const usageReconciliationJob: JobDefinition = {
   },
 };
 
+/**
+ * Payment attempts past their window (the provider is asked first: a late
+ * capture still becomes an order), then open checkouts past their expiry
+ * (ADR-0031 §1, §4).
+ */
+export const checkoutExpiryJob: JobDefinition = {
+  name: "checkout.expiry",
+  schedule: { everySeconds: 60 },
+  maxAttempts: 2,
+  timeoutMs: 4 * 60_000,
+  async run() {
+    const payments = await sweepExpiredPayments();
+    const checkouts = await sweepExpiredCheckouts();
+    return { ...payments, expiredCheckouts: checkouts };
+  },
+};
+
+/** Expired checkouts lose contact details after the retention window (ADR-0031 §6). */
+export const checkoutPurgeJob: JobDefinition = {
+  name: "checkout.purge",
+  schedule: { everySeconds: 3600 },
+  maxAttempts: 3,
+  timeoutMs: 10 * 60_000,
+  async run() {
+    return { purged: await purgeExpiredCheckouts() };
+  },
+};
+
+/** Order emails from the notification queue; failures retry with backoff (ADR-0031 §12). */
+export const orderNotificationsJob: JobDefinition = {
+  name: "orders.notifications",
+  schedule: { everySeconds: 30 },
+  maxAttempts: 2,
+  timeoutMs: 4 * 60_000,
+  async run() {
+    return { ...(await sendOrderNotifications(getEmailSender())) };
+  },
+};
+
 export const JOBS: readonly JobDefinition[] = [
+  checkoutExpiryJob,
+  checkoutPurgeJob,
+  orderNotificationsJob,
   subscriptionExpiryJob,
   usageReconciliationJob,
   outboxDispatchJob,

@@ -299,6 +299,9 @@ importers:
       '@storevia/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@storevia/payments':
+        specifier: workspace:*
+        version: link:../../packages/payments
       '@storevia/security':
         specifier: workspace:*
         version: link:../../packages/security
@@ -348,6 +351,9 @@ importers:
       '@storevia/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@storevia/email':
+        specifier: workspace:*
+        version: link:../../packages/email
       '@storevia/entitlements':
         specifier: workspace:*
         version: link:../../packages/entitlements
@@ -453,6 +459,9 @@ importers:
       '@storevia/editor':
         specifier: workspace:*
         version: link:../editor
+      '@storevia/email':
+        specifier: workspace:*
+        version: link:../email
       '@storevia/entitlements':
         specifier: workspace:*
         version: link:../entitlements

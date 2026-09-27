@@ -13,7 +13,8 @@
     "./storefront/cache-tags": "./src/storefront/cache-tags.ts",
     "./blocks": "./src/blocks/index.ts",
     "./site": "./src/site.ts",
-    "./checkout": "./src/checkout/index.ts"
+    "./checkout": "./src/checkout/index.ts",
+    "./notifications": "./src/orders/notifications.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -32,6 +33,7 @@
   "dependencies": {
     "@storevia/database": "workspace:*",
     "@storevia/editor": "workspace:*",
+    "@storevia/email": "workspace:*",
     "@storevia/entitlements": "workspace:*",
     "@storevia/media": "workspace:*",
     "@storevia/observability": "workspace:*",

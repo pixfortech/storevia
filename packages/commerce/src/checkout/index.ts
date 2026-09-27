@@ -9,4 +9,5 @@ export type { WebhookResult, TestPaymentView } from "./webhooks";
 export { sweepExpiredPayments, sweepExpiredCheckouts, purgeExpiredCheckouts } from "./sweep";
 export type { PaymentSweepResult } from "./sweep";
 export { checkoutCookieName, CHECKOUT_LIMITS } from "./tokens";
+export type { TestOutcome } from "@storevia/payments";
 export type { CheckoutAddress, CheckoutProblem, DiscountProblem, QuoteChange } from "./pricing";

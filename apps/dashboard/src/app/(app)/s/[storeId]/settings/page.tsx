@@ -11,10 +11,12 @@ import {
   SettingsSection,
   type SettingsSectionLink,
 } from "@/components/areas/settings";
+import { LinkTabs } from "@/components/catalogue/link-tabs";
 import { PageHeader } from "@/components/shell/app-shell";
 import { formatLongDate } from "@/lib/areas/dates";
 import { storeStatusBadge } from "@/lib/dashboard/setup";
 import { COUNTRY_OPTIONS, CURRENCY_OPTIONS } from "@/lib/options";
+import { settingsTabs } from "@/lib/settings-tabs";
 import { storeContextOr404 } from "@/lib/tenant";
 import {
   ArchiveStoreForm,
@@ -65,6 +67,13 @@ export default async function StoreSettingsPage({
           </Badge>
         }
       />
+      {hasPermission(ctx, "settings.manage") ? (
+        <LinkTabs
+          label="Settings sections"
+          className="mb-6 lg:mb-8"
+          tabs={settingsTabs(ctx.storeId, "general")}
+        />
+      ) : null}
       {!canEdit ? (
         <Alert tone="neutral" icon={Lock} className="mb-6 max-w-3xl lg:mb-8">
           {archived

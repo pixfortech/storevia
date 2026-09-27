@@ -83,16 +83,14 @@ export const CAPABILITIES: readonly Capability[] = [
   },
   {
     id: "commerce",
-    // The catalogue is live; checkout and orders are separate roadmap items
-    // (features.ts), so the capability names only what ships today.
-    title: "Catalogue and inventory",
+    title: "Catalogue, checkout and orders",
     glyph: "commerce",
     status: "available",
-    summary: "Products, variants, stock by location and a media library, ready to use today.",
+    summary: "Products and stock, a secure checkout, and the orders that follow.",
     points: [
-      "Products with options, variants and collections",
-      "Inventory by location with a full movement history",
-      "A media library that checks and resizes every image",
+      "Products with options, variants, collections and stock by location",
+      "Checkout with shipping, tax and discount codes, paid on your provider's secure page",
+      "Orders with fulfilment and refunds, and emails to your customers",
       "Search, bulk editing and CSV export",
     ],
   },
@@ -125,14 +123,13 @@ export const CAPABILITIES: readonly Capability[] = [
     id: "customers",
     title: "Customers",
     glyph: "orders",
-    status: "roadmap",
-    summary: "Customer records, addresses and order history, arriving with checkout.",
+    status: "available",
+    summary: "A record for every customer who orders, with their order history.",
     points: [
-      "A record for every customer, with their addresses and orders",
+      "One record per customer, matched by email",
+      "Order history, notes and tags for your team",
       "Roles that can see customer details, and roles that can't",
-      "Arrives with checkout and orders",
     ],
-    milestone: STORE_AREAS.customers.availability,
   },
   {
     id: "analytics",

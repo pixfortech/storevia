@@ -7,6 +7,12 @@ export interface CspOptions {
   readonly imageOrigins?: readonly string[];
   /** Extra origins the browser uploads to directly (the media bucket). */
   readonly uploadOrigins?: readonly string[];
+  /**
+   * Extra origins a form submission may end up on. Browsers apply
+   * form-action to the redirects after a submit, so the storefront's "Pay"
+   * form, which redirects to a payment provider's hosted page, needs them.
+   */
+  readonly formActionOrigins?: readonly string[];
 }
 
 /** An http(s) origin, or null for anything else (never a wildcard or a path). */
@@ -27,6 +33,7 @@ export function contentSecurityPolicy({
   secure,
   imageOrigins = [],
   uploadOrigins = [],
+  formActionOrigins = [],
 }: CspOptions): string {
   const origins = (list: readonly string[]) =>
     list.map((o) => cspOrigin(o)).filter((o): o is string => o !== null);
@@ -44,7 +51,7 @@ export function contentSecurityPolicy({
     "connect-src": ["'self'", ...origins(uploadOrigins), ...(isDevelopment ? ["ws:"] : [])],
     "frame-ancestors": ["'none'"],
     "base-uri": ["'none'"],
-    "form-action": ["'self'"],
+    "form-action": ["'self'", ...origins(formActionOrigins)],
     "object-src": ["'none'"],
   };
   if (secure) directives["upgrade-insecure-requests"] = [];

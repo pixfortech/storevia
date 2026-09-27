@@ -23,7 +23,7 @@ export const FAQ: readonly { question: string; answer: string }[] = [
   {
     question: "Does Storevia take payments?",
     answer:
-      "Not yet. Checkout, payments and orders are on the roadmap. Until then Storevia doesn't process any payments.",
+      "Your store does, through your own payment provider account (Razorpay for now), so the money goes straight to you. Shoppers pay on the provider's secure page: card details never reach Storevia or your store.",
   },
   {
     question: "Can I use my own domain?",
