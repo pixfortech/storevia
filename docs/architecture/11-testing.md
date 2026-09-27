@@ -299,6 +299,71 @@ Performance measurements are in
 | Product media, end to end, on `http://localhost:3001`              | E2E `media.spec.ts`: JPEG, PNG and WebP upload and process; renditions served as WebP; attachments persist; the library lists them; remove keeps library media; library selection reattaches; make primary and move persist; a non-image gets a user-safe message; nothing refused by the CSP; another tenant sees none of the media and a replayed or rewritten attach is not found (fails without the URL fix: 0 of 3 uploads)                                                                                                                                                                                                                     |
 | Storefronts display processed product images from the media origin | E2E `storefront-media.spec.ts`: on a live store (`{store}.store.localhost:3002`), every product image on the home, product and collection pages loads from the media origin (`app.localhost:3001`) and decodes, and so does every `srcset` rendition (including `w640.webp` and `w1280.webp`); nothing on `/media/` is refused; the store CSP allows images from itself and the media origin only; the dashboard still shows the image; a rendition is served with `Cross-Origin-Resource-Policy: cross-origin`, `nosniff` and no CORS header; raw and temporary upload keys are 404 without that policy (fails with `same-site`: no image displays) |
 
+## Milestone 5 (visual builder, themes, menus): what is proven where
+
+Decisions: [ADR-0030](../adr/0030-site-presentation-builder-themes-navigation.md).
+
+| Guarantee                                           | Where it is proven                                                                                                                                                                                                                                         |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Every store has one HOME page, without fake content | database `site-presentation.int.test.ts` "HOME pages" (trigger by business type, idempotent backfill, not callable by app roles); commerce "every store starts with its published home page"                                                               |
+| Themes and menus stay in their store                | database: merchant role scoped to one store can't see or change another store's themes or menus, **including a store of the same organisation**; storefront reads its own only                                                                             |
+| Drafts are private until published                  | database "drafts are visible to the storefront only in a preview" (exactly `'on'`, own store only); draft theme settings only through the definer function; commerce "previews read the draft; the public site never does"; E2E: not public before publish |
+| Documents are structured and safe                   | editor unit (109 tests): schemas, unknown/invalid blocks, link schemes, limits, escaping; commerce "refuses invalid documents"; `blocks.test.tsx`                                                                                                          |
+| References stay in the store                        | commerce "refuses references to another store's media, pages, products and collections" (hidden sections too), menus the same; "builder canvas data"                                                                                                       |
+| Publish is atomic and immutable                     | commerce "publishes atomically" and "a draft that became invalid can't be published"; database freeze trigger and page grants                                                                                                                              |
+| Concurrency never overwrites                        | commerce page, theme and menu tests (stale revision on the UPDATE path); E2E two tabs                                                                                                                                                                      |
+| Permissions are server-side                         | commerce: `design.edit` saves drafts; only `page.publish` publishes; `theme.publish`; authors and editors can't manage menus; viewers do nothing; another store's members get NOT_FOUND; E2E: another tenant gets 404                                      |
+| Theme accessibility                                 | `theme.test.ts`: every preset valid; contrast rules; derived colours reach 4.5:1; safe CSS output                                                                                                                                                          |
+| Invalidation                                        | database: theme and menu triggers emit events (drafts don't); `cache-tags.test.ts`: page → pages + design, theme/menu → design only                                                                                                                        |
+| The Site Engine and editor stay generic             | `boundary.test.ts` (import graph for the editor and commerce blocks); ESLint; `SITE_REGISTRY` renders with zero commerce                                                                                                                                   |
+| The builder works end to end                        | E2E `site-builder.spec.ts`: sections, reorder by buttons, media upload, autosave and reload, signed preview, publish, live render, phones without horizontal scroll, theme, menus, conflicts, tenant isolation                                             |
+
+Mutation checks (M5): each mutant applied alone, its suite run, then
+reverted. Database mutants were applied as SQL to the test database, which
+was then rebuilt with `pnpm --filter @storevia/database db:test:prepare`.
+The first run found four survivors; each got a test and was re-run.
+
+| Mutant                                                            | Caught by                                                                                               |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| D1 `StoreTheme` tenant policy `USING (true)`                      | database "the merchant role sees and changes only its own store's themes, even in its own organisation" |
+| D1b `StoreTheme` policy without the store predicate               | same                                                                                                    |
+| D2 `Navigation` policy without the store predicate                | **survived** the first run (no same-organisation store in the menu test); now the menu isolation test   |
+| D3 storefront `PageVersion` policy shows drafts without a preview | database "without a preview, drafts don't exist", "only exactly 'on'"                                   |
+| D4 `app_storefront_preview()` true for any non-empty value        | database "only exactly 'on' opens a preview"                                                            |
+| D5 storefront `PageVersion` policy without the store predicate    | database "a preview for another store… shows nothing of this one"                                       |
+| D6 storefront granted `draftSettings`                             | database "the storefront can't read draft settings directly"                                            |
+| D7 one-LIVE-theme index dropped                                   | database "allows one LIVE theme per store…"                                                             |
+| D8 theme outbox trigger dropped                                   | database "publishing emits a theme event"                                                               |
+| D9 navigation outbox trigger dropped                              | database "changes emit a navigation event"                                                              |
+| D10 `PageVersion_frozen` trigger dropped                          | database page grants test; M4 "a published or archived version is frozen"                               |
+| D11 merchant role may update `Page.kind`                          | database "writes page content and state, never a page's owner, kind or id"                              |
+| D12 HOME trigger on `Store` dropped                               | database "every new store gets exactly one published HOME page", backfill test                          |
+| S1 `publishPage` checks `design.edit`                             | commerce "only page.publish publishes"                                                                  |
+| S2 `publishTheme` checks `design.edit`                            | commerce theme test                                                                                     |
+| S3 `saveMenu` checks `design.edit`                                | **survived** the first run; now commerce menus (authors and editors refused)                            |
+| S4 draft save ignores the revision                                | commerce "saves with optimistic concurrency"                                                            |
+| S5 publish ignores the revision                                   | commerce "publishes atomically"                                                                         |
+| S6 theme save ignores the revision                                | **survived** the first run (only the INSERT path was tested); now the stale-revision UPDATE case        |
+| S7 menu save ignores the revision                                 | **survived** the first run (same); now the stale-revision UPDATE case                                   |
+| S8 media reference check removed                                  | commerce "refuses references…", "a draft that became invalid…"                                          |
+| S9 page link check removed                                        | commerce "refuses references…", menus                                                                   |
+| S10 commerce reference check skipped                              | commerce "refuses references…", menus                                                                   |
+| S11 publish doesn't archive the old version                       | commerce "publishes atomically", permissions test                                                       |
+| S12 publish doesn't move the pointer                              | commerce (3 tests)                                                                                      |
+| S13 publish skips re-validation                                   | commerce "a draft that became invalid can't be published"                                               |
+| S14 `withStorefront` always opens a preview                       | commerce theme test (public site shows the draft)                                                       |
+| S15 the canvas resolves the browser's document unbounded          | commerce "builder canvas data" (a 41st section's media resolves)                                        |
+| E1 link URL guard accepts any scheme                              | editor (5 tests)                                                                                        |
+| E2 unknown blocks dropped silently                                | editor "rejects unknown components…"                                                                    |
+| E3 section limit not enforced by operations                       | editor "stops at 40 sections"                                                                           |
+| E4 stored menus rendered without validation                       | editor "stored items that don't validate render as no menu at all"                                      |
+| T1 text/background contrast rule removed                          | `theme.test.ts` "refuses text too close to the background"                                              |
+| T2 outline buttons held to 3:1                                    | `theme.test.ts` "outline buttons need text-level contrast"                                              |
+| T3 `theme.changed` not mapped to `design:`                        | `cache-tags.test.ts` (2 tests)                                                                          |
+| P1 preview path accepts protocol-relative URLs                    | dashboard `site.test.ts`                                                                                |
+
+Result: 36 mutants, all killed (4 after new tests).
+
 ## Runtime compatibility
 
 CI runs every suite on the required Node LTS line (`.nvmrc`, PostgreSQL 17)

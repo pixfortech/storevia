@@ -143,7 +143,17 @@ max-age=31536000` on every host it serves, without `includeSubDomains`
 - **Outbox:** the worker's `storefront.outbox-dispatch` job runs every 15
   seconds and purges dispatched events after 7 days. A growing count of
   undispatched events means the storefront is unreachable or refusing the
-  signature; `storefront.outbox_dispatched` is recorded as a metric.
+  signature; `storefront.outbox_dispatched` is recorded as a metric, and
+  `storefront.invalidation_failed` counts failed revalidation calls (the
+  events stay queued and are retried).
+- **Site builder (M5) signals:** `site.publish_failed` and
+  `site.draft_save_failed` (unexpected errors; refusals such as conflicts
+  and validation aren't failures), `site.draft_conflict`,
+  `site.page_validation_failed`, and on the storefront
+  `storefront.unknown_component`, `storefront.invalid_component` and
+  `storefront.invalid_document` (a stored block or page the renderer
+  skipped). Logs carry ids, never documents or content. M5 adds no
+  environment variables or services.
 - **Public Suffix List:** see [public-suffix-list.md](./public-suffix-list.md).
 
 Custom domain flow (M7): merchant adds hostname → Storevia shows DNS

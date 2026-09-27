@@ -1,6 +1,8 @@
 # 08 — Theme architecture
 
 > Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**. ADR-0012.
+> Milestone 5 builds the first-party theme engine (§9, ADR-0030 §7).
+> Packaged themes, versions and the gallery (§2–§6) arrive with Milestone 7.
 
 ## 1. What a theme is (and is not)
 
@@ -123,3 +125,44 @@ below WCAG AA.
   ugly CSS or misleading content, which review and revocation handle.
 - If theme JavaScript is ever allowed, it will run in a sandbox with a
   capability API, under a separate ADR.
+
+## 9. The theme engine (as built in Milestone 5)
+
+Code: `packages/site-engine/src/theme.ts` (pure, client-safe; tests in
+`theme.test.ts`).
+
+- **One first-party theme** (`storevia`) with three presets: **Editorial**
+  (the default, and the M4 look: serif headings, stone palette),
+  **Minimal** and **Modern**.
+- **Settings** (`themeSettingsSchema`, strict, every value bounded):
+
+  | Setting                   | Values                                                                                                                |
+  | ------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+  | `preset`                  | editorial, minimal, modern                                                                                            |
+  | `colors`                  | background, text, primary, accent: `#rrggbb` only                                                                     |
+  | `headingFont`, `bodyFont` | system stacks: system sans, humanist, geometric, system serif, old style, transitional, monospace (no font downloads) |
+  | `buttonStyle`             | solid, outline, pill                                                                                                  |
+  | `radius`                  | none, small, medium, large                                                                                            |
+  | `contentWidth`            | narrow, standard, wide                                                                                                |
+  | `sectionSpacing`          | compact, standard, spacious                                                                                           |
+
+- **Contrast rules** (WCAG): text on background at least 4.5:1; the brand
+  colour at least 3:1 against the background (4.5:1 for outline buttons,
+  whose text is the brand colour); accent at least 3:1. Text on the brand
+  colour is derived (white or near-black, whichever reaches 4.5:1), and the
+  muted colour is the most muted mix that keeps 4.5:1. Settings that fail
+  can't be saved; stored settings that no longer validate fall back to the
+  preset on the site.
+- **Tokens:** `resolveTheme` produces the §7 token set, now including
+  `space.section`, `radius.button`, `button.*` and `container.narrow`;
+  `themeCss` writes only known tokens with validated values. There is no
+  merchant CSS.
+- **Storage:** `StoreTheme` with `themeKey` (instead of `themeVersionId`
+  until M7), `draftSettings`, `publishedSettings`, `settingsRevision`, one
+  LIVE row per store (partial unique index). The storefront role can't read
+  `draftSettings`: `app_storefront_theme_settings()` returns the published
+  settings, or the draft ones only in a verified preview.
+- **Lifecycle:** Customise (`design.edit`, revision-checked draft) →
+  Preview (signed store preview) → Publish (`theme.publish`). A publish
+  emits `theme.changed` through the outbox, which refreshes the store's
+  `design:{storeId}` cache tag.

@@ -267,8 +267,8 @@ Open, with the reason:
 | Product-page JS < 90 kB gzip                     | Withdrawn (ADR-0029 §4) | The App Router runtime alone is 173.5 kB gzip; replaced by per-route regression controls, and store pages add no JavaScript of their own ([06 §10](../architecture/06-storefront.md#10-performance-budget)) |
 | More than one storefront instance                | M8                      | Invalidation reaches one process; needs fan-out or a shared cache handler                                                                                                                                   |
 | Edge caching and purge by tag; LCP measurement   | M8                      | Needs the production edge                                                                                                                                                                                   |
-| Handle-change redirects for products and pages   | M5                      | Typed links already survive renames; old URLs 404                                                                                                                                                           |
-| Navigation menus                                 | M5                      | The header lists collections until menus exist                                                                                                                                                              |
+| Handle-change redirects for products and pages   | Later (after M5)        | Typed links already survive renames; old URLs 404. ADR-0030 defers it                                                                                                                                       |
+| Navigation menus                                 | Done in M5              | Main and footer menus (ADR-0030 §8); the header lists collections until a main menu is saved                                                                                                                |
 
 **Site Engine separation** (ADR-0029, after the M4 build): generic
 public-site infrastructure (request pipeline, signed context, access
@@ -290,6 +290,71 @@ starts the storefront and the worker:
   coming soon, open a preview, change the store address.
 - Changes reach the storefront within about 15 seconds (the worker's
   dispatch interval).
+
+## Milestone 5 status: visual builder, themes and menus
+
+**Implemented on `claude/cool-thompson-c7u8qp`, awaiting local functional
+review** (not tagged). Decisions and the audit of the M4 foundation:
+[ADR-0030](../adr/0030-site-presentation-builder-themes-navigation.md);
+design: [07 §10](../architecture/07-page-builder-document.md#10-editor-application-as-built-in-milestone-5),
+[08 §9](../architecture/08-themes.md#9-the-theme-engine-as-built-in-milestone-5);
+what is proven where:
+[11-testing.md](../architecture/11-testing.md#milestone-5-visual-builder-themes-menus-what-is-proven-where).
+No checkout, orders or payments (M6), no plugin system, SDK or marketplace.
+
+Delivered:
+
+- **Database** (`20261101000000_site_presentation`): `StoreTheme` and
+  `Navigation` with forced RLS; storefront policies for drafts in a verified
+  preview only; draft theme settings through a definer function; theme and
+  menu outbox events; a HOME page for every store (backfill plus trigger).
+- **`@storevia/editor`** (generic): section operations, the compile-time
+  registry over link kinds, eleven section blocks, the renderer, rich text,
+  menus. **`@storevia/commerce/blocks`**: commerce link kinds and blocks,
+  `STOREVIA_REGISTRY`; **`@storevia/commerce/site`**: the composition.
+- **Site Engine**: the theme engine (three presets, bounded settings with
+  contrast rules, tokens), drafts in previews, menus, the `design:` tag.
+- **`@storevia/site-admin`**: pages, drafts, publish, theme and menu
+  services with server-side RBAC and optimistic concurrency.
+- **Storefront**: stored pages with the store's theme and menus; content
+  pages at `/pages/{handle}`; existing URLs unchanged.
+- **Dashboard**: Website hub, pages, the builder (three panels, tabs on
+  phones and tablets), theme and menus; a live "Content updates" card.
+- **Marketing**: storefront and builder marked available, described as
+  built (no drag and drop; version history stays on the roadmap).
+
+Open, with the reason:
+
+| Item                                      | Now             | Why                                                                                |
+| ----------------------------------------- | --------------- | ---------------------------------------------------------------------------------- |
+| Freeform canvas, drag and drop, layers    | Later           | ADR-0030 §1: a structured section editor first; reorder is by buttons (accessible) |
+| Undo/redo, inline text editing, shortcuts | Later           | Deferred with the freeform canvas                                                  |
+| Version history and restore UI            | Later           | Archived versions are kept; no screen yet                                          |
+| Nested menus                              | Later           | Flat menus of 20 items cover the review scope                                      |
+| Packaged themes, theme gallery, web fonts | M7              | One first-party theme with presets; system font stacks only                        |
+| CustomHTML, embeds, forms                 | Later (own ADR) | No arbitrary HTML, script or iframes in M5                                         |
+| Handle-change redirects                   | Later           | Old addresses return 404 after a rename                                            |
+
+### Running Milestone 5 locally
+
+After the earlier steps (`pnpm install`, a running PostgreSQL and `.env`):
+
+```sh
+git fetch origin claude/cool-thompson-c7u8qp && git checkout claude/cool-thompson-c7u8qp
+pnpm install
+pnpm db:migrate          # applies 20261101000000_site_presentation (HOME pages for existing stores)
+pnpm db:seed && pnpm db:seed:dev
+pnpm dev
+```
+
+- Dashboard → Acme Flagship → **Website**: edit the home page, add
+  sections, pick images, save, preview, publish; **Pages** for content
+  pages; **Theme**; **Menus**. Sign in as `owner@acme.test`, or
+  `designer@acme.test` (Designer role) with the password `pnpm db:seed:dev`
+  prints.
+- <http://acme-flagship.store.localhost:3002> shows published changes within
+  about 15 seconds (the worker's dispatch interval).
+- For a clean database: `pnpm db:reset && pnpm db:seed:dev`.
 
 ## Milestone 1 plan (as scheduled at M0)
 

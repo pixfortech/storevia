@@ -1,6 +1,9 @@
 # 07 — Visual builder: document architecture
 
 > Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**. ADR-0011.
+> Milestone 5 builds a structured **section builder** on this format
+> (ADR-0030); §10 describes what is built, and which baseline items are
+> deferred.
 >
 > The page document is the most long-lived data format in Storevia. Every
 > published site depends on it forever, so it is designed conservatively:
@@ -245,19 +248,96 @@ validation as `LinkTarget.url`.
 A crashed browser, a failed autosave or a half-applied operation can only
 affect the draft. The published version is immutable and swapped atomically.
 
-## 10. Editor application (M5, summary)
+## 10. Editor application (as built in Milestone 5)
 
-- Lives in `apps/dashboard` (route `/stores/{id}/editor/{pageId}`) using
-  `@storevia/editor/ui`.
-- State: normalised document + selection + viewport + undo/redo stacks of
-  **operations** (insert, move, update props, update styles, delete,
-  duplicate, wrap). Each operation has an inverse, so undo/redo is exact and
-  cheap. Operations are pure functions in `@storevia/editor/document`,
-  unit-tested without React.
-- Drag-and-drop with dnd-kit (pointer + keyboard sensors for accessibility);
-  drop validity comes from `allowedChildren`/`allowedParents`.
-- Canvas renders in an iframe at desktop/tablet/mobile widths with the same
-  renderers as the storefront.
-- Keyboard shortcuts: undo/redo, duplicate, delete, copy/paste (clipboard
-  holds serialised nodes with regenerated IDs on paste), arrow-key selection,
-  escape to parent.
+ADR-0030 narrows M5 to a controlled section editor. The document format is
+v1, unchanged: a page's top-level nodes are its **sections**, and the
+builder edits sections, not arbitrary trees.
+
+### Packages
+
+| Package                                   | Holds                                                                                                                                                                                              |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@storevia/editor` (generic, no commerce) | Document schema and validation, section operations, the registry builder, eleven generic section blocks, the renderer, rich text, navigation menus. Client-safe                                    |
+| `@storevia/commerce/blocks`               | Commerce link kinds (product, collection, search, cart), data sources, commerce blocks (featured products, collection list, the M4 product/collection/search/cart components), `STOREVIA_REGISTRY` |
+| `@storevia/commerce/site`                 | `STOREVIA_SITE`: the composition (registry, templates, reference checker) the services take as an argument                                                                                         |
+| `@storevia/site-admin`                    | Merchant services: pages, drafts, publish, theme, menus, with RBAC and `withTenant`                                                                                                                |
+| `apps/dashboard` `components/site/`       | Builder, canvas, settings forms, pickers, theme and menu editors                                                                                                                                   |
+
+ESLint and `packages/site-engine/src/boundary.test.ts` keep `@storevia/editor`
+free of commerce, database, media and UI imports, and keep commerce blocks
+client-safe.
+
+### Registry
+
+`createRegistry({ linkKinds, components })` builds a registry at compile
+time. A component is a definition or a factory over a schema kit whose
+`link` schema accepts exactly the registry's link kinds, so a Site Engine
+registry (`SITE_REGISTRY`: url, home, page) refuses a product link that the
+Storevia registry accepts. A section definition declares `section: true`,
+a `headingProp` (the first section's heading is the page's `h1`), bounded
+`controls` for the settings panel, data requirements, and
+`requires: ["catalogue"]` for commerce sections. There is no runtime
+registration, plugin loading or public SDK.
+
+Generic sections: hero, text, image, image with text, gallery, features,
+call to action, FAQ (`<details>`), testimonials, logo strip, contact
+details. Commerce sections: featured products (latest, a collection, or
+chosen products) and collection list. New sections start empty and render
+nothing until the merchant writes content: no invented testimonials,
+clients or figures.
+
+### Operations
+
+Pure functions in `@storevia/editor/document` (`operations.ts`), unit
+tested without React: `createSection`, `insertSection`, `moveSection`,
+`duplicateSection` (fresh ids for the copy and its subtree),
+`removeSection`, `updateSectionProps`, `setSectionHidden`,
+`setSectionVisibility` (per device: desktop, tablet, phone). Each returns a
+new document or throws `OperationError` (unknown section, limit reached).
+
+### Limits (M5)
+
+| Limit                    | Value                                                                                 |
+| ------------------------ | ------------------------------------------------------------------------------------- |
+| Sections per page        | 40 (on top of 2 000 nodes, depth 12, 1 MiB)                                           |
+| Items per block          | 24 gallery or logos, 12 features or testimonials, 30 FAQ, 24 collections, 48 products |
+| Standard pages per store | 100                                                                                   |
+| Menu items               | 20 per menu, labels up to 80 characters                                               |
+| Text fields              | Bounded per field by each block's schema                                              |
+
+### Builder
+
+- Route: `/s/{storeId}/website/pages/{pageId}`. The Website hub
+  (`/website`), pages list (`/pages`), theme (`/website/theme`) and menus
+  (`/website/navigation`) sit beside it.
+- Three panels on desktop (sections, canvas, settings); tabs on phones and
+  tablets.
+- Sections are added from a dialog, reordered with **Move up / Move down**
+  buttons (keyboard-accessible, no drag needed), duplicated, hidden, shown
+  per device and removed. Settings forms are generated from the block's
+  controls: text, rich text, media (from the library, with upload), links
+  (only the registry's kinds), select, toggle, number, items, products and
+  collections by search.
+- **Canvas:** a same-origin `srcdoc` iframe into which React renders the
+  working document through a portal, with the storefront's registry, base
+  styles and theme tokens, at 1280, 768 or 390 px scaled to fit. Data comes
+  from the storefront resolver run in the merchant's transaction
+  (`loadCanvasData`, preview policy). Clicks select sections; links, buttons
+  and forms don't navigate or submit.
+- **Saving:** autosave 1.5 s after the last change, one request in flight,
+  plus Save draft. Every save sends the draft's `revision`. A stale revision
+  is refused (`CONFLICT`) and the builder stops autosaving and says _"This
+  page changed somewhere else"_, with Reload. Nothing is overwritten.
+- **Preview** opens the signed storefront preview for the page's path
+  (`/` or `/pages/{handle}`; any other `path` falls back to `/`).
+- **Publish** (`page.publish`) is one transaction: lock, re-validate,
+  re-check references, archive the previous version, publish the draft, move
+  the pointer. The outbox emits `page.changed`.
+
+### Deferred from the baseline
+
+Freeform tree editing and dnd-kit, layers, undo/redo, inline text editing,
+per-breakpoint styles, CustomHTML and embeds (§8), version history and
+restore (§9: archived versions are kept, but there is no UI yet), keyboard
+shortcuts, nested menus.

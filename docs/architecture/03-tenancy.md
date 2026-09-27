@@ -178,6 +178,17 @@ CREATE POLICY tenant_isolation ON "Product"
 - A generated SQL test asserts that **every** table with an
   `organisationId` column has RLS enabled, forced, and a policy. A new
   tenant table without a policy fails CI.
+- **Milestone 5** (`20261101000000_site_presentation`): `StoreTheme` and
+  `Navigation` get the same forced tenant policy and an owner-immutability
+  trigger. The storefront role adds restrictive store-scoped policies
+  (only the LIVE theme; drafts of `PageVersion` only when
+  `app.preview = 'on'`) and never sees `StoreTheme.draftSettings` (column
+  grants; draft settings come through `app_storefront_theme_settings()`,
+  in a preview only). Every store gets its HOME page from
+  `app_ensure_home_page(storeId)`, a definer function the application
+  roles can't call; organisation and store are taken from the store row.
+  Tests: `packages/database/tests/site-presentation.int.test.ts`, including
+  another store of the **same** organisation.
 
 ### 5.3 Database roles
 
