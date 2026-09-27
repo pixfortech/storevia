@@ -142,6 +142,7 @@ jobs:
       DATABASE_MARKETING_URL: postgresql://storevia_marketing:ci-marketing@localhost:5432/storevia
       DATABASE_STOREFRONT_URL: postgresql://storevia_storefront:ci-storefront@localhost:5432/storevia
       DATABASE_CHECKOUT_URL: postgresql://storevia_checkout:ci-checkout@localhost:5432/storevia
+      PAYMENT_CREDENTIALS_KEYS: "1:Y2ktb25seS1wYXltZW50LWNyZWRlbnRpYWxzLWtleSE="
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -235,6 +236,7 @@ jobs:
       DATABASE_MARKETING_URL: postgresql://storevia_marketing:ci-marketing@localhost:5432/storevia
       DATABASE_STOREFRONT_URL: postgresql://storevia_storefront:ci-storefront@localhost:5432/storevia
       DATABASE_CHECKOUT_URL: postgresql://storevia_checkout:ci-checkout@localhost:5432/storevia
+      PAYMENT_CREDENTIALS_KEYS: "1:Y2ktb25seS1wYXltZW50LWNyZWRlbnRpYWxzLWtleSE="
       DASHBOARD_URL: http://app.localhost:3001
       E2E_BASE_URL: http://app.localhost:3001
       PLATFORM_ADMIN_URL: http://admin.localhost:3003
@@ -253,6 +255,8 @@ jobs:
       STOREFRONT_REVALIDATE_SECRET: ci-only-storefront-revalidate-secret-not-used-elsewhere-0000
       # Production builds must opt in to mock billing explicitly (ADR-0022).
       BILLING_MOCK_ENABLED: "true"
+      # Production builds must opt in to test payments explicitly (ADR-0031 §4).
+      TEST_PAYMENTS_ENABLED: "true"
       EMAIL_TRANSPORT: file
       EMAIL_FILE_DIR: /tmp/storevia-mail
       AUTH_BREACHED_PASSWORD_CHECK: "off"
@@ -326,6 +330,7 @@ jobs:
       DATABASE_MARKETING_URL: postgresql://storevia_marketing:ci-marketing@localhost:5432/storevia
       DATABASE_STOREFRONT_URL: postgresql://storevia_storefront:ci-storefront@localhost:5432/storevia
       DATABASE_CHECKOUT_URL: postgresql://storevia_checkout:ci-checkout@localhost:5432/storevia
+      PAYMENT_CREDENTIALS_KEYS: "1:Y2ktb25seS1wYXltZW50LWNyZWRlbnRpYWxzLWtleSE="
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

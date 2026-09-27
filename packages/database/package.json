@@ -11,7 +11,8 @@
     "./billing": "./src/billing.ts",
     "./worker": "./src/worker.ts",
     "./marketing": "./src/marketing.ts",
-    "./storefront": "./src/storefront.ts"
+    "./storefront": "./src/storefront.ts",
+    "./checkout": "./src/checkout.ts"
   },
   "scripts": {
     "generate": "prisma generate",

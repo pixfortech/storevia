@@ -7,6 +7,8 @@ const rootEnv = resolve(import.meta.dirname, "../.env");
 if (existsSync(rootEnv) && !process.env["CI"]) process.loadEnvFile(rootEnv);
 
 process.env["STOREVIA_ENV"] = "test";
+// Payment credentials are sealed with a fixed test keyring when none is set.
+process.env["PAYMENT_CREDENTIALS_KEYS"] ??= `1:${Buffer.alloc(32, 0x5a).toString("base64")}`;
 // Query events for the query-count harness (packages/database/src/testing.ts).
 process.env["STOREVIA_QUERY_EVENTS"] = "1";
 const base = new URL(process.env["DATABASE_URL"] ?? "postgresql://localhost/storevia");

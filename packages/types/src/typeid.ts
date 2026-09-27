@@ -22,6 +22,17 @@ export const ID_PREFIXES = {
   media: "media",
   // Storefront content (ADR-0028).
   page: "page",
+  // Checkout, orders and payments (ADR-0031).
+  customer: "cus",
+  order: "order",
+  discount: "disc",
+  shippingZone: "shipzone",
+  shippingRate: "shiprate",
+  taxRate: "taxrate",
+  paymentConnection: "payconn",
+  payment: "pay",
+  refund: "refund",
+  fulfilment: "ful",
 } as const;
 
 export type IdKind = keyof typeof ID_PREFIXES;
