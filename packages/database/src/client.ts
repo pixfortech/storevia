@@ -3,7 +3,7 @@ import pg from "pg";
 import { PrismaClient } from "./generated/prisma/client";
 
 export type DatabaseRole =
-  "app" | "system" | "platform" | "billing" | "worker" | "marketing" | "storefront";
+  "app" | "system" | "platform" | "billing" | "worker" | "marketing" | "storefront" | "checkout";
 
 const URL_ENV: Record<DatabaseRole, string> = {
   app: "DATABASE_URL",
@@ -13,6 +13,7 @@ const URL_ENV: Record<DatabaseRole, string> = {
   worker: "DATABASE_WORKER_URL",
   marketing: "DATABASE_MARKETING_URL",
   storefront: "DATABASE_STOREFRONT_URL",
+  checkout: "DATABASE_CHECKOUT_URL",
 };
 
 // One client (and pg pool) per role per process. Cached on globalThis so that

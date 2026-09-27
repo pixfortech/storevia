@@ -96,6 +96,7 @@ model Product {
   variants    ProductVariant[]
   media       ProductMedia[]
   collections CollectionProduct[]
+  orderLines  OrderLine[]
 
   @@unique([id, storeId])
   @@index([createdById])
@@ -182,6 +183,7 @@ model ProductVariant {
   optionValues  ProductVariantOptionValue[]
   inventoryItem InventoryItem?
   cartLines     CartLine[]
+  orderLines    OrderLine[]
 
   @@unique([productId, optionSignature])
   @@unique([id, storeId])
@@ -317,9 +319,11 @@ model Location {
   updatedAt           DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt           DateTime? @db.Timestamptz(3)
 
-  store     Store               @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
-  levels    InventoryLevel[]
-  movements InventoryMovement[]
+  store        Store                  @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  levels       InventoryLevel[]
+  movements    InventoryMovement[]
+  reservations InventoryReservation[]
+  fulfilments  Fulfilment[]
 
   @@unique([id, storeId])
   @@index([storeId])
@@ -338,10 +342,11 @@ model InventoryItem {
   createdAt       DateTime @default(now()) @db.Timestamptz(3)
   updatedAt       DateTime @updatedAt @db.Timestamptz(3)
 
-  store     Store               @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
-  variant   ProductVariant      @relation(fields: [variantId, storeId], references: [id, storeId], onDelete: Cascade)
-  levels    InventoryLevel[]
-  movements InventoryMovement[]
+  store        Store                  @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  variant      ProductVariant         @relation(fields: [variantId, storeId], references: [id, storeId], onDelete: Cascade)
+  levels       InventoryLevel[]
+  movements    InventoryMovement[]
+  reservations InventoryReservation[]
 
   @@unique([id, storeId])
   @@unique([variantId, storeId])
@@ -714,30 +719,56 @@ model Store {
   createdAt        DateTime     @default(now()) @db.Timestamptz(3)
   updatedAt        DateTime     @updatedAt @db.Timestamptz(3)
 
-  organisation        Organisation                @relation(fields: [organisationId], references: [id], onDelete: Restrict)
-  memberAccess        MembershipStoreAccess[]
-  domains             StoreDomain[]
-  slugHistory         StoreSlugHistory[]
-  carts               Cart[]
-  cartLines           CartLine[]
-  pages               Page[]
-  pageVersions        PageVersion[]
-  storeThemes         StoreTheme[]
-  navigations         Navigation[]
-  outboxEvents        OutboxEvent[]
-  media               MediaAsset[]
-  products            Product[]
-  productOptions      ProductOption[]
-  productOptionValues ProductOptionValue[]
-  productVariants     ProductVariant[]
-  variantOptionValues ProductVariantOptionValue[]
-  productMedia        ProductMedia[]
-  collections         Collection[]
-  collectionProducts  CollectionProduct[]
-  locations           Location[]
-  inventoryItems      InventoryItem[]
-  inventoryLevels     InventoryLevel[]
-  inventoryMovements  InventoryMovement[]
+  organisation          Organisation                @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  memberAccess          MembershipStoreAccess[]
+  domains               StoreDomain[]
+  slugHistory           StoreSlugHistory[]
+  carts                 Cart[]
+  cartLines             CartLine[]
+  pages                 Page[]
+  pageVersions          PageVersion[]
+  storeThemes           StoreTheme[]
+  navigations           Navigation[]
+  outboxEvents          OutboxEvent[]
+  media                 MediaAsset[]
+  products              Product[]
+  productOptions        ProductOption[]
+  productOptionValues   ProductOptionValue[]
+  productVariants       ProductVariant[]
+  variantOptionValues   ProductVariantOptionValue[]
+  productMedia          ProductMedia[]
+  collections           Collection[]
+  collectionProducts    CollectionProduct[]
+  locations             Location[]
+  inventoryItems        InventoryItem[]
+  inventoryLevels       InventoryLevel[]
+  inventoryMovements    InventoryMovement[]
+  inventoryReservations InventoryReservation[]
+  customers             Customer[]
+  checkouts             Checkout[]
+  discounts             Discount[]
+  discountCodes         DiscountCode[]
+  discountRedemptions   DiscountRedemption[]
+  shippingZones         ShippingZone[]
+  shippingZoneCountries ShippingZoneCountry[]
+  shippingRates         ShippingRate[]
+  taxConfiguration      TaxConfiguration?
+  taxRates              TaxRate[]
+  orders                Order[]
+  orderLines            OrderLine[]
+  orderAddresses        OrderAddress[]
+  orderDiscounts        OrderDiscount[]
+  orderShippingLines    OrderShippingLine[]
+  orderTaxLines         OrderTaxLine[]
+  orderEvents           OrderEvent[]
+  paymentConnections    PaymentProviderConnection[]
+  payments              Payment[]
+  paymentWebhookEvents  PaymentWebhookEvent[]
+  refunds               Refund[]
+  refundLines           RefundLine[]
+  fulfilments           Fulfilment[]
+  fulfilmentLines       FulfilmentLine[]
+  orderNotifications    OrderNotification[]
 
   @@unique([id, organisationId])
   @@index([organisationId])
@@ -1170,8 +1201,9 @@ model Cart {
   createdAt      DateTime   @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime   @updatedAt @db.Timestamptz(3)
 
-  store Store      @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
-  lines CartLine[]
+  store     Store      @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  lines     CartLine[]
+  checkouts Checkout[]
 
   @@unique([id, storeId])
   @@index([storeId, status, updatedAt])
@@ -1342,5 +1374,809 @@ model OutboxEvent {
 
   @@unique([id, storeId])
   @@index([dispatchedAt, occurredAt])
+  @@index([storeId])
+}
+
+// -----------------------------------------------------------------------------
+// Milestone 6: checkout, customers, orders, payments (ADR-0031)
+// -----------------------------------------------------------------------------
+
+enum CheckoutStatus {
+  OPEN
+  PAYMENT_PENDING
+  COMPLETED
+  EXPIRED
+}
+
+enum ReservationStatus {
+  ACTIVE
+  CONVERTED
+  RELEASED
+  EXPIRED
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  FREE_SHIPPING
+}
+
+enum DiscountMethod {
+  CODE
+  AUTOMATIC
+}
+
+enum DiscountStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum DiscountTarget {
+  ALL
+  PRODUCTS
+  COLLECTIONS
+}
+
+enum RedemptionStatus {
+  RESERVED
+  REDEEMED
+  RELEASED
+}
+
+enum ShippingRateType {
+  FLAT
+  WEIGHT_BASED
+  PRICE_BASED
+}
+
+enum OrderPaymentStatus {
+  PENDING
+  AUTHORISED
+  PAID
+  PARTIALLY_REFUNDED
+  REFUNDED
+  FAILED
+  VOIDED
+}
+
+enum OrderFulfilmentStatus {
+  UNFULFILLED
+  PARTIALLY_FULFILLED
+  FULFILLED
+}
+
+/// Cancellation is the order's own state, separate from payment and
+/// fulfilment (ADR-0031 §5). "Completed" is derived, not stored.
+enum OrderStatus {
+  OPEN
+  CANCELLED
+}
+
+enum AddressType {
+  SHIPPING
+  BILLING
+}
+
+enum PaymentProviderMode {
+  TEST
+  LIVE
+}
+
+enum PaymentConnectionStatus {
+  PENDING
+  ACTIVE
+  DISABLED
+  ERROR
+}
+
+enum PaymentStatus {
+  PENDING
+  REQUIRES_ACTION
+  AUTHORISED
+  CAPTURED
+  PARTIALLY_CAPTURED
+  FAILED
+  CANCELLED
+}
+
+enum RefundStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+enum FulfilmentState {
+  PENDING
+  SUCCESS
+  CANCELLED
+}
+
+enum NotificationKind {
+  ORDER_CONFIRMATION
+  ORDER_CANCELLED
+  ORDER_FULFILLED
+  REFUND_CREATED
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+/// SQL: partial unique (storeId, lower(email)) WHERE email IS NOT NULL AND deletedAt IS NULL.
+model Customer {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organisationId String    @db.Uuid
+  storeId        String    @db.Uuid
+  email          String?   @db.Citext
+  phone          String?
+  firstName      String?
+  lastName       String?
+  note           String?
+  tags           String[]
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @db.Timestamptz(3)
+  deletedAt      DateTime? @db.Timestamptz(3)
+
+  store       Store                @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  checkouts   Checkout[]
+  orders      Order[]
+  redemptions DiscountRedemption[]
+
+  @@unique([id, storeId])
+  @@index([storeId, createdAt])
+}
+
+/// Totals are the last SERVER-computed quote; they are recomputed and
+/// compared (pricingHash) immediately before payment is initiated.
+model Checkout {
+  id               String         @id @default(uuid(7)) @db.Uuid
+  organisationId   String         @db.Uuid
+  storeId          String         @db.Uuid
+  cartId           String         @db.Uuid
+  tokenHash        String         @unique
+  customerId       String?        @db.Uuid
+  email            String?
+  status           CheckoutStatus @default(OPEN)
+  currency         String         @db.Char(3)
+  shippingAddress  Json?
+  billingAddress   Json?
+  shippingRateId   String?        @db.Uuid
+  /// One code per checkout in M6 (ADR-0031 §7), stored upper-cased.
+  discountCode     String?
+  subtotalAmount   BigInt         @default(0)
+  discountAmount   BigInt         @default(0)
+  shippingAmount   BigInt         @default(0)
+  taxAmount        BigInt         @default(0)
+  totalAmount      BigInt         @default(0)
+  pricingHash      String?
+  /// The itemised server quote (lines, allocations, tax and shipping lines)
+  /// the order is created from; never supplied by the browser.
+  quote            Json?
+  pricedAt         DateTime?      @db.Timestamptz(3)
+  expiresAt        DateTime       @db.Timestamptz(3)
+  completedOrderId String?        @unique @db.Uuid
+  createdAt        DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime       @updatedAt @db.Timestamptz(3)
+
+  store        Store                  @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  cart         Cart                   @relation(fields: [cartId, storeId], references: [id, storeId], onDelete: Restrict)
+  customer     Customer?              @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  reservations InventoryReservation[]
+  payments     Payment[]
+
+  @@unique([id, storeId])
+  @@index([storeId, status, updatedAt])
+  @@index([cartId])
+  @@index([customerId])
+}
+
+/// Short-lived holds taken when a checkout enters payment.
+model InventoryReservation {
+  id              String            @id @default(uuid(7)) @db.Uuid
+  organisationId  String            @db.Uuid
+  storeId         String            @db.Uuid
+  inventoryItemId String            @db.Uuid
+  locationId      String            @db.Uuid
+  checkoutId      String?           @db.Uuid
+  orderId         String?           @db.Uuid
+  /// Set when the reservation is converted: the order line it holds stock for.
+  orderLineId     String?           @db.Uuid
+  quantity        Int
+  status          ReservationStatus @default(ACTIVE)
+  expiresAt       DateTime          @db.Timestamptz(3)
+  createdAt       DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime          @updatedAt @db.Timestamptz(3)
+
+  store         Store         @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId, storeId], references: [id, storeId], onDelete: Restrict)
+  location      Location      @relation(fields: [locationId, storeId], references: [id, storeId], onDelete: Restrict)
+  checkout      Checkout?     @relation(fields: [checkoutId], references: [id], onDelete: SetNull)
+
+  @@index([status, expiresAt])
+  @@index([checkoutId])
+  @@index([orderId])
+  @@index([storeId])
+  @@index([inventoryItemId])
+  @@index([locationId])
+}
+
+/// PERCENTAGE uses percentageBps (1000 = 10%); FIXED_AMOUNT uses amount +
+/// currency. SQL CHECKs enforce the right field per type.
+model Discount {
+  id                String         @id @default(uuid(7)) @db.Uuid
+  organisationId    String         @db.Uuid
+  storeId           String         @db.Uuid
+  title             String
+  type              DiscountType
+  method            DiscountMethod
+  status            DiscountStatus @default(ACTIVE)
+  percentageBps     Int?
+  amount            BigInt?
+  currency          String?        @db.Char(3)
+  target            DiscountTarget @default(ALL)
+  minSubtotalAmount BigInt?
+  startsAt          DateTime       @db.Timestamptz(3)
+  endsAt            DateTime?      @db.Timestamptz(3)
+  usageLimit        Int?
+  usageCount        Int            @default(0)
+  createdAt         DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime       @updatedAt @db.Timestamptz(3)
+
+  store       Store                @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  codes       DiscountCode[]
+  redemptions DiscountRedemption[]
+
+  @@unique([id, storeId])
+  @@index([storeId, status, startsAt])
+}
+
+/// SQL: code stored upper-cased; unique per store.
+model DiscountCode {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organisationId String   @db.Uuid
+  storeId        String   @db.Uuid
+  discountId     String   @db.Uuid
+  code           String
+  usageCount     Int      @default(0)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+
+  store       Store                @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  discount    Discount             @relation(fields: [discountId, storeId], references: [id, storeId], onDelete: Cascade)
+  redemptions DiscountRedemption[]
+
+  @@unique([storeId, code])
+  @@unique([id, storeId])
+  @@index([discountId])
+}
+
+/// One use of a discount: reserved when a checkout starts paying (the usage
+/// count is taken then, under the discount's row lock), redeemed with the
+/// order, released when the payment fails or expires (ADR-0031 §7).
+model DiscountRedemption {
+  id             String           @id @default(uuid(7)) @db.Uuid
+  organisationId String           @db.Uuid
+  storeId        String           @db.Uuid
+  discountId     String           @db.Uuid
+  discountCodeId String?          @db.Uuid
+  checkoutId     String           @db.Uuid
+  orderId        String?          @db.Uuid
+  customerId     String?          @db.Uuid
+  email          String?
+  status         RedemptionStatus @default(RESERVED)
+  createdAt      DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @db.Timestamptz(3)
+
+  store        Store         @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  discount     Discount      @relation(fields: [discountId, storeId], references: [id, storeId], onDelete: Restrict)
+  discountCode DiscountCode? @relation(fields: [discountCodeId], references: [id], onDelete: SetNull)
+  order        Order?        @relation(fields: [orderId, storeId], references: [id, storeId], onDelete: Restrict)
+  customer     Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@unique([discountId, checkoutId])
+  @@unique([discountId, orderId])
+  @@index([checkoutId])
+  @@index([discountId, customerId])
+  @@index([storeId])
+  @@index([discountCodeId])
+  @@index([orderId])
+  @@index([customerId])
+}
+
+model ShippingZone {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organisationId String   @db.Uuid
+  storeId        String   @db.Uuid
+  name           String
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+
+  store     Store                 @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  countries ShippingZoneCountry[]
+  rates     ShippingRate[]
+
+  @@unique([id, storeId])
+  @@index([storeId])
+}
+
+/// A country (optionally narrowed to regions) belongs to at most one zone per store.
+model ShippingZoneCountry {
+  organisationId String   @db.Uuid
+  storeId        String   @db.Uuid
+  zoneId         String   @db.Uuid
+  countryCode    String   @db.Char(2)
+  regionCodes    String[]
+
+  store Store        @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  zone  ShippingZone @relation(fields: [zoneId, storeId], references: [id, storeId], onDelete: Cascade)
+
+  @@id([zoneId, countryCode])
+  @@unique([storeId, countryCode])
+}
+
+model ShippingRate {
+  id                String           @id @default(uuid(7)) @db.Uuid
+  organisationId    String           @db.Uuid
+  storeId           String           @db.Uuid
+  zoneId            String           @db.Uuid
+  name              String
+  type              ShippingRateType
+  currency          String           @db.Char(3)
+  amount            BigInt
+  minSubtotalAmount BigInt?
+  maxSubtotalAmount BigInt?
+  minWeightGrams    Int?
+  maxWeightGrams    Int?
+  active            Boolean          @default(true)
+  createdAt         DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime         @updatedAt @db.Timestamptz(3)
+
+  store Store        @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  zone  ShippingZone @relation(fields: [zoneId, storeId], references: [id, storeId], onDelete: Cascade)
+
+  @@index([zoneId])
+  @@index([storeId])
+}
+
+/// One per store. Tax calculation is behind a TaxCalculator interface so an
+/// external provider (or India GST CGST/SGST/IGST logic) can plug in.
+model TaxConfiguration {
+  storeId             String   @id @db.Uuid
+  organisationId      String   @db.Uuid
+  pricesIncludeTax    Boolean  @default(false)
+  chargeTaxOnShipping Boolean  @default(false)
+  calculator          String   @default("manual")
+  taxRegistrationId   String?
+  updatedAt           DateTime @updatedAt @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+
+  @@unique([storeId, organisationId])
+}
+
+/// ratePpm: parts per million (7.25% = 72500). No floating point.
+model TaxRate {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organisationId String   @db.Uuid
+  storeId        String   @db.Uuid
+  countryCode    String   @db.Char(2)
+  regionCode     String?
+  name           String
+  ratePpm        Int
+  priority       Int      @default(0)
+  compound       Boolean  @default(false)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+
+  @@index([storeId, countryCode])
+}
+
+model Order {
+  id               String                @id @default(uuid(7)) @db.Uuid
+  organisationId   String                @db.Uuid
+  storeId          String                @db.Uuid
+  orderNumber      Int
+  checkoutId       String?               @unique @db.Uuid
+  customerId       String?               @db.Uuid
+  email            String?
+  phone            String?
+  currency         String                @db.Char(3)
+  pricesIncludeTax Boolean
+  subtotalAmount   BigInt
+  discountAmount   BigInt
+  shippingAmount   BigInt
+  taxAmount        BigInt
+  totalAmount      BigInt
+  refundedAmount   BigInt                @default(0)
+  status           OrderStatus           @default(OPEN)
+  paymentStatus    OrderPaymentStatus    @default(PENDING)
+  fulfilmentStatus OrderFulfilmentStatus @default(UNFULFILLED)
+  /// Paid after its reservation was released and stock ran out (ADR-0031 §4).
+  stockShortage    Boolean               @default(false)
+  sourceName       String                @default("storefront")
+  customerLocale   String?
+  note             String?
+  tags             String[]
+  placedAt         DateTime              @db.Timestamptz(3)
+  cancelledAt      DateTime?             @db.Timestamptz(3)
+  cancelReason     String?
+  createdAt        DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime              @updatedAt @db.Timestamptz(3)
+
+  store         Store                @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  customer      Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  lines         OrderLine[]
+  addresses     OrderAddress[]
+  discounts     OrderDiscount[]
+  shippingLines OrderShippingLine[]
+  taxLines      OrderTaxLine[]
+  events        OrderEvent[]
+  payments      Payment[]
+  refunds       Refund[]
+  fulfilments   Fulfilment[]
+  redemptions   DiscountRedemption[]
+  notifications OrderNotification[]
+
+  @@unique([storeId, orderNumber])
+  @@unique([id, storeId])
+  @@index([storeId, placedAt])
+  @@index([storeId, status, placedAt])
+  @@index([storeId, paymentStatus, fulfilmentStatus])
+  @@index([customerId])
+}
+
+/// productId/variantId are informational links that survive product purges
+/// (SET NULL). All commercial values are snapshots taken at purchase time.
+model OrderLine {
+  id                String   @id @default(uuid(7)) @db.Uuid
+  organisationId    String   @db.Uuid
+  storeId           String   @db.Uuid
+  orderId           String   @db.Uuid
+  productId         String?  @db.Uuid
+  variantId         String?  @db.Uuid
+  productTitle      String
+  variantTitle      String?
+  sku               String?
+  currency          String   @db.Char(3)
+  unitPriceAmount   BigInt
+  quantity          Int
+  discountAmount    BigInt   @default(0)
+  taxAmount         BigInt   @default(0)
+  totalAmount       BigInt
+  requiresShipping  Boolean
+  taxable           Boolean
+  weightGrams       Int?
+  fulfilledQuantity Int      @default(0)
+  refundedQuantity  Int      @default(0)
+  attributes        Json?
+  createdAt         DateTime @default(now()) @db.Timestamptz(3)
+
+  store           Store            @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  order           Order            @relation(fields: [orderId, storeId], references: [id, storeId], onDelete: Restrict)
+  product         Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variant         ProductVariant?  @relation(fields: [variantId], references: [id], onDelete: SetNull)
+  fulfilmentLines FulfilmentLine[]
+  refundLines     RefundLine[]
+  taxLines        OrderTaxLine[]
+
+  @@unique([id, storeId])
+  @@index([orderId])
+  @@index([variantId])
+  @@index([storeId])
+  @@index([productId])
+}
+
+model OrderAddress {
+  id             String      @id @default(uuid(7)) @db.Uuid
+  organisationId String      @db.Uuid
+  storeId        String      @db.Uuid
+  orderId        String      @db.Uuid
+  type           AddressType
+  firstName      String?
+  lastName       String?
+  company        String?
+  line1          String
+  line2          String?
+  city           String?
+  region         String?
+  regionCode     String?
+  postalCode     String?
+  countryCode    String      @db.Char(2)
+  phone          String?
+
+  store Store @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  order Order @relation(fields: [orderId, storeId], references: [id, storeId], onDelete: Restrict)
+
+  @@unique([orderId, type])
+  @@index([storeId])
+}
+
+/// Snapshot of each discount applied to the order.
+model OrderDiscount {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organisationId String       @db.Uuid
+  storeId        String       @db.Uuid
+  orderId        String       @db.Uuid
+  discountId     String?      @db.Uuid
+  code           String?
+  title          String
+  type           DiscountType
+  percentageBps  Int?
+  amount         BigInt
+  currency       String       @db.Char(3)
+
+  store Store @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  order Order @relation(fields: [orderId, storeId], references: [id, storeId], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([storeId])
+}
+
+model OrderShippingLine {
+  id             String  @id @default(uuid(7)) @db.Uuid
+  organisationId String  @db.Uuid
+  storeId        String  @db.Uuid
+  orderId        String  @db.Uuid
+  shippingRateId String? @db.Uuid
+  title          String
+  currency       String  @db.Char(3)
+  amount         BigInt
+  discountAmount BigInt  @default(0)
+  taxAmount      BigInt  @default(0)
+
+  store Store @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  order Order @relation(fields: [orderId, storeId], references: [id, storeId], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([storeId])
+}
+
+model OrderTaxLine {
+  id             String  @id @default(uuid(7)) @db.Uuid
+  organisationId String  @db.Uuid
+  storeId        String  @db.Uuid
+  orderId        String  @db.Uuid
+  orderLineId    String? @db.Uuid
+  title          String
+  ratePpm        Int
+  currency       String  @db.Char(3)
+  amount         BigInt
+
+  store     Store      @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  order     Order      @relation(fields: [orderId, storeId], references: [id, storeId], onDelete: Restrict)
+  orderLine OrderLine? @relation(fields: [orderLineId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([storeId])
+  @@index([orderLineId])
+}
+
+/// Merchant-visible order timeline (append-only).
+model OrderEvent {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organisationId String   @db.Uuid
+  storeId        String   @db.Uuid
+  orderId        String   @db.Uuid
+  type           String
+  message        String?
+  data           Json?
+  actorUserId    String?  @db.Uuid
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  order Order @relation(fields: [orderId, storeId], references: [id, storeId], onDelete: Restrict)
+
+  @@index([orderId, createdAt])
+  @@index([storeId])
+}
+
+/// Merchant's link to a payment provider. Secrets are envelope-encrypted
+/// (credentialsCiphertext + keyVersion); OAuth account linking preferred.
+model PaymentProviderConnection {
+  id                    String                  @id @default(uuid(7)) @db.Uuid
+  organisationId        String                  @db.Uuid
+  storeId               String                  @db.Uuid
+  provider              String
+  mode                  PaymentProviderMode
+  status                PaymentConnectionStatus @default(PENDING)
+  externalAccountId     String?
+  credentialsCiphertext Bytes?
+  keyVersion            Int?
+  /// Masked key id for display ("rzp_test_…1234"); never a secret.
+  credentialHint        String?
+  createdAt             DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime                @updatedAt @db.Timestamptz(3)
+
+  store    Store     @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  payments Payment[]
+
+  @@unique([storeId, provider, mode])
+  @@unique([id, storeId])
+}
+
+/// A payment attempt. Created for a checkout before an order exists; linked
+/// to the order once the order is created.
+model Payment {
+  id                String        @id @default(uuid(7)) @db.Uuid
+  organisationId    String        @db.Uuid
+  storeId           String        @db.Uuid
+  connectionId      String        @db.Uuid
+  checkoutId        String?       @db.Uuid
+  orderId           String?       @db.Uuid
+  provider          String
+  /// The provider's handle for this attempt (e.g. a Razorpay payment link).
+  providerPaymentId String?
+  /// The captured charge (e.g. Razorpay "pay_…"), used for refunds.
+  providerChargeId  String?
+  /// Hosted payment page the shopper is sent to (repeat submits reuse it).
+  redirectUrl       String?
+  status            PaymentStatus @default(PENDING)
+  currency          String        @db.Char(3)
+  amount            BigInt
+  capturedAmount    BigInt        @default(0)
+  refundedAmount    BigInt        @default(0)
+  idempotencyKey    String        @unique
+  failureCode       String?
+  failureMessage    String?
+  expiresAt         DateTime      @db.Timestamptz(3)
+  capturedAt        DateTime?     @db.Timestamptz(3)
+  createdAt         DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime      @updatedAt @db.Timestamptz(3)
+
+  store      Store                     @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  connection PaymentProviderConnection @relation(fields: [connectionId, storeId], references: [id, storeId], onDelete: Restrict)
+  checkout   Checkout?                 @relation(fields: [checkoutId], references: [id], onDelete: SetNull)
+  order      Order?                    @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  refunds    Refund[]
+
+  @@unique([provider, providerPaymentId])
+  @@unique([id, storeId])
+  @@index([orderId])
+  @@index([checkoutId])
+  @@index([storeId])
+  @@index([connectionId])
+}
+
+/// Idempotency ledger for merchant payment-provider webhooks, per store: one
+/// merchant can't pre-empt another store's event ids (ADR-0031 §4).
+model PaymentWebhookEvent {
+  id              String               @id @default(uuid(7)) @db.Uuid
+  organisationId  String               @db.Uuid
+  storeId         String               @db.Uuid
+  provider        String
+  providerEventId String
+  type            String
+  status          InboundWebhookStatus @default(RECEIVED)
+  attempts        Int                  @default(0)
+  lastError       String?
+  payload         Json
+  receivedAt      DateTime             @default(now()) @db.Timestamptz(3)
+  processedAt     DateTime?            @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+
+  @@unique([storeId, provider, providerEventId])
+  @@index([status, receivedAt])
+  @@index([storeId])
+}
+
+model Refund {
+  id               String       @id @default(uuid(7)) @db.Uuid
+  organisationId   String       @db.Uuid
+  storeId          String       @db.Uuid
+  orderId          String       @db.Uuid
+  paymentId        String       @db.Uuid
+  status           RefundStatus @default(PENDING)
+  currency         String       @db.Char(3)
+  amount           BigInt
+  reason           String?
+  providerRefundId String?
+  failureMessage   String?
+  idempotencyKey   String       @unique
+  createdById      String?      @db.Uuid
+  createdAt        DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime     @updatedAt @db.Timestamptz(3)
+
+  store   Store        @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  order   Order        @relation(fields: [orderId, storeId], references: [id, storeId], onDelete: Restrict)
+  payment Payment      @relation(fields: [paymentId, storeId], references: [id, storeId], onDelete: Restrict)
+  lines   RefundLine[]
+
+  @@unique([id, storeId])
+  @@index([orderId])
+  @@index([storeId])
+  @@index([paymentId])
+}
+
+model RefundLine {
+  id                String  @id @default(uuid(7)) @db.Uuid
+  organisationId    String  @db.Uuid
+  storeId           String  @db.Uuid
+  refundId          String  @db.Uuid
+  orderLineId       String  @db.Uuid
+  quantity          Int
+  amount            BigInt
+  restockLocationId String? @db.Uuid
+
+  store     Store     @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  refund    Refund    @relation(fields: [refundId, storeId], references: [id, storeId], onDelete: Restrict)
+  orderLine OrderLine @relation(fields: [orderLineId, storeId], references: [id, storeId], onDelete: Restrict)
+
+  @@unique([refundId, orderLineId])
+  @@index([storeId])
+  @@index([orderLineId])
+}
+
+model Fulfilment {
+  id              String          @id @default(uuid(7)) @db.Uuid
+  organisationId  String          @db.Uuid
+  storeId         String          @db.Uuid
+  orderId         String          @db.Uuid
+  locationId      String          @db.Uuid
+  state           FulfilmentState @default(PENDING)
+  trackingCompany String?
+  trackingNumber  String?
+  trackingUrl     String?
+  shippedAt       DateTime?       @db.Timestamptz(3)
+  createdById     String?         @db.Uuid
+  createdAt       DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime        @updatedAt @db.Timestamptz(3)
+
+  store    Store            @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  order    Order            @relation(fields: [orderId, storeId], references: [id, storeId], onDelete: Restrict)
+  location Location         @relation(fields: [locationId, storeId], references: [id, storeId], onDelete: Restrict)
+  lines    FulfilmentLine[]
+
+  @@unique([id, storeId])
+  @@index([orderId])
+  @@index([storeId])
+  @@index([locationId])
+}
+
+model FulfilmentLine {
+  id             String @id @default(uuid(7)) @db.Uuid
+  organisationId String @db.Uuid
+  storeId        String @db.Uuid
+  fulfilmentId   String @db.Uuid
+  orderLineId    String @db.Uuid
+  quantity       Int
+
+  store      Store      @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  fulfilment Fulfilment @relation(fields: [fulfilmentId, storeId], references: [id, storeId], onDelete: Cascade)
+  orderLine  OrderLine  @relation(fields: [orderLineId, storeId], references: [id, storeId], onDelete: Restrict)
+
+  @@unique([fulfilmentId, orderLineId])
+  @@index([storeId])
+  @@index([orderLineId])
+}
+
+/// Shopper emails, queued in the transaction that changes the order and sent
+/// by the worker with retries (ADR-0031 §12). An email failure never rolls
+/// back an order. dedupeKey makes each announcement exactly one row.
+model OrderNotification {
+  id             String             @id @default(uuid(7)) @db.Uuid
+  organisationId String             @db.Uuid
+  storeId        String             @db.Uuid
+  orderId        String             @db.Uuid
+  kind           NotificationKind
+  dedupeKey      String             @unique
+  recipient      String
+  referenceId    String?            @db.Uuid
+  status         NotificationStatus @default(PENDING)
+  attempts       Int                @default(0)
+  nextAttemptAt  DateTime           @default(now()) @db.Timestamptz(3)
+  lastError      String?
+  sentAt         DateTime?          @db.Timestamptz(3)
+  createdAt      DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime           @updatedAt @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  order Order @relation(fields: [orderId, storeId], references: [id, storeId], onDelete: Restrict)
+
+  @@index([status, nextAttemptAt])
+  @@index([orderId])
   @@index([storeId])
 }

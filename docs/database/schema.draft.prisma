@@ -1257,6 +1257,7 @@ model InventoryReservation {
 
   @@index([status, expiresAt])
   @@index([checkoutId])
+  @@index([orderId])
   @@index([storeId])
   @@index([inventoryItemId])
   @@index([locationId])
@@ -1587,6 +1588,7 @@ model DiscountRedemption {
 
   @@unique([discountId, checkoutId])
   @@unique([discountId, orderId])
+  @@index([checkoutId])
   @@index([discountId, customerId])
   @@index([storeId])
   @@index([discountCodeId])
@@ -1771,6 +1773,7 @@ model Order {
   @@unique([storeId, orderNumber])
   @@unique([id, storeId])
   @@index([storeId, placedAt])
+  @@index([storeId, status, placedAt])
   @@index([storeId, paymentStatus, fulfilmentStatus])
   @@index([customerId])
 }
