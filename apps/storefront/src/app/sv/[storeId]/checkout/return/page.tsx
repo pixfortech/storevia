@@ -34,7 +34,7 @@ export default async function PaymentReturnPage({
   }
   if (stage === null) redirect("/cart");
   if (stage === "completed") redirect("/checkout/complete");
-  if (stage !== "paying") redirect("/checkout#payment");
+  if (stage !== "paying") redirect("/checkout?step=payment");
   return (
     <main id="main" className="sv-container sv-checkout">
       <h1>Confirming your payment</h1>
@@ -48,7 +48,7 @@ export default async function PaymentReturnPage({
             Check again
           </button>
         </form>
-        <a className="sv-link-button" href="/checkout#payment">
+        <a className="sv-link-button" href="/checkout?step=payment">
           Back to checkout
         </a>
       </div>

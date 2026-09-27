@@ -29,7 +29,9 @@ import {
 // Checkout steps (ADR-0031 §1). The store comes from the proxy's signed
 // header; forms carry only what the shopper typed or chose, which the
 // checkout service validates and re-prices on the server. Every outcome is a
-// redirect (works without JavaScript; no resubmission on refresh). Next's
+// redirect (works without JavaScript; no resubmission on refresh). Steps
+// redirect to a query, not a #fragment: the client router treats a
+// fragment-only change as a scroll and wouldn't show the re-priced page. Next's
 // server-action origin check compares Origin with the request's own host, so
 // it holds on every custom domain without an allow-list.
 
@@ -68,7 +70,7 @@ async function step(name: CheckoutStep, form: FormData, fn: () => Promise<unknow
       values: typed(form),
     });
   }
-  redirect(`/checkout#${name}`);
+  redirect(`/checkout?step=${name}`);
 }
 
 export async function startCheckoutAction(): Promise<void> {
@@ -132,7 +134,7 @@ export async function removeDiscountAction(form: FormData): Promise<void> {
 export async function payAction(form: FormData): Promise<void> {
   const s = await store();
   const req = await checkoutRequest(s);
-  let target = "/checkout#payment";
+  let target = "/checkout?step=payment";
   try {
     const result = await beginPayment(req, {
       pricingHash: field(form, "pricingHash", 64),
@@ -141,8 +143,8 @@ export async function payAction(form: FormData): Promise<void> {
     await clearFlash();
     if (result.kind === "redirect") target = result.url;
     else if (result.kind === "completed") target = "/checkout/complete";
-    else if (result.kind === "processing") target = "/checkout#payment";
-    else target = `/checkout?changed=${result.change}#review`;
+    else if (result.kind === "processing") target = "/checkout?step=payment";
+    else target = `/checkout?changed=${result.change}`;
   } catch (error) {
     if (!isDomainError(error)) throw error;
     if (error.code === "NOT_FOUND") redirect("/cart?error=checkout");
@@ -160,7 +162,7 @@ export async function cancelPaymentAction(form: FormData): Promise<void> {
 export async function checkPaymentAction(): Promise<void> {
   const req = await checkoutRequest(await store());
   const view = await confirmPayment(req);
-  redirect(view?.stage === "completed" ? "/checkout/complete" : "/checkout#payment");
+  redirect(view?.stage === "completed" ? "/checkout/complete" : "/checkout?step=payment");
 }
 
 const OUTCOMES: Readonly<Record<string, TestOutcome>> = {
