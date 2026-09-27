@@ -96,15 +96,13 @@ export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
     segment: "/website",
     permission: "design.edit",
     feature: "visual_builder",
-    availability: "Milestone 5",
-    description: "Design your site with the visual builder, navigation and themes.",
+    description: "Design your site with the visual builder, menus and themes.",
   },
   pages: {
     key: "pages",
     label: "Pages",
     segment: "/pages",
     permission: "design.edit",
-    availability: "Milestone 5",
     description: "Pages such as About, Contact and landing pages.",
   },
   posts: {

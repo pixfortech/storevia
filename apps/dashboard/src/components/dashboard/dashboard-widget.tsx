@@ -3,6 +3,7 @@ import { ListWidget, MetricWidget, RankingWidget, ShareWidget, TrendWidget } fro
 import {
   ActivityCard,
   CatalogueCard,
+  ContentUpdatesCard,
   StockAlertsCard,
   FocusBand,
   PlanUsageCard,
@@ -60,6 +61,8 @@ export function DashboardWidget({
       return live.catalogue ? <CatalogueCard widget={widget} catalogue={live.catalogue} /> : null;
     case "stock-alerts":
       return live.catalogue ? <StockAlertsCard widget={widget} catalogue={live.catalogue} /> : null;
+    case "content-updates":
+      return live.content ? <ContentUpdatesCard widget={widget} content={live.content} /> : null;
     default:
       return null;
   }

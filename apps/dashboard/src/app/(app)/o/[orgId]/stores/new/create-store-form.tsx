@@ -72,7 +72,7 @@ function StorePreview({
         </div>
       </div>
       <p className="mt-3 text-caption text-ink-faint">
-        Your store starts unpublished. Visitors can&apos;t see it until storefronts launch.
+        Your store starts unpublished. Visitors can&apos;t see it until you make it live.
       </p>
     </div>
   );

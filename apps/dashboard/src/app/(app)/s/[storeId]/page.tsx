@@ -1,4 +1,5 @@
 import { getCatalogueOverview } from "@storevia/commerce";
+import { listPages } from "@storevia/site-admin";
 import { isByteFeature } from "@storevia/entitlements/format";
 import {
   getOrganisationBilling,
@@ -38,6 +39,7 @@ import { greeting, setupTasks, storeStatusBadge } from "@/lib/dashboard/setup";
 import { roleSummary, trialNote } from "@/lib/dashboard/summaries";
 import type { WidgetKey } from "@/lib/dashboard/widgets";
 import { orgPath, storePath } from "@/lib/ids";
+import { builderPath, pagesPath } from "@/lib/site";
 import { storeContextOr404 } from "@/lib/tenant";
 
 export const metadata: Metadata = { title: "Home" };
@@ -74,12 +76,13 @@ export default async function StoreHomePage({
   // Load only what a visible widget needs; each read enforces its own permission.
   const needsMembers =
     hasPermission(ctx, "member.read") && (shows("team") || hasPermission(ctx, "member.manage"));
-  const [store, billing, members, activity, overview] = await Promise.all([
+  const [store, billing, members, activity, overview, pages] = await Promise.all([
     getStore(ctx),
     shows("plan-usage") ? getOrganisationBilling(ctx) : null,
     needsMembers ? listMembers(organisationOf(ctx)) : null,
     shows("activity") ? listRecentActivity(ctx, { limit: 5 }) : null,
     shows("catalogue") || shows("stock-alerts") ? getCatalogueOverview(ctx) : null,
+    shows("content-updates") ? listPages(ctx) : null,
   ]);
 
   const definition = BUSINESS_TYPE_DEFINITIONS[store.businessType];
@@ -110,6 +113,7 @@ export default async function StoreHomePage({
       memberCount: active?.length ?? null,
     }),
     website: {
+      live: store.status === "ACTIVE",
       hostname: store.primaryHostname,
       currency: store.currency,
       locale: store.locale,
@@ -171,6 +175,20 @@ export default async function StoreHomePage({
             ? productsPath(ctx.storeId, "/new")
             : null,
           inventoryHref: inventoryPath(ctx.storeId),
+        }
+      : null,
+    content: pages
+      ? {
+          recentlyUpdated: [...pages]
+            .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+            .slice(0, 5)
+            .map((p) => ({
+              title: p.title,
+              status: p.status,
+              href: builderPath(ctx.storeId, p.id),
+              when: relativeTime(p.updatedAt, now),
+            })),
+          pagesHref: pagesPath(ctx.storeId),
         }
       : null,
     focus: focusAreas(store.businessType, ctx.permissions, granted).map((item) => ({

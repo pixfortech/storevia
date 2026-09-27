@@ -1,11 +1,7 @@
 // The store home's identity header and "Get set up" steps. Pure: every step
 // stays permission-gated exactly as before, and completion is shown only
 // where Storevia can know it (never assumed).
-import {
-  BUSINESS_TYPE_DEFINITIONS,
-  STORE_AREAS,
-  type BusinessType,
-} from "@storevia/tenancy/business-types";
+import { BUSINESS_TYPE_DEFINITIONS, type BusinessType } from "@storevia/tenancy/business-types";
 import type { Permission } from "@storevia/tenancy/rbac";
 import { orgPath, storePath } from "@/lib/ids";
 
@@ -28,18 +24,9 @@ export function storeStatusBadge(status: StoreStatus): {
   }
 }
 
-/**
- * When the storefront engine serves sites (docs/roadmap, "Milestone 4 —
- * Storefront engine"). It has no store area of its own, so it is named here
- * once; the builder's schedule comes from STORE_AREAS.
- */
-export const STOREFRONT_LAUNCH = "Milestone 4";
-
-/** When a store's web address starts working, and when the builder arrives. */
+/** When a store's web address starts working, and where its site is designed. */
 export function websiteLaunchNote(): string {
-  const builder = STORE_AREAS.website.availability;
-  const reach = `Visitors can reach this address once storefronts launch in ${STOREFRONT_LAUNCH}.`;
-  return builder ? `${reach} The site builder arrives in ${builder}.` : reach;
+  return "Visitors can reach this address once your store is live. Design your site in the visual builder.";
 }
 
 /** "Welcome back, Priya." from the member's display name. */

@@ -69,10 +69,10 @@ describe("greeting", () => {
 });
 
 describe("websiteLaunchNote", () => {
-  it("takes the builder's schedule from the website area", () => {
+  it("says when the address works and where the site is designed", () => {
+    expect(STORE_AREAS.website.availability).toBeUndefined();
     expect(websiteLaunchNote()).toBe(
-      "Visitors can reach this address once storefronts launch in Milestone 4. " +
-        `The site builder arrives in ${String(STORE_AREAS.website.availability)}.`,
+      "Visitors can reach this address once your store is live. Design your site in the visual builder.",
     );
   });
 });

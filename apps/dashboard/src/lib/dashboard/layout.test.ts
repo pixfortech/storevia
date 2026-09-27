@@ -33,9 +33,15 @@ describe("arrangeDashboard without data (every real store today)", () => {
   });
 
   it("puts a lone secondary module under the main column, not in a row of its own", () => {
+    const portfolio = arrangeDashboard(widgets("PORTFOLIO"), false);
+    expect(portfolio.underMain?.key).toBe("activity");
+    expect(portfolio.modules).toEqual([]);
+  });
+
+  it("shows a business's recently edited pages beside recent activity", () => {
     const business = arrangeDashboard(widgets("BUSINESS"), false);
-    expect(business.underMain?.key).toBe("activity");
-    expect(business.modules).toEqual([]);
+    expect(keys(business.modules)).toEqual(["content-updates", "activity"]);
+    expect(business.underMain).toBeNull();
   });
 
   it("summarises the rest by the store area their data starts with, soonest first", () => {

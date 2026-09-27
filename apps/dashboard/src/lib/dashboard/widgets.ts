@@ -162,7 +162,7 @@ export const DASHBOARD_WIDGETS: Readonly<Record<WidgetKey, WidgetDefinition>> = 
     source: upcoming("analytics", "metric"),
   },
   // Enquiries carry visitors' contact details, so only members who may read
-  // customer details see them. Forms arrive with the page builder.
+  // customer details see them. Forms arrive with customer records.
   enquiries: {
     key: "enquiries",
     title: "Enquiries",
@@ -170,7 +170,7 @@ export const DASHBOARD_WIDGETS: Readonly<Record<WidgetKey, WidgetDefinition>> = 
     size: "kpi",
     businessTypes: ["BUSINESS", "PORTFOLIO"],
     permission: "customer.read",
-    source: upcoming("pages", "metric"),
+    source: upcoming("customers", "metric"),
   },
   "posts-published": {
     key: "posts-published",
@@ -312,7 +312,7 @@ export const DASHBOARD_WIDGETS: Readonly<Record<WidgetKey, WidgetDefinition>> = 
     size: "half",
     businessTypes: ["BUSINESS"],
     permission: "design.edit",
-    source: upcoming("pages", "list"),
+    source: LIVE,
   },
   "portfolio-updates": {
     key: "portfolio-updates",

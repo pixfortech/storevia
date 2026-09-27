@@ -1,6 +1,6 @@
 // Widgets backed by data that exists today: setup steps, the website's
-// status, plan usage, the team, recent activity (the audit trail) and the
-// business type's focus areas. Real figures only; each renders nothing it
+// status, plan usage, the team, recent activity (the audit trail), the site's
+// pages and the business type's focus areas. Real figures only; each renders nothing it
 // wasn't given, and the page gives each only what the member may read.
 import { cn } from "@storevia/ui/cn";
 import { formatBytes } from "@storevia/entitlements/format";
@@ -41,7 +41,14 @@ import { NAV_ICONS } from "@/components/shell/icons";
 import type { ActivityCategory, ActivityItem } from "@/lib/dashboard/activity";
 import type { ComposedWidget } from "@/lib/dashboard/compose";
 import { websiteLaunchNote, type SetupTask } from "@/lib/dashboard/setup";
-import type { CatalogueSummary, LiveData, PlanSummary, TeamSummary, WebsiteSummary } from "./types";
+import type {
+  CatalogueSummary,
+  ContentSummary,
+  LiveData,
+  PlanSummary,
+  TeamSummary,
+  WebsiteSummary,
+} from "./types";
 
 /** A quiet text link with an arrow: the card's way onward. 44 px tall below desktop and on touch. */
 function CardLink({ href, children }: { href: string; children: ReactNode }) {
@@ -144,10 +151,15 @@ export function WebsiteCard({ widget, site }: { widget: ComposedWidget; site: We
         divider={false}
         title={widget.title}
         actions={
-          // No store serves visitors until storefronts launch, whatever its status.
-          <Badge variant="dot" size="sm">
-            Not live yet
-          </Badge>
+          site.live ? (
+            <Badge variant="dot" size="sm" tone="success">
+              Live
+            </Badge>
+          ) : (
+            <Badge variant="dot" size="sm">
+              Not live yet
+            </Badge>
+          )
         }
       />
       <CardBody className="flex-1 pt-4">
@@ -548,6 +560,60 @@ export function StockAlertsCard({
       </CardBody>
       <CardFooter className="justify-start py-1.5">
         <CardLink href={catalogue.inventoryHref}>Inventory</CardLink>
+      </CardFooter>
+    </Card>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+ * Content updates (Milestone 5): the site's pages, edited most recently
+ * ------------------------------------------------------------------------- */
+
+const PAGE_STATUS: Record<
+  ContentSummary["recentlyUpdated"][number]["status"],
+  { label: string; tone: BadgeTone }
+> = {
+  published: { label: "Published", tone: "success" },
+  changes: { label: "Unpublished changes", tone: "warning" },
+  draft: { label: "Draft", tone: "neutral" },
+};
+
+export function ContentUpdatesCard({
+  widget,
+  content,
+}: {
+  widget: ComposedWidget;
+  content: ContentSummary;
+}) {
+  return (
+    <Card className="flex flex-col" data-testid="widget-content-updates">
+      <CardHeader divider={false} title={widget.title} description={widget.description} />
+      <CardBody className="flex-1 pt-4">
+        {content.recentlyUpdated.length === 0 ? (
+          <p className="text-body-sm text-ink-muted">No pages yet.</p>
+        ) : (
+          <ul className="divide-y divide-line">
+            {content.recentlyUpdated.map((p) => (
+              <li key={p.href} className="flex items-center justify-between gap-3 py-2">
+                <Link
+                  href={p.href}
+                  className="min-w-0 truncate text-body-sm font-medium text-ink hover:text-brand-700"
+                >
+                  {p.title}
+                </Link>
+                <span className="flex shrink-0 items-center gap-2">
+                  <Badge size="sm" variant="dot" tone={PAGE_STATUS[p.status].tone}>
+                    {PAGE_STATUS[p.status].label}
+                  </Badge>
+                  <span className="hidden text-caption text-ink-faint sm:inline">{p.when}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardBody>
+      <CardFooter className="justify-start py-1.5">
+        <CardLink href={content.pagesHref}>All pages</CardLink>
       </CardFooter>
     </Card>
   );

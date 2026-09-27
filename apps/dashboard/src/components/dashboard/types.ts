@@ -19,6 +19,8 @@ export interface DashboardScope {
 }
 
 export interface WebsiteSummary {
+  /** The store is live: its site serves visitors. */
+  readonly live: boolean;
   /** The primary hostname; a store may not have one yet. */
   readonly hostname: string | null;
   readonly currency: string;
@@ -79,6 +81,17 @@ export interface CatalogueSummary {
   readonly inventoryHref: string;
 }
 
+export interface ContentSummary {
+  /** Pages edited most recently, newest first. */
+  readonly recentlyUpdated: readonly {
+    readonly title: string;
+    readonly status: "published" | "draft" | "changes";
+    readonly href: string;
+    readonly when: string;
+  }[];
+  readonly pagesHref: string;
+}
+
 /** Real data for the live widgets. Null where the member may not read it. */
 export interface LiveData {
   readonly setup: readonly SetupTask[];
@@ -88,5 +101,7 @@ export interface LiveData {
   readonly activity: readonly ActivityItem[] | null;
   /** Real catalogue numbers (never revenue, orders or customers: those don't exist yet). */
   readonly catalogue: CatalogueSummary | null;
+  /** The site's pages, for members who may edit them. */
+  readonly content: ContentSummary | null;
   readonly focus: readonly (FocusArea & { readonly href: string })[];
 }

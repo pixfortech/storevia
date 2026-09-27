@@ -225,13 +225,14 @@ describe("billing presentation", () => {
         expect(availability).toMatch(/^(Coming in Milestone \d+|On the roadmap)$/);
       }
     }
-    // Stores, team members, products and media storage are the plan features
-    // merchants can use today.
+    // Stores, team members, products, media storage and the page builder are
+    // the plan features merchants can use today.
     expect(FEATURE_KEYS.filter((key) => FEATURE_AVAILABILITY[key] === null)).toEqual([
       "store_count",
       "staff_accounts",
       "product_limit",
       "media_storage",
+      "visual_builder",
     ]);
   });
 });

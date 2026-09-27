@@ -68,7 +68,6 @@ const M = {
   blog: STORE_AREAS.blog.availability,
   analytics: STORE_AREAS.analytics.availability,
   // From the public roadmap (docs/roadmap/implementation-roadmap.md).
-  storefront: "Milestone 4",
   domains: "Milestone 7",
   hardening: "Milestone 8",
 } as const;
@@ -349,39 +348,45 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
     title: "Website and storefront",
     glyph: "builder",
     capability: "builder",
-    summary: "Your store on the web, then a visual builder to design every page.",
+    summary: "Your store on the web, and a visual builder to design every page.",
     items: [
       {
         title: "Storefront",
         description:
-          "Your store on the web at its Storevia address, with a default theme, cart and search.",
-        status: "in-development",
-        milestone: M.storefront,
+          "Your store on the web at its Storevia address, with product pages, collections, cart and search.",
+        status: "available",
       },
       planFeature(
         "visual_builder",
         "Visual page builder",
-        "Design pages by arranging sections and editing words where they sit.",
-        M.website,
+        "Design pages from ready-made sections, with a live preview beside the settings.",
       ),
       {
         title: "Responsive editing",
-        description: "Check and adjust each page for desktop, tablet and phone.",
-        status: "roadmap",
-        milestone: M.website,
+        description:
+          "Preview each page at desktop, tablet and phone widths, and choose where each section shows.",
+        status: "available",
       },
       {
-        title: "Drafts, publishing and history",
-        description:
-          "Autosaved drafts, publishing when you're ready and restoring earlier versions.",
+        title: "Drafts and publishing",
+        description: "Autosaved drafts, a private preview, and publishing when you're ready.",
+        status: "available",
+      },
+      {
+        title: "Version history",
+        description: "Compare and restore earlier published versions of a page.",
         status: "roadmap",
-        milestone: M.website,
       },
       {
         title: "Pages",
         description: "Pages such as About, Contact and landing pages.",
-        status: "roadmap",
-        milestone: M.pages,
+        status: "available",
+      },
+      {
+        title: "Themes and menus",
+        description:
+          "A choice of styles with your own colours, fonts and buttons, and menus for the header and footer.",
+        status: "available",
       },
       planFeature(
         "advanced_builder",
@@ -514,9 +519,8 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
       planFeature("priority_support", "Priority support", "Faster responses from our team."),
       {
         title: "Guides and help centre",
-        description: "Guides and help articles, arriving with the storefront.",
+        description: "Guides and help articles for every part of Storevia.",
         status: "roadmap",
-        milestone: M.storefront,
       },
     ],
   },

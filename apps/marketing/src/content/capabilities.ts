@@ -52,7 +52,7 @@ export const CAPABILITIES: readonly Capability[] = [
     summary: "Run several sites from one account, each with its own address and team access.",
     points: [
       "One organisation, many stores, one plan",
-      "Each store reserves its own web address, ready for when storefronts launch",
+      "Each store has its own web address, live when you choose",
       "Each store set up for what it is: shop, business site, publication or portfolio",
     ],
   },
@@ -100,14 +100,13 @@ export const CAPABILITIES: readonly Capability[] = [
     id: "builder",
     title: "Website builder",
     glyph: "builder",
-    status: "roadmap",
+    status: "available",
     summary: "Design pages visually, with responsive previews and safe publishing.",
     points: [
-      "Drag-and-drop sections with desktop, tablet and mobile editing",
-      "Drafts, autosave, publish and restore",
-      "Navigation menus and reusable components",
+      "Ready-made sections you add, reorder and edit, with desktop, tablet and phone previews",
+      "Autosaved drafts, a private preview and one-click publishing",
+      "Themes, header and footer menus, and content pages",
     ],
-    milestone: STORE_AREAS.website.availability,
   },
   {
     id: "content",

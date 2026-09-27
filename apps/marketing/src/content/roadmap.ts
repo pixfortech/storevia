@@ -45,7 +45,7 @@ export const ROADMAP: readonly RoadmapStage[] = [
     id: "storefront",
     milestone: "Milestone 4",
     title: "Storefront",
-    status: "in-development",
+    status: "available",
     summary: "Stores become visible on the web.",
     items: [
       "Your store at its Storevia address",
@@ -56,11 +56,12 @@ export const ROADMAP: readonly RoadmapStage[] = [
     id: "builder",
     milestone: "Milestone 5",
     title: "Visual builder",
-    status: "roadmap",
+    status: "available",
     summary: "Design every page yourself.",
     items: [
-      "Drag-and-drop pages with responsive editing",
-      "Autosave, drafts, publishing and history",
+      "Ready-made sections with desktop, tablet and phone previews",
+      "Autosave, drafts, preview and publishing",
+      "Themes, menus and content pages",
     ],
   },
   {

@@ -12,7 +12,7 @@ export const FEATURE_STATUS: Readonly<Record<FeatureKey, Status>> = {
   // Moved from the catalogue milestone to Milestone 6, with webhooks (ADR-0027 §1).
   api_access: "roadmap",
   custom_domain: "roadmap",
-  visual_builder: "roadmap",
+  visual_builder: "available",
   advanced_builder: "roadmap",
   premium_themes: "roadmap",
   custom_code: "roadmap",

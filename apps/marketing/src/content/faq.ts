@@ -28,7 +28,7 @@ export const FAQ: readonly { question: string; answer: string }[] = [
   {
     question: "Can I use my own domain?",
     answer:
-      "Custom domains are on the roadmap. Each store already reserves its own Storevia web address for when storefronts launch.",
+      "Custom domains are on the roadmap. Until then, each store has its own Storevia web address.",
   },
   {
     question: "How is my data kept separate from other businesses?",
