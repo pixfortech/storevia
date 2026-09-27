@@ -36,6 +36,7 @@ Accepted, Superseded by ADR-XXXX, Deprecated.
 | [0028](./0028-storefront-engine.md)                               | Storefront engine (Milestone 4)                                    | Accepted |
 | [0029](./0029-site-engine-and-commerce-composition.md)            | Site Engine and Storevia Commerce composition                      | Accepted |
 | [0030](./0030-site-presentation-builder-themes-navigation.md)     | Site presentation: structured builder, theme engine and navigation | Accepted |
+| [0031](./0031-checkout-orders-payments.md)                        | Checkout, orders and payments (Milestone 6)                        | Accepted |
 
 ADRs 0002–0019 were accepted with the Milestone 0 review on 2026-09-24.
 ADRs 0020–0021 were recorded during Milestone 1 and ADR-0022 for the Milestone 2

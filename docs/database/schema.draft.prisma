@@ -729,6 +729,7 @@ model Store {
   refundLines           RefundLine[]
   fulfilments           Fulfilment[]
   fulfilmentLines       FulfilmentLine[]
+  orderNotifications    OrderNotification[]
   pages                 Page[]
   pageVersions          PageVersion[]
   storeThemes           StoreTheme[]
@@ -1241,6 +1242,8 @@ model InventoryReservation {
   locationId      String            @db.Uuid
   checkoutId      String?           @db.Uuid
   orderId         String?           @db.Uuid
+  /// Set when the reservation is converted: the order line it holds stock for.
+  orderLineId     String?           @db.Uuid
   quantity        Int
   status          ReservationStatus @default(ACTIVE)
   expiresAt       DateTime          @db.Timestamptz(3)
@@ -1408,13 +1411,17 @@ model Checkout {
   shippingAddress  Json?
   billingAddress   Json?
   shippingRateId   String?        @db.Uuid
-  discountCodes    String[]
+  /// One code per checkout in M6 (ADR-0031 §7), stored upper-cased.
+  discountCode     String?
   subtotalAmount   BigInt         @default(0)
   discountAmount   BigInt         @default(0)
   shippingAmount   BigInt         @default(0)
   taxAmount        BigInt         @default(0)
   totalAmount      BigInt         @default(0)
   pricingHash      String?
+  /// The itemised server quote (lines, allocations, tax and shipping lines)
+  /// the order is created from; never supplied by the browser.
+  quote            Json?
   pricedAt         DateTime?      @db.Timestamptz(3)
   expiresAt        DateTime       @db.Timestamptz(3)
   completedOrderId String?        @unique @db.Uuid
@@ -1549,24 +1556,36 @@ model DiscountCollection {
   @@index([collectionId])
 }
 
-/// One row per order that used a discount — basis for usage / per-customer limits.
+enum RedemptionStatus {
+  RESERVED
+  REDEEMED
+  RELEASED
+}
+
+/// One use of a discount: reserved when a checkout starts paying (the usage
+/// count is taken then, under the discount's row lock), redeemed with the
+/// order, released when the payment fails or expires (ADR-0031 §7).
 model DiscountRedemption {
-  id             String   @id @default(uuid(7)) @db.Uuid
-  organisationId String   @db.Uuid
-  storeId        String   @db.Uuid
-  discountId     String   @db.Uuid
-  discountCodeId String?  @db.Uuid
-  orderId        String   @db.Uuid
-  customerId     String?  @db.Uuid
+  id             String           @id @default(uuid(7)) @db.Uuid
+  organisationId String           @db.Uuid
+  storeId        String           @db.Uuid
+  discountId     String           @db.Uuid
+  discountCodeId String?          @db.Uuid
+  checkoutId     String           @db.Uuid
+  orderId        String?          @db.Uuid
+  customerId     String?          @db.Uuid
   email          String?
-  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  status         RedemptionStatus @default(RESERVED)
+  createdAt      DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime         @updatedAt @db.Timestamptz(3)
 
   store        Store         @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
   discount     Discount      @relation(fields: [discountId, storeId], references: [id, storeId], onDelete: Restrict)
   discountCode DiscountCode? @relation(fields: [discountCodeId], references: [id], onDelete: SetNull)
-  order        Order         @relation(fields: [orderId, storeId], references: [id, storeId], onDelete: Restrict)
+  order        Order?        @relation(fields: [orderId, storeId], references: [id, storeId], onDelete: Restrict)
   customer     Customer?     @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
+  @@unique([discountId, checkoutId])
   @@unique([discountId, orderId])
   @@index([discountId, customerId])
   @@index([storeId])
@@ -1693,6 +1712,12 @@ enum OrderFulfilmentStatus {
   UNFULFILLED
   PARTIALLY_FULFILLED
   FULFILLED
+}
+
+/// Cancellation is the order's own state, separate from payment and
+/// fulfilment (ADR-0031 §5). "Completed" is derived, not stored.
+enum OrderStatus {
+  OPEN
   CANCELLED
 }
 
@@ -1713,8 +1738,11 @@ model Order {
   taxAmount        BigInt
   totalAmount      BigInt
   refundedAmount   BigInt                @default(0)
+  status           OrderStatus           @default(OPEN)
   paymentStatus    OrderPaymentStatus    @default(PENDING)
   fulfilmentStatus OrderFulfilmentStatus @default(UNFULFILLED)
+  /// Paid after its reservation was released and stock ran out (ADR-0031 §4).
+  stockShortage    Boolean               @default(false)
   sourceName       String                @default("storefront")
   customerLocale   String?
   note             String?
@@ -1738,6 +1766,7 @@ model Order {
   refunds       Refund[]
   fulfilments   Fulfilment[]
   redemptions   DiscountRedemption[]
+  notifications OrderNotification[]
 
   @@unique([storeId, orderNumber])
   @@unique([id, storeId])
@@ -1924,6 +1953,8 @@ model PaymentProviderConnection {
   externalAccountId     String?
   credentialsCiphertext Bytes?
   keyVersion            Int?
+  /// Masked key id for display ("rzp_test_…1234"); never a secret.
+  credentialHint        String?
   createdAt             DateTime                @default(now()) @db.Timestamptz(3)
   updatedAt             DateTime                @updatedAt @db.Timestamptz(3)
 
@@ -1954,7 +1985,12 @@ model Payment {
   checkoutId        String?       @db.Uuid
   orderId           String?       @db.Uuid
   provider          String
+  /// The provider's handle for this attempt (e.g. a Razorpay payment link).
   providerPaymentId String?
+  /// The captured charge (e.g. Razorpay "pay_…"), used for refunds.
+  providerChargeId  String?
+  /// Hosted payment page the shopper is sent to (repeat submits reuse it).
+  redirectUrl       String?
   status            PaymentStatus @default(PENDING)
   currency          String        @db.Char(3)
   amount            BigInt
@@ -1963,6 +1999,8 @@ model Payment {
   idempotencyKey    String        @unique
   failureCode       String?
   failureMessage    String?
+  expiresAt         DateTime      @db.Timestamptz(3)
+  capturedAt        DateTime?     @db.Timestamptz(3)
   createdAt         DateTime      @default(now()) @db.Timestamptz(3)
   updatedAt         DateTime      @updatedAt @db.Timestamptz(3)
 
@@ -1980,7 +2018,8 @@ model Payment {
   @@index([connectionId])
 }
 
-/// Idempotency ledger for merchant payment-provider webhooks.
+/// Idempotency ledger for merchant payment-provider webhooks, per store: one
+/// merchant can't pre-empt another store's event ids (ADR-0031 §4).
 model PaymentWebhookEvent {
   id              String               @id @default(uuid(7)) @db.Uuid
   organisationId  String               @db.Uuid
@@ -1997,7 +2036,7 @@ model PaymentWebhookEvent {
 
   store Store @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
 
-  @@unique([provider, providerEventId])
+  @@unique([storeId, provider, providerEventId])
   @@index([status, receivedAt])
   @@index([storeId])
 }
@@ -2019,6 +2058,7 @@ model Refund {
   amount           BigInt
   reason           String?
   providerRefundId String?
+  failureMessage   String?
   idempotencyKey   String       @unique
   createdById      String?      @db.Uuid
   createdAt        DateTime     @default(now()) @db.Timestamptz(3)
@@ -2101,6 +2141,47 @@ model FulfilmentLine {
   @@unique([fulfilmentId, orderLineId])
   @@index([storeId])
   @@index([orderLineId])
+}
+
+enum NotificationKind {
+  ORDER_CONFIRMATION
+  ORDER_CANCELLED
+  ORDER_FULFILLED
+  REFUND_CREATED
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+/// Shopper emails, queued in the transaction that changes the order and sent
+/// by the worker with retries (ADR-0031 §12). An email failure never rolls
+/// back an order. dedupeKey makes each announcement exactly one row.
+model OrderNotification {
+  id             String             @id @default(uuid(7)) @db.Uuid
+  organisationId String             @db.Uuid
+  storeId        String             @db.Uuid
+  orderId        String             @db.Uuid
+  kind           NotificationKind
+  dedupeKey      String             @unique
+  recipient      String
+  referenceId    String?            @db.Uuid
+  status         NotificationStatus @default(PENDING)
+  attempts       Int                @default(0)
+  nextAttemptAt  DateTime           @default(now()) @db.Timestamptz(3)
+  lastError      String?
+  sentAt         DateTime?          @db.Timestamptz(3)
+  createdAt      DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime           @updatedAt @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  order Order @relation(fields: [orderId, storeId], references: [id, storeId], onDelete: Restrict)
+
+  @@index([status, nextAttemptAt])
+  @@index([orderId])
+  @@index([storeId])
 }
 
 // -----------------------------------------------------------------------------
