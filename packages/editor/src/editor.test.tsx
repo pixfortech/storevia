@@ -472,10 +472,7 @@ describe("rendering", () => {
   it("new blocks render nothing until they have content: no invented text", () => {
     for (const definition of SITE_REGISTRY.sections) {
       if (definition.type === "hero") continue;
-      expect(
-        render(doc(node(definition.type, definition.defaultProps))),
-        definition.type,
-      ).toBe("");
+      expect(render(doc(node(definition.type, definition.defaultProps))), definition.type).toBe("");
     }
     // Incomplete items are left out rather than shown half-empty.
     expect(

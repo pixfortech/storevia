@@ -49,6 +49,8 @@ beforeEach(async () => {
   await db.$executeRaw`
     INSERT INTO "Store" (id, "organisationId", name, slug, status, currency, locale, timezone, country, "updatedAt")
     VALUES (${STORE}::uuid, ${ORG}::uuid, 'Shop', 'shop', 'ACTIVE', 'INR', 'en-IN', 'Asia/Kolkata', 'IN', now())`;
+  // A new store's HOME page (ADR-0030 §9) emits its own events; start from none.
+  await db.$executeRaw`UPDATE "OutboxEvent" SET "dispatchedAt" = now()`;
   await db.$executeRaw`
     INSERT INTO "Product" (id, "organisationId", "storeId", title, handle, "updatedAt")
     VALUES (${PRODUCT}::uuid, ${ORG}::uuid, ${STORE}::uuid, 'Mug', 'mug', now())`;

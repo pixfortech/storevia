@@ -403,9 +403,9 @@ describe("a store's sellable rows only", () => {
     expect(versions).not.toContain(A().draftVersion);
     expect(
       await asStore(A(), async (c) =>
-        (await c.query<{ state: string }>(`SELECT DISTINCT state::text FROM "PageVersion"`)).rows.map(
-          (r) => r.state,
-        ),
+        (
+          await c.query<{ state: string }>(`SELECT DISTINCT state::text FROM "PageVersion"`)
+        ).rows.map((r) => r.state),
       ),
     ).toEqual(["PUBLISHED"]);
   });
