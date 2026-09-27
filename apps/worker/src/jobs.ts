@@ -127,7 +127,9 @@ export const orderNotificationsJob: JobDefinition = {
   maxAttempts: 2,
   timeoutMs: 4 * 60_000,
   async run() {
-    return { ...(await sendOrderNotifications(getEmailSender())) };
+    // The transport is resolved only when there is an email to send, so an
+    // environment without one (e.g. integration tests) still runs the job.
+    return { ...(await sendOrderNotifications({ send: (m) => getEmailSender().send(m) })) };
   },
 };
 

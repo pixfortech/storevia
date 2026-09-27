@@ -4,7 +4,12 @@
 // paths: server-side prices, the reviewed-quote hash, reservation of the
 // last unit, discount final use, duplicate and concurrent confirmations,
 // failure and expiry release, late capture, amount mismatch and tenancy.
-import { disconnectTestClients, migratorDb, truncateAll } from "@storevia/database/testing";
+import {
+  countQueries,
+  disconnectTestClients,
+  migratorDb,
+  truncateAll,
+} from "@storevia/database/testing";
 import {
   credentialsBinding,
   sealCredentials,
@@ -347,6 +352,24 @@ describe("checkout foundation", () => {
     expect(await getCheckout({ ...s.req, store: storeB })).toBeNull();
     expect(await getCheckout({ ...s.req, token: null })).toBeNull();
     expect(await getCheckout({ ...s.req, token: "x".repeat(43) })).toBeNull();
+  });
+});
+
+describe("query budget", () => {
+  it("pricing a checkout costs the same queries for 1 or 8 lines (no N+1)", async () => {
+    for (let i = 0; i < 7; i++) await makeProduct(a, `budget-${String(i)}`, "100", 50);
+    const one = await shopper(storeA, [["mug", 1]]);
+    const many = await shopper(storeA, [
+      ["mug", 1],
+      ...Array.from({ length: 7 }, (_, i) => [`budget-${String(i)}`, 1] as [string, number]),
+    ]);
+    await ready(one);
+    await ready(many);
+    const small = await countQueries(() => getCheckout(one.req));
+    const large = await countQueries(() => getCheckout(many.req));
+    expect(large.result?.lines).toHaveLength(8);
+    expect(large.queries.length).toBe(small.queries.length);
+    expect(small.queries.length).toBeLessThanOrEqual(16);
   });
 });
 

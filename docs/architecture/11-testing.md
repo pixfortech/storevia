@@ -365,6 +365,70 @@ The first run found four survivors; each got a test and was re-run.
 
 Result: 36 mutants, all killed (4 after new tests).
 
+## Milestone 6 (checkout, orders, payments): what is proven where
+
+Decisions: [ADR-0031](../adr/0031-checkout-orders-payments.md). Threats:
+[threat-model.md §4.6](../security/threat-model.md#46-webhooks-checkout-and-payments).
+
+| Guarantee                                             | Where it is proven                                                                                                                                                                                                                                                                             |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The server prices everything                          | commerce `pricing.test.ts` (13): subtotal, discount (half-up, capped, allocated), exclusive and inclusive tax (half-even, split across rates), shipping tax, problems; `checkout.int.test.ts` "shipping, tax and discount are computed from the store's configuration"                         |
+| Nothing is charged but the quote the shopper reviewed | "refuses to charge a quote the shopper didn't review" (price changed after review → `PRICE_CHANGED`, no payment); "a capture for a different amount fails the attempt and creates no order"                                                                                                    |
+| The checkout role sees one store and one checkout     | database `checkout-orders.int.test.ts` (18): token/id/store scoping including another store of the same organisation, customer by email only, no listing, no Store, no stock ledger reads; storefront role refused everywhere; commerce "another store, or no token, never reaches a checkout" |
+| Stock can't be oversold                               | "two shoppers racing for the last unit: exactly one gets to pay"; reservation, release, conversion and late re-claim with `stockShortage`                                                                                                                                                      |
+| A discount's last use can't be taken twice            | "two shoppers racing for a discount's final use"                                                                                                                                                                                                                                               |
+| One order per checkout, whatever arrives twice        | "duplicate and concurrent capture events create one order" (same event twice + a second event, concurrently: one order, one notification); a failure notice after capture changes nothing                                                                                                      |
+| Webhooks are verified per connection                  | "refuses unsigned, tampered, stale and other-store deliveries" (missing signature, altered body, other store's secret, cross-endpoint, unknown connection)                                                                                                                                     |
+| Expiry never loses money                              | "an expired attempt is released; a capture arriving afterwards still becomes an order"; "a late capture when the stock has gone flags the order instead of losing it"; open checkouts expire                                                                                                   |
+| Orders are immutable snapshots                        | database immutability tests; commerce happy path (email, line title and payment refund bounds refused even for the schema owner)                                                                                                                                                               |
+| Refunds are bounded                                   | `orders.int.test.ts`: partial refunds up to captured; "a refund the provider hasn't confirmed still counts against the bound"; "two refunds of the full amount at once: exactly one goes through"; a declined refund frees its amount; restock only for fulfilled units                        |
+| Fulfilment is bounded                                 | "partial then complete; never more than ordered"; "two staff fulfilling the same last units at once: one succeeds"                                                                                                                                                                             |
+| Cancellation                                          | returns reserved stock, idempotent, optional refund; refused after fulfilment                                                                                                                                                                                                                  |
+| RBAC by permission, not role name                     | "RBAC: permissions, not role names…" (VIEWER, SUPPORT, ORDER_MANAGER); customers need `customer.read`; E2E `roles.spec.ts`                                                                                                                                                                     |
+| Settings and credentials                              | shipping, tax, discount validation; "payment settings never expose credentials; Razorpay keys are validated and sealed"; `security.test.ts` cipher (binding, key rotation)                                                                                                                     |
+| Test provider stays out of production                 | `payments.test.ts` registry gating; storefront page 404 when disabled                                                                                                                                                                                                                          |
+| Emails never break orders                             | "sends each queued email once; a failing sender retries later and never touches the order"; `templates.test.ts` escaping and safe tracking links                                                                                                                                               |
+| Real figures only                                     | `metrics.int.test.ts` (8): cancelled orders excluded, refunds deducted, periods, zero-filled days, tenancy, RBAC; dashboard `sales.test.ts`                                                                                                                                                    |
+| No N+1                                                | "pricing a checkout costs the same queries for 1 or 8 lines"                                                                                                                                                                                                                                   |
+| Critical path end to end                              | E2E `checkout.spec.ts`: setup through the dashboard, declined then paid checkout via signed events, stranger can't open the payment page, return page proves nothing, fulfil and partial refund, customer                                                                                      |
+| Accessibility and responsive                          | E2E `checkout-quality.spec.ts`: axe (WCAG 2.1 A/AA) on 14 checkout and dashboard surfaces including dialogs and a field error; no horizontal scroll at 320, 375, 390, 430, 768, 1024, 1280, 1440 and 1920 px. Automated checks don't replace a manual screen-reader pass                       |
+
+Mutation checks (M6): each mutant applied alone, its suite run, then
+reverted (database mutants as SQL on the test database, rebuilt after each).
+
+| Mutant                                               | Result                                                                                                                     |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| S1 payment ignores the reviewed quote hash           | killed ("refuses to charge a quote…")                                                                                      |
+| S2 shipping left out of the total                    | killed (pricing, 3 tests)                                                                                                  |
+| S3 exclusive tax not added to the total              | killed (pricing, 2 tests)                                                                                                  |
+| S4 reservation takes a location without enough stock | killed (last-unit race, late shortage)                                                                                     |
+| S5 an already-captured payment is captured again     | killed (duplicate captures)                                                                                                |
+| S6 webhook signature not verified                    | killed (forged deliveries)                                                                                                 |
+| S7 webhook events not de-duplicated                  | killed (duplicate captures)                                                                                                |
+| S8 captured amount not compared                      | killed (amount mismatch)                                                                                                   |
+| S9 discount use taken without the limit              | killed (final-use race)                                                                                                    |
+| S10 refund bound not checked                         | killed (partial refunds bounded)                                                                                           |
+| S11 fulfilment pre-check removed                     | **survived** the first run (the conditional update still refused, with another message); now the exact message is asserted |
+| S12 fulfilment conditional update made unconditional | equivalent: the row-locked pre-check alone holds the bound (defence in depth)                                              |
+| S13 pending refunds not counted in the bound         | **survived** the first run; now "a refund the provider hasn't confirmed still counts against the bound"                    |
+| S14 cancellation allowed after fulfilment            | killed                                                                                                                     |
+| S15 restock allowed for unfulfilled units            | killed                                                                                                                     |
+| S16 test provider enabled everywhere                 | killed (`payments.test.ts`)                                                                                                |
+| S17 credentials opened without their binding         | killed (cipher tests)                                                                                                      |
+| S18 failed payment keeps its stock                   | killed (3 tests)                                                                                                           |
+| S19 a declined refund treated as succeeded           | killed                                                                                                                     |
+| S20 checkout start ignores the cart token            | equivalent: the checkout role's Cart policy shows only the cart whose token hash is in scope                               |
+| D1 checkout role sees every order of the store       | killed (database)                                                                                                          |
+| D2 order immutability trigger dropped                | **survived** the first run (the test changed a column a CHECK also guards); now fields only the trigger protects           |
+| D3 checkout policy without the store predicate       | equivalent: the permissive tenant policy already pins `storeId` to the scoped store                                        |
+| D4 checkout role sees every customer of the store    | killed (database)                                                                                                          |
+| D5 fulfilled-quantity CHECK dropped                  | killed (database)                                                                                                          |
+| D6 payment refunded-amount CHECK dropped             | **survived** the first run; now asserted in the happy path                                                                 |
+| D7 one-pending-payment index dropped                 | killed (database)                                                                                                          |
+| D8 order outbox trigger dropped                      | killed (happy path events)                                                                                                 |
+
+Result: 28 mutants, 25 killed (4 after new tests), 3 equivalent.
+
 ## Runtime compatibility
 
 CI runs every suite on the required Node LTS line (`.nvmrc`, PostgreSQL 17)

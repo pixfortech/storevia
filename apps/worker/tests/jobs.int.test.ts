@@ -93,11 +93,16 @@ describe("scheduled through the worker", () => {
     const rows = await migratorDb().scheduledJob.findMany({ orderBy: { name: "asc" } });
     expect(rows.map((r) => [r.name, r.intervalSeconds])).toEqual([
       ["billing.subscription-expiry", 300],
+      ["checkout.expiry", 60],
+      ["checkout.purge", 3600],
       ["entitlements.usage-reconciliation", 86_400],
+      ["orders.notifications", 30],
       ["storefront.outbox-dispatch", 15],
     ]);
     // Nightly slots are aligned to 03:00 UTC.
-    expect(rows[1]?.slot.toISOString()).toMatch(/T03:00:00\.000Z$/);
+    expect(
+      rows.find((r) => r.name === "entitlements.usage-reconciliation")?.slot.toISOString(),
+    ).toMatch(/T03:00:00\.000Z$/);
 
     await migratorDb().scheduledJob.updateMany({
       data: { nextRunAt: new Date(Date.now() - 1000) },
@@ -109,7 +114,7 @@ describe("scheduled through the worker", () => {
       .poll(async () => migratorDb().jobRun.count({ where: { status: "SUCCEEDED" } }), {
         timeout: 10_000,
       })
-      .toBe(3);
+      .toBe(6);
     expect(worker.health().status).toBe("ok");
     await worker.stop();
     expect(worker.health().status).toBe("stopping");

@@ -356,6 +356,93 @@ pnpm dev
   about 15 seconds (the worker's dispatch interval).
 - For a clean database: `pnpm db:reset && pnpm db:seed:dev`.
 
+## Milestone 6 status: checkout, orders and payments
+
+**Implemented on `claude/cool-thompson-c7u8qp`, awaiting local functional
+review** (not tagged). Decisions and the audit of the M3–M5 foundation:
+[ADR-0031](../adr/0031-checkout-orders-payments.md); design as built:
+[09 §11](../architecture/09-commerce.md#11-as-built-in-milestone-6-adr-0031);
+threats: [threat-model §4.6](../security/threat-model.md#46-webhooks-checkout-and-payments);
+what is proven where:
+[11-testing.md](../architecture/11-testing.md#milestone-6-checkout-orders-payments-what-is-proven-where).
+The critical end-to-end scenario above passes (`apps/dashboard/e2e/checkout.spec.ts`).
+
+Delivered:
+
+- **Database** (`20261201000000_checkout_orders_payments`): customers,
+  checkouts, reservations, discounts and redemptions, shipping zones and
+  rates, tax configuration and rates, orders with immutable snapshots,
+  payments, webhook events, refunds, fulfilments and the order notification
+  queue; forced RLS, bounds and immutability in the database; the new
+  `storevia_checkout` role scoped to one store and one checkout; order and
+  refund events from triggers.
+- **`@storevia/payments`**: the provider interface, the Test Payment
+  Provider (development and test only) and Razorpay Payment Links with the
+  merchant's own account; AES-256-GCM sealed credentials.
+- **`@storevia/commerce`**: pure pricing, checkout, reservation on the M3
+  ledger, idempotent payment confirmation and order creation, webhook
+  ingestion, expiry sweeps, orders (fulfil, cancel, refund), customers,
+  shipping/tax/discount/payment settings, order emails, real sales figures.
+- **Storefront**: checkout without client JavaScript (contact, address,
+  shipping, discount, review and pay), the test payment page, the return
+  page (never proof of payment) and the confirmation.
+- **Dashboard**: Orders, Customers and Marketing (discount codes) are live
+  areas; store settings gain Shipping, Tax and Payments; the store home shows
+  real revenue, orders, customers, a sales trend and top products; the
+  payment webhook endpoint.
+- **Worker**: checkout expiry (with late-capture handling), expired-checkout
+  purge, order emails with retries.
+- **Marketing**: checkout, orders, customers and discount codes available.
+
+Open, with the reason:
+
+| Item                                                                                 | Now                    | Why                                                                                                    |
+| ------------------------------------------------------------------------------------ | ---------------------- | ------------------------------------------------------------------------------------------------------ |
+| Admin API, API keys, outbound webhooks                                               | Later, as one platform | ADR-0031 §13: half of it would be worse than none; the outbox events are the integration point         |
+| Product taxonomy (`Category`)                                                        | Later                  | ADR-0031 §14: manual rates by country and region need no taxonomy yet                                  |
+| Automatic, free-shipping, targeted and per-customer discounts                        | Later                  | Order-wide codes cover the review scope (ADR-0031 §7)                                                  |
+| Weight-based and carrier-calculated shipping, compound and automatic tax             | Later                  | Flat and subtotal-based rates, manual rates only                                                       |
+| Customer accounts, saved addresses, erasure workflow                                 | Later / M8             | Guests only; erasure is a documented manual procedure until then                                       |
+| Order edits and partial cancellation of unshipped lines                              | Later                  | Cancellation is all-or-nothing before fulfilment; refunds cover the rest                               |
+| Provider refund-status webhooks                                                      | Later                  | A refund the provider doesn't confirm stays pending and staff settle it after checking the provider    |
+| A list of captured payments with no order                                            | Later                  | The rare mismatch is logged and counted (`checkout.capture_without_order`); resolved with the provider |
+| Invoices, courier booking, returns portal, gift cards, subscriptions, multi-currency | Not in M6              | Not shown anywhere in the product                                                                      |
+
+### Running Milestone 6 locally
+
+After the earlier steps (`pnpm install`, a running PostgreSQL and `.env`):
+
+```sh
+git fetch origin claude/cool-thompson-c7u8qp && git checkout claude/cool-thompson-c7u8qp
+pnpm install
+# New settings in .env (see .env.example):
+#   DATABASE_CHECKOUT_URL=postgresql://storevia_checkout:storevia_checkout@localhost:5432/storevia
+#   PAYMENT_CREDENTIALS_KEYS=1:<32 random bytes, base64>
+#     node -e "console.log('1:'+require('crypto').randomBytes(32).toString('base64'))"
+#   TEST_PAYMENTS_ENABLED=true        (local only; needed for `pnpm build && pnpm start`)
+pnpm db:setup            # creates the new storevia_checkout role
+pnpm db:reset            # or: pnpm db:migrate (applies 20261201000000_checkout_orders_payments)
+pnpm db:seed:dev
+pnpm dev                 # dashboard :3001, storefront :3002, worker, marketing :3000
+```
+
+Seeded checkout cases (Acme Flagship, <http://acme-flagship.store.localhost:3002>,
+merchant `owner@acme.test`, password `storevia-dev-password`):
+
+- Shipping within India only: Standard ₹60, free from ₹1,999. Prices
+  include 18% GST. Test payments are connected (Settings → Payments).
+- Stoneware mug (Sand): plenty of stock, the happy path. Enamel saucepan:
+  2 left, for the last-unit race in two browsers. Linen apron Charcoal
+  L–XL: sold out.
+- Codes: `WELCOME10` (10%), `FLAT200` (₹200 off from ₹1,000), `ONEUSE`
+  (one use in total), `SPRING` (expired), `LAUNCH` (starts next month).
+- The test payment page offers **Pay successfully**, **Decline the payment**
+  and **Cancel**. Refunds whose amount ends in `.13` are declined by the test
+  provider, to try the failure path.
+- Orders #1001 (paid), #1002 (shipped with tracking) and #1003 (partly
+  refunded) already exist; order emails are written to `apps/worker/.storevia/mail`
+  when `EMAIL_TRANSPORT=file`.
+
 ## Milestone 1 plan (as scheduled at M0)
 
 Order of work, each step a vertical slice with tests:
@@ -395,7 +482,7 @@ them (M2/M6, M8, first production deployment).
 | ---- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
 | Q1   | Accept Better Auth instead of Auth.js (ADR-0007)?                                                                                      | Better Auth                                                                                                         |
 | Q2   | Hosting: AWS + Cloudflare (ADR-0016) vs an all-in-one PaaS for the first year?                                                         | AWS + Cloudflare, portable containers                                                                               |
-| Q3   | First launch market, and therefore first SaaS billing provider and first merchant payment provider (Stripe vs Razorpay for India)?     | Stripe for SaaS billing; merchant payments decided before M6                                                        |
+| Q3   | First launch market, and therefore first SaaS billing provider and first merchant payment provider (Stripe vs Razorpay for India)?     | Stripe for SaaS billing; merchant payments: **Razorpay** (decided in ADR-0031 §4)                                   |
 | Q4   | Confirm domain names: `storevia.com`, `storevia.site` (storefronts), `storeviausercontent.com` (media)                                 | As written; placeholders until confirmed                                                                            |
 | Q5   | Legal retention periods per jurisdiction ([data-lifecycle.md §4](../database/data-lifecycle.md#4-retention-schedule-initial-proposal)) | Proposed defaults                                                                                                   |
 | Q6   | Trial length, and whether a trial requires a payment method                                                                            | 14 days, no card                                                                                                    |
