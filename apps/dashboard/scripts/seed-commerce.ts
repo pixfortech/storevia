@@ -2,7 +2,13 @@
 // Payment Provider and a few real orders for Acme Flagship, all created
 // through the same services the dashboard and the storefront use (orders
 // go through the real checkout: cart → checkout → test payment → signed
-// event → order). Idempotent: skipped when the store already has shipping.
+// event → order).
+//
+// Converges rather than runs once: each piece (the shipping zone and each
+// rate, tax, each discount code, the payment connection, each seeded order
+// and its fulfilment or refund) is checked on its own and only what is
+// missing is created, so a rerun after a failure part-way completes the
+// seed without duplicating anything.
 //
 // Checkout cases on http://acme-flagship.store.localhost:3002:
 //   Stoneware mug (Sand)     plenty of stock: the happy path
@@ -20,11 +26,16 @@ import {
   createShippingZone,
   createTaxRate,
   fulfilOrder,
+  getOrder,
+  getPaymentSettings,
   getProduct,
   getShippingSettings,
+  getTaxSettings,
+  listDiscounts,
   listOrders,
   listProducts,
   refundOrder,
+  testPaymentsSetupProblem,
   updateTaxSettings,
 } from "@storevia/commerce";
 import {
@@ -107,58 +118,103 @@ async function placeOrder(
   await simulateTestPayment(req, new URL(started.url).searchParams.get("ref") ?? "", "captured");
 }
 
-export async function seedAcmeCommerce(ctx: StoreContext): Promise<boolean> {
-  if ((await getShippingSettings(ctx)).length > 0) return false;
-  const { zoneId } = await createShippingZone(ctx, { name: "India", countries: "IN" });
-  await createShippingRate(ctx, zoneId, { name: "Standard", type: "FLAT", amount: "60" });
-  await createShippingRate(ctx, zoneId, {
-    name: "Free shipping",
-    type: "PRICE_BASED",
-    amount: "0",
-    minSubtotal: "1999",
-  });
+const day = 24 * 60 * 60 * 1000;
+const iso = (offsetDays: number) => new Date(Date.now() + offsetDays * day).toISOString();
+
+const RATES = [
+  { name: "Standard", type: "FLAT", amount: "60" },
+  { name: "Free shipping", type: "PRICE_BASED", amount: "0", minSubtotal: "1999" },
+] as const;
+
+const DISCOUNTS = () =>
+  [
+    { code: "WELCOME10", title: "Welcome 10%", type: "PERCENTAGE", value: "10" },
+    {
+      code: "FLAT200",
+      title: "₹200 off from ₹1,000",
+      type: "FIXED_AMOUNT",
+      value: "200",
+      minSubtotal: "1000",
+    },
+    { code: "ONEUSE", title: "One-time 10%", type: "PERCENTAGE", value: "10", usageLimit: "1" },
+    {
+      code: "SPRING",
+      title: "Spring sale (ended)",
+      type: "PERCENTAGE",
+      value: "15",
+      startsAt: iso(-60),
+      endsAt: iso(-30),
+    },
+    { code: "LAUNCH", title: "Launch week", type: "PERCENTAGE", value: "20", startsAt: iso(30) },
+  ] as const;
+
+/** The seeded orders, found again by their shopper's email. */
+const ORDERS = [
+  { email: "asha.rao@example.test", address: 0, lines: [["mug", 2]] },
+  {
+    email: "vikram.mehta@example.test",
+    address: 1,
+    lines: [
+      ["towels", 1],
+      ["mug", 1],
+    ],
+    code: "WELCOME10",
+    ship: true,
+  },
+  { email: "neha.iyer@example.test", address: 2, lines: [["towels", 2]], refund: "100" },
+] as const;
+
+export interface CommerceSeedResult {
+  /** What this run created or repaired ("" when the store was already complete). */
+  readonly created: readonly string[];
+  /** What couldn't be seeded here, and how to fix it; a rerun completes the rest. */
+  readonly problems: readonly string[];
+}
+
+async function ensureShipping(ctx: StoreContext, created: string[]): Promise<void> {
+  let zone = (await getShippingSettings(ctx)).find((z) => z.name === "India");
+  if (!zone) {
+    await createShippingZone(ctx, { name: "India", countries: "IN" });
+    created.push("shipping zone India");
+    zone = (await getShippingSettings(ctx)).find((z) => z.name === "India");
+  }
+  if (!zone) throw new Error("seed shipping zone is missing after creating it");
+  for (const rate of RATES) {
+    if (zone.rates.some((r) => r.name === rate.name)) continue;
+    await createShippingRate(ctx, zone.id, rate);
+    created.push(`shipping rate ${rate.name}`);
+  }
+}
+
+async function ensureTax(ctx: StoreContext, created: string[]): Promise<void> {
+  const tax = await getTaxSettings(ctx);
+  if (tax.rates.some((r) => r.countryCode === "IN" && r.name === "GST")) return;
   await updateTaxSettings(ctx, { pricesIncludeTax: "on", chargeTaxOnShipping: "" });
   await createTaxRate(ctx, { name: "GST", countryCode: "IN", rate: "18" });
+  created.push("GST 18% (prices include tax)");
+}
 
-  const day = 24 * 60 * 60 * 1000;
-  const iso = (offsetDays: number) => new Date(Date.now() + offsetDays * day).toISOString();
-  await createDiscount(ctx, {
-    code: "WELCOME10",
-    title: "Welcome 10%",
-    type: "PERCENTAGE",
-    value: "10",
-  });
-  await createDiscount(ctx, {
-    code: "FLAT200",
-    title: "₹200 off from ₹1,000",
-    type: "FIXED_AMOUNT",
-    value: "200",
-    minSubtotal: "1000",
-  });
-  await createDiscount(ctx, {
-    code: "ONEUSE",
-    title: "One-time 10%",
-    type: "PERCENTAGE",
-    value: "10",
-    usageLimit: "1",
-  });
-  await createDiscount(ctx, {
-    code: "SPRING",
-    title: "Spring sale (ended)",
-    type: "PERCENTAGE",
-    value: "15",
-    startsAt: iso(-60),
-    endsAt: iso(-30),
-  });
-  await createDiscount(ctx, {
-    code: "LAUNCH",
-    title: "Launch week",
-    type: "PERCENTAGE",
-    value: "20",
-    startsAt: iso(30),
-  });
+async function ensureDiscounts(ctx: StoreContext, created: string[]): Promise<void> {
+  const existing = new Set((await listDiscounts(ctx)).map((d) => d.code));
+  for (const discount of DISCOUNTS()) {
+    if (existing.has(discount.code)) continue;
+    await createDiscount(ctx, discount);
+    created.push(`discount ${discount.code}`);
+  }
+}
+
+/** Connects test payments unless the store already takes payments; returns a problem or null. */
+async function ensurePayments(ctx: StoreContext, created: string[]): Promise<string | null> {
+  const settings = await getPaymentSettings(ctx);
+  if (settings.connections.some((c) => c.status === "ACTIVE" && c.usable)) return null;
+  const problem = testPaymentsSetupProblem();
+  if (problem) return `Test payments not connected. ${problem}`;
   await connectTestPayments(ctx);
+  created.push("test payments connection");
+  return null;
+}
 
+async function ensureOrders(ctx: StoreContext, created: string[]): Promise<void> {
   const s = await getStore(ctx);
   const store: CheckoutStore = {
     organisationId: ctx.organisationId,
@@ -166,34 +222,59 @@ export async function seedAcmeCommerce(ctx: StoreContext): Promise<boolean> {
     currency: s.currency,
     name: s.name,
   };
-  const mug = await variantOf(ctx, "Stoneware mug", "Sand");
-  const towels = await variantOf(ctx, "Cotton tea towels, set of 2");
-  const [a1, a2, a3] = ADDRESSES;
-  await placeOrder(store, [[mug, 2]], "asha.rao@example.test", a1);
-  await placeOrder(
-    store,
-    [
-      [towels, 1],
-      [mug, 1],
-    ],
-    "vikram.mehta@example.test",
-    a2,
-    "WELCOME10",
-  );
-  await placeOrder(store, [[towels, 2]], "neha.iyer@example.test", a3);
-
-  // The second order has shipped; the third was partly refunded.
-  const orders = (await listOrders(ctx, {})).items;
-  const byNumber = (n: number) => orders.find((o) => o.number === n)?.id;
-  const shipped = byNumber(1002);
-  if (shipped) {
-    await fulfilOrder(ctx, shipped, {
-      trackingCompany: "India Post",
-      trackingNumber: "EM123456789IN",
-      trackingUrl: "https://www.indiapost.gov.in/",
-    });
+  const variants = {
+    mug: await variantOf(ctx, "Stoneware mug", "Sand"),
+    towels: await variantOf(ctx, "Cotton tea towels, set of 2"),
+  };
+  for (const seeded of ORDERS) {
+    const find = async () =>
+      (await listOrders(ctx, { q: seeded.email })).items.find((o) => o.email === seeded.email);
+    let order = await find();
+    if (!order) {
+      const address = ADDRESSES[seeded.address];
+      await placeOrder(
+        store,
+        seeded.lines.map(([key, quantity]) => [variants[key], quantity] as const),
+        seeded.email,
+        address,
+        "code" in seeded ? seeded.code : undefined,
+      );
+      created.push(`order for ${seeded.email}`);
+      order = await find();
+    }
+    if (!order) throw new Error(`seed order for ${seeded.email} is missing after placing it`);
+    const detail = await getOrder(ctx, order.id);
+    if ("ship" in seeded && detail.fulfilments.length === 0) {
+      await fulfilOrder(ctx, order.id, {
+        trackingCompany: "India Post",
+        trackingNumber: "EM123456789IN",
+        trackingUrl: "https://www.indiapost.gov.in/",
+      });
+      created.push(`shipment of #${String(order.number)}`);
+    }
+    if ("refund" in seeded && detail.refunds.length === 0) {
+      await refundOrder(ctx, order.id, { amount: seeded.refund, reason: "Box arrived damaged" });
+      created.push(`refund on #${String(order.number)}`);
+    }
   }
-  const refunded = byNumber(1003);
-  if (refunded) await refundOrder(ctx, refunded, { amount: "100", reason: "Box arrived damaged" });
-  return true;
+}
+
+/**
+ * Brings Acme Flagship's commerce set-up to the seeded state, creating only
+ * what is missing. Orders need a payment connection, so without one they are
+ * left for a rerun and the reason is returned in `problems`.
+ */
+export async function seedAcmeCommerce(ctx: StoreContext): Promise<CommerceSeedResult> {
+  const created: string[] = [];
+  const problems: string[] = [];
+  await ensureShipping(ctx, created);
+  await ensureTax(ctx, created);
+  await ensureDiscounts(ctx, created);
+  const payments = await ensurePayments(ctx, created);
+  if (payments) {
+    problems.push(payments, "Seeded orders are skipped until payments are connected.");
+  } else {
+    await ensureOrders(ctx, created);
+  }
+  return { created, problems };
 }

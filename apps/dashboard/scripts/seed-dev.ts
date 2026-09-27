@@ -217,9 +217,11 @@ async function main(): Promise<void> {
   };
   const flagship = await storeContext(acmeOwner, acmeId, "acme-flagship");
   if (await seedAcmeCatalogue(flagship)) console.log("Seeded the Acme Flagship catalogue.");
-  if (await seedAcmeCommerce(flagship)) {
-    console.log("Seeded Acme Flagship shipping, tax, discount codes, test payments and orders.");
+  const commerce = await seedAcmeCommerce(flagship);
+  if (commerce.created.length > 0) {
+    console.log(`Seeded Acme Flagship commerce: ${commerce.created.join(", ")}.`);
   }
+  for (const problem of commerce.problems) console.error(`Acme Flagship: ${problem}`);
   if (
     await seedGlobexAtLimit(
       staffCtx,
@@ -229,6 +231,14 @@ async function main(): Promise<void> {
   )
     console.log("Seeded Globex Home at its product limit.");
 
+  if (commerce.problems.length > 0) {
+    // Incomplete: fix the problem above and run `pnpm db:seed:dev` again.
+    process.exitCode = 1;
+    console.error(
+      "Development data is incomplete; rerun `pnpm db:seed:dev` after fixing the above.",
+    );
+    return;
+  }
   console.log(
     `Seeded development data. Sign in with any seeded email and the password "${PASSWORD}".`,
   );

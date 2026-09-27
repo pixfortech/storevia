@@ -422,9 +422,15 @@ pnpm install
 #   TEST_PAYMENTS_ENABLED=true        (local only; needed for `pnpm build && pnpm start`)
 pnpm db:setup            # creates the new storevia_checkout role
 pnpm db:reset            # or: pnpm db:migrate (applies 20261201000000_checkout_orders_payments)
-pnpm db:seed:dev
+pnpm db:seed:dev         # safe to rerun: completes whatever an earlier run left missing
 pnpm dev                 # dashboard :3001, storefront :3002, worker, marketing :3000
 ```
+
+If `PAYMENT_CREDENTIALS_KEYS` is missing or still `replace-me`, the seed
+creates shipping, tax and discount codes, then stops with a message naming
+the setting and exits with an error; test payments and the seeded orders
+are added when it is rerun with a usable key. The storefront says "This
+store isn't taking payments right now" until then.
 
 Seeded checkout cases (Acme Flagship, <http://acme-flagship.store.localhost:3002>,
 merchant `owner@acme.test`, password `storevia-dev-password`):
@@ -440,7 +446,8 @@ merchant `owner@acme.test`, password `storevia-dev-password`):
   and **Cancel**. Refunds whose amount ends in `.13` are declined by the test
   provider, to try the failure path.
 - Orders #1001 (paid), #1002 (shipped with tracking) and #1003 (partly
-  refunded) already exist; order emails are written to `apps/worker/.storevia/mail`
+  refunded) already exist (numbers differ if other orders were placed before
+  the seed completed); order emails are written to `apps/worker/.storevia/mail`
   when `EMAIL_TRANSPORT=file`.
 
 ## Milestone 1 plan (as scheduled at M0)

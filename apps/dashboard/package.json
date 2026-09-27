@@ -9,6 +9,7 @@
     "start": "next start --port 3001",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run --passWithNoTests",
+    "test:integration": "vitest run --config vitest.int.config.ts",
     "test:e2e": "playwright test",
     "seed:dev": "tsx --conditions=react-server scripts/seed-dev.ts"
   },

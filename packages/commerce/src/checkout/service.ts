@@ -4,15 +4,23 @@ import type { TenantTx } from "@storevia/database";
 import { createLogger, errorFields, recordMetric } from "@storevia/observability";
 import { PaymentProviderError } from "@storevia/payments";
 import { consumeRateLimitsWith, type RateLimitRule } from "@storevia/security/rate-limit";
-import { DomainError, parseTypeId, toTypeId, uuidv7, validationFailed } from "@storevia/types";
+import {
+  DomainError,
+  isDomainError,
+  parseTypeId,
+  toTypeId,
+  uuidv7,
+  validationFailed,
+} from "@storevia/types";
 import { hashCartToken } from "../storefront/cart";
 import { applyPaymentOutcome, endAttempt, lockPendingPayment, reserveDiscountUse } from "./confirm";
 import { acceptsCurrency, activeConnection, connectionById, openConnection } from "./connection";
 import { parseAddress, parseDiscountCode, parseEmail } from "./input";
-import { loadCheckout, repriceCheckout, type CheckoutRow } from "./load";
+import { loadCheckout, loadPricingInput, repriceCheckout, type CheckoutRow } from "./load";
 import {
   describeQuoteChange,
   parseStoredQuote,
+  priceCheckout,
   type CheckoutAddress,
   type CheckoutProblem,
   type DiscountProblem,
@@ -444,15 +452,39 @@ export async function updateAddress(
   req: CheckoutRequest,
   input: Readonly<Record<string, unknown>>,
 ): Promise<CheckoutView> {
-  const shipping = parseAddress(input);
   const separateBilling =
     input["billingSameAsShipping"] === "off" || input["billingSameAsShipping"] === false;
-  const billing = separateBilling ? parseAddress(input, "billing_") : shipping;
+  // Both addresses are checked before either error is reported, so the
+  // shopper sees every field to correct at once.
+  const errors: Record<string, string> = {};
+  const parse = (prefix: string): CheckoutAddress | null => {
+    try {
+      return parseAddress(input, prefix);
+    } catch (error) {
+      if (!isDomainError(error) || !error.fieldErrors) throw error;
+      Object.assign(errors, error.fieldErrors);
+      return null;
+    }
+  };
+  const shipping = parse("");
+  const billing = separateBilling ? parse("billing_") : shipping;
+  if (!shipping || !billing) throw validationFailed(errors);
   return step(req, [RULES.step], async (tx, checkout) => {
     await tx.$executeRaw`
       UPDATE "Checkout" SET "shippingAddress" = ${JSON.stringify(shipping)}::jsonb,
         "billingAddress" = ${JSON.stringify(billing)}::jsonb
       WHERE id = ${checkout.id}::uuid`;
+    // A chosen method that doesn't serve the new address is cleared, so it
+    // can't quietly come back if the address changes again.
+    if (checkout.shippingRateId) {
+      const quote = priceCheckout(
+        await loadPricingInput(tx, { ...checkout, shippingAddress: shipping }, req.store.currency),
+      );
+      if (!quote.shippingOptions.some((o) => o.rateId === checkout.shippingRateId)) {
+        await tx.$executeRaw`
+          UPDATE "Checkout" SET "shippingRateId" = NULL WHERE id = ${checkout.id}::uuid`;
+      }
+    }
   });
 }
 

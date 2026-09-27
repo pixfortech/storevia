@@ -52,7 +52,7 @@ test("checkout and order pages are accessible and fit every width", async ({ pag
   // An invalid email shows a field error, announced and linked to its input.
   await shop.getByLabel("Email").fill("not-an-email");
   await shop.getByRole("button", { name: "Continue" }).first().click();
-  await shop.waitForURL(/\/checkout\?step=contact$/);
+  await shop.waitForURL(/\/checkout\?step=contact&f=/);
   await expect(shop.getByText(/Enter a valid email address/)).toBeVisible();
   await expect(shop.getByLabel("Email")).toHaveAttribute("aria-invalid", "true");
   await audit(shop, "checkout with a field error");

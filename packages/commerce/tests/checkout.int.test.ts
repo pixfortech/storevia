@@ -315,6 +315,75 @@ describe("checkout foundation", () => {
     });
   });
 
+  it("checks both addresses together and saves a separate billing address on its own", async () => {
+    const s = await shopper(storeA, [["mug", 1]]);
+    await updateContact(s.req, { email: "asha@example.test" });
+    // Shipping and billing errors come back together, keyed by field.
+    await expect(
+      updateAddress(s.req, {
+        ...ADDRESS,
+        city: "",
+        billingSameAsShipping: "off",
+        billing_firstName: "Accounts",
+      }),
+    ).rejects.toMatchObject({
+      code: "VALIDATION_FAILED",
+      fieldErrors: {
+        city: expect.any(String) as unknown,
+        billing_lastName: expect.any(String) as unknown,
+        billing_line1: expect.any(String) as unknown,
+        billing_city: expect.any(String) as unknown,
+      },
+    });
+    const billing = {
+      billing_firstName: "Accounts",
+      billing_lastName: "Team",
+      billing_line1: "1 Office Road",
+      billing_city: "Pune",
+      billing_countryCode: "IN",
+    };
+    const separate = await updateAddress(s.req, {
+      ...ADDRESS,
+      ...billing,
+      billingSameAsShipping: "off",
+    });
+    expect(separate.shippingAddress).toMatchObject({ line1: "12 MG Road", city: "Bengaluru" });
+    expect(separate.billingAddress).toMatchObject({ line1: "1 Office Road", city: "Pune" });
+    // Ticked, the billing fields are ignored and billing equals shipping.
+    const same = await updateAddress(s.req, {
+      ...ADDRESS,
+      ...billing,
+      billingSameAsShipping: "on",
+    });
+    expect(same.billingAddress).toEqual(same.shippingAddress);
+  });
+
+  it("an address change clears a chosen method that no longer applies", async () => {
+    const s = await shopper(storeA, [["mug", 1]]);
+    const view = await ready(s);
+    expect(view.shipping).not.toBeNull();
+    const stored = () =>
+      migratorDb().checkout.findFirstOrThrow({
+        where: { storeId: storeA.storeId, email: "asha@example.test", status: "OPEN" },
+        orderBy: { createdAt: "desc" },
+        select: { shippingRateId: true },
+      });
+    // The same country: the method still applies and stays chosen.
+    const moved = await updateAddress(s.req, { ...ADDRESS, city: "Mysuru" });
+    expect(moved.shipping?.name).toBe(view.shipping?.name);
+    // Nowhere the store ships: no options, and the choice is cleared...
+    const abroad = await updateAddress(s.req, { ...ADDRESS, countryCode: "US", regionCode: "" });
+    expect(abroad.shippingOptions).toEqual([]);
+    expect(abroad.shipping).toBeNull();
+    expect(abroad.problems).toContain("SHIPPING_UNAVAILABLE");
+    expect((await stored()).shippingRateId).toBeNull();
+    // ...so coming back doesn't silently re-select it.
+    const back = await updateAddress(s.req, ADDRESS);
+    expect(back.shipping).toBeNull();
+    expect(back.problems).toContain("SHIPPING");
+    expect(back.shippingTotal.amount).toBe("0");
+  });
+
   it("shipping, tax and discount are computed from the store's configuration", async () => {
     const s = await shopper(storeA, [["mug", 1]]);
     const view = await ready(s);

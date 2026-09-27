@@ -29,15 +29,21 @@ export const COMMERCE_CSS = `
 .sv-field label{font-weight:600;font-size:var(--sv-fontSize-sm)}
 .sv-field input,.sv-field select{min-height:2.75rem;padding:0 var(--sv-space-sm);border:1px solid var(--sv-color-border);border-radius:var(--sv-radius-md);font:inherit;width:100%;background:var(--sv-color-background);color:inherit}
 .sv-field input[aria-invalid=true],.sv-field select[aria-invalid=true]{border-color:currentColor;border-width:2px}
+.sv-field-notes{display:grid;gap:var(--sv-space-xs)}
+.sv-field-hint{margin:0;color:var(--sv-color-muted);font-size:var(--sv-fontSize-sm)}
 .sv-field-error{font-weight:600;font-size:var(--sv-fontSize-sm);margin:0}
 .sv-field-error::before{content:"Error: "}
+@supports (grid-template-rows:subgrid){.sv-field-grid>.sv-field,.sv-inline-form>.sv-field{grid-row:span 3;grid-template-rows:subgrid;row-gap:var(--sv-space-xs)}}
 .sv-check{display:flex;gap:var(--sv-space-sm);align-items:center;min-height:2.75rem}
-.sv-billing summary{cursor:pointer;min-height:2.75rem;display:flex;align-items:center;font-weight:600}
-.sv-billing[open]{display:grid;gap:var(--sv-space-sm)}
+.sv-check input{width:1.25rem;height:1.25rem;margin:0;flex:none}
+.sv-checkout .sv-billing{display:grid;gap:var(--sv-space-md)}
+.sv-billing legend{font-weight:700;padding:0;margin-bottom:var(--sv-space-sm)}
+.sv-checkout form:has(#billingSameAsShipping:checked) .sv-billing{display:none}
 .sv-option{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:var(--sv-space-sm);align-items:center;min-height:2.75rem;padding:var(--sv-space-sm) var(--sv-space-md);border:1px solid var(--sv-color-border);border-radius:var(--sv-radius-md);margin-bottom:var(--sv-space-sm)}
 .sv-checkout fieldset{border:0;margin:0;padding:0}
-.sv-inline-form{display:flex!important;flex-wrap:wrap;gap:var(--sv-space-sm);align-items:flex-end}
-.sv-inline-form .sv-field{flex:1 1 12rem}
+.sv-checkout-step .sv-inline-form{grid-template-columns:minmax(0,1fr) auto;column-gap:var(--sv-space-sm);row-gap:0;align-items:center}
+.sv-inline-form>.sv-field{grid-column:1}
+.sv-inline-form>.sv-field+button{grid-column:2;grid-row:2}
 .sv-problems{margin:0 0 var(--sv-space-md);padding-left:1.25rem}
 .sv-checkout-summary{border:1px solid var(--sv-color-border);border-radius:var(--sv-radius-md);padding:var(--sv-space-lg);background:var(--sv-color-background);align-self:start}
 .sv-checkout-summary h2{font-size:var(--sv-fontSize-lg);margin:0 0 var(--sv-space-md)}

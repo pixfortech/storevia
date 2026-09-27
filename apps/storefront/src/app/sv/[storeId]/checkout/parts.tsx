@@ -1,4 +1,5 @@
 import type { CheckoutView } from "@storevia/commerce/checkout";
+import type { ReactNode } from "react";
 
 // Checkout building blocks: labelled fields with their errors announced
 // (aria-invalid + aria-describedby), and the order summary. Server
@@ -12,52 +13,74 @@ export function FieldError({ id, message }: { id: string; message: string | unde
   ) : null;
 }
 
-export function Field({
-  id,
-  name,
-  label,
-  hint,
-  error,
-  type = "text",
-  required,
-  wide,
-  autoComplete,
-  defaultValue,
-}: {
-  id: string;
-  name: string;
-  label: string;
-  hint?: string;
-  error: string | undefined;
-  type?: "text" | "email" | "tel";
-  required?: boolean;
-  wide?: boolean;
-  autoComplete: string;
-  defaultValue: string;
-}) {
+interface ShellProps {
+  readonly id: string;
+  readonly label: string;
+  readonly hint?: string | undefined;
+  readonly error: string | undefined;
+  readonly wide?: boolean | undefined;
+}
+
+/** What a control needs to be announced with its hint and error. */
+export const controlProps = ({ id, hint, error }: ShellProps) => {
   const describedBy = [hint ? `${id}-hint` : null, error ? `${id}-error` : null]
     .filter(Boolean)
     .join(" ");
+  return {
+    id,
+    "aria-invalid": error ? true : undefined,
+    "aria-describedby": describedBy || undefined,
+  } as const;
+};
+
+/**
+ * Label, control, then hint and error, always in that order and always three
+ * rows (the last may be empty): inside a field grid each row lines up with
+ * its neighbour's, so paired inputs align whatever the hints or errors.
+ */
+export function FieldShell(props: ShellProps & { readonly children: ReactNode }) {
+  const { id, label, hint, error, wide, children } = props;
   return (
     <div className={wide ? "sv-field sv-field-wide" : "sv-field"}>
       <label htmlFor={id}>{label}</label>
-      {hint ? (
-        <p id={`${id}-hint`} className="sv-muted">
-          {hint}
-        </p>
-      ) : null}
+      {children}
+      <div className="sv-field-notes">
+        {hint ? (
+          <p id={`${id}-hint`} className="sv-field-hint">
+            {hint}
+          </p>
+        ) : null}
+        <FieldError id={`${id}-error`} message={error} />
+      </div>
+    </div>
+  );
+}
+
+export function Field({
+  name,
+  type = "text",
+  required,
+  autoComplete,
+  defaultValue,
+  ...shell
+}: ShellProps & {
+  name: string;
+  type?: "text" | "email" | "tel";
+  required?: boolean;
+  autoComplete: string;
+  defaultValue: string;
+}) {
+  return (
+    <FieldShell {...shell}>
       <input
-        id={id}
+        {...controlProps(shell)}
         name={name}
         type={type}
         required={required}
         autoComplete={autoComplete}
         defaultValue={defaultValue}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={describedBy || undefined}
       />
-      <FieldError id={`${id}-error`} message={error} />
-    </div>
+    </FieldShell>
   );
 }
 

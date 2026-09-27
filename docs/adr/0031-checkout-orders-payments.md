@@ -91,7 +91,13 @@ OPEN / PAYMENT_PENDING ──expiry sweep──▶ EXPIRED
   minutes after its last change; a payment attempt has its own 15-minute
   window. Expired checkouts accept nothing but the sweep.
 - Guest checkout only: email, shipping address, billing address (same as
-  shipping by default), shipping rate, one discount code.
+  shipping by default), shipping rate, one discount code. Steps are server
+  forms that redirect; the address step opens once the email is saved, and
+  an address change clears a chosen rate that no longer applies. A failed
+  step's errors and typed values travel in a 60-second host-only flash
+  cookie that shows only on the redirect naming it (`?f=<id>`), so a later
+  successful step can't show stale errors; clearing it repeats the cookie's
+  attributes (a `__Host-` cookie can't be removed without `Secure`).
 - The browser sends selections only. Every step re-prices server-side and
   stores the quote; `beginPayment` re-prices again and compares the
   `pricingHash` the shopper confirmed. A difference returns the typed

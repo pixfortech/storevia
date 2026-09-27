@@ -127,6 +127,7 @@ export {
   connectTestPayments,
   getPaymentSettings,
   setPaymentConnectionActive,
+  testPaymentsSetupProblem,
 } from "./settings/payments";
 export type { PaymentConnectionView, PaymentSettings } from "./settings/payments";
 export { storeCustomerSummary, storeSalesSummary, SALES_MAX_DAYS } from "./orders/metrics";

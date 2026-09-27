@@ -60,6 +60,20 @@ function credentialsCipher(): SecretCipher {
   return cipher;
 }
 
+/**
+ * Why provider credentials can't be sealed in this process (a missing or
+ * malformed PAYMENT_CREDENTIALS_KEYS), or null when they can. The message
+ * never contains key material.
+ */
+export function credentialsKeysProblem(): string | null {
+  try {
+    credentialsCipher();
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : "the key ring can't be used";
+  }
+}
+
 /** The associated data: a ciphertext opens only for its own connection. */
 export function credentialsBinding(connection: {
   readonly storeId: string;

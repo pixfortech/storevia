@@ -14,7 +14,7 @@ import {
   removeDiscountAction,
   shippingAction,
 } from "./actions";
-import { CheckoutSummary, Field, FieldError } from "./parts";
+import { CheckoutSummary, controlProps, Field, FieldError, FieldShell } from "./parts";
 
 // Checkout (ADR-0031 §1): dynamic, private, no-store, no client JavaScript.
 // Every step is its own small form; the server re-prices after each one and
@@ -38,7 +38,7 @@ const PROBLEMS: Record<string, string> = {
   UNAVAILABLE:
     "Some items are no longer available and aren't included. Update your cart to continue.",
   EMAIL: "Add your email address.",
-  ADDRESS: "Add a delivery address.",
+  ADDRESS: "Add a shipping address.",
   SHIPPING_UNAVAILABLE: "We don't ship to this address yet.",
   SHIPPING: "Choose a shipping method.",
   DISCOUNT: "Your discount code can't be used. Remove it to continue.",
@@ -63,7 +63,7 @@ export default async function CheckoutPage({ params, searchParams }: Props) {
   const view = await getCheckout(await checkoutRequest(store));
   if (!view) redirect("/cart");
   if (view.stage === "completed") redirect("/checkout/complete");
-  const flash = await readFlash();
+  const flash = await readFlash(typeof search["f"] === "string" ? search["f"] : undefined);
   const price = (p: { amount: string; currency: string }) => formatPrice(p, store.locale);
   const changed = typeof search["changed"] === "string" ? CHANGES[search["changed"]] : undefined;
 
@@ -167,13 +167,17 @@ function OpenSteps({
   const addressValues = valuesFor("address");
   const address = (name: keyof CheckoutAddress) =>
     addressValues[name] ?? view.shippingAddress?.[name] ?? "";
-  const billingValue = (name: keyof CheckoutAddress) =>
-    addressValues[`billing_${name}`] ?? view.billingAddress?.[name] ?? "";
+  const savedSameBilling =
+    !view.billingAddress ||
+    JSON.stringify(view.billingAddress) === JSON.stringify(view.shippingAddress);
+  // A failed submit shows the box as the shopper left it (an unticked box
+  // isn't in the form data at all); otherwise as saved, ticked by default.
   const sameBilling =
-    addressValues["billingSameAsShipping"] !== undefined
-      ? addressValues["billingSameAsShipping"] === "on"
-      : !view.billingAddress ||
-        JSON.stringify(view.billingAddress) === JSON.stringify(view.shippingAddress);
+    flash?.step === "address" ? addressValues["billingSameAsShipping"] === "on" : savedSameBilling;
+  // A separate billing address starts empty rather than as a copy of the
+  // shipping address.
+  const billingValue = (name: keyof CheckoutAddress) =>
+    addressValues[`billing_${name}`] ?? (savedSameBilling ? "" : view.billingAddress[name]) ?? "";
   const ready = view.problems.length === 0;
   const lastPayment = view.lastPaymentProblem ? LAST_PAYMENT[view.lastPaymentProblem] : undefined;
 
@@ -185,6 +189,11 @@ function OpenSteps({
       error: errors[`${prefix}${name}`],
       defaultValue: value(name),
     });
+    const country_ = {
+      id: `${prefix || "ship_"}countryCode`,
+      label: "Country",
+      error: errors[`${prefix}countryCode`],
+    };
     return (
       <div className="sv-field-grid">
         <Field
@@ -235,17 +244,12 @@ function OpenSteps({
           autoComplete={`${prefix ? "billing" : "shipping"} postal-code`}
           {...f("postalCode")}
         />
-        <div className="sv-field">
-          <label htmlFor={`${prefix || "ship_"}countryCode`}>Country</label>
+        <FieldShell {...country_}>
           <select
-            id={`${prefix || "ship_"}countryCode`}
+            {...controlProps(country_)}
             name={`${prefix}countryCode`}
             autoComplete={`${prefix ? "billing" : "shipping"} country`}
             defaultValue={value("countryCode") || country}
-            aria-invalid={errors[`${prefix}countryCode`] ? true : undefined}
-            aria-describedby={
-              errors[`${prefix}countryCode`] ? `${prefix || "ship_"}countryCode-error` : undefined
-            }
           >
             {countries.map((c) => (
               <option key={c.code} value={c.code}>
@@ -253,11 +257,7 @@ function OpenSteps({
               </option>
             ))}
           </select>
-          <FieldError
-            id={`${prefix || "ship_"}countryCode-error`}
-            message={errors[`${prefix}countryCode`]}
-          />
-        </div>
+        </FieldShell>
         <Field
           label="Phone (optional)"
           type="tel"
@@ -302,34 +302,48 @@ function OpenSteps({
       </section>
 
       <section id="address" aria-labelledby="address-heading" className="sv-checkout-step">
-        <h2 id="address-heading">2. Delivery address</h2>
-        <form action={addressAction} noValidate>
-          {messageFor("address") ? (
-            <p className="sv-notice" role="alert">
-              {messageFor("address")}
-            </p>
-          ) : null}
-          {addressFields("", address)}
-          <details className="sv-billing" open={!sameBilling}>
-            <summary>Billing address</summary>
-            <label className="sv-check">
-              <input type="checkbox" name="billingSameAsShipping" defaultChecked={sameBilling} />
-              Same as delivery address
-            </label>
-            <p className="sv-muted">Untick to enter a different billing address.</p>
-            {addressFields("billing_", billingValue)}
-          </details>
-          <button className="sv-button sv-button-secondary" type="submit">
-            {view.shippingAddress ? "Update address" : "Continue"}
-          </button>
-        </form>
+        <h2 id="address-heading">2. Shipping address</h2>
+        {/* One step at a time: each step is its own form, so an address typed
+            before the email was saved would be lost when the email is sent. */}
+        {!view.email ? (
+          <p className="sv-muted">Add your email address to continue.</p>
+        ) : (
+          <form action={addressAction} noValidate>
+            {messageFor("address") ? (
+              <p className="sv-notice" role="alert">
+                {messageFor("address")}
+              </p>
+            ) : null}
+            {addressFields("", address)}
+            <div className="sv-check">
+              <input
+                type="checkbox"
+                id="billingSameAsShipping"
+                name="billingSameAsShipping"
+                defaultChecked={sameBilling}
+              />
+              <label htmlFor="billingSameAsShipping">
+                Billing address is the same as shipping address
+              </label>
+            </div>
+            {/* Shown only while the box is unticked (CSS :has, no script);
+                the server ignores these fields when it is ticked. */}
+            <fieldset className="sv-billing">
+              <legend>Billing address</legend>
+              {addressFields("billing_", billingValue)}
+            </fieldset>
+            <button className="sv-button sv-button-secondary" type="submit">
+              {view.shippingAddress ? "Update address" : "Continue"}
+            </button>
+          </form>
+        )}
       </section>
 
       {view.requiresShipping ? (
         <section id="shipping" aria-labelledby="shipping-heading" className="sv-checkout-step">
           <h2 id="shipping-heading">3. Shipping method</h2>
           {!view.shippingAddress ? (
-            <p className="sv-muted">Add your address to see shipping options.</p>
+            <p className="sv-muted">Add your shipping address to see shipping options.</p>
           ) : view.shippingOptions.length === 0 ? (
             <p className="sv-notice" role="status">
               We don&apos;t ship to this address yet.

@@ -56,21 +56,26 @@ function typed(form: FormData): Record<string, string> {
   return values;
 }
 
-/** Runs a step; expected failures come back as a flash for the next render. */
+/**
+ * Runs a step; expected failures come back as a flash for the next render.
+ * Only the redirect after a failure names the flash (`f`), so a successful
+ * step never shows an earlier step's errors.
+ */
 async function step(name: CheckoutStep, form: FormData, fn: () => Promise<unknown>): Promise<void> {
+  let flash: string | null = null;
   try {
     await fn();
     await clearFlash();
   } catch (error) {
     if (!isDomainError(error)) throw error;
     if (error.code === "NOT_FOUND") redirect("/cart?error=checkout");
-    await setFlash({
+    flash = await setFlash({
       step: name,
       ...(error.fieldErrors ? { fieldErrors: error.fieldErrors } : { message: error.message }),
       values: typed(form),
     });
   }
-  redirect(`/checkout?step=${name}`);
+  redirect(`/checkout?step=${name}${flash ? `&f=${flash}` : ""}`);
 }
 
 export async function startCheckoutAction(): Promise<void> {
@@ -134,7 +139,7 @@ export async function removeDiscountAction(form: FormData): Promise<void> {
 export async function payAction(form: FormData): Promise<void> {
   const s = await store();
   const req = await checkoutRequest(s);
-  let target = "/checkout?step=payment";
+  let target: string;
   try {
     const result = await beginPayment(req, {
       pricingHash: field(form, "pricingHash", 64),
@@ -148,7 +153,7 @@ export async function payAction(form: FormData): Promise<void> {
   } catch (error) {
     if (!isDomainError(error)) throw error;
     if (error.code === "NOT_FOUND") redirect("/cart?error=checkout");
-    await setFlash({ step: "payment", message: error.message });
+    target = `/checkout?step=payment&f=${await setFlash({ step: "payment", message: error.message })}`;
   }
   // The provider's hosted page is the only external target, and it came from the provider adapter.
   redirect(target);

@@ -8,6 +8,7 @@ import { storefrontOrigin } from "@storevia/domains";
 import { clientIp } from "@storevia/security";
 import type { StoreRequestContext } from "@storevia/site-engine/context";
 import { isSecure } from "@storevia/site-engine/env";
+import { randomBytes } from "node:crypto";
 import { cookies, headers } from "next/headers";
 
 // Checkout plumbing for the storefront (ADR-0031 §1). The checkout token
@@ -61,6 +62,8 @@ export const returnUrl = (store: StoreRequestContext) =>
 export type CheckoutStep = "contact" | "address" | "shipping" | "discount" | "payment";
 
 export interface Flash {
+  /** Matches the `f` query of the redirect that shows it (see readFlash). */
+  readonly id: string;
   readonly step: CheckoutStep;
   readonly message?: string;
   readonly fieldErrors?: Readonly<Record<string, string>>;
@@ -69,24 +72,34 @@ export interface Flash {
 
 const flashName = () => (isSecure() ? "__Host-sv_checkout_flash" : "sv_checkout_flash");
 
-export async function setFlash(flash: Flash): Promise<void> {
-  const value = Buffer.from(JSON.stringify(flash)).toString("base64url");
+const flashCookie = (maxAge: number) =>
+  ({ httpOnly: true, secure: isSecure(), sameSite: "lax", path: "/", maxAge }) as const;
+
+/** Stores a step's outcome; returns the id the redirect must carry for it to show. */
+export async function setFlash(flash: Omit<Flash, "id">): Promise<string> {
+  const id = randomBytes(9).toString("base64url");
+  const value = Buffer.from(JSON.stringify({ ...flash, id })).toString("base64url");
   // Cookies hold ~4 KB; a flash that big is dropped rather than truncated.
-  if (value.length > 3500) return;
-  (await cookies()).set(flashName(), value, {
-    httpOnly: true,
-    secure: isSecure(),
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60,
-  });
+  if (value.length <= 3500) (await cookies()).set(flashName(), value, flashCookie(60));
+  return id;
 }
 
+/**
+ * Removes the flash. The deletion repeats the cookie's attributes: a browser
+ * ignores a `__Host-` cookie set without Secure, so a bare delete() would
+ * leave the last error showing after a successful step.
+ */
 export async function clearFlash(): Promise<void> {
-  (await cookies()).delete(flashName());
+  (await cookies()).set(flashName(), "", flashCookie(0));
 }
 
-export async function readFlash(): Promise<Flash | null> {
+/**
+ * The flash for this render, only when the URL names it: a redirect after a
+ * successful step carries no id, so an earlier step's errors can't reappear
+ * even if the cookie outlived its step.
+ */
+export async function readFlash(id: string | undefined): Promise<Flash | null> {
+  if (!id) return null;
   const raw = (await cookies()).get(flashName())?.value;
   if (!raw) return null;
   try {
@@ -97,7 +110,7 @@ export async function readFlash(): Promise<Flash | null> {
         ? Object.fromEntries(
             Object.entries(v)
               .filter((e): e is [string, string] => typeof e[1] === "string")
-              .slice(0, 30)
+              .slice(0, 40)
               .map(([k, s]) => [k.slice(0, 40), s.slice(0, 300)]),
           )
         : undefined;
@@ -110,10 +123,12 @@ export async function readFlash(): Promise<Flash | null> {
     ) {
       return null;
     }
+    if (value.id !== id) return null;
     const message = text(value.message);
     const fieldErrors = record(value.fieldErrors);
     const values = record(value.values);
     return {
+      id,
       step: value.step,
       ...(message ? { message } : {}),
       ...(fieldErrors ? { fieldErrors } : {}),

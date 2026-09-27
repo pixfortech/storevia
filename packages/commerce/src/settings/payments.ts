@@ -2,6 +2,7 @@ import "server-only";
 import {
   availableProviderKeys,
   credentialsBinding,
+  credentialsKeysProblem,
   getPaymentProvider,
   isTestPaymentsEnabled,
   PaymentProviderError,
@@ -128,6 +129,20 @@ async function saveConnection(
 }
 
 /** Connects the Test Payment Provider (development and test environments only). */
+/**
+ * Why test payments can't be connected in this environment, as a sentence
+ * for a developer (never key material), or null when they can.
+ */
+export function testPaymentsSetupProblem(): string | null {
+  if (!isTestPaymentsEnabled()) {
+    return "Test payments are off: set TEST_PAYMENTS_ENABLED=true (development and test only).";
+  }
+  const keys = credentialsKeysProblem();
+  return keys
+    ? `PAYMENT_CREDENTIALS_KEYS can't be used (${keys}). Set it to "1:" followed by 32 random bytes in base64.`
+    : null;
+}
+
 export async function connectTestPayments(
   ctx: TenantContext,
 ): Promise<{ readonly connectionId: string }> {
