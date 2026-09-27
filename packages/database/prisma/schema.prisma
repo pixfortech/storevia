@@ -722,6 +722,8 @@ model Store {
   cartLines           CartLine[]
   pages               Page[]
   pageVersions        PageVersion[]
+  storeThemes         StoreTheme[]
+  navigations         Navigation[]
   outboxEvents        OutboxEvent[]
   media               MediaAsset[]
   products            Product[]
@@ -1271,6 +1273,56 @@ model PageVersion {
   @@unique([id, pageId])
   @@index([pageId, state])
   @@index([storeId])
+}
+
+enum StoreThemeRole {
+  LIVE
+  UNPUBLISHED
+}
+
+/// A store's theme and its customised settings (design-token inputs,
+/// ADR-0030 §7). M5 themes are first-party and code-defined (`themeKey`).
+/// SQL: partial unique (storeId) WHERE role = 'LIVE'; settings are JSON
+/// objects with a size bound; validated by the theme engine before every write.
+model StoreTheme {
+  id                String         @id @default(uuid(7)) @db.Uuid
+  organisationId    String         @db.Uuid
+  storeId           String         @db.Uuid
+  themeKey          String
+  name              String
+  role              StoreThemeRole @default(UNPUBLISHED)
+  draftSettings     Json
+  publishedSettings Json?
+  settingsRevision  Int            @default(0)
+  publishedAt       DateTime?      @db.Timestamptz(3)
+  publishedById     String?        @db.Uuid
+  createdAt         DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime       @updatedAt @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+
+  @@index([storeId])
+}
+
+/// A store's menus (ADR-0030 §8): handles `main` and `footer`. `items` is a
+/// validated JSON array of { id, label, link } using the page documents'
+/// typed link targets; `revision` is the optimistic-concurrency counter.
+model Navigation {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organisationId String   @db.Uuid
+  storeId        String   @db.Uuid
+  handle         String
+  title          String
+  items          Json     @default("[]")
+  revision       Int      @default(0)
+  updatedById    String?  @db.Uuid
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+
+  @@unique([storeId, handle])
+  @@unique([id, storeId])
 }
 
 /// Transactional outbox: domain events written in the same transaction as the

@@ -733,7 +733,6 @@ model Store {
   pageVersions          PageVersion[]
   storeThemes           StoreTheme[]
   navigations           Navigation[]
-  navigationItems       NavigationItem[]
   apiKeys               ApiKey[]
   webhookEndpoints      WebhookEndpoint[]
   webhookDeliveries     WebhookDelivery[]
@@ -897,7 +896,6 @@ model Product {
   collections     CollectionProduct[]
   discountTargets DiscountProduct[]
   orderLines      OrderLine[]
-  navigationItems NavigationItem[]
 
   @@unique([id, storeId])
   @@index([createdById])
@@ -1071,7 +1069,6 @@ model Collection {
   store           Store                @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
   products        CollectionProduct[]
   discountTargets DiscountCollection[]
-  navigationItems NavigationItem[]
 
   @@unique([id, storeId])
   @@index([storeId, updatedAt])
@@ -2140,7 +2137,6 @@ model Page {
   store            Store            @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
   versions         PageVersion[]    @relation("PageVersions")
   publishedVersion PageVersion?     @relation("PagePublishedVersion", fields: [publishedVersionId], references: [id], onDelete: Restrict)
-  navigationItems  NavigationItem[]
 
   @@unique([id, storeId])
   @@index([storeId, kind])
@@ -2188,65 +2184,28 @@ model PageVersion {
   @@index([storeId])
 }
 
+/// A store's menus (ADR-0030 §8): handles `main` and `footer`. `items` is a
+/// validated JSON array of { id, label, link } using the page documents'
+/// typed link targets (no NavigationItem rows, no commerce columns); a link
+/// that no longer resolves renders as nothing. `revision` is the optimistic
+/// concurrency counter. SQL: handle in ('main', 'footer'), items is an
+/// array of at most 20, size bound.
 model Navigation {
   id             String   @id @default(uuid(7)) @db.Uuid
   organisationId String   @db.Uuid
   storeId        String   @db.Uuid
   handle         String
   title          String
+  items          Json     @default("[]")
+  revision       Int      @default(0)
+  updatedById    String?  @db.Uuid
   createdAt      DateTime @default(now()) @db.Timestamptz(3)
   updatedAt      DateTime @updatedAt @db.Timestamptz(3)
 
-  store Store            @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
-  items NavigationItem[]
+  store Store @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
 
   @@unique([storeId, handle])
   @@unique([id, storeId])
-}
-
-enum NavigationTargetType {
-  URL
-  HOME
-  PAGE
-  PRODUCT
-  COLLECTION
-  SEARCH
-}
-
-/// Targets are typed references, never hard-coded storefront URLs. A deleted
-/// target leaves the item in place (SET NULL) and the renderer hides it.
-/// SQL: CHECK that exactly the column matching targetType is set.
-model NavigationItem {
-  id             String               @id @default(uuid(7)) @db.Uuid
-  organisationId String               @db.Uuid
-  storeId        String               @db.Uuid
-  navigationId   String               @db.Uuid
-  parentId       String?              @db.Uuid
-  position       Int
-  label          String
-  targetType     NavigationTargetType
-  url            String?
-  pageId         String?              @db.Uuid
-  productId      String?              @db.Uuid
-  collectionId   String?              @db.Uuid
-  openInNewTab   Boolean              @default(false)
-
-  store      Store            @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
-  navigation Navigation       @relation(fields: [navigationId, storeId], references: [id, storeId], onDelete: Cascade)
-  parent     NavigationItem?  @relation("NavigationTree", fields: [parentId], references: [id], onDelete: Cascade)
-  children   NavigationItem[] @relation("NavigationTree")
-  page       Page?            @relation(fields: [pageId], references: [id], onDelete: SetNull)
-  product    Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
-  collection Collection?      @relation(fields: [collectionId], references: [id], onDelete: SetNull)
-
-  /// Target of the SQL composite FK (parentId, navigationId) -> (id, navigationId).
-  @@unique([id, navigationId])
-  @@index([navigationId, parentId, position])
-  @@index([storeId])
-  @@index([parentId])
-  @@index([pageId])
-  @@index([productId])
-  @@index([collectionId])
 }
 
 // -----------------------------------------------------------------------------
@@ -2306,13 +2265,17 @@ enum StoreThemeRole {
   UNPUBLISHED
 }
 
-/// A store's installed copy of a theme version + its customised settings
-/// (design-token values). SQL: partial unique (storeId) WHERE role = 'LIVE'.
+/// A store's theme and its customised settings (design-token inputs,
+/// ADR-0030 §7). M5 themes are first-party and code-defined (`themeKey`);
+/// packaged themes (M7) set `themeVersionId` too. SQL: partial unique
+/// (storeId) WHERE role = 'LIVE'; settings are JSON objects with a size
+/// bound; validated by the theme engine before every write.
 model StoreTheme {
   id                String         @id @default(uuid(7)) @db.Uuid
   organisationId    String         @db.Uuid
   storeId           String         @db.Uuid
-  themeVersionId    String         @db.Uuid
+  themeKey          String
+  themeVersionId    String?        @db.Uuid
   name              String
   role              StoreThemeRole @default(UNPUBLISHED)
   draftSettings     Json
@@ -2323,8 +2286,8 @@ model StoreTheme {
   createdAt         DateTime       @default(now()) @db.Timestamptz(3)
   updatedAt         DateTime       @updatedAt @db.Timestamptz(3)
 
-  store        Store        @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
-  themeVersion ThemeVersion @relation(fields: [themeVersionId], references: [id], onDelete: Restrict)
+  store        Store         @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  themeVersion ThemeVersion? @relation(fields: [themeVersionId], references: [id], onDelete: Restrict)
 
   @@index([storeId])
   @@index([themeVersionId])

@@ -24,6 +24,12 @@ export interface StorefrontScope {
 export interface StorefrontTransactionOptions extends TransactionOptions {
   /** Read models run read-only; cart writes don't. */
   readonly readOnly?: boolean;
+  /**
+   * A verified, store-bound preview (ADR-0030 §6): row policies then also
+   * show the store's draft page versions and draft theme settings. Only the
+   * Site Engine sets it, from a preview token it has verified.
+   */
+  readonly preview?: boolean;
 }
 
 /**
@@ -41,7 +47,8 @@ export async function withStorefront<T>(
       if (options.readOnly) await tx.$executeRaw`SET TRANSACTION READ ONLY`;
       await tx.$executeRaw`SELECT
         set_config('app.organisation_id', ${scope.organisationId}, true),
-        set_config('app.store_id', ${scope.storeId}, true)`;
+        set_config('app.store_id', ${scope.storeId}, true),
+        set_config('app.preview', ${options.preview === true ? "on" : ""}, true)`;
       return fn(tx);
     },
     { timeout: options.timeoutMs ?? 10_000 },

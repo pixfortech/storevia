@@ -198,14 +198,15 @@ async function seedStore(key: string, org: string, n: number): Promise<Store> {
      VALUES (gen_random_uuid(), $1, $2, $3, $4, 3, now())`,
     [org, id, item, location],
   );
-  // A page with a published and a draft version.
+  // A content page with a published and a draft version (every store
+  // already has its HOME page from the Store trigger, ADR-0030 §9).
   const page = uuid(0x200 + n);
   const publishedVersion = uuid(0x300 + n);
   const draftVersion = uuid(0x400 + n);
   const failed = await adminTx([
     [
       `INSERT INTO "Page" (id, "organisationId", "storeId", kind, title, handle, "updatedAt")
-       VALUES ($1, $2, $3, 'HOME', 'Home', 'home', now())`,
+       VALUES ($1, $2, $3, 'STANDARD', 'Our story', 'our-story', now())`,
       [page, org, id],
     ],
     [
@@ -396,8 +397,17 @@ describe("a store's sellable rows only", () => {
   });
 
   it("sees live pages and PUBLISHED versions only", async () => {
-    expect(await ids(A(), `SELECT id FROM "Page"`)).toEqual([A().page]);
-    expect(await ids(A(), `SELECT id FROM "PageVersion"`)).toEqual([A().publishedVersion]);
+    expect(await ids(A(), `SELECT id FROM "Page" WHERE kind = 'STANDARD'`)).toEqual([A().page]);
+    const versions = await ids(A(), `SELECT id FROM "PageVersion"`);
+    expect(versions).toContain(A().publishedVersion);
+    expect(versions).not.toContain(A().draftVersion);
+    expect(
+      await asStore(A(), async (c) =>
+        (await c.query<{ state: string }>(`SELECT DISTINCT state::text FROM "PageVersion"`)).rows.map(
+          (r) => r.state,
+        ),
+      ),
+    ).toEqual(["PUBLISHED"]);
   });
 
   it("never sees another store, even in the same organisation, or with a mismatched scope", async () => {
