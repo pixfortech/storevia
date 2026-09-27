@@ -187,8 +187,9 @@ terms. Checkout depends only on the interface.
   settle to the merchant, Storevia is never in the money flow. Stripe fits
   behind the same interface later.
 - **Credentials** are encrypted with AES-256-GCM (`@storevia/security`
-  `encryptSecret`), key from `PAYMENT_CREDENTIALS_KEY` with a key version
-  (KMS/Secrets Manager in production); never returned to the browser
+  `SecretCipher`), bound to the connection as associated data, with a
+  versioned keyring from `PAYMENT_CREDENTIALS_KEYS` (`1:<base64>,2:<base64>`;
+  KMS/Secrets Manager in production); never returned to the browser
   (masked as `rzp_test_…1234`), never logged, decrypted only in the payment
   call path.
 - Webhooks arrive at the platform host,

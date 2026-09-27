@@ -459,6 +459,12 @@ importers:
       '@storevia/media':
         specifier: workspace:*
         version: link:../media
+      '@storevia/observability':
+        specifier: workspace:*
+        version: link:../observability
+      '@storevia/payments':
+        specifier: workspace:*
+        version: link:../payments
       '@storevia/security':
         specifier: workspace:*
         version: link:../security

@@ -28,6 +28,15 @@ describe("storefront cache tags", () => {
     expect(storefrontCacheTagsForEvent(event("collection.changed"))).toEqual([
       `catalogue:${STORE}`,
     ]);
+    for (const type of [
+      "order.created",
+      "order.paid",
+      "order.cancelled",
+      "order.fulfilled",
+      "refund.created",
+    ]) {
+      expect(storefrontCacheTagsForEvent(event(type))).toEqual([]);
+    }
     expect(commerceCacheTagsForEvent(event("page.changed"))).toBeNull();
     expect(storefrontCacheTagsForEvent(event("page.changed"))).toEqual([
       `pages:${STORE}`,

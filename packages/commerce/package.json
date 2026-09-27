@@ -12,7 +12,8 @@
     "./storefront": "./src/storefront/index.ts",
     "./storefront/cache-tags": "./src/storefront/cache-tags.ts",
     "./blocks": "./src/blocks/index.ts",
-    "./site": "./src/site.ts"
+    "./site": "./src/site.ts",
+    "./checkout": "./src/checkout/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -30,16 +31,18 @@
   },
   "dependencies": {
     "@storevia/database": "workspace:*",
+    "@storevia/editor": "workspace:*",
     "@storevia/entitlements": "workspace:*",
     "@storevia/media": "workspace:*",
+    "@storevia/observability": "workspace:*",
+    "@storevia/payments": "workspace:*",
     "@storevia/security": "workspace:*",
     "@storevia/site-engine": "workspace:*",
     "@storevia/tenancy": "workspace:*",
     "@storevia/types": "workspace:*",
     "@storevia/validation": "workspace:*",
     "server-only": "0.0.1",
-    "zod": "4.6.5",
-    "@storevia/editor": "workspace:*"
+    "zod": "4.6.5"
   },
   "peerDependencies": {
     "react": "^19.2.0"

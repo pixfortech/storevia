@@ -24,6 +24,14 @@ export function commerceCacheTagsForEvent(event: OutboxEventLike): CacheTag[] | 
       return [productTag(event.entityId), catalogueTag(event.storeId)];
     case "collection.changed":
       return [catalogueTag(event.storeId)];
+    // Orders and refunds change nothing a shopper's cached pages show (stock
+    // changes arrive as their own availability events): no invalidation.
+    case "order.created":
+    case "order.paid":
+    case "order.cancelled":
+    case "order.fulfilled":
+    case "refund.created":
+      return [];
     default:
       return null;
   }
