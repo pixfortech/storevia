@@ -41,6 +41,10 @@ import {
 } from "../src/storefront";
 import { expectCode, makeTenant, memberContext, storeOf, type Tenant } from "./fixtures";
 
+// Resolving media (the builder canvas, the query budget) signs local media
+// URLs; CI provides no secret for them.
+process.env["MEDIA_UPLOAD_SECRET"] ??= "commerce-site-test-media-secret-0000000000";
+
 let tenantA: Tenant;
 let tenantB: Tenant;
 let A: StoreContext;
