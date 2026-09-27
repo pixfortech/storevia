@@ -228,7 +228,7 @@ export function PageBuilder({
   useEffect(() => {
     let cancelled = false;
     const timer = setTimeout(() => {
-      void canvasDataAction(storeId, docRef.current).then((result) => {
+      void canvasDataAction(storeId, page.kind, docRef.current).then((result) => {
         if (!cancelled && result.ok) setData(result.data);
       });
     }, 300);
@@ -236,7 +236,7 @@ export function PageBuilder({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [requirementsKey, storeId]);
+  }, [requirementsKey, storeId, page.kind]);
   const previews = useMemo(
     () => Object.fromEntries(data.media.map(([id, view]) => [id, view.url])),
     [data.media],

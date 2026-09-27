@@ -43,6 +43,15 @@ test("store pages ship the framework runtime and no application code", async ({
   await page.getByLabel("Add to collection").selectOption({ label: "Summer" });
   await expect(page.getByRole("button", { name: /Remove from Summer/ })).toBeVisible();
 
+  // A content page (Milestone 5), published.
+  await page.goto(`${tenant.storePath}/pages`);
+  await page.getByRole("button", { name: "New page" }).click();
+  await page.getByRole("dialog", { name: "New page" }).getByLabel("Title").fill("About us");
+  await page.getByRole("button", { name: "Create page" }).click();
+  await page.waitForURL(/\/website\/pages\/page_/);
+  await page.getByRole("button", { name: "Publish" }).click();
+  await expect(page.getByText("Published", { exact: true })).toBeVisible();
+
   const origin = await storefrontOrigin(page, tenant);
   await page.goto(`${tenant.storePath}/settings`);
   await page.getByRole("button", { name: "Go live" }).click();
@@ -59,8 +68,16 @@ test("store pages ship the framework runtime and no application code", async ({
     )
     .toBe(true);
 
+  await expect
+    .poll(async () => (await fetchStore(shopper.request, origin, "/pages/about-us")).status, {
+      timeout: 60_000,
+      intervals: [1_000],
+    })
+    .toBe(200);
+
   const routes = {
     home: "/",
+    page: "/pages/about-us",
     product: "/products/stoneware-mug",
     collection: "/collections/summer",
     search: "/search?q=mug",
@@ -68,10 +85,37 @@ test("store pages ship the framework runtime and no application code", async ({
   } as const;
   const shop = await shopper.newPage();
   const scriptsByRoute = new Map<string, Set<string>>();
+  const vitals: Record<string, { lcpMs: number; cls: number; ttfbMs: number; htmlBytes: number }> =
+    {};
   for (const [name, path] of Object.entries(routes)) {
     const response = await shop.goto(`${origin}${path}`);
     expect(response?.status(), name).toBe(200);
     await shop.waitForLoadState("networkidle");
+    // Web vitals from the browser's own observers (local, uncached-at-the-edge figures).
+    const measured = await shop.evaluate(
+      () =>
+        new Promise<{ lcpMs: number; cls: number; ttfbMs: number }>((resolve) => {
+          let lcp = 0;
+          let cls = 0;
+          new PerformanceObserver((list) => {
+            for (const entry of list.getEntries()) lcp = entry.startTime;
+          }).observe({ type: "largest-contentful-paint", buffered: true });
+          new PerformanceObserver((list) => {
+            for (const entry of list.getEntries() as (PerformanceEntry & {
+              value: number;
+              hadRecentInput: boolean;
+            })[]) {
+              if (!entry.hadRecentInput) cls += entry.value;
+            }
+          }).observe({ type: "layout-shift", buffered: true });
+          setTimeout(() => {
+            const nav = performance.getEntriesByType("navigation")[0] as
+              PerformanceNavigationTiming | undefined;
+            resolve({ lcpMs: Math.round(lcp), cls, ttfbMs: Math.round(nav?.responseStart ?? 0) });
+          }, 500);
+        }),
+    );
+    vitals[name] = { ...measured, htmlBytes: (await response?.body())?.length ?? 0 };
     const urls = await shop.evaluate(() => [
       ...new Set([
         ...[...document.querySelectorAll("script[src]")].map((s) => (s as HTMLScriptElement).src),
@@ -99,6 +143,7 @@ test("store pages ship the framework runtime and no application code", async ({
   const all = [...scriptsByRoute.values()];
   const baseline = [...(all[0] ?? [])].filter((p) => all.every((s) => s.has(p)));
   const report = {
+    vitals,
     baselineGzip: gz(baseline),
     baselineScripts: baseline.length,
     routes: Object.fromEntries(
@@ -117,6 +162,10 @@ test("store pages ship the framework runtime and no application code", async ({
   expect(report.baselineGzip).toBeLessThanOrEqual(
     Math.round(BASELINE_RECORDED_GZIP * BASELINE_TOLERANCE),
   );
+  for (const [name, measured] of Object.entries(vitals)) {
+    expect(measured.cls, `${name} layout shift`).toBeLessThanOrEqual(0.1);
+    expect(measured.lcpMs, `${name} largest contentful paint`).toBeLessThanOrEqual(2_500);
+  }
   for (const [name, route] of Object.entries(report.routes)) {
     expect(route.incrementGzip, `${name} adds its own client JavaScript`).toBeLessThanOrEqual(
       ROUTE_INCREMENT_ALLOWANCE_GZIP,

@@ -13,6 +13,16 @@ export const builderPath = (storeId: string, pageId: string) =>
 export const previewPath = (storeId: string, path = "/") =>
   inStore(storeId, `/preview${path === "/" ? "" : `?path=${encodeURIComponent(path)}`}`);
 
+/** Only the store's own page paths: "/" and "/pages/{handle}" (never another host or a protocol-relative URL). */
+const PREVIEW_PATH_RE = /^\/(?:pages\/[a-z0-9]+(?:-[a-z0-9]+)*)?$/;
+
+/** The page a preview opens: the requested one when it is one of the store's own paths, else the home page. */
+export function previewPathFrom(requested: string | null): string {
+  return requested !== null && requested.length <= 110 && PREVIEW_PATH_RE.test(requested)
+    ? requested
+    : "/";
+}
+
 export { DEFAULT_THEME_SETTINGS };
 
 /**

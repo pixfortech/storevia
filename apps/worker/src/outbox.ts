@@ -77,7 +77,13 @@ export async function dispatchOutbox(
           FOR UPDATE SKIP LOCKED`;
         if (events.length === 0) return 0;
         const tags = [...new Set(events.flatMap((e) => storefrontCacheTagsForEvent(e)))];
-        await revalidator?.post(tags);
+        try {
+          await revalidator?.post(tags);
+        } catch (error) {
+          // The events stay undispatched and are retried on the next pass.
+          recordMetric("storefront.invalidation_failed", 1, {});
+          throw error;
+        }
         await tx.$executeRaw`
           UPDATE "OutboxEvent" SET "dispatchedAt" = now()
           WHERE id = ANY(${events.map((e) => e.id)}::uuid[])`;

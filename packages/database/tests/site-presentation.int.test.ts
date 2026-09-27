@@ -196,6 +196,7 @@ describe("store themes", () => {
   beforeAll(async () => {
     for (const [store, org] of [
       [STORE_A, ORG_A],
+      [STORE_A2, ORG_A],
       [STORE_B, ORG_B],
     ] as const) {
       await admin.query(
@@ -219,7 +220,11 @@ describe("store themes", () => {
     expect(await settings({ org: ORG_A, store: STORE_A, preview: true })).toEqual([
       { settings: { ...SETTINGS, draft: STORE_A } },
     ]);
-    expect(await settings({ org: ORG_A, store: STORE_A2 })).toEqual([]);
+    // Another store of the same organisation gets its own settings, never these.
+    expect(await settings({ org: ORG_A, store: STORE_A2 })).toEqual([
+      { settings: { ...SETTINGS, published: STORE_A2 } },
+    ]);
+    expect(await settings({ org: ORG_B, store: uuid(0x199) })).toEqual([]);
   });
 
   it("the storefront can't read draft settings directly", async () => {
@@ -274,7 +279,7 @@ describe("store themes", () => {
     ).toBe("23514");
   });
 
-  it("the merchant role sees and changes only its own store's themes", async () => {
+  it("the merchant role sees and changes only its own store's themes, even in its own organisation", async () => {
     const mine = await rows<{ storeId: string }>(
       app,
       { org: ORG_A, store: STORE_A },
@@ -289,17 +294,19 @@ describe("store themes", () => {
         [STORE_B],
       ),
     ).toEqual([]);
-    const updated = await scoped(
-      app,
-      { org: ORG_A, store: STORE_A },
-      async (c) =>
-        (
-          await c.query(`UPDATE "StoreTheme" SET "draftSettings" = '{}' WHERE "storeId" = $1`, [
-            STORE_B,
-          ])
-        ).rowCount,
-    );
-    expect(updated).toBe(0);
+    for (const other of [STORE_A2, STORE_B]) {
+      const updated = await scoped(
+        app,
+        { org: ORG_A, store: STORE_A },
+        async (c) =>
+          (
+            await c.query(`UPDATE "StoreTheme" SET "draftSettings" = '{}' WHERE "storeId" = $1`, [
+              other,
+            ])
+          ).rowCount,
+      );
+      expect(updated, other).toBe(0);
+    }
     expect(
       await code(app, { org: ORG_A, store: STORE_A }, `UPDATE "StoreTheme" SET "storeId" = $1`, [
         STORE_B,
@@ -361,11 +368,16 @@ describe("navigation menus", () => {
   });
 
   it("the storefront reads its own store's menus; the merchant role writes only its own", async () => {
-    await admin.query(
-      `INSERT INTO "Navigation" (id, "organisationId", "storeId", handle, title, items, "updatedAt")
-       VALUES (gen_random_uuid(), $1, $2, 'main', 'Menu', '[]', now())`,
+    for (const [org, store] of [
       [ORG_B, STORE_B],
-    );
+      [ORG_A, STORE_A2],
+    ] as const) {
+      await admin.query(
+        `INSERT INTO "Navigation" (id, "organisationId", "storeId", handle, title, items, "updatedAt")
+         VALUES (gen_random_uuid(), $1, $2, 'main', 'Menu', '[]', now())`,
+        [org, store],
+      );
+    }
     const seen = await rows<{ storeId: string }>(
       storefront,
       { org: ORG_A, store: STORE_A },
@@ -382,14 +394,24 @@ describe("navigation menus", () => {
         `UPDATE "Navigation" SET items = '[]'`,
       ),
     ).toBe("42501");
-    const changed = await scoped(
+    // The merchant role, scoped to one store, doesn't see or change another
+    // store's menus, in another organisation or its own.
+    const visible = await rows<{ storeId: string }>(
       app,
       { org: ORG_A, store: STORE_A },
-      async (c) =>
-        (await c.query(`UPDATE "Navigation" SET items = '[]' WHERE "storeId" = $1`, [STORE_B]))
-          .rowCount,
+      `SELECT "storeId" FROM "Navigation"`,
     );
-    expect(changed).toBe(0);
+    expect(visible.map((r) => r.storeId)).toEqual([STORE_A]);
+    for (const other of [STORE_A2, STORE_B]) {
+      const changed = await scoped(
+        app,
+        { org: ORG_A, store: STORE_A },
+        async (c) =>
+          (await c.query(`UPDATE "Navigation" SET items = '[]' WHERE "storeId" = $1`, [other]))
+            .rowCount,
+      );
+      expect(changed, other).toBe(0);
+    }
     expect(
       await code(app, { org: ORG_A, store: STORE_A }, `UPDATE "Navigation" SET handle = 'footer'`),
     ).toBe("42501");

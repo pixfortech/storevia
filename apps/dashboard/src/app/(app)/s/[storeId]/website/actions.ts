@@ -4,7 +4,6 @@ import { listCollections, searchProducts } from "@storevia/commerce";
 import type { DocumentData } from "@storevia/commerce/blocks";
 import { STOREVIA_SITE } from "@storevia/commerce/site";
 import { loadCanvasData } from "@storevia/commerce/storefront";
-import type { PageDocument } from "@storevia/editor/document";
 import { listMedia, type MediaView } from "@storevia/media";
 import {
   createPage,
@@ -103,13 +102,22 @@ export async function deletePageAction(
   }, "Page deleted.");
 }
 
-/** Media and catalogue data for the builder canvas, resolved like the storefront does. */
+/**
+ * Media and catalogue data for the builder canvas, resolved like the
+ * storefront does. The document comes from the browser: only its sections
+ * that validate are resolved (loadCanvasData).
+ */
 export async function canvasDataAction(
   storeId: string,
-  document: PageDocument,
+  kind: unknown,
+  document: unknown,
 ): Promise<DataActionResult<DocumentData>> {
   return runDataAction(async () => {
-    const data = await loadCanvasData(await storeActionContext(storeId), [document]);
+    const data = await loadCanvasData(
+      await storeActionContext(storeId),
+      document,
+      kind === "HOME" ? "HOME" : "STANDARD",
+    );
     const image = <T extends { url: string; srcSet: string }>(view: T): T => ({
       ...view,
       url: dashboardMediaUrl(view.url),

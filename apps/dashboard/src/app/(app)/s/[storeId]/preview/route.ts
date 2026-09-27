@@ -2,6 +2,7 @@ import { requireStoreAccess, storefrontPreviewUrl } from "@storevia/tenancy";
 import { isDomainError } from "@storevia/types";
 import { requirePrincipal } from "@/lib/auth";
 import { requestInfo } from "@/lib/request";
+import { previewPathFrom } from "@/lib/site";
 
 // Opens the storefront preview (ADR-0028 §11, ADR-0030 §6). The signed,
 // 15-minute token is minted only when the merchant clicks, for members with
@@ -11,16 +12,12 @@ import { requestInfo } from "@/lib/request";
 
 export const runtime = "nodejs";
 
-/** Only the store's own page paths: "/" and "/pages/{handle}" (never another host or a protocol-relative URL). */
-const PREVIEW_PATH_RE = /^\/(?:pages\/[a-z0-9]+(?:-[a-z0-9]+)*)?$/;
-
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ storeId: string }> },
 ): Promise<Response> {
   const { storeId } = await params;
-  const requested = new URL(request.url).searchParams.get("path") ?? "/";
-  const path = requested.length <= 110 && PREVIEW_PATH_RE.test(requested) ? requested : "/";
+  const path = previewPathFrom(new URL(request.url).searchParams.get("path"));
   try {
     const ctx = await requireStoreAccess(
       await requirePrincipal(`/s/${storeId}/settings`),

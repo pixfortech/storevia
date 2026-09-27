@@ -466,45 +466,55 @@ export async function savePageDraft<C extends SiteRenderContext>(
 ): Promise<{ revision: number; status: PageStatus }> {
   const pageId = internalId("page", pageIdInput);
   const data = parseInput(saveSchema, input);
-  return inSite(
-    ctx,
-    "design.edit",
-    async (tx, store) => {
-      const page = await loadPage(tx, pageId);
-      const { document } = await checkedDocument(
-        tx,
-        store,
-        composition,
-        page.kind,
-        data.document,
-        pageId,
-      );
-      const json = JSON.stringify(document);
-      const updated = await tx.$queryRaw<{ revision: number; documentHash: string }[]>`
+  try {
+    return await inSite(
+      ctx,
+      "design.edit",
+      async (tx, store) => {
+        const page = await loadPage(tx, pageId);
+        const { document } = await checkedDocument(
+          tx,
+          store,
+          composition,
+          page.kind,
+          data.document,
+          pageId,
+        );
+        const json = JSON.stringify(document);
+        const updated = await tx.$queryRaw<{ revision: number; documentHash: string }[]>`
         UPDATE "PageVersion"
         SET document = ${json}::jsonb,
             "documentHash" = encode(sha256(convert_to(${json}::jsonb::text, 'UTF8')), 'hex'),
             revision = revision + 1, "updatedById" = ${store.userId}::uuid, "updatedAt" = now()
         WHERE "pageId" = ${pageId}::uuid AND state = 'DRAFT' AND revision = ${data.revision}
         RETURNING revision, "documentHash"`;
-      const row = updated[0];
-      if (!row) {
-        recordMetric("site.draft_conflict", 1, {});
-        throw conflict(DRAFT_CONFLICT_MESSAGE);
-      }
-      const publishedHash = page.publishedVersionId
-        ? ((
-            await tx.$queryRaw<{ documentHash: string }[]>`
+        const row = updated[0];
+        if (!row) {
+          recordMetric("site.draft_conflict", 1, {});
+          throw conflict(DRAFT_CONFLICT_MESSAGE);
+        }
+        const publishedHash = page.publishedVersionId
+          ? ((
+              await tx.$queryRaw<{ documentHash: string }[]>`
               SELECT "documentHash" FROM "PageVersion" WHERE id = ${page.publishedVersionId}::uuid`
-          )[0]?.documentHash ?? null)
-        : null;
-      return {
-        revision: row.revision,
-        status: statusOf(page.publishedVersionId, row.documentHash, publishedHash),
-      };
-    },
-    { write: true },
-  );
+            )[0]?.documentHash ?? null)
+          : null;
+        return {
+          revision: row.revision,
+          status: statusOf(page.publishedVersionId, row.documentHash, publishedHash),
+        };
+      },
+      { write: true },
+    );
+  } catch (error) {
+    // Refusals (conflict, validation, permission) are expected; anything
+    // else is a failed save the merchant sees as an error.
+    if (!(error instanceof DomainError)) {
+      log.error("page draft save failed", { pageId, error });
+      recordMetric("site.draft_save_failed", 1, {});
+    }
+    throw error;
+  }
 }
 
 // ---------------------------------------------------------------------------

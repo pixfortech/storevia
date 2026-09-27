@@ -7,7 +7,7 @@ import "server-only";
 export * from "./read";
 export * from "./cache-tags";
 export * from "./resolve";
-export { loadCanvasData } from "./canvas";
+export { canvasDocument, loadCanvasData } from "./canvas";
 export {
   CART_LIMITS,
   addToCart,
