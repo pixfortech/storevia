@@ -10,7 +10,7 @@ import {
   dataRequestKey,
   type DataRequest,
   type Registry,
-  type RenderContext,
+  type SiteRenderContext,
 } from "../registry/types";
 
 export interface PageRequirements {
@@ -20,7 +20,10 @@ export interface PageRequirements {
   readonly media: readonly string[];
 }
 
-export function collectRequirements(document: PageDocument, registry: Registry): PageRequirements {
+export function collectRequirements<C extends SiteRenderContext>(
+  document: PageDocument,
+  registry: Registry<C>,
+): PageRequirements {
   const requests = new Map<string, DataRequest>();
   const links = new Map<string, LinkTarget>();
   const media = new Set<string>();
@@ -34,7 +37,7 @@ export function collectRequirements(document: PageDocument, registry: Registry):
     for (const request of definition.dataRequirements?.(parsed.data) ?? []) {
       requests.set(dataRequestKey(request), request);
     }
-    const refs = collectRefs(parsed.data);
+    const refs = collectRefs(parsed.data, registry.linkSchema);
     for (const link of refs.links) links.set(JSON.stringify(link), link);
     for (const id of refs.media) media.add(id);
     for (const child of node.children ?? []) visit(child);
@@ -43,7 +46,12 @@ export function collectRequirements(document: PageDocument, registry: Registry):
   return { requests: [...requests.values()], links: [...links.values()], media: [...media] };
 }
 
-function renderNode(node: BuilderNode, registry: Registry, ctx: RenderContext): ReactNode {
+function renderNode<C extends SiteRenderContext>(
+  node: BuilderNode,
+  registry: Registry<C>,
+  ctx: C,
+  position: number | null,
+): ReactNode {
   if (node.hidden) return null;
   const definition = registry.get(node.type);
   if (!definition) {
@@ -52,16 +60,19 @@ function renderNode(node: BuilderNode, registry: Registry, ctx: RenderContext): 
     return null;
   }
   const parsed = definition.propertySchema.safeParse({ ...definition.defaultProps, ...node.props });
-  if (!parsed.success) return null;
+  if (!parsed.success) {
+    ctx.onInvalidComponent?.(node.type);
+    return null;
+  }
   const children =
     definition.allowedChildren === "none"
       ? null
-      : (node.children ?? []).map((child) => renderNode(child, registry, ctx));
+      : (node.children ?? []).map((child) => renderNode(child, registry, ctx, null));
   return (
     <DefinitionRenderer
       key={node.id}
       render={definition.render}
-      args={{ node, props: parsed.data, className: `n-${node.id}`, children, ctx }}
+      args={{ node, props: parsed.data, className: `n-${node.id}`, children, ctx, position }}
     />
   );
 }
@@ -70,14 +81,32 @@ function DefinitionRenderer<A>({ render, args }: { render: (args: A) => ReactNod
   return render(args);
 }
 
-export function RenderDocument({
+export function RenderDocument<C extends SiteRenderContext>({
   document,
   registry,
   ctx,
 }: {
   document: PageDocument;
-  registry: Registry;
-  ctx: RenderContext;
+  registry: Registry<C>;
+  ctx: C;
 }) {
-  return <>{document.root.map((node) => renderNode(node, registry, ctx))}</>;
+  return <>{document.root.map((node, i) => renderNode(node, registry, ctx, i))}</>;
+}
+
+/**
+ * Whether the page's first section renders its own heading (the page's h1).
+ * When it doesn't, the host adds a visually hidden h1 with the page title.
+ */
+export function firstSectionHasHeading<C extends SiteRenderContext>(
+  document: PageDocument,
+  registry: Registry<C>,
+): boolean {
+  const first = document.root.find((node) => !node.hidden);
+  if (!first) return false;
+  const definition = registry.get(first.type);
+  if (!definition?.headingProp) return false;
+  // The hero falls back to the site's name, so it always has one.
+  if (first.type === "hero") return true;
+  const value = { ...definition.defaultProps, ...first.props }[definition.headingProp];
+  return typeof value === "string" && value.trim() !== "";
 }

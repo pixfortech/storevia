@@ -4,7 +4,7 @@
 // vocabulary's parser; node ids are validated, so class names are safe.
 import { styleDeclarations } from "../document/styles";
 import { NODE_ID_RE, type BuilderNode, type PageDocument, type StyleSet } from "../document/types";
-import type { Registry } from "../registry/types";
+import type { Registry, SiteRenderContext } from "../registry/types";
 
 export const BREAKPOINTS = {
   tablet: "(max-width:1024px)",
@@ -25,7 +25,10 @@ function variables(values: Readonly<Record<string, string>> | undefined): string
 
 const join = (...parts: string[]) => parts.filter(Boolean).join(";");
 
-export function compileDocumentCss(document: PageDocument, registry: Registry): string {
+export function compileDocumentCss<C extends SiteRenderContext>(
+  document: PageDocument,
+  registry: Registry<C>,
+): string {
   const base: string[] = [];
   const tablet: string[] = [];
   const mobile: string[] = [];

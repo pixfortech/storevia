@@ -4,11 +4,13 @@ import { withStorefront, type StorefrontScope } from "@storevia/database/storefr
 import { renditionUrls } from "@storevia/media/urls";
 import { parseTypeId, toTypeId } from "@storevia/types";
 
-// Public site content (ADR-0029): published pages, page links, media views
-// and content-page sitemap entries. Runs as storevia_storefront inside a
-// read-only transaction scoped to the resolved store, where row policies
-// show only live pages, PUBLISHED versions and READY media; the queries
-// repeat those conditions. A composition shares the same transaction (see
+// Public site content (ADR-0029, ADR-0030): pages, page links, media views,
+// the live theme's settings, navigation menus and content-page sitemap
+// entries. Runs as storevia_storefront inside a read-only transaction
+// scoped to the resolved store, where row policies show only live pages,
+// PUBLISHED versions and READY media; the queries repeat those conditions.
+// In a verified preview the transaction also sees drafts, and the reader
+// prefers them. A composition shares the same transaction (see
 // @storevia/commerce/storefront's readStorefront) so one page render is one
 // transaction.
 
@@ -47,6 +49,8 @@ export function imageDto(row: ImageRow | null | undefined, fallbackAlt: string):
 
 export interface PublishedPageDto {
   readonly id: string;
+  /** DRAFT only in a preview. */
+  readonly state: "PUBLISHED" | "DRAFT";
   /** The page kind; kinds are the composing app's (the Site Engine only knows STANDARD pages have handles). */
   readonly kind: string;
   readonly title: string;
@@ -69,11 +73,32 @@ const pageUuids = (kind: "page" | "media", ids: readonly string[]) => [
   ...new Set(ids.map((id) => parseTypeId(kind, id)).filter((id): id is string => id !== null)),
 ];
 
-export class SiteReader {
-  constructor(private readonly tx: TenantTx) {}
+export interface SiteReaderOptions {
+  /** A verified preview: show draft page versions (the transaction must be a preview one too). */
+  readonly preview?: boolean;
+}
 
-  /** The published page of a kind (content pages by handle), or null. */
-  async publishedPage(kind: string, handle?: string): Promise<PublishedPageDto | null> {
+export interface ThemeSettingsRow {
+  readonly themeKey: string;
+  /** Unvalidated JSON: the caller validates it with the theme engine. */
+  readonly settings: unknown;
+}
+
+export class SiteReader {
+  private readonly preview: boolean;
+
+  constructor(
+    private readonly tx: TenantTx,
+    options: SiteReaderOptions = {},
+  ) {
+    this.preview = options.preview === true;
+  }
+
+  /**
+   * The page of a kind (content pages by handle) as the visitor should see
+   * it: its published version, or in a preview its draft when it has one.
+   */
+  async page(kind: string, handle?: string): Promise<PublishedPageDto | null> {
     if (kind === STANDARD_PAGE_KIND && handle === undefined) return null;
     const rows = await this.tx.$queryRaw<
       {
@@ -84,11 +109,20 @@ export class SiteReader {
         seoTitle: string | null;
         seoDescription: string | null;
         document: unknown;
+        state: "PUBLISHED" | "DRAFT";
       }[]
     >`
-      SELECT pg.id, pg.kind::text AS kind, pg.title, pg.handle, pg."seoTitle", pg."seoDescription", v.document
+      SELECT pg.id, pg.kind::text AS kind, pg.title, pg.handle, pg."seoTitle", pg."seoDescription",
+             v.document, v.state::text AS state
       FROM "Page" pg
-      JOIN "PageVersion" v ON v.id = pg."publishedVersionId" AND v.state = 'PUBLISHED'
+      JOIN LATERAL (
+        SELECT v.document, v.state FROM "PageVersion" v
+        WHERE v."pageId" = pg.id
+          AND ((v.id = pg."publishedVersionId" AND v.state = 'PUBLISHED')
+            OR (${this.preview} AND v.state = 'DRAFT'))
+        ORDER BY (v.state = 'DRAFT') DESC
+        LIMIT 1
+      ) v ON true
       WHERE pg."deletedAt" IS NULL AND pg.kind = ${kind}::"PageKind"
         ${kind === STANDARD_PAGE_KIND ? Prisma.sql`AND pg.handle = ${handle ?? ""}` : Prisma.empty}
       LIMIT 1`;
@@ -96,16 +130,36 @@ export class SiteReader {
     return row ? { ...row, id: toTypeId("page", row.id) } : null;
   }
 
-  /** Handles for page TypeIds that are live in this store (no query when there are none). */
+  /** Handles for page TypeIds that are live in this store (or, in a preview, have a draft). */
   async pageLinks(ids: readonly string[]): Promise<Map<string, string>> {
     const pages = pageUuids("page", ids);
     const out = new Map<string, string>();
     if (pages.length === 0) return out;
     const rows = await this.tx.$queryRaw<{ id: string; handle: string }[]>`
       SELECT pg.id, pg.handle FROM "Page" pg
-      WHERE pg.id = ANY(${pages}::uuid[]) AND pg."deletedAt" IS NULL AND pg."publishedVersionId" IS NOT NULL`;
+      WHERE pg.id = ANY(${pages}::uuid[]) AND pg."deletedAt" IS NULL
+        AND (pg."publishedVersionId" IS NOT NULL
+          OR (${this.preview} AND EXISTS (
+            SELECT 1 FROM "PageVersion" v WHERE v."pageId" = pg.id AND v.state = 'DRAFT')))`;
     for (const row of rows) out.set(toTypeId("page", row.id), row.handle);
     return out;
+  }
+
+  /** The live theme's settings (published, or draft in a preview), or null when the store has none. */
+  async theme(): Promise<ThemeSettingsRow | null> {
+    const rows = await this.tx.$queryRaw<{ theme_key: string; settings: unknown }[]>`
+      SELECT theme_key, settings FROM app_storefront_theme_settings()`;
+    const row = rows[0];
+    return row && row.settings !== null
+      ? { themeKey: row.theme_key, settings: row.settings }
+      : null;
+  }
+
+  /** Stored menu items by handle (unvalidated JSON; the caller validates with its link kinds). */
+  async navigation(handles: readonly string[]): Promise<Map<string, unknown>> {
+    const rows = await this.tx.$queryRaw<{ handle: string; items: unknown }[]>`
+      SELECT n.handle, n.items FROM "Navigation" n WHERE n.handle = ANY(${[...handles]}::text[])`;
+    return new Map(rows.map((row) => [row.handle, row.items]));
   }
 
   /** Images for media TypeIds that are READY in this store. */
@@ -145,6 +199,11 @@ export class SiteReader {
 export function readPublicSite<T>(
   scope: StorefrontScope,
   fn: (site: SiteReader) => Promise<T>,
+  options: SiteReaderOptions = {},
 ): Promise<T> {
-  return withStorefront(scope, (tx) => fn(new SiteReader(tx)), { readOnly: true });
+  const preview = options.preview === true;
+  return withStorefront(scope, (tx) => fn(new SiteReader(tx, { preview })), {
+    readOnly: true,
+    preview,
+  });
 }

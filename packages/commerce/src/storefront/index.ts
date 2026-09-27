@@ -6,6 +6,7 @@ import "server-only";
 // returned, and the commerce cache tags.
 export * from "./read";
 export * from "./cache-tags";
+export * from "./resolve";
 export {
   CART_LIMITS,
   addToCart,

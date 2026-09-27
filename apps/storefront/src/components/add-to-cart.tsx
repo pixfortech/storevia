@@ -1,4 +1,4 @@
-import type { ProductView, VariantView } from "@storevia/editor/registry";
+import type { ProductView, VariantView } from "@storevia/commerce/blocks";
 import { addToCartAction } from "@/app/sv/[storeId]/cart/actions";
 
 /** The editor's AddToCart slot: a plain form posting to a server action (no client JS). */

@@ -194,9 +194,9 @@ describe("content, media, SEO and shell without commerce", () => {
 
   it("reads published pages, page links, safe media and content sitemap entries for this site only", async () => {
     const result = await readPublicSite(scope, async (site) => ({
-      about: await site.publishedPage("STANDARD", "about"),
-      secret: await site.publishedPage("STANDARD", "secret"),
-      noHandle: await site.publishedPage("STANDARD"),
+      about: await site.page("STANDARD", "about"),
+      secret: await site.page("STANDARD", "secret"),
+      noHandle: await site.page("STANDARD"),
       links: await site.pageLinks(["page_garbage", toTypeId("page", aboutPage)]),
       media: await site.media([toTypeId("media", MEDIA)]),
       sitemap: await site.sitemapPages(),

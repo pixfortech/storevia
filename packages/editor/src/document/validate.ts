@@ -5,7 +5,7 @@
 // props against its component schema, and every style against the closed
 // vocabulary. Pure.
 import { z } from "zod";
-import type { Registry } from "../registry/types";
+import type { Registry, SiteRenderContext } from "../registry/types";
 import { styleErrors, styleValueCss } from "./styles";
 import {
   DOCUMENT_LIMITS,
@@ -83,12 +83,15 @@ const zodIssues = (base: string, error: z.ZodError): ValidationIssue[] =>
     message: issue.message,
   }));
 
-export interface ValidateOptions {
-  readonly registry: Registry;
+export interface ValidateOptions<C extends SiteRenderContext = SiteRenderContext> {
+  readonly registry: Registry<C>;
   readonly pageKind: PageKind;
 }
 
-export function validateDocument(input: unknown, options: ValidateOptions): ValidationResult {
+export function validateDocument<C extends SiteRenderContext>(
+  input: unknown,
+  options: ValidateOptions<C>,
+): ValidationResult {
   const issues: ValidationIssue[] = [];
   const bytes = byteLength(input);
   if (bytes === null || bytes > DOCUMENT_LIMITS.maxBytes) {
@@ -200,6 +203,17 @@ export function validateDocument(input: unknown, options: ValidateOptions): Vali
     } as BuilderNode;
   };
 
+  if (parsed.data.root.length > DOCUMENT_LIMITS.maxSections) {
+    return {
+      ok: false,
+      issues: [
+        {
+          path: "root",
+          message: `A page can have at most ${String(DOCUMENT_LIMITS.maxSections)} sections.`,
+        },
+      ],
+    };
+  }
   const root: BuilderNode[] = [];
   for (const [i, raw] of parsed.data.root.entries()) {
     const node = visit(raw, `root.${String(i)}`, 1, null);
@@ -229,8 +243,9 @@ export function validateDocument(input: unknown, options: ValidateOptions): Vali
 
 /**
  * Brings a stored document to the current schema version (07 §7). Version 1
- * is the only version so far; the migration framework arrives with M5-01.
- * Published documents are upgraded in memory only, never rewritten.
+ * is the only version so far (M5 kept it: ADR-0030 §1), so anything else is
+ * refused (null) and the caller falls back. Published documents are
+ * upgraded in memory only, never rewritten.
  */
 export function upgradeDocument(input: unknown): unknown {
   if (

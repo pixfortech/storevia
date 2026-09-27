@@ -4,15 +4,15 @@
 
 export const DOCUMENT_SCHEMA_VERSION = 1;
 
-export const PAGE_KINDS = [
-  "HOME",
-  "STANDARD",
-  "PRODUCT_TEMPLATE",
-  "COLLECTION_TEMPLATE",
-  "SEARCH_TEMPLATE",
-  "NOT_FOUND",
-] as const;
-export type PageKind = (typeof PAGE_KINDS)[number];
+/**
+ * Page kinds are opaque to the Site Engine (ADR-0029 §3): the composition
+ * decides which exist (Storevia's are the `PageKind` database enum). The
+ * engine itself only knows these three.
+ */
+export type PageKind = string;
+export const HOME_PAGE_KIND = "HOME";
+export const STANDARD_PAGE_KIND = "STANDARD";
+export const NOT_FOUND_PAGE_KIND = "NOT_FOUND";
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue =
@@ -68,8 +68,10 @@ export interface PageDocument {
   readonly meta?: { readonly background?: StyleValue };
 }
 
-/** Hard limits (07 §7). */
+/** Hard limits (07 §7, ADR-0030 §11). */
 export const DOCUMENT_LIMITS = {
+  /** Top-level sections. */
+  maxSections: 40,
   maxNodes: 2_000,
   maxDepth: 12,
   maxBytes: 1_048_576,

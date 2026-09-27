@@ -29,7 +29,10 @@ describe("storefront cache tags", () => {
       `catalogue:${STORE}`,
     ]);
     expect(commerceCacheTagsForEvent(event("page.changed"))).toBeNull();
-    expect(storefrontCacheTagsForEvent(event("page.changed"))).toEqual([`pages:${STORE}`]);
+    expect(storefrontCacheTagsForEvent(event("page.changed"))).toEqual([
+      `pages:${STORE}`,
+      `design:${STORE}`,
+    ]);
     expect(storefrontCacheTagsForEvent(event("store.changed"))).toEqual([`store:${STORE}`]);
     expect(storefrontCacheTagsForEvent(event("something.new"))).toEqual([`store:${STORE}`]);
     expect(

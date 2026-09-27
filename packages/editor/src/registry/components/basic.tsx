@@ -1,10 +1,12 @@
-// Basic and media components: heading, text, rich-text, image, button,
-// divider, spacer, and the hero used by the default home page.
+// Basic and media elements: heading, text, rich-text, image, button,
+// divider, spacer. They sit inside layout nodes (M4 templates); the builder
+// composes pages from section blocks (./sections.tsx) instead.
 import { z } from "zod";
-import { linkTargetSchema, mediaRefSchema, plainText, richTextSchema } from "../../document/refs";
+import { mediaRefSchema, plainText, richTextSchema } from "../../document/refs";
 import { Image } from "../../render/parts";
 import { RichText } from "../../render/rich-text";
 import { cx, defineComponent } from "../define";
+import type { SchemaKit } from "../types";
 
 const HEADINGS = { 1: "h1", 2: "h2", 3: "h3", 4: "h4" } as const;
 
@@ -70,76 +72,82 @@ export const richText = defineComponent({
   ),
 });
 
-export const image = defineComponent({
-  type: "image",
-  label: "Image",
-  icon: "image",
-  category: "media",
-  defaultProps: { image: null, link: null, caption: "" },
-  propertySchema: z.strictObject({
-    image: mediaRefSchema.nullable(),
-    link: linkTargetSchema.nullable(),
-    caption: plainText(300),
-  }),
-  allowedChildren: "none",
-  editorControls: [
-    { prop: "image", kind: "media", label: "Image" },
-    { prop: "link", kind: "link", label: "Link" },
-    { prop: "caption", kind: "text", label: "Caption" },
-  ],
-  render: ({ props, className, ctx }) => {
-    const view = props.image ? ctx.data.image(props.image) : null;
-    if (!view) return null;
-    const img = <Image image={view} sizes="(max-width:1024px) 100vw, 72rem" />;
-    const href = props.link ? ctx.data.link(props.link) : null;
-    return (
-      <figure className={cx("sv-figure", className)}>
-        {href ? <a href={href}>{img}</a> : img}
-        {props.caption ? <figcaption>{props.caption}</figcaption> : null}
-      </figure>
-    );
-  },
-});
-
-export const button = defineComponent({
-  type: "button",
-  label: "Button",
-  icon: "mouse-pointer",
-  category: "basic",
-  defaultProps: { label: "Shop now", link: { type: "search" }, style: "primary" },
-  propertySchema: z.strictObject({
-    label: plainText(80).min(1),
-    link: linkTargetSchema,
-    style: z.enum(["primary", "secondary"]),
-  }),
-  allowedChildren: "none",
-  editorControls: [
-    { prop: "label", kind: "text", label: "Label" },
-    { prop: "link", kind: "link", label: "Link" },
-    {
-      prop: "style",
-      kind: "select",
-      label: "Style",
-      options: [
-        { value: "primary", label: "Primary" },
-        { value: "secondary", label: "Secondary" },
-      ],
+export const image = (kit: SchemaKit) =>
+  defineComponent({
+    type: "image",
+    label: "Image",
+    icon: "image",
+    category: "media",
+    defaultProps: { image: null, link: null, caption: "" },
+    propertySchema: z.strictObject({
+      image: mediaRefSchema.nullable(),
+      link: kit.link.nullable(),
+      caption: plainText(300),
+    }),
+    allowedChildren: "none",
+    editorControls: [
+      { prop: "image", kind: "media", label: "Image" },
+      { prop: "link", kind: "link", label: "Link" },
+      { prop: "caption", kind: "text", label: "Caption" },
+    ],
+    render: ({ props, className, ctx }) => {
+      const view = props.image ? ctx.data.image(props.image) : null;
+      if (!view) return null;
+      const img = <Image image={view} sizes="(max-width:1024px) 100vw, 72rem" />;
+      const href = props.link ? ctx.data.link(props.link) : null;
+      return (
+        <figure className={cx("sv-figure", className)}>
+          {href ? <a href={href}>{img}</a> : img}
+          {props.caption ? <figcaption>{props.caption}</figcaption> : null}
+        </figure>
+      );
     },
-  ],
-  render: ({ props, className, ctx }) => {
-    // A link that no longer resolves in this store renders as nothing (07 §3).
-    const href = ctx.data.link(props.link);
-    if (!href) return null;
-    return (
-      <a
-        className={cx("sv-button", props.style === "secondary" && "sv-button-secondary", className)}
-        href={href}
-      >
-        {props.label}
-      </a>
-    );
-  },
-});
+  });
+
+export const button = (kit: SchemaKit) =>
+  defineComponent({
+    type: "button",
+    label: "Button",
+    icon: "mouse-pointer",
+    category: "basic",
+    defaultProps: { label: "Learn more", link: { type: "home" }, style: "primary" },
+    propertySchema: z.strictObject({
+      label: plainText(80).min(1),
+      link: kit.link,
+      style: z.enum(["primary", "secondary"]),
+    }),
+    allowedChildren: "none",
+    editorControls: [
+      { prop: "label", kind: "text", label: "Label" },
+      { prop: "link", kind: "link", label: "Link" },
+      {
+        prop: "style",
+        kind: "select",
+        label: "Style",
+        options: [
+          { value: "primary", label: "Primary" },
+          { value: "secondary", label: "Secondary" },
+        ],
+      },
+    ],
+    render: ({ props, className, ctx }) => {
+      // A link that no longer resolves in this store renders as nothing (07 §3).
+      const href = ctx.data.link(props.link);
+      if (!href) return null;
+      return (
+        <a
+          className={cx(
+            "sv-button",
+            props.style === "secondary" && "sv-button-secondary",
+            className,
+          )}
+          href={href}
+        >
+          {props.label}
+        </a>
+      );
+    },
+  });
 
 export const divider = defineComponent({
   type: "divider",
@@ -173,61 +181,4 @@ export const spacer = defineComponent({
     },
   ],
   render: ({ className }) => <div className={cx("sv-spacer", className)} aria-hidden="true" />,
-});
-
-export const hero = defineComponent({
-  type: "hero",
-  label: "Hero",
-  icon: "panel-top",
-  category: "marketing",
-  defaultProps: { heading: "", subheading: "", cta: null, image: null, align: "center" },
-  propertySchema: z.strictObject({
-    /** "" shows the store's name. */
-    heading: plainText(200),
-    subheading: plainText(500),
-    cta: z.strictObject({ label: plainText(80).min(1), link: linkTargetSchema }).nullable(),
-    image: mediaRefSchema.nullable(),
-    align: z.enum(["left", "center"]),
-  }),
-  allowedChildren: "none",
-  editorControls: [
-    { prop: "heading", kind: "text", label: "Heading" },
-    { prop: "subheading", kind: "textarea", label: "Subheading" },
-    { prop: "cta", kind: "link", label: "Button" },
-    { prop: "image", kind: "media", label: "Background image" },
-    {
-      prop: "align",
-      kind: "select",
-      label: "Alignment",
-      options: [
-        { value: "left", label: "Left" },
-        { value: "center", label: "Centre" },
-      ],
-    },
-  ],
-  render: ({ props, className, ctx }) => {
-    const view = props.image ? ctx.data.image(props.image) : null;
-    const href = props.cta ? ctx.data.link(props.cta.link) : null;
-    return (
-      <section
-        className={cx(
-          "sv-hero",
-          props.align === "center" && "sv-hero-center",
-          view && "sv-hero-image",
-          className,
-        )}
-      >
-        {view ? <Image image={view} sizes="100vw" priority className="sv-hero-backdrop" /> : null}
-        <div className="sv-container sv-hero-body">
-          <h1 className="sv-hero-heading">{props.heading || ctx.store.name}</h1>
-          {props.subheading ? <p className="sv-hero-sub">{props.subheading}</p> : null}
-          {props.cta && href ? (
-            <a className="sv-button" href={href}>
-              {props.cta.label}
-            </a>
-          ) : null}
-        </div>
-      </section>
-    );
-  },
 });

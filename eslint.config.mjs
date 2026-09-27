@@ -203,7 +203,7 @@ export default defineConfig(
   },
   {
     // The Site Engine (ADR-0029) is generic public-site infrastructure: it
-    // never imports commerce (or the editor, which imports commerce),
+    // never imports commerce, nor the page system (composed by the app),
     // billing, plans, merchant services, auth or an app. Commerce composes
     // into it, never the other way round. The import-graph test in
     // packages/site-engine checks the same rule transitively.
@@ -238,6 +238,52 @@ export default defineConfig(
             {
               regex: "^@storevia/media(?!/urls$)",
               message: "The Site Engine uses only @storevia/media/urls (ADR-0029).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // The Site Engine's page system (ADR-0030 §2): documents, the generic
+    // registry, blocks, renderer, rich text and navigation are pure and
+    // client-safe. They never import commerce (commerce composes into
+    // them), merchant services, a database role or an app, and use only
+    // the Site Engine's theme module. The import-graph test in
+    // packages/site-engine checks the same rule transitively.
+    files: ["packages/editor/src/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "@storevia/commerce",
+                "@storevia/commerce/*",
+                "@storevia/billing",
+                "@storevia/billing/*",
+                "@storevia/entitlements",
+                "@storevia/entitlements/*",
+                "@storevia/tenancy",
+                "@storevia/tenancy/*",
+                "@storevia/auth",
+                "@storevia/auth/*",
+                "@storevia/payments",
+                "@storevia/payments/*",
+                "@storevia/database",
+                "@storevia/database/*",
+                "@storevia/media",
+                "@storevia/media/*",
+                "@storevia/ui",
+                "@storevia/ui/*",
+              ],
+              message:
+                "The page system is generic and client-safe: no commerce, merchant services or database (ADR-0030 §2).",
+            },
+            {
+              regex: "^@storevia/site-engine(?!/theme$)",
+              message: "The page system uses only @storevia/site-engine/theme (ADR-0030 §2).",
             },
           ],
         },

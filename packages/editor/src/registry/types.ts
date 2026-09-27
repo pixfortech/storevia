@@ -1,49 +1,39 @@
-// The component registry contract (07-page-builder-document.md §5). Components
-// are registered, not hard-coded into the editor or renderer: each declares
-// its props schema, where it may appear, what data it needs (collected once
-// per page and resolved in batch), and a server renderer shared by the
-// storefront and, from M5, the editor canvas.
-import type { RichTextDoc } from "@storevia/commerce/rich-text";
-import type { ComponentType, ReactNode } from "react";
+// The component registry contract (07-page-builder-document.md §5, ADR-0030
+// §3). Components are registered, not hard-coded into the editor or
+// renderer: each declares its props schema, where it may appear, what data
+// it needs (collected once per page and resolved in batch), the controls the
+// builder shows for it, and a server renderer shared by the public site and
+// the builder canvas. Registries are built at compile time from first-party
+// modules; there is no runtime registration.
+//
+// This module is generic (the Site Engine's). A composition extends the
+// render context with its own data (Storevia commerce: product lists, the
+// current product, the cart form) and registers its own components and link
+// kinds on top.
+import type { ReactNode } from "react";
 import type { z } from "zod";
-import type { DataSource, LinkTarget, MediaRef } from "../document/refs";
+import type { LinkKindDefinition, LinkTarget, MediaRef } from "../document/refs";
 import type { BuilderNode, PageKind } from "../document/types";
 
 // ---------------------------------------------------------------------------
-// Data requests: what a page needs, gathered before rendering (06 §4).
+// Data requests: what a page needs, gathered before rendering (06 §4). The
+// engine treats them as opaque; the composition that registered the
+// component resolves them.
 // ---------------------------------------------------------------------------
 
-export type DataRequest =
-  | { readonly kind: "product-list"; readonly source: DataSource; readonly limit: number }
-  | { readonly kind: "current-product" }
-  /** The collection or search page being viewed; the host decides the page size. */
-  | { readonly kind: "current-collection" }
-  | { readonly kind: "search" };
+export interface DataRequest {
+  readonly kind: string;
+  readonly [key: string]: unknown;
+}
 
 /** A stable key per request, so identical requests resolve once. */
 export function dataRequestKey(request: DataRequest): string {
-  switch (request.kind) {
-    case "product-list":
-      return `product-list:${JSON.stringify(request.source)}:${String(request.limit)}`;
-    case "current-product":
-      return "current-product";
-    case "current-collection":
-      return "current-collection";
-    case "search":
-      return "search";
-  }
+  return JSON.stringify(request);
 }
 
 // ---------------------------------------------------------------------------
-// Views: the public shapes renderers read. The storefront's read models
-// return structurally compatible DTOs (no cost, no stock counts).
+// Views and render context.
 // ---------------------------------------------------------------------------
-
-export interface PriceView {
-  /** Minor units as a decimal string (no precision loss). */
-  readonly amount: string;
-  readonly currency: string;
-}
 
 export interface ImageView {
   readonly url: string;
@@ -54,92 +44,21 @@ export interface ImageView {
   readonly alt: string;
 }
 
-export interface ProductCardView {
-  readonly id: string;
-  readonly handle: string;
-  readonly title: string;
-  readonly price: PriceView;
-  readonly compareAtPrice: PriceView | null;
-  /** Variants have different prices: show "From …". */
-  readonly priceVaries: boolean;
-  readonly image: ImageView | null;
-  readonly available: boolean;
-}
-
-export interface VariantView {
-  readonly id: string;
-  readonly title: string;
-  readonly price: PriceView;
-  readonly compareAtPrice: PriceView | null;
-  readonly available: boolean;
-  /** One value per product option, in option order. */
-  readonly optionValues: readonly string[];
-  readonly image: ImageView | null;
-}
-
-export interface ProductView {
-  readonly id: string;
-  readonly handle: string;
-  readonly title: string;
-  readonly vendor: string | null;
-  readonly description: RichTextDoc | null;
-  readonly images: readonly ImageView[];
-  readonly options: readonly { readonly name: string; readonly values: readonly string[] }[];
-  readonly variants: readonly VariantView[];
-}
-
-export interface PagedProducts {
-  readonly products: readonly ProductCardView[];
-  readonly page: number;
-  readonly pageCount: number;
-  readonly total: number;
-}
-
-export interface CollectionView extends PagedProducts {
-  readonly id: string;
-  readonly handle: string;
-  readonly title: string;
-  readonly description: RichTextDoc | null;
-  readonly image: ImageView | null;
-}
-
-export interface SearchView extends PagedProducts {
-  /** The normalised query ("" lists every product). */
-  readonly query: string;
-}
-
-/** Resolved data for one render. Anything unresolved reads as empty/null. */
-export interface RenderData {
-  productList(source: DataSource, limit: number): readonly ProductCardView[];
-  readonly currentProduct: ProductView | null;
-  readonly currentCollection: CollectionView | null;
-  readonly search: SearchView | null;
-  /** The href for a typed link in this store, or null when it doesn't resolve. */
+/** Resolved references for one render. Anything unresolved reads as null. */
+export interface SiteRenderData {
+  /** The href for a typed link on this site, or null when it doesn't resolve. */
   link(target: LinkTarget): string | null;
   image(ref: MediaRef): ImageView | null;
 }
 
-/** Interactive leaves the host app provides (the storefront's cart form; a no-op in the canvas). */
-export interface RenderSlots {
-  readonly AddToCart: ComponentType<{
-    readonly product: ProductView;
-    readonly variant: VariantView | null;
-  }>;
-}
-
-export interface RenderContext {
+export interface SiteRenderContext {
   readonly pageKind: PageKind;
-  readonly store: { readonly name: string; readonly locale: string; readonly currency: string };
-  readonly data: RenderData;
-  readonly slots: RenderSlots;
-  /** Variant chosen through `?variant=` on a product page (validated by the host). */
-  readonly selectedVariantId: string | null;
-  /** The href of page `n` of the current listing (collection or search). */
-  pageHref(page: number): string;
-  /** The href that selects a variant on the current product page. */
-  variantHref(variantId: string): string;
+  readonly site: { readonly name: string; readonly locale: string };
+  readonly data: SiteRenderData;
   /** Unknown component types are skipped and reported here (07 §7). */
   onUnknownComponent?(type: string): void;
+  /** Stored props that no longer validate are skipped and reported here. */
+  onInvalidComponent?(type: string): void;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,9 +66,9 @@ export interface RenderContext {
 // ---------------------------------------------------------------------------
 
 export type ComponentCategory =
-  "layout" | "basic" | "media" | "commerce" | "marketing" | "advanced";
+  "layout" | "basic" | "media" | "text" | "marketing" | "commerce" | "advanced";
 
-/** Declarative property controls: the editor (M5) renders them, so adding a component needs no editor change. */
+/** A declarative settings control; the builder renders it, so a new component needs no builder change. */
 export interface PropertyControl {
   readonly prop: string;
   readonly kind:
@@ -158,30 +77,54 @@ export interface PropertyControl {
     | "richtext"
     | "media"
     | "link"
+    | "action"
     | "select"
     | "toggle"
     | "number"
-    | "product"
-    | "collection"
-    | "data-source";
+    | "email"
+    | "items"
+    | "collections"
+    | "product-source";
   readonly label: string;
+  readonly help?: string;
   readonly options?: readonly { readonly value: string; readonly label: string }[];
+  readonly min?: number;
+  readonly max?: number;
+  /** For `items`: the controls of one item, its default value and the most allowed. */
+  readonly fields?: readonly PropertyControl[];
+  readonly itemDefaults?: Readonly<Record<string, unknown>>;
+  readonly maxItems?: number;
+  /** For `items`: which field names an item in the list ("title", "question"…). */
+  readonly itemLabel?: string;
 }
 
-export interface RenderArgs<P> {
+export interface RenderArgs<P, C extends SiteRenderContext = SiteRenderContext> {
   readonly node: BuilderNode;
   readonly props: P;
   /** `n-{id}`: the node's scoped class for its compiled styles. */
   readonly className: string;
   readonly children: ReactNode;
-  readonly ctx: RenderContext;
+  readonly ctx: C;
+  /** Position among the page's sections, or null for a nested node. The first section owns the page's h1. */
+  readonly position: number | null;
 }
 
-export interface ComponentDefinition<P extends object = Record<string, unknown>> {
+export interface ComponentDefinition<
+  P extends object = Record<string, unknown>,
+  C extends SiteRenderContext = SiteRenderContext,
+> {
   readonly type: string;
   readonly label: string;
+  /** One line for the builder's block picker. */
+  readonly description?: string;
   readonly icon: string;
   readonly category: ComponentCategory;
+  /** A section block: the builder offers it as a top-level section (ADR-0030 §1). */
+  readonly section?: boolean;
+  /** The prop holding the section's main heading, if any (the page's h1 when first). */
+  readonly headingProp?: string;
+  /** Data the store must have for the block to be useful (e.g. "catalogue"); the builder hides it otherwise. */
+  readonly requires?: readonly string[];
   /** Inferred from the schema, never from the defaults. */
   readonly defaultProps: NoInfer<P>;
   readonly propertySchema: z.ZodType<P>;
@@ -192,13 +135,27 @@ export interface ComponentDefinition<P extends object = Record<string, unknown>>
   readonly dataRequirements?: (props: P) => readonly DataRequest[];
   /** Custom properties for the node's scoped rule, e.g. `{ "--sv-columns": "4" }` (base and responsive props). */
   readonly cssVariables?: (props: Partial<P>) => Readonly<Record<string, string>>;
-  /** Entitlement a document using this component needs (checked on save and publish, M5). */
+  /** Entitlement a document using this component needs (checked on save and publish). */
   readonly entitlement?: string;
   readonly editorControls: readonly PropertyControl[];
-  readonly render: (args: RenderArgs<P>) => ReactNode;
+  readonly render: (args: RenderArgs<P, C>) => ReactNode;
 }
 
-export interface Registry {
-  get(type: string): ComponentDefinition | undefined;
+/** A definition whose schemas depend on the registry's link kinds. */
+export type ComponentFactory<C extends SiteRenderContext = SiteRenderContext> = (
+  kit: SchemaKit,
+) => ComponentDefinition<object, C>;
+
+/** Schemas a factory builds its props from; `link` accepts exactly the registry's link kinds. */
+export interface SchemaKit {
+  readonly link: z.ZodType<LinkTarget>;
+}
+
+export interface Registry<C extends SiteRenderContext = SiteRenderContext> {
+  get(type: string): ComponentDefinition<object, C> | undefined;
   readonly types: readonly string[];
+  /** Section blocks, in registration order. */
+  readonly sections: readonly ComponentDefinition<object, C>[];
+  readonly linkKinds: readonly LinkKindDefinition[];
+  readonly linkSchema: z.ZodType<LinkTarget>;
 }

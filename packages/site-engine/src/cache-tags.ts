@@ -5,6 +5,7 @@
 //
 //   store:{storeId}      everything cached for a site
 //   pages:{storeId}      published content pages
+//   design:{storeId}     the site's theme and menus (ADR-0030 §10)
 //   host:{hostname}      one host resolution (in-process resolver cache)
 
 export type CacheTag = `${string}:${string}`;
@@ -13,10 +14,11 @@ const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 const NAMESPACE_RE = /^[a-z][a-z-]{1,30}$/;
 
 /** The Site Engine's own id-keyed namespaces (`host:` is keyed by hostname). */
-export const SITE_TAG_NAMESPACES = ["store", "pages"] as const;
+export const SITE_TAG_NAMESPACES = ["store", "pages", "design"] as const;
 
 export const storeTag = (storeId: string): CacheTag => `store:${storeId}`;
 export const pagesTag = (storeId: string): CacheTag => `pages:${storeId}`;
+export const designTag = (storeId: string): CacheTag => `design:${storeId}`;
 export const hostTag = (hostname: string): CacheTag => `host:${hostname}`;
 
 /**
@@ -49,11 +51,16 @@ export interface OutboxEventLike {
 /** Maps an event to tags, or returns null when the event isn't this mapper's. */
 export type EventTagMapper = (event: OutboxEventLike) => CacheTag[] | null;
 
-/** Site events (pages, domains, the store and its organisation); anything unknown invalidates the whole site. */
+/** Site events (pages, theme, menus, domains, the store and its organisation); anything unknown invalidates the whole site. */
 export function siteCacheTagsForEvent(event: OutboxEventLike): CacheTag[] {
   switch (event.type) {
     case "page.changed":
-      return [pagesTag(event.storeId)];
+      // Menus and page documents link to pages by id: a renamed or
+      // unpublished page changes their hrefs too.
+      return [pagesTag(event.storeId), designTag(event.storeId)];
+    case "theme.changed":
+    case "navigation.changed":
+      return [designTag(event.storeId)];
     case "domain.changed": {
       const hostnames =
         typeof event.payload === "object" && event.payload !== null

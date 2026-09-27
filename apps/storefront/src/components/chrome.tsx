@@ -1,12 +1,10 @@
-// Storevia commerce chrome for the Site Engine's shell (ADR-0029): collection
-// navigation (until menus exist in M5), search and cart links, and the cart
-// and add-to-cart styles. Server components, no client JavaScript.
-import type { StoreChrome } from "@/lib/route-data";
+// Storevia commerce chrome for the Site Engine's shell (ADR-0029, ADR-0030):
+// search and cart links, and the cart and add-to-cart styles. Menus are the
+// Site Engine's (SiteMenu). Server components, no client JavaScript.
 
 export const COMMERCE_CSS = `
-.sv-nav{display:flex;gap:var(--sv-space-md);flex-wrap:wrap;list-style:none;margin:0;padding:0}
-.sv-nav a,.sv-header-links a{text-decoration:none;display:inline-flex;align-items:center;min-height:2.75rem}
-.sv-nav a:hover,.sv-header-links a:hover{text-decoration:underline}
+.sv-header-links a{text-decoration:none;display:inline-flex;align-items:center;min-height:2.75rem}
+.sv-header-links a:hover{text-decoration:underline}
 .sv-header-links{display:flex;gap:var(--sv-space-md)}
 .sv-cart{padding-block:var(--sv-space-xl)}
 .sv-cart-lines{list-style:none;margin:0 0 var(--sv-space-xl);padding:0;border-top:1px solid var(--sv-color-border)}
@@ -23,21 +21,6 @@ export const COMMERCE_CSS = `
 `
   .replace(/\n/g, "")
   .trim();
-
-export function StoreNav({ chrome }: { chrome: StoreChrome }) {
-  if (chrome.collections.length === 0) return null;
-  return (
-    <nav aria-label="Collections">
-      <ul className="sv-nav">
-        {chrome.collections.map((c) => (
-          <li key={c.handle}>
-            <a href={`/collections/${c.handle}`}>{c.title}</a>
-          </li>
-        ))}
-      </ul>
-    </nav>
-  );
-}
 
 export function StoreActions({ cartCount }: { cartCount: number }) {
   return (

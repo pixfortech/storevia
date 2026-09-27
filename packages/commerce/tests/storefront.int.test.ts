@@ -28,6 +28,9 @@ import {
   updateCartLine,
   type CartStore,
 } from "../src/storefront";
+import { validateDocument } from "@storevia/editor/document";
+import { SITE_HOME_DOCUMENT } from "@storevia/editor/templates";
+import { STOREVIA_REGISTRY, STORE_HOME_DOCUMENT } from "../src/blocks";
 import { expectCode, makeTenant, storeOf, type Tenant } from "./fixtures";
 
 let a: Tenant;
@@ -204,22 +207,40 @@ describe("public read models", () => {
     expect([...links.collections]).toEqual([[ids["summer"], "summer"]]);
   });
 
-  it("published pages come from the page's published version only", async () => {
-    expect(await readStorefront(storeA, (_r, site) => site.publishedPage("HOME"))).toBeNull();
+  it("the migration's starter home documents are the code's, and validate", async () => {
+    const [row] = await migratorDb().$queryRaw<{ shop: unknown; site: unknown }[]>`
+      SELECT app_home_document('ECOMMERCE') AS shop, app_home_document('BUSINESS') AS site`;
+    expect(row?.shop).toEqual(STORE_HOME_DOCUMENT);
+    expect(row?.site).toEqual(SITE_HOME_DOCUMENT);
+    for (const document of [row?.shop, row?.site]) {
+      expect(validateDocument(document, { registry: STOREVIA_REGISTRY, pageKind: "HOME" }).ok).toBe(
+        true,
+      );
+    }
+  });
+
+  it("pages come from their published version; drafts only in a verified preview", async () => {
+    // Every store has its HOME page from the Store trigger (ADR-0030 §9).
+    const home = await readStorefront(storeA, (_r, site) => site.page("HOME"));
+    expect(home).toMatchObject({ kind: "HOME", state: "PUBLISHED", document: STORE_HOME_DOCUMENT });
     const db = migratorDb();
-    const page = "0190f2a4-0000-7000-8000-00000000f001";
-    const version = "0190f2a4-0000-7000-8000-00000000f002";
-    await db.$transaction([
-      db.$executeRaw`INSERT INTO "Page" (id, "organisationId", "storeId", kind, title, handle, "updatedAt")
-        VALUES (${page}::uuid, ${storeA.organisationId}::uuid, ${storeA.storeId}::uuid, 'HOME', 'Home', 'home', now())`,
-      db.$executeRaw`INSERT INTO "PageVersion" (id, "organisationId", "storeId", "pageId", "versionNumber", state, "schemaVersion", document, "documentHash", "publishedAt", "updatedAt")
-        VALUES (${version}::uuid, ${storeA.organisationId}::uuid, ${storeA.storeId}::uuid, ${page}::uuid, 1, 'PUBLISHED', 1,
-                '{"schemaVersion":1,"root":[]}', ${"a".repeat(64)}, now(), now())`,
-      db.$executeRaw`UPDATE "Page" SET "publishedVersionId" = ${version}::uuid WHERE id = ${page}::uuid`,
-    ]);
-    const home = await readStorefront(storeA, (_r, site) => site.publishedPage("HOME"));
-    expect(home).toMatchObject({ kind: "HOME", document: { schemaVersion: 1, root: [] } });
-    expect(await readStorefront(storeB, (_r, site) => site.publishedPage("HOME"))).toBeNull();
+    const [page] = await db.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "Page" WHERE "storeId" = ${storeA.storeId}::uuid AND kind = 'HOME'`;
+    const draft = { schemaVersion: 1, root: [] };
+    await db.$executeRaw`INSERT INTO "PageVersion" (id, "organisationId", "storeId", "pageId", "versionNumber", state, "schemaVersion", document, "documentHash", "updatedAt")
+      VALUES (gen_random_uuid(), ${storeA.organisationId}::uuid, ${storeA.storeId}::uuid, ${page?.id ?? ""}::uuid, 2, 'DRAFT', 1,
+              ${JSON.stringify(draft)}::jsonb, ${"a".repeat(64)}, now())`;
+    expect(await readStorefront(storeA, (_r, site) => site.page("HOME"))).toMatchObject({
+      state: "PUBLISHED",
+      document: STORE_HOME_DOCUMENT,
+    });
+    expect(
+      await readStorefront(storeA, (_r, site) => site.page("HOME"), { preview: true }),
+    ).toMatchObject({ state: "DRAFT", document: draft });
+    // Another store never sees it, preview or not.
+    const other = await readStorefront(storeB, (_r, site) => site.page("HOME"), { preview: true });
+    expect(other?.id).not.toBe(home?.id);
+    expect(other?.document).toEqual(STORE_HOME_DOCUMENT);
   });
 
   it("the catalogue sitemap lists sellable products and live collections", async () => {
@@ -250,7 +271,7 @@ describe("query budget (M4-09): an uncached page render costs at most 8 queries,
       "home",
       async () =>
         readStorefront(storeA, async (r, site) => {
-          await site.publishedPage("HOME");
+          await site.page("HOME");
           await r.productLists([
             { source: { type: "catalogue" }, limit: 8 },
             { source: { type: "collection", id: ids["summer"] ?? "" }, limit: 4 },
@@ -268,7 +289,7 @@ describe("query budget (M4-09): an uncached page render costs at most 8 queries,
       "product",
       async () =>
         readStorefront(storeA, async (r, site) => {
-          await site.publishedPage("PRODUCT_TEMPLATE");
+          await site.page("PRODUCT_TEMPLATE");
           await r.product("stoneware-mug");
           await r.navigationCollections();
         }),
@@ -277,7 +298,7 @@ describe("query budget (M4-09): an uncached page render costs at most 8 queries,
       "collection",
       async () =>
         readStorefront(storeA, async (r, site) => {
-          await site.publishedPage("COLLECTION_TEMPLATE");
+          await site.page("COLLECTION_TEMPLATE");
           await r.collection("summer", 1);
           await r.navigationCollections();
         }),
@@ -286,7 +307,7 @@ describe("query budget (M4-09): an uncached page render costs at most 8 queries,
       "search",
       async () =>
         readStorefront(storeA, async (r, site) => {
-          await site.publishedPage("SEARCH_TEMPLATE");
+          await site.page("SEARCH_TEMPLATE");
           await r.search("mug", 1);
           await r.navigationCollections();
         }),

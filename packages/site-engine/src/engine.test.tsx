@@ -221,7 +221,12 @@ describe("cache tags", () => {
   });
 
   it("map site events, and anything unknown to the whole site", () => {
-    expect(siteCacheTagsForEvent(event("page.changed"))).toEqual([`pages:${STORE}`]);
+    expect(siteCacheTagsForEvent(event("page.changed"))).toEqual([
+      `pages:${STORE}`,
+      `design:${STORE}`,
+    ]);
+    expect(siteCacheTagsForEvent(event("theme.changed"))).toEqual([`design:${STORE}`]);
+    expect(siteCacheTagsForEvent(event("navigation.changed"))).toEqual([`design:${STORE}`]);
     expect(siteCacheTagsForEvent(event("store.changed"))).toEqual([`store:${STORE}`]);
     expect(siteCacheTagsForEvent(event("something.new"))).toEqual([`store:${STORE}`]);
     expect(siteCacheTagsForEvent(event("domain.changed", { hostnames: ["a.example", 1] }))).toEqual(
@@ -232,12 +237,13 @@ describe("cache tags", () => {
   it("compose a composition's mapper before the site's", () => {
     const mapped = composeEventTags((e) => (e.type === "x.changed" ? [`x:${e.entityId}`] : null));
     expect(mapped(event("x.changed"))).toEqual([`x:${OTHER}`]);
-    expect(mapped(event("page.changed"))).toEqual([`pages:${STORE}`]);
+    expect(mapped(event("page.changed"))).toEqual([`pages:${STORE}`, `design:${STORE}`]);
   });
 
   it("accept only well-formed tags in known namespaces", () => {
     expect(isSiteCacheTag(`store:${STORE}`)).toBe(true);
     expect(isSiteCacheTag(`pages:${STORE}`)).toBe(true);
+    expect(isSiteCacheTag(`design:${STORE}`)).toBe(true);
     expect(isSiteCacheTag("host:shop.example.com")).toBe(true);
     for (const bad of [
       "store:x",

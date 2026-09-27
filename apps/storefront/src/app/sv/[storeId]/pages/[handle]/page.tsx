@@ -37,6 +37,7 @@ export default async function ContentPage({ params }: Props) {
       document={data.document}
       ctx={renderContext(store, data, { slots: { AddToCart } })}
       nonce={nonce}
+      heading={data.hasHeading ? undefined : (data.page?.title ?? undefined)}
     />
   );
 }

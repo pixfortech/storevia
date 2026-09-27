@@ -88,6 +88,18 @@ export interface CollectionDto extends PagedProductsDto {
   readonly seoDescription: string | null;
 }
 
+export interface CollectionCardDto {
+  readonly id: string;
+  readonly handle: string;
+  readonly title: string;
+  readonly image: ImageDto | null;
+}
+
+export type CollectionListSource =
+  { readonly type: "all" } | { readonly type: "collections"; readonly ids: readonly string[] };
+
+export const MAX_COLLECTION_LIST = 24;
+
 export interface SearchDto extends PagedProductsDto {
   readonly query: string;
 }
@@ -505,7 +517,68 @@ export class StorefrontReader {
     return out;
   }
 
-  /** Collections for the store header until navigation menus exist (M5). */
+  /**
+   * Collection cards for each requested source, in at most one query per
+   * source kind. "all" lists live collections that have something to sell;
+   * chosen ids keep their order and show while the collection is live.
+   */
+  async collectionLists(
+    requests: readonly { readonly source: CollectionListSource; readonly limit: number }[],
+  ): Promise<Map<string, CollectionCardDto[]>> {
+    const out = new Map<string, CollectionCardDto[]>();
+    const key = (source: CollectionListSource, limit: number) =>
+      `${JSON.stringify(source)}:${String(limit)}`;
+    const limitOf = (limit: number) =>
+      Math.min(Math.max(Math.trunc(limit), 1), MAX_COLLECTION_LIST);
+    interface Row { id: string; handle: string; title: string; image: ImageRow | null }
+    const cardOf = (row: Row): CollectionCardDto => ({
+      id: toTypeId("collection", row.id),
+      handle: row.handle,
+      title: row.title,
+      image: imageDto(row.image, row.title),
+    });
+    const IMAGE = Prisma.sql`(SELECT json_build_object('renditions', m.renditions, 'alt', m."altText")
+        FROM "MediaAsset" m
+        WHERE m.id = c."imageMediaId" AND m.status = 'READY' AND m."deletedAt" IS NULL) AS image`;
+
+    const all = requests.filter((r) => r.source.type === "all");
+    if (all.length > 0) {
+      const max = Math.max(...all.map((r) => limitOf(r.limit)));
+      const rows = await this.tx.$queryRaw<Row[]>`
+        SELECT c.id, c.handle, c.title, ${IMAGE} FROM "Collection" c
+        WHERE c."archivedAt" IS NULL AND c."deletedAt" IS NULL
+          AND EXISTS (SELECT 1 FROM "CollectionProduct" cp JOIN "Product" p ON p.id = cp."productId"
+                      WHERE cp."collectionId" = c.id AND ${SELLABLE})
+        ORDER BY c.title, c.id
+        LIMIT ${max}`;
+      for (const r of all)
+        out.set(key(r.source, r.limit), rows.slice(0, limitOf(r.limit)).map(cardOf));
+    }
+
+    const chosen = requests.flatMap((r) =>
+      r.source.type === "collections" ? [{ ...r, source: r.source }] : [],
+    );
+    const ids = uuids(
+      "collection",
+      chosen.flatMap((r) => r.source.ids),
+    );
+    if (ids.length > 0) {
+      const rows = await this.tx.$queryRaw<Row[]>`
+        SELECT c.id, c.handle, c.title, ${IMAGE} FROM "Collection" c
+        WHERE c.id = ANY(${ids}::uuid[]) AND c."archivedAt" IS NULL AND c."deletedAt" IS NULL`;
+      const byId = new Map(rows.map((row) => [toTypeId("collection", row.id), row]));
+      for (const r of chosen) {
+        const ordered = r.source.ids.flatMap((id) => {
+          const row = byId.get(id);
+          return row ? [cardOf(row)] : [];
+        });
+        out.set(key(r.source, r.limit), ordered.slice(0, limitOf(r.limit)));
+      }
+    }
+    return out;
+  }
+
+  /** Collections for the store header while a store has no main menu of its own. */
   async navigationCollections(
     limit = 8,
   ): Promise<{ readonly handle: string; readonly title: string }[]> {
@@ -539,8 +612,12 @@ export class StorefrontReader {
 export async function readStorefront<T>(
   scope: StorefrontScope,
   fn: (reader: StorefrontReader, site: SiteReader) => Promise<T>,
+  options: { readonly preview?: boolean } = {},
 ): Promise<T> {
-  return withStorefront(scope, (tx) => fn(new StorefrontReader(tx), new SiteReader(tx)), {
-    readOnly: true,
-  });
+  const preview = options.preview === true;
+  return withStorefront(
+    scope,
+    (tx) => fn(new StorefrontReader(tx), new SiteReader(tx, { preview })),
+    { readOnly: true, preview },
+  );
 }

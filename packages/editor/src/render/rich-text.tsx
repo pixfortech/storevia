@@ -1,9 +1,9 @@
 // Rich text as React elements (07 §6). The document is re-validated against
-// the allow-list (@storevia/commerce/rich-text) before rendering, text is
+// the allow-list (../rich-text) before rendering, text is
 // escaped by React, and link hrefs pass the same safety check again, so a
 // stored document can't inject markup or script even if it was tampered
 // with. No HTML strings, no dangerouslySetInnerHTML.
-import { isSafeHref, type RichTextNode } from "@storevia/commerce/rich-text";
+import { isSafeHref, type RichTextNode } from "../rich-text";
 import { safeRichText } from "../document/refs";
 import type { ReactNode } from "react";
 

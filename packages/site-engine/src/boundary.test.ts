@@ -1,9 +1,12 @@
-// Dependency direction (ADR-0029): the Site Engine never reaches commerce,
-// the editor (which imports commerce), billing, plans, merchant services,
-// auth, the UI kit or an app, not even transitively through another
-// package. ESLint checks direct imports; this walks every module the Site
-// Engine can load, following workspace package exports, and fails on the
-// first forbidden one. It also keeps public cookies host-only.
+// Dependency direction (ADR-0029, ADR-0030 §2): the Site Engine never
+// reaches commerce, the page system (the app composes them), billing,
+// plans, merchant services, auth, the UI kit or an app, not even
+// transitively through another package; the page system (@storevia/editor)
+// never reaches commerce, a database role or anything but the Site Engine's
+// theme; and commerce's blocks stay client-safe. ESLint checks direct
+// imports; this walks every module each can load, following workspace
+// package exports, and fails on the first forbidden one. It also keeps
+// public cookies host-only.
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -157,6 +160,56 @@ describe("Site Engine dependency boundary", () => {
     expect(paths).toContain("packages/domains/src/resolver.ts");
     expect(paths).toContain("packages/media/src/urls.ts");
     expect(paths).toContain("packages/database/src/storefront.ts");
+  });
+});
+
+describe("the page system (@storevia/editor) dependency boundary", () => {
+  const graph = walk(sourceFiles(join(ROOT, "packages/editor/src")));
+
+  it("resolves every import it follows", () => {
+    expect(graph.problems).toEqual([]);
+  });
+
+  it("reaches nothing but itself, the theme module and ids", () => {
+    const files = [...graph.visited].map(rel);
+    const outside = files.filter(
+      (path) =>
+        !path.startsWith("packages/editor/src/") &&
+        path !== "packages/site-engine/src/theme.ts" &&
+        !path.startsWith("packages/types/src/"),
+    );
+    expect(outside).toEqual([]);
+    expect([...graph.workspaceReached].sort()).toEqual([
+      "@storevia/site-engine",
+      "@storevia/types",
+    ]);
+  });
+
+  it("loads only React and zod from outside the workspace", () => {
+    expect([...graph.externals].sort()).toEqual(["react", "zod"]);
+  });
+
+  it("renders a site with zero commerce: no commerce file is reachable", () => {
+    expect([...graph.visited].map(rel).filter((p) => p.includes("commerce"))).toEqual([]);
+  });
+});
+
+describe("commerce blocks stay client-safe", () => {
+  const graph = walk(sourceFiles(join(ROOT, "packages/commerce/src/blocks")));
+
+  it("never reach a database role, server-only code or merchant services", () => {
+    expect(graph.problems).toEqual([]);
+    const files = [...graph.visited].map(rel);
+    expect(
+      files.filter(
+        (path) =>
+          /^packages\/(database|tenancy|auth|billing|entitlements|media|domains)\//.test(path) ||
+          path.startsWith("packages/commerce/src/storefront/") ||
+          (path.startsWith("packages/site-engine/") &&
+            path !== "packages/site-engine/src/theme.ts"),
+      ),
+    ).toEqual([]);
+    expect([...graph.externals].filter((name) => name === "server-only")).toEqual([]);
   });
 });
 

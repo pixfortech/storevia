@@ -8,7 +8,7 @@ import {
   renderRichTextHtml,
   richTextToPlainText,
   RichTextError,
-} from "./rich-text";
+} from ".";
 
 const doc = (...content: unknown[]) => ({ type: "doc", content });
 const p = (...content: unknown[]) => ({ type: "paragraph", content });

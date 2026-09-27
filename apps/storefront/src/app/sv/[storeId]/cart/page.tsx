@@ -1,5 +1,6 @@
 import { readCart } from "@storevia/commerce/storefront";
-import { formatPrice, Image } from "@storevia/editor/render";
+import { formatPrice } from "@storevia/commerce/blocks";
+import { Image } from "@storevia/editor/render";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { cartStore, cartToken } from "@/lib/cart";

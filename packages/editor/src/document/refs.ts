@@ -1,15 +1,20 @@
-// Typed references (07-page-builder-document.md §3): links, data sources and
-// media are never URLs built by the client. Ids are TypeIds of the right
-// kind; external links are http(s), mailto or tel only. On publish the server
-// checks every id belongs to the same store (M5); at render time an id that
-// doesn't resolve in the current store renders as nothing. Pure.
-import { isSafeHref, safeRichText, type RichTextDoc } from "@storevia/commerce/rich-text";
-import { parseTypeId } from "@storevia/types";
+// Typed references (07-page-builder-document.md §3, ADR-0030 §3): links and
+// media are never URLs built by the client. Link targets are a registered
+// set of kinds: the Site Engine knows `url`, `home` and `page`; a
+// composition adds its own (Storevia commerce adds product, collection,
+// search and cart). A registry's schemas accept exactly its kinds. Ids are
+// TypeIds of the right kind; external links are http(s), mailto or tel
+// only. On save and publish the server checks every id belongs to the same
+// store; at render time an id that doesn't resolve in the current store
+// renders as nothing. Pure.
+import { parseTypeId, type IdKind } from "@storevia/types";
 import { z } from "zod";
+import { isSafeHref, safeRichText, type RichTextDoc } from "../rich-text";
 
 export { safeRichText };
 
-const typeId = (kind: "product" | "collection" | "page" | "media") =>
+/** A TypeId of one kind, as stored in documents (`page_…`, `media_…`, …). */
+export const typeIdSchema = (kind: IdKind) =>
   z
     .string()
     .max(64)
@@ -22,30 +27,54 @@ export function isSafeLinkHref(href: string): boolean {
   return TEL_RE.test(href) || isSafeHref(href);
 }
 
-export const linkTargetSchema = z.discriminatedUnion("type", [
-  z.strictObject({
-    type: z.literal("url"),
-    href: z.string().max(2048).refine(isSafeLinkHref, "Unsafe link."),
-  }),
-  z.strictObject({ type: z.literal("page"), id: typeId("page") }),
-  z.strictObject({ type: z.literal("product"), id: typeId("product") }),
-  z.strictObject({ type: z.literal("collection"), id: typeId("collection") }),
-  z.strictObject({ type: z.literal("home") }),
-  z.strictObject({ type: z.literal("search") }),
-  z.strictObject({ type: z.literal("cart") }),
-]);
-export type LinkTarget = z.infer<typeof linkTargetSchema>;
+/**
+ * A link target. The Site Engine's own kinds are spelled out; a
+ * composition's kinds are `{ type, id? }` objects its link kinds define.
+ */
+export type LinkTarget =
+  | { readonly type: "url"; readonly href: string }
+  | { readonly type: "home" }
+  | { readonly type: "page"; readonly id: string }
+  | { readonly type: string; readonly id?: string };
 
-export const dataSourceSchema = z.discriminatedUnion("type", [
-  z.strictObject({ type: z.literal("collection"), id: typeId("collection") }),
-  z.strictObject({ type: z.literal("products"), ids: z.array(typeId("product")).min(1).max(48) }),
-  /** The store's newest active products (for default templates). */
-  z.strictObject({ type: z.literal("catalogue") }),
-]);
-export type DataSource = z.infer<typeof dataSourceSchema>;
+export interface LinkKindDefinition {
+  readonly type: string;
+  /** Shown in the link picker. */
+  readonly label: string;
+  /** A strict object schema for `{ type: <this type>, … }`. */
+  readonly schema: z.ZodType<LinkTarget>;
+  /** The TypeId kind of `id`, when the target names a record (checked on save). */
+  readonly idKind?: IdKind;
+}
+
+export const SITE_LINK_KINDS: readonly LinkKindDefinition[] = [
+  {
+    type: "url",
+    label: "Web address",
+    schema: z.strictObject({
+      type: z.literal("url"),
+      href: z.string().max(2048).refine(isSafeLinkHref, "Unsafe link."),
+    }),
+  },
+  { type: "home", label: "Home page", schema: z.strictObject({ type: z.literal("home") }) },
+  {
+    type: "page",
+    label: "Page",
+    idKind: "page",
+    schema: z.strictObject({ type: z.literal("page"), id: typeIdSchema("page") }),
+  },
+];
+
+/** One schema accepting exactly the given kinds. */
+export function linkSchemaFor(kinds: readonly LinkKindDefinition[]): z.ZodType<LinkTarget> {
+  const [first, second, ...rest] = kinds.map((k) => k.schema);
+  if (!first) throw new Error("a registry needs at least one link kind");
+  if (!second) return first;
+  return z.union([first, second, ...rest]);
+}
 
 export const mediaRefSchema = z.strictObject({
-  mediaId: typeId("media"),
+  mediaId: typeIdSchema("media"),
   alt: z.string().max(512).optional(),
 });
 export type MediaRef = z.infer<typeof mediaRefSchema>;
@@ -71,11 +100,15 @@ function hasControlCharacters(value: string): boolean {
   return false;
 }
 
-/** Every typed link and media reference in a props value (for batch resolution). */
-export function collectRefs(value: unknown): {
-  readonly links: LinkTarget[];
-  readonly media: string[];
-} {
+/**
+ * Every typed link and media reference in a validated props value (for
+ * batch resolution and the same-store check). `linkSchema` is the
+ * registry's, so only its own kinds count as links.
+ */
+export function collectRefs(
+  value: unknown,
+  linkSchema: z.ZodType<LinkTarget>,
+): { readonly links: LinkTarget[]; readonly media: string[] } {
   const links: LinkTarget[] = [];
   const media: string[] = [];
   const walk = (v: unknown): void => {
@@ -84,7 +117,9 @@ export function collectRefs(value: unknown): {
       return;
     }
     if (typeof v !== "object" || v === null) return;
-    const link = linkTargetSchema.safeParse(v);
+    // Rich text carries its own (URL-only) links and is never a reference.
+    if ((v as { type?: unknown }).type === "doc") return;
+    const link = linkSchema.safeParse(v);
     if (link.success) {
       links.push(link.data);
       return;

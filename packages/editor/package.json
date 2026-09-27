@@ -5,8 +5,10 @@
   "type": "module",
   "exports": {
     "./document": "./src/document/index.ts",
+    "./navigation": "./src/navigation.ts",
     "./registry": "./src/registry/index.ts",
     "./render": "./src/render/index.ts",
+    "./rich-text": "./src/rich-text/index.ts",
     "./templates": "./src/templates/index.ts",
     "./theme": "./src/theme.ts"
   },
@@ -15,7 +17,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@storevia/commerce": "workspace:*",
     "@storevia/site-engine": "workspace:*",
     "@storevia/types": "workspace:*",
     "zod": "4.6.5"
@@ -26,7 +27,8 @@
     "@types/react-dom": "19.3.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "vitest": "4.1.11"
+    "vitest": "4.1.11",
+    "fast-check": "3.23.2"
   },
   "peerDependencies": {
     "react": "^19.2.0"

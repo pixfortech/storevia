@@ -1,8 +1,8 @@
-// The merchant-branded public shell (ADR-0029): document, theme tokens,
-// base document styles, skip link, preview banner, header with the site's
-// name, footer. Server components only, no client JavaScript. The composing
-// app fills the header's navigation and actions and the page body; the
-// Site Engine knows nothing about what they contain.
+// The merchant-branded public shell (ADR-0029, ADR-0030): document, theme
+// tokens, base document styles, skip link, preview banner, header with the
+// site's name and menu, footer with its menu. Server components only, no
+// client JavaScript. The composing app fills the header's actions and the
+// page body; the Site Engine knows nothing about what they contain.
 import type { ReactNode } from "react";
 import type { StoreRequestContext } from "./context";
 import { jsonLdJson } from "./seo";
@@ -26,8 +26,11 @@ p{margin:0 0 var(--sv-space-md)}
 .sv-header{border-bottom:1px solid var(--sv-color-border);background:var(--sv-color-background)}
 .sv-header-row{display:flex;align-items:center;gap:var(--sv-space-lg);min-height:4rem;flex-wrap:wrap;padding-block:var(--sv-space-sm)}
 .sv-brand{font-family:var(--sv-font-heading);font-size:var(--sv-fontSize-xl);font-weight:600;text-decoration:none;margin-right:auto}
-.sv-footer{border-top:1px solid var(--sv-color-border);margin-top:var(--sv-space-3xl);padding-block:var(--sv-space-xl);color:var(--sv-color-muted);font-size:var(--sv-fontSize-sm)}
-@media (max-width:640px){.sv-header-row{gap:var(--sv-space-sm)}}
+.sv-footer{border-top:1px solid var(--sv-color-border);padding-block:var(--sv-space-xl);color:var(--sv-color-muted);font-size:var(--sv-fontSize-sm)}
+.sv-footer-row{display:flex;flex-wrap:wrap;gap:var(--sv-space-md) var(--sv-space-xl);align-items:center;justify-content:space-between}.sv-footer p{margin:0}
+.sv-menu{display:flex;gap:var(--sv-space-xs) var(--sv-space-md);flex-wrap:wrap;list-style:none;margin:0;padding:0}
+.sv-menu a{text-decoration:none;display:inline-flex;align-items:center;min-height:2.75rem}.sv-menu a:hover,.sv-menu a[aria-current="page"]{text-decoration:underline;text-underline-offset:4px}
+@media (max-width:640px){.sv-header-row{gap:var(--sv-space-sm)}.sv-header nav{order:3;width:100%}}
 `
   .replace(/\n/g, "")
   .trim();
@@ -40,6 +43,7 @@ export function SiteShell({
   css = "",
   tokens = DEFAULT_THEME,
   nav,
+  footerNav,
   actions,
   previewNote,
   children,
@@ -49,8 +53,10 @@ export function SiteShell({
   /** The composition's stylesheet, emitted after the theme and base rules. */
   css?: string;
   tokens?: ThemeTokens;
-  /** Header navigation (e.g. the composition's menus). */
+  /** Header navigation (e.g. the site's main menu). */
   nav?: ReactNode;
+  /** Footer navigation (e.g. the site's footer menu). */
+  footerNav?: ReactNode;
   /** Header actions (e.g. search and cart links). */
   actions?: ReactNode;
   /** The composition's wording for the preview banner. */
@@ -86,7 +92,8 @@ export function SiteShell({
         </header>
         {children}
         <footer className="sv-footer">
-          <div className="sv-container">
+          <div className="sv-container sv-footer-row">
+            {footerNav}
             <p>
               © {new Date().getFullYear()} {site.name}
             </p>
@@ -105,5 +112,37 @@ export function JsonLd({ data, nonce }: { data: unknown; nonce: string | undefin
       nonce={nonce}
       dangerouslySetInnerHTML={{ __html: jsonLdJson(data) }}
     />
+  );
+}
+
+export interface MenuLink {
+  readonly key: string;
+  readonly label: string;
+  readonly href: string;
+}
+
+/** A menu of resolved links (the composition drops links that no longer resolve). */
+export function SiteMenu({
+  label,
+  links,
+  currentPath,
+}: {
+  label: string;
+  links: readonly MenuLink[];
+  currentPath?: string | undefined;
+}) {
+  if (links.length === 0) return null;
+  return (
+    <nav aria-label={label}>
+      <ul className="sv-menu">
+        {links.map((link) => (
+          <li key={link.key}>
+            <a href={link.href} aria-current={link.href === currentPath ? "page" : undefined}>
+              {link.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
   );
 }

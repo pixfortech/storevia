@@ -1,4 +1,5 @@
-// Rich-text descriptions (ADR-0027 §10). The canonical form is a
+// Rich text (ADR-0027 §10, ADR-0030 §2: a Site Engine format used by page
+// content and by product and collection descriptions). The canonical form is a
 // Tiptap/ProseMirror JSON document restricted to an allow-list of nodes and
 // marks; HTML is only ever produced here, by an escaping serializer, from a
 // validated document. No input path accepts HTML. Pure and client-safe.

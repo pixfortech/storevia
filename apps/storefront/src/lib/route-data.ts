@@ -1,31 +1,46 @@
 import "server-only";
 import {
+  STOREVIA_REGISTRY,
+  STOREVIA_TEMPLATES,
+  EMPTY_DOCUMENT_DATA,
+  linkHref,
+  type DocumentData,
+  type StoreviaPageKind,
+} from "@storevia/commerce/blocks";
+import {
   catalogueTag,
   normalisePageNumber,
   normaliseSearchQuery,
   productTag,
   readStorefront,
+  resolveDocumentData,
   type CollectionDto,
-  type ImageDto,
-  type PageKindDto,
-  type ProductCardDto,
   type ProductDto,
   type SearchDto,
 } from "@storevia/commerce/storefront";
 import { upgradeDocument, validateDocument, type PageDocument } from "@storevia/editor/document";
-import { DEFAULT_REGISTRY, dataRequestKey, type DataRequest } from "@storevia/editor/registry";
-import { collectRequirements } from "@storevia/editor/render";
-import { DEFAULT_TEMPLATES } from "@storevia/editor/templates";
-import { createLogger } from "@storevia/observability";
+import { NAVIGATION_HANDLES, usableNavigationItems } from "@storevia/editor/navigation";
+import { firstSectionHasHeading } from "@storevia/editor/render";
+import { createLogger, recordMetric } from "@storevia/observability";
 import { pageDataCache } from "@storevia/site-engine/cache";
-import { pagesTag, storeTag } from "@storevia/site-engine/cache-tags";
+import { designTag, pagesTag, storeTag } from "@storevia/site-engine/cache-tags";
 import type { StoreRequestContext } from "@storevia/site-engine/context";
+import type { MenuLink } from "@storevia/site-engine/shell";
+import {
+  DEFAULT_THEME,
+  resolveTheme,
+  themeSettingsSchema,
+  type ThemeTokens,
+} from "@storevia/site-engine/theme";
 
 // Everything one storefront route needs, loaded in one read-only storefront
 // transaction (ADR-0028 §7) and cached by store and route, tagged so the
-// outbox can invalidate it (§9). This is the composition (ADR-0029): site
-// content from the Site Engine's reader, catalogue from commerce's. Inputs are normalised before they become
-// cache keys: bounded handles, queries and page numbers only.
+// outbox can invalidate it (§9). This is the composition (ADR-0029,
+// ADR-0030): the page from the Site Engine's reader, rendered with the
+// Storevia registry, its data resolved in batch by commerce's resolver.
+// Inputs are normalised before they become cache keys: bounded handles,
+// queries and page numbers only. A preview (a verified, store-bound token)
+// reads drafts and never touches the shared cache.
 
 const log = createLogger({ component: "storefront" });
 
@@ -62,7 +77,7 @@ export const searchRoute = (query: unknown, page: unknown): StoreRoute => ({
   page: normalisePageNumber(page),
 });
 
-const PAGE_KIND: Record<StoreRoute["kind"], PageKindDto> = {
+const PAGE_KIND: Record<StoreRoute["kind"], StoreviaPageKind> = {
   home: "HOME",
   product: "PRODUCT_TEMPLATE",
   collection: "COLLECTION_TEMPLATE",
@@ -79,45 +94,45 @@ export interface PageMeta {
 
 export interface RouteData {
   readonly found: boolean;
-  readonly pageKind: PageKindDto;
+  readonly pageKind: StoreviaPageKind;
   readonly page: PageMeta | null;
   readonly document: PageDocument;
-  readonly productLists: readonly (readonly [string, readonly ProductCardDto[]])[];
+  /** False when the first section doesn't carry the page's h1 (the host adds one). */
+  readonly hasHeading: boolean;
+  readonly data: DocumentData;
   readonly product: ProductDto | null;
   readonly collection: CollectionDto | null;
   readonly search: SearchDto | null;
-  readonly links: {
-    readonly products: readonly (readonly [string, string])[];
-    readonly collections: readonly (readonly [string, string])[];
-    readonly pages: readonly (readonly [string, string])[];
-  };
-  readonly media: readonly (readonly [string, ImageDto])[];
 }
 
-/** The stored document if it upgrades and validates for its kind; otherwise null (logged). */
-function usableDocument(raw: unknown, kind: PageKindDto, storeId: string): PageDocument | null {
+/** The stored document if it upgrades and validates for its kind; otherwise null (logged, never the document). */
+function usableDocument(
+  raw: unknown,
+  kind: StoreviaPageKind,
+  storeId: string,
+): PageDocument | null {
   const upgraded = upgradeDocument(raw);
-  const result = validateDocument(upgraded, { registry: DEFAULT_REGISTRY, pageKind: kind });
+  const result = validateDocument(upgraded, { registry: STOREVIA_REGISTRY, pageKind: kind });
   if (result.ok) return result.document;
-  log.warn("published page document is invalid; using the default", {
+  log.warn("page document is invalid; using the default", {
     storeId,
     kind,
     issues: result.issues.length,
   });
+  recordMetric("storefront.invalid_document", 1, { kind });
   return null;
 }
 
-const NOT_FOUND = (kind: PageKindDto): RouteData => ({
+const NOT_FOUND = (kind: StoreviaPageKind): RouteData => ({
   found: false,
   pageKind: kind,
   page: null,
-  document: DEFAULT_TEMPLATES.NOT_FOUND,
-  productLists: [],
+  document: STOREVIA_TEMPLATES.NOT_FOUND,
+  hasHeading: true,
+  data: EMPTY_DOCUMENT_DATA,
   product: null,
   collection: null,
   search: null,
-  links: { products: [], collections: [], pages: [] },
-  media: [],
 });
 
 async function loadRoute(
@@ -126,100 +141,127 @@ async function loadRoute(
 ): Promise<{ value: RouteData; tags: string[] }> {
   const kind = PAGE_KIND[route.kind];
   const tags = [storeTag(store.storeId), pagesTag(store.storeId), catalogueTag(store.storeId)];
-  const value = await readStorefront(store, async (reader, site) => {
-    const published = await site.publishedPage(
-      kind,
-      route.kind === "page" ? route.handle : undefined,
-    );
-    const stored = published ? usableDocument(published.document, kind, store.storeId) : null;
-    if (route.kind === "page" && !stored) return NOT_FOUND(kind);
-    const document =
-      stored ?? (kind === "STANDARD" ? DEFAULT_TEMPLATES.NOT_FOUND : DEFAULT_TEMPLATES[kind]);
+  const value = await readStorefront(
+    store,
+    async (reader, site) => {
+      const page = await site.page(kind, route.kind === "page" ? route.handle : undefined);
+      const stored = page ? usableDocument(page.document, kind, store.storeId) : null;
+      if (route.kind === "page" && !stored) return NOT_FOUND(kind);
+      const document =
+        stored ?? (kind === "STANDARD" ? STOREVIA_TEMPLATES.NOT_FOUND : STOREVIA_TEMPLATES[kind]);
 
-    const requirements = collectRequirements(document, DEFAULT_REGISTRY);
-    const wants = (k: DataRequest["kind"]) => requirements.requests.some((r) => r.kind === k);
-
-    let product: ProductDto | null = null;
-    if (route.kind === "product") {
-      product = await reader.product(route.handle);
-      if (!product) return NOT_FOUND(kind);
-      tags.push(productTag(product.id));
-    }
-    let collection: CollectionDto | null = null;
-    if (route.kind === "collection") {
-      collection = await reader.collection(route.handle, route.page);
-      if (!collection) return NOT_FOUND(kind);
-    }
-    const search =
-      route.kind === "search" && wants("search")
-        ? await reader.search(route.query, route.page)
-        : null;
-
-    const listRequests = requirements.requests.flatMap((r) =>
-      r.kind === "product-list"
-        ? [{ key: dataRequestKey(r), source: r.source, limit: r.limit }]
-        : [],
-    );
-    const lists = listRequests.length > 0 ? await reader.productLists(listRequests) : new Map();
-    const productLists = listRequests.map(
-      (r) => [r.key, lists.get(`${JSON.stringify(r.source)}:${String(r.limit)}`) ?? []] as const,
-    );
-    const ids = (type: "product" | "collection" | "page") =>
-      requirements.links.flatMap((l) => (l.type === type ? [l.id] : []));
-    const links = await reader.links({
-      products: ids("product"),
-      collections: ids("collection"),
-    });
-    const pages = await site.pageLinks(ids("page"));
-    const media =
-      requirements.media.length > 0
-        ? await site.media(requirements.media)
-        : new Map<string, ImageDto>();
-    return {
-      found: true,
-      pageKind: kind,
-      page: published
-        ? {
-            title: published.title,
-            seoTitle: published.seoTitle,
-            seoDescription: published.seoDescription,
-          }
-        : null,
-      document,
-      productLists,
-      product,
-      collection,
-      search,
-      links: {
-        products: [...links.products],
-        collections: [...links.collections],
-        pages: [...pages],
-      },
-      media: [...media],
-    } satisfies RouteData;
-  });
+      let product: ProductDto | null = null;
+      if (route.kind === "product") {
+        product = await reader.product(route.handle);
+        if (!product) return NOT_FOUND(kind);
+        tags.push(productTag(product.id));
+      }
+      let collection: CollectionDto | null = null;
+      if (route.kind === "collection") {
+        collection = await reader.collection(route.handle, route.page);
+        if (!collection) return NOT_FOUND(kind);
+      }
+      const { data, wants } = await resolveDocumentData(
+        [document],
+        STOREVIA_REGISTRY,
+        reader,
+        site,
+      );
+      const search =
+        route.kind === "search" && wants.has("search")
+          ? await reader.search(route.query, route.page)
+          : null;
+      return {
+        found: true,
+        pageKind: kind,
+        page: page
+          ? { title: page.title, seoTitle: page.seoTitle, seoDescription: page.seoDescription }
+          : null,
+        document,
+        hasHeading: firstSectionHasHeading(document, STOREVIA_REGISTRY),
+        data,
+        product,
+        collection,
+        search,
+      } satisfies RouteData;
+    },
+    { preview: store.preview },
+  );
   return { value, tags };
 }
 
-/** The data for a route, from the cache or one storefront transaction. */
+/** The data for a route: from the cache or one storefront transaction (previews bypass the cache). */
 export function routeData(store: StoreRequestContext, route: StoreRoute): Promise<RouteData> {
+  if (store.preview) return loadRoute(store, route).then((r) => r.value);
   const key = `route:${store.storeId}:${JSON.stringify(route)}`;
   return pageDataCache().get(key, () => loadRoute(store, route));
 }
 
+// ---------------------------------------------------------------------------
+// Chrome: theme and menus, shared by every page of the store.
+// ---------------------------------------------------------------------------
+
 export interface StoreChrome {
-  readonly collections: readonly { readonly handle: string; readonly title: string }[];
+  readonly theme: ThemeTokens;
+  readonly mainMenu: readonly MenuLink[];
+  readonly footerMenu: readonly MenuLink[];
 }
 
-/** Header navigation (collections until menus exist, M5). */
+async function loadChrome(store: StoreRequestContext): Promise<StoreChrome> {
+  return readStorefront(
+    store,
+    async (reader, site) => {
+      const [themeRow, menus] = await Promise.all([
+        site.theme(),
+        site.navigation(NAVIGATION_HANDLES),
+      ]);
+      let theme = DEFAULT_THEME;
+      if (themeRow) {
+        const settings = themeSettingsSchema.safeParse(themeRow.settings);
+        if (settings.success) theme = resolveTheme(settings.data);
+        else log.warn("theme settings are invalid; using the default", { storeId: store.storeId });
+      }
+      const main = usableNavigationItems(menus.get("main"), STOREVIA_REGISTRY.linkSchema);
+      const footer = usableNavigationItems(menus.get("footer"), STOREVIA_REGISTRY.linkSchema);
+      const { data } = await resolveDocumentData([], STOREVIA_REGISTRY, reader, site, [
+        ...main.map((i) => i.link),
+        ...footer.map((i) => i.link),
+      ]);
+      const links = (items: typeof main): MenuLink[] =>
+        items.flatMap((item) => {
+          const href = linkHref(data, item.link);
+          return href ? [{ key: item.id, label: item.label, href }] : [];
+        });
+      // Until a store saves a main menu of its own, the header lists its
+      // collections, as it did before menus existed (M4).
+      const mainMenu = menus.has("main")
+        ? links(main)
+        : (await reader.navigationCollections()).map((c) => ({
+            key: c.handle,
+            label: c.title,
+            href: `/collections/${c.handle}`,
+          }));
+      return { theme, mainMenu, footerMenu: links(footer) };
+    },
+    { preview: store.preview },
+  );
+}
+
+/** The store's theme and menus (cached like pages; previews read the draft theme uncached). */
 export function storeChrome(store: StoreRequestContext): Promise<StoreChrome> {
+  if (store.preview) return loadChrome(store);
   return pageDataCache().get(`chrome:${store.storeId}`, async () => ({
-    value: { collections: await readStorefront(store, (r) => r.navigationCollections()) },
-    tags: [storeTag(store.storeId), catalogueTag(store.storeId)],
+    value: await loadChrome(store),
+    tags: [
+      storeTag(store.storeId),
+      designTag(store.storeId),
+      pagesTag(store.storeId),
+      catalogueTag(store.storeId),
+    ],
   }));
 }
 
-/** Sitemap paths for the store (cached like pages). */
+/** Sitemap paths for the store (cached like pages; never drafts). */
 export function storeSitemap(store: StoreRequestContext) {
   return pageDataCache().get(`sitemap:${store.storeId}`, async () => ({
     value: await readStorefront(store, async (reader, site) =>

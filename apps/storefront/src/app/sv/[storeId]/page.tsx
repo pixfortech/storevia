@@ -29,6 +29,7 @@ export default async function HomePage({ params }: Props) {
       document={data.document}
       ctx={renderContext(store, data, { slots: { AddToCart } })}
       nonce={nonce}
+      heading={data.hasHeading ? undefined : store.name}
     >
       <JsonLd
         nonce={nonce}
