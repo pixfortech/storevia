@@ -108,9 +108,9 @@ describe("example data", () => {
     const week = exampleRanking("top-content", "PUBLISHING", "Views", 7)[0]?.data[0]?.y ?? 0;
     const quarter = exampleRanking("top-content", "PUBLISHING", "Views", 90)[0]?.data[0]?.y ?? 0;
     expect(quarter).toBeGreaterThan(week);
-    expect(exampleRanking("top-products", "ECOMMERCE", "Revenue", 30)[0]?.data[0]).toEqual({
+    expect(exampleRanking("top-products", "ECOMMERCE", "Units sold", 30)[0]?.data[0]).toEqual({
       x: "Linen overshirt",
-      y: 8420,
+      y: 142,
     });
   });
 

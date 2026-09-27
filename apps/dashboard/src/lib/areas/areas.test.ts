@@ -16,7 +16,8 @@ describe("store area placeholders", () => {
   });
 
   it("names the milestone when one is scheduled, and never promises one otherwise", () => {
-    expect(areaScheduleLabel(STORE_AREAS.orders.availability)).toBe("Milestone 6");
+    expect(areaScheduleLabel("Milestone 7")).toBe("Milestone 7");
+    expect(STORE_AREAS.orders.availability).toBeUndefined();
     expect(areaScheduleLabel(STORE_AREAS.posts.availability)).toBe("On the roadmap");
     expect(areaScheduleLabel(undefined)).toBe("Available");
   });
@@ -213,7 +214,7 @@ describe("billing presentation", () => {
         name: "API access",
         label: "Not included",
         included: false,
-        availability: "Coming in Milestone 6",
+        availability: "On the roadmap",
       },
     ]);
   });
@@ -225,14 +226,15 @@ describe("billing presentation", () => {
         expect(availability).toMatch(/^(Coming in Milestone \d+|On the roadmap)$/);
       }
     }
-    // Stores, team members, products, media storage and the page builder are
-    // the plan features merchants can use today.
+    // Stores, team members, products, media storage, the page builder and
+    // discount codes are the plan features merchants can use today.
     expect(FEATURE_KEYS.filter((key) => FEATURE_AVAILABILITY[key] === null)).toEqual([
       "store_count",
       "staff_accounts",
       "product_limit",
       "media_storage",
       "visual_builder",
+      "discounts",
     ]);
   });
 });

@@ -41,9 +41,29 @@ describe("the widget registry", () => {
   it("takes every upcoming widget's schedule from a store area that hasn't shipped", () => {
     for (const widget of Object.values(DASHBOARD_WIDGETS)) {
       if (widget.source.kind !== "upcoming") continue;
-      // When an area ships, its widgets must be wired to real data.
-      expect(STORE_AREAS[widget.source.area].availability, widget.key).toBeDefined();
+      // When an area ships, its widgets must be wired to real data, unless
+      // the widget's own data comes later and it says when.
+      const schedule = widget.source.availability ?? STORE_AREAS[widget.source.area].availability;
+      expect(schedule, widget.key).toBeDefined();
     }
+  });
+
+  it("wires the shipped orders and customers areas to real, period-scoped data", () => {
+    expect(STORE_AREAS.orders.availability).toBeUndefined();
+    expect(STORE_AREAS.customers.availability).toBeUndefined();
+    for (const key of ["revenue", "orders", "customers", "sales-trend", "top-products"] as const) {
+      expect(DASHBOARD_WIDGETS[key].source.kind, key).toBe("live");
+    }
+    expect(DASHBOARD_WIDGETS["sales-trend"].source).toEqual({ kind: "live", period: "trend" });
+    expect(DASHBOARD_WIDGETS["top-products"].source).toEqual({ kind: "live", period: "ranking" });
+    // Nothing still waits on orders; enquiries wait on site forms, not customers.
+    const waiting = Object.values(DASHBOARD_WIDGETS).filter(
+      (w) =>
+        w.source.kind === "upcoming" &&
+        (w.source.area === "orders" || w.source.area === "customers"),
+    );
+    expect(waiting.map((w) => w.key)).toEqual(["enquiries"]);
+    expect(DASHBOARD_WIDGETS.enquiries.source).toMatchObject({ availability: "a later release" });
   });
 });
 
@@ -179,14 +199,32 @@ describe("composeDashboard: entitlements decide commercial access", () => {
       permissions: OWNER,
       grantedFeatures: PAID,
     }).widgets;
-    const revenue = find(widgets, "revenue").state;
-    expect(revenue).toMatchObject({ kind: "upcoming", area: "orders", visual: "metric" });
-    if (revenue.kind !== "upcoming") throw new Error("expected upcoming");
-    expect(revenue.availability).toBe(STORE_AREAS.orders.availability);
-    expect(revenue.areaLabel).toBe("Orders");
+    const conversion = find(widgets, "conversion").state;
+    expect(conversion).toMatchObject({ kind: "upcoming", area: "analytics", visual: "metric" });
+    if (conversion.kind !== "upcoming") throw new Error("expected upcoming");
+    expect(conversion.availability).toBe(STORE_AREAS.analytics.availability);
+    expect(conversion.areaLabel).toBe("Analytics");
     // Inventory shipped in Milestone 3: its widgets show real data.
     expect(find(widgets, "stock-alerts").state).toEqual({ kind: "live" });
     expect(find(widgets, "catalogue").state).toEqual({ kind: "live" });
+    // Orders and customers shipped in Milestone 6: real figures over the period.
+    expect(find(widgets, "revenue").state).toEqual({ kind: "live", period: "metric" });
+    expect(find(widgets, "customers").state).toEqual({ kind: "live", period: "metric" });
+  });
+
+  it("takes a widget's own schedule when its data comes after its area", () => {
+    const enquiries = find(
+      composeDashboard({ businessType: "BUSINESS", permissions: OWNER, grantedFeatures: PAID })
+        .widgets,
+      "enquiries",
+    ).state;
+    expect(enquiries).toEqual({
+      kind: "upcoming",
+      area: "customers",
+      areaLabel: "Customers",
+      availability: "a later release",
+      visual: "metric",
+    });
   });
 });
 
@@ -247,9 +285,30 @@ describe("widgetDisplay and the period control", () => {
     expect(widgetDisplay(find(compose(FREE), "traffic-trend"), true)).toBe("locked");
   });
 
+  it("shows live order figures as real data, and example data only in a preview", () => {
+    const store = composeDashboard({
+      businessType: "ECOMMERCE",
+      permissions: OWNER,
+      grantedFeatures: FREE,
+    }).widgets;
+    for (const key of ["revenue", "orders", "customers", "sales-trend", "top-products"]) {
+      expect(widgetDisplay(find(store, key), false), key).toBe("live");
+      expect(widgetDisplay(find(store, key), true), key).toBe("example");
+    }
+    // Live widgets without period figures stay real in a preview.
+    expect(widgetDisplay(find(store, "catalogue"), true)).toBe("live");
+  });
+
   it("offers the period control only when a time-based widget has data", () => {
     expect(hasPeriodData(compose(PAID), false)).toBe(false);
     expect(hasPeriodData(compose(PAID), true)).toBe(true);
+    // An online store's order figures are real, so the period scopes them.
+    const owner = composeDashboard({
+      businessType: "ECOMMERCE",
+      permissions: OWNER,
+      grantedFeatures: FREE,
+    }).widgets;
+    expect(hasPeriodData(owner, false)).toBe(true);
     // A designer on an online store sees only stock alerts (a list): nothing to scope.
     const designer = composeDashboard({
       businessType: "ECOMMERCE",

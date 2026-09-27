@@ -75,10 +75,10 @@ export const FEATURE_AVAILABILITY: Readonly<Record<FeatureKey, string | null>> =
   staff_accounts: null,
   product_limit: null,
   media_storage: null,
-  // The Admin API ships with outbound webhooks (ADR-0027 §1).
-  api_access: "Coming in Milestone 6",
+  // The Admin API ships with outbound webhooks, deferred as a whole (ADR-0031 §13).
+  api_access: "On the roadmap",
   visual_builder: null,
-  discounts: "Coming in Milestone 6",
+  discounts: null,
   custom_domain: "Coming in Milestone 7",
   export: "Coming in Milestone 8",
   advanced_builder: "On the roadmap",

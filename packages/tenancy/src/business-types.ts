@@ -65,7 +65,6 @@ export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
     label: "Orders",
     segment: "/orders",
     permission: "order.read",
-    availability: "Milestone 6",
     description: "Orders placed on your storefront, with payment and fulfilment status.",
   },
   products: {
@@ -87,8 +86,7 @@ export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
     label: "Customers",
     segment: "/customers",
     permission: "customer.read",
-    availability: "Milestone 6",
-    description: "Your customers, their addresses and order history.",
+    description: "Customers who ordered from your store, with their order history.",
   },
   website: {
     key: "website",
@@ -158,8 +156,7 @@ export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
     segment: "/marketing",
     permission: "discount.read",
     feature: "discounts",
-    availability: "Milestone 6",
-    description: "Discounts and campaigns.",
+    description: "Discount codes for your storefront.",
   },
   analytics: {
     key: "analytics",

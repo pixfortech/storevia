@@ -17,19 +17,27 @@ const widgets = (
     .widgets;
 const keys = (list: readonly { key: string }[]) => list.map((w) => w.key);
 
-describe("arrangeDashboard without data (every real store today)", () => {
+describe("arrangeDashboard with real data only (production)", () => {
   const layout = arrangeDashboard(widgets("ECOMMERCE"), false);
 
   it("draws no empty frames: only live widgets get a card", () => {
-    expect(layout.metrics).toEqual([]);
-    expect(keys(layout.main)).toEqual(["setup"]);
+    // Orders and customers are live: their figures always get a card.
+    expect(keys(layout.metrics)).toEqual(["revenue", "orders", "customers"]);
+    expect(keys(layout.main)).toEqual(["sales-trend", "setup"]);
     expect(keys(layout.rail)).toEqual(["website-status", "plan-usage", "team"]);
     expect(keys(layout.bands)).toEqual(["focus"]);
   });
 
-  it("gives the live catalogue modules their own row beside recent activity", () => {
-    expect(keys(layout.modules)).toEqual(["catalogue", "stock-alerts", "activity"]);
+  it("gives the live catalogue and sales modules their own row beside recent activity", () => {
+    expect(keys(layout.modules)).toEqual(["catalogue", "stock-alerts", "top-products", "activity"]);
     expect(layout.underMain).toBeNull();
+  });
+
+  it("shows a member who reads customers but not orders only the customers figure", () => {
+    const marketing = arrangeDashboard(widgets("ECOMMERCE", PAID, "MARKETING"), false);
+    expect(keys(marketing.metrics)).toEqual(["customers"]);
+    expect(keys(marketing.main)).not.toContain("sales-trend");
+    expect(keys(marketing.modules)).not.toContain("top-products");
   });
 
   it("puts a lone secondary module under the main column, not in a row of its own", () => {
@@ -45,12 +53,18 @@ describe("arrangeDashboard without data (every real store today)", () => {
   });
 
   it("summarises the rest by the store area their data starts with, soonest first", () => {
+    // Nothing from orders or customers is upcoming any more.
     expect(layout.tracking.map((g) => [g.area, g.metrics])).toEqual([
-      ["orders", ["Revenue", "Orders", "Sales", "Top products"]],
-      ["customers", ["Customers"]],
       ["analytics", ["Conversion"]],
     ]);
-    expect(layout.tracking[0]?.availability).toBe(STORE_AREAS.orders.availability);
+    expect(layout.tracking[0]?.availability).toBe(STORE_AREAS.analytics.availability);
+    // Enquiries sit with customers but wait for site forms, in a later release.
+    const business = arrangeDashboard(widgets("BUSINESS"), false);
+    expect(business.tracking.find((g) => g.area === "customers")).toMatchObject({
+      label: "Customers",
+      availability: "a later release",
+      metrics: ["Enquiries"],
+    });
   });
 
   it("names each figure once, even when two widgets share a title", () => {

@@ -264,12 +264,13 @@ export function exampleTrend(
 // Rankings and shares: fixed monthly figures, scaled to the period, so the
 // period control visibly re-scopes them.
 const RANKINGS: Readonly<Record<string, readonly (readonly [string, number])[]>> = {
+  // Units sold, as the live Top products widget ranks them.
   products: [
-    ["Linen overshirt", 8420],
-    ["Canvas weekender", 6180],
-    ["Merino crew", 4970],
-    ["Leather card holder", 3310],
-    ["Cotton tote", 1860],
+    ["Linen overshirt", 142],
+    ["Canvas weekender", 96],
+    ["Merino crew", 81],
+    ["Leather card holder", 57],
+    ["Cotton tote", 38],
   ],
   BUSINESS: [
     ["Home", 4210],

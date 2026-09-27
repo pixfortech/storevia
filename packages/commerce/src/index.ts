@@ -129,3 +129,13 @@ export {
   setPaymentConnectionActive,
 } from "./settings/payments";
 export type { PaymentConnectionView, PaymentSettings } from "./settings/payments";
+export { storeCustomerSummary, storeSalesSummary, SALES_MAX_DAYS } from "./orders/metrics";
+export type {
+  CustomerDay,
+  CustomerPeriod,
+  SalesDay,
+  SalesPeriod,
+  StoreCustomerSummary,
+  StoreSalesSummary,
+  TopProduct,
+} from "./orders/metrics";

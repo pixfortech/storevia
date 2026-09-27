@@ -1,4 +1,4 @@
-import { getCatalogueOverview } from "@storevia/commerce";
+import { getCatalogueOverview, storeCustomerSummary, storeSalesSummary } from "@storevia/commerce";
 import { listPages } from "@storevia/site-admin";
 import { isByteFeature } from "@storevia/entitlements/format";
 import {
@@ -27,12 +27,18 @@ import { planIndicator } from "@/components/shell/plan";
 import { BUSINESS_TYPE_GLYPH } from "@/lib/business-types";
 import { describeActivity, relativeTime } from "@/lib/dashboard/activity";
 import { inventoryPath, productPath, productsPath } from "@/lib/catalogue";
-import { composeDashboard, focusAreas, hasPeriodData } from "@/lib/dashboard/compose";
+import {
+  composeDashboard,
+  focusAreas,
+  hasPeriodData,
+  widgetDisplay,
+} from "@/lib/dashboard/compose";
 import { arrangeDashboard } from "@/lib/dashboard/layout";
 import {
   DASHBOARD_PERIODS,
   isExamplePreview,
   parsePeriod,
+  PERIOD_DAYS,
   type DashboardPeriod,
 } from "@/lib/dashboard/preview";
 import { greeting, setupTasks, storeStatusBadge } from "@/lib/dashboard/setup";
@@ -48,10 +54,11 @@ export const metadata: Metadata = { title: "Home" };
  * The store home (brief §10–12): a widget composition shared by every
  * business type (lib/dashboard). Business type picks and words the widgets,
  * RBAC decides which exist (and which data is loaded at all), and the plan
- * decides which are locked. Widgets with no data (domains Storevia doesn't
- * collect yet, plan-locked features) are summarised in one "What you'll
- * track" strip rather than drawn as empty frames; ?preview=example draws
- * badged example data in development.
+ * decides which are locked. Order and customer figures are real, for the
+ * period in ?range= (zeros before the first order). Widgets with no data
+ * (domains Storevia doesn't collect yet, plan-locked features) are
+ * summarised in one "What you'll track" strip rather than drawn as empty
+ * frames; ?preview=example draws badged example data in development.
  */
 export default async function StoreHomePage({
   params,
@@ -73,16 +80,25 @@ export default async function StoreHomePage({
     grantedFeatures: granted,
   });
   const shows = (key: WidgetKey) => dashboard.widgets.some((w) => w.key === key);
+  // Real figures, for widgets that draw them (a preview draws example data).
+  const showsLive = (key: WidgetKey) =>
+    dashboard.widgets.some((w) => w.key === key && widgetDisplay(w, preview) === "live");
+  const needsSales = (["revenue", "orders", "sales-trend", "top-products"] as const).some(
+    showsLive,
+  );
+  const days = PERIOD_DAYS[period];
   // Load only what a visible widget needs; each read enforces its own permission.
   const needsMembers =
     hasPermission(ctx, "member.read") && (shows("team") || hasPermission(ctx, "member.manage"));
-  const [store, billing, members, activity, overview, pages] = await Promise.all([
+  const [store, billing, members, activity, overview, pages, sales, customers] = await Promise.all([
     getStore(ctx),
     shows("plan-usage") ? getOrganisationBilling(ctx) : null,
     needsMembers ? listMembers(organisationOf(ctx)) : null,
     shows("activity") ? listRecentActivity(ctx, { limit: 5 }) : null,
     shows("catalogue") || shows("stock-alerts") ? getCatalogueOverview(ctx) : null,
     shows("content-updates") ? listPages(ctx) : null,
+    needsSales ? storeSalesSummary(ctx, { days }) : null,
+    showsLive("customers") ? storeCustomerSummary(ctx, { days }) : null,
   ]);
 
   const definition = BUSINESS_TYPE_DEFINITIONS[store.businessType];
@@ -191,6 +207,10 @@ export default async function StoreHomePage({
           pagesHref: pagesPath(ctx.storeId),
         }
       : null,
+    sales: sales ? { figures: sales, ordersHref: storePath(ctx.storeId, "/orders") } : null,
+    customers: customers
+      ? { figures: customers, customersHref: storePath(ctx.storeId, "/customers") }
+      : null,
     focus: focusAreas(store.businessType, ctx.permissions, granted).map((item) => ({
       ...item,
       href: storePath(ctx.storeId, item.area.segment),
@@ -200,10 +220,11 @@ export default async function StoreHomePage({
   const layout = arrangeDashboard(dashboard.widgets, preview);
   const status = storeStatusBadge(store.status);
   const home = storePath(ctx.storeId);
+  // A preview's period links stay in the preview.
   const periodHrefs = Object.fromEntries(
     DASHBOARD_PERIODS.map((p) => [
       p,
-      `${home}?${new URLSearchParams({ preview: "example", range: p }).toString()}`,
+      `${home}?${new URLSearchParams(preview ? { preview: "example", range: p } : { range: p }).toString()}`,
     ]),
   ) as Record<DashboardPeriod, string>;
 
@@ -234,8 +255,8 @@ export default async function StoreHomePage({
 
       {query["welcome"] === "1" ? (
         <Alert tone="success" title="Your store is ready" className="mb-6">
-          It isn&apos;t visible to visitors yet: the storefront and site builder arrive in upcoming
-          milestones.
+          It isn&apos;t visible to visitors yet. Add products and design your site, then go live
+          from Settings when you&apos;re ready.
         </Alert>
       ) : null}
 

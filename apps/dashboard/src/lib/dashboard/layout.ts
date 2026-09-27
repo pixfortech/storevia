@@ -2,10 +2,10 @@
 // arrangement is unit-tested. Only widgets with something to show get a
 // card: every widget that has no data (a domain Storevia doesn't collect
 // yet, or a plan feature the organisation lacks) is summarised in one
-// "What you'll track" strip instead of drawing an empty frame each. Today
-// no store has collected data, so the real page opens with setup and the
-// website, not with a wall of placeholders (brief §10: don't show every
-// chart at once).
+// "What you'll track" strip instead of drawing an empty frame each, so the
+// page never opens with a wall of placeholders (brief §10: don't show every
+// chart at once). Orders and customers are live (Milestone 6): their
+// figures always get a card, with honest zeros before the first order.
 import type { FeatureKey } from "@storevia/entitlements/features";
 import { STORE_AREAS, type AreaKey } from "@storevia/tenancy/business-types";
 import { widgetDisplay, type ComposedWidget } from "./compose";
@@ -56,22 +56,26 @@ function milestone(availability: string | undefined): number {
 export function trackingGroups(widgets: readonly ComposedWidget[]): TrackingGroup[] {
   const groups = new Map<
     string,
-    { area: AreaKey; lockedBy: FeatureKey | null; metrics: string[] }
+    {
+      area: AreaKey;
+      availability: string | undefined;
+      lockedBy: FeatureKey | null;
+      metrics: string[];
+    }
   >();
   for (const widget of widgets) {
     const source = DASHBOARD_WIDGETS[widget.key].source;
     if (source.kind !== "upcoming") continue;
     const lockedBy = widget.state.kind === "locked" ? widget.state.feature : null;
-    const id = `${source.area}:${lockedBy ?? ""}`;
-    const group = groups.get(id) ?? { area: source.area, lockedBy, metrics: [] };
+    // A widget whose data comes after its area ships (enquiries) says when.
+    const availability = source.availability ?? STORE_AREAS[source.area].availability;
+    const id = `${source.area}:${lockedBy ?? ""}:${availability ?? ""}`;
+    const group = groups.get(id) ?? { area: source.area, availability, lockedBy, metrics: [] };
     if (!group.metrics.includes(widget.title)) group.metrics.push(widget.title);
     groups.set(id, group);
   }
   return [...groups.values()]
-    .map((group) => {
-      const area = STORE_AREAS[group.area];
-      return { ...group, label: area.label, availability: area.availability };
-    })
+    .map((group) => ({ ...group, label: STORE_AREAS[group.area].label }))
     .sort(
       (a, b) =>
         Number(a.lockedBy !== null) - Number(b.lockedBy !== null) ||

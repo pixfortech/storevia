@@ -54,13 +54,24 @@ export type WidgetSize = "kpi" | "main" | "rail" | "half" | "full";
 export type UpcomingVisual = "metric" | "trend" | "ranking" | "share" | "list";
 
 export type WidgetSource =
-  /** The data exists today; the widget has its own component. */
-  | { readonly kind: "live" }
+  /**
+   * The data exists today; the widget has its own component. `period`
+   * marks a figure over the dashboard's period (the period control scopes
+   * it); a development preview draws it with example data in that visual,
+   * like an upcoming widget, so the design can be reviewed on an empty store.
+   */
+  | { readonly kind: "live"; readonly period?: UpcomingVisual }
   /**
    * The domain isn't built yet. It starts collecting when the store area
-   * ships; the milestone is read from STORE_AREAS, never repeated here.
+   * ships; the milestone is read from STORE_AREAS, never repeated here,
+   * unless the widget's data arrives after its area (`availability`).
    */
-  | { readonly kind: "upcoming"; readonly area: AreaKey; readonly visual: UpcomingVisual };
+  | {
+      readonly kind: "upcoming";
+      readonly area: AreaKey;
+      readonly visual: UpcomingVisual;
+      readonly availability?: string;
+    };
 
 export interface WidgetCopy {
   readonly title: string;
@@ -85,31 +96,34 @@ export interface WidgetDefinition extends WidgetCopy {
 const ALL: readonly BusinessType[] = ["ECOMMERCE", "BUSINESS", "PUBLISHING", "PORTFOLIO"];
 const SITES: readonly BusinessType[] = ["BUSINESS", "PUBLISHING", "PORTFOLIO"];
 
-const upcoming = (area: AreaKey, visual: UpcomingVisual): WidgetSource => ({
+const upcoming = (area: AreaKey, visual: UpcomingVisual, availability?: string): WidgetSource => ({
   kind: "upcoming",
   area,
   visual,
+  ...(availability === undefined ? {} : { availability }),
 });
 const LIVE: WidgetSource = { kind: "live" };
+/** Live, and scoped by the period control (orders and customers). */
+const livePeriod = (visual: UpcomingVisual): WidgetSource => ({ kind: "live", period: visual });
 
 export const DASHBOARD_WIDGETS: Readonly<Record<WidgetKey, WidgetDefinition>> = {
   revenue: {
     key: "revenue",
     title: "Revenue",
-    description: "Sales from paid orders.",
+    description: "Order totals less refunds, without cancelled orders.",
     size: "kpi",
     businessTypes: ["ECOMMERCE"],
     permission: "order.read",
-    source: upcoming("orders", "metric"),
+    source: livePeriod("metric"),
   },
   orders: {
     key: "orders",
     title: "Orders",
-    description: "Orders placed on your storefront.",
+    description: "Orders placed on your storefront, not counting cancelled ones.",
     size: "kpi",
     businessTypes: ["ECOMMERCE"],
     permission: "order.read",
-    source: upcoming("orders", "metric"),
+    source: livePeriod("metric"),
   },
   conversion: {
     key: "conversion",
@@ -128,7 +142,7 @@ export const DASHBOARD_WIDGETS: Readonly<Record<WidgetKey, WidgetDefinition>> = 
     size: "kpi",
     businessTypes: ["ECOMMERCE"],
     permission: "customer.read",
-    source: upcoming("customers", "metric"),
+    source: livePeriod("metric"),
   },
   visitors: {
     key: "visitors",
@@ -162,7 +176,8 @@ export const DASHBOARD_WIDGETS: Readonly<Record<WidgetKey, WidgetDefinition>> = 
     source: upcoming("analytics", "metric"),
   },
   // Enquiries carry visitors' contact details, so only members who may read
-  // customer details see them. Forms arrive with customer records.
+  // customer details see them, and they sit with customers. Customer records
+  // shipped with orders (Milestone 6); site forms come in a later release.
   enquiries: {
     key: "enquiries",
     title: "Enquiries",
@@ -170,7 +185,7 @@ export const DASHBOARD_WIDGETS: Readonly<Record<WidgetKey, WidgetDefinition>> = 
     size: "kpi",
     businessTypes: ["BUSINESS", "PORTFOLIO"],
     permission: "customer.read",
-    source: upcoming("customers", "metric"),
+    source: upcoming("customers", "metric", "a later release"),
   },
   "posts-published": {
     key: "posts-published",
@@ -188,7 +203,7 @@ export const DASHBOARD_WIDGETS: Readonly<Record<WidgetKey, WidgetDefinition>> = 
     size: "main",
     businessTypes: ["ECOMMERCE"],
     permission: "order.read",
-    source: upcoming("orders", "trend"),
+    source: livePeriod("trend"),
   },
   "traffic-trend": {
     key: "traffic-trend",
@@ -256,11 +271,11 @@ export const DASHBOARD_WIDGETS: Readonly<Record<WidgetKey, WidgetDefinition>> = 
   "top-products": {
     key: "top-products",
     title: "Top products",
-    description: "Best sellers by revenue.",
+    description: "Best sellers by units sold, without cancelled orders.",
     size: "half",
     businessTypes: ["ECOMMERCE"],
     permission: "order.read",
-    source: upcoming("orders", "ranking"),
+    source: livePeriod("ranking"),
   },
   "stock-alerts": {
     key: "stock-alerts",

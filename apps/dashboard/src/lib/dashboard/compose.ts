@@ -36,7 +36,11 @@ export interface DashboardPreferences {
 }
 
 export type WidgetState =
-  | { readonly kind: "live" }
+  | {
+      readonly kind: "live";
+      /** A figure over the dashboard's period, and its visual in a preview (see WidgetSource). */
+      readonly period?: UpcomingVisual;
+    }
   | {
       readonly kind: "upcoming";
       readonly area: AreaKey;
@@ -75,17 +79,18 @@ function stateOf(definition: WidgetDefinition, granted: ReadonlySet<FeatureKey>)
   if (definition.feature !== undefined && !granted.has(definition.feature)) {
     return { kind: "locked", feature: definition.feature };
   }
-  if (definition.source.kind === "upcoming") {
-    const area = STORE_AREAS[definition.source.area];
+  const { source } = definition;
+  if (source.kind === "upcoming") {
+    const area = STORE_AREAS[source.area];
     return {
       kind: "upcoming",
       area: area.key,
       areaLabel: area.label,
-      availability: area.availability ?? LATER,
-      visual: definition.source.visual,
+      availability: source.availability ?? area.availability ?? LATER,
+      visual: source.visual,
     };
   }
-  return { kind: "live" };
+  return source.period === undefined ? { kind: "live" } : { kind: "live", period: source.period };
 }
 
 /**
@@ -135,7 +140,9 @@ export function composeDashboard({
  * clearly badged example data in a development preview (example), or
  * nothing because the plan lacks it (locked). Locked widgets never show
  * data, not even example data. Empty and locked widgets get no card of
- * their own; arrangeDashboard() summarises them in one strip.
+ * their own; arrangeDashboard() summarises them in one strip. Outside a
+ * preview a widget is never "example": live figures are always real, even
+ * when they are zero.
  */
 export type WidgetDisplay = "live" | "empty" | "example" | "locked";
 
@@ -146,22 +153,38 @@ export function widgetDisplay(widget: ComposedWidget, preview: boolean): WidgetD
     case "upcoming":
       return preview ? "example" : "empty";
     default:
-      return "live";
+      // A preview draws every period figure with example data, so the
+      // design can be reviewed on a store with no orders.
+      return preview && widget.state.period !== undefined ? "example" : "live";
+  }
+}
+
+/** The visual a widget's figures take: an upcoming widget's, or a live period figure's. */
+export function widgetVisual(widget: ComposedWidget): UpcomingVisual | undefined {
+  switch (widget.state.kind) {
+    case "upcoming":
+      return widget.state.visual;
+    case "live":
+      return widget.state.period;
+    default:
+      return undefined;
   }
 }
 
 /**
  * Whether a period control would change anything: some time-based widget
- * has data to scope. Nothing collects data yet, so this is true only in a
- * development preview; production never shows a control that does nothing.
+ * (a figure, trend, ranking or share, not a list) has data to scope, real
+ * (a live period figure such as revenue) or example (a preview). A member
+ * who sees none of those gets no control that does nothing.
  */
 export function hasPeriodData(widgets: readonly ComposedWidget[], preview: boolean): boolean {
-  return widgets.some(
-    (widget) =>
-      widgetDisplay(widget, preview) === "example" &&
-      widget.state.kind === "upcoming" &&
-      widget.state.visual !== "list",
-  );
+  return widgets.some((widget) => {
+    const display = widgetDisplay(widget, preview);
+    const visual = widgetVisual(widget);
+    return (
+      (display === "live" || display === "example") && visual !== undefined && visual !== "list"
+    );
+  });
 }
 
 export interface FocusArea {

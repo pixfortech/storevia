@@ -1,9 +1,11 @@
-// Widgets for data domains Storevia doesn't collect yet (orders, visitors,
-// content…). They get a card only when there is something to draw, which
-// today means a development preview's example data, always badged. Without
-// data they are summarised in the "What you'll track" strip (TrackingCard),
-// plan-locked ones too, so the page never stacks empty frames and a locked
-// widget never shows data, not even example data.
+// Example-data widgets: for data domains Storevia doesn't collect yet
+// (visitors, content…) and, in a development preview only, for the live
+// order and customer figures too (their real versions are in
+// sales-widgets.tsx). They get a card only when there is something to draw,
+// which here means a development preview's example data, always badged.
+// Without data they are summarised in the "What you'll track" strip
+// (TrackingCard), plan-locked ones too, so the page never stacks empty
+// frames and a locked widget never shows data, not even example data.
 import {
   BarChart,
   ChartCard,
@@ -119,7 +121,7 @@ export function TrackingCard({
           // Hairlines above and to the left of every cell: along the card's
           // edge they fall on its own border, so any column count works.
           <li
-            key={`${group.area}:${group.lockedBy ?? ""}`}
+            key={`${group.area}:${group.lockedBy ?? ""}:${group.availability ?? ""}`}
             className="flex gap-3.5 px-5 py-4.5 shadow-[-1px_-1px_0_var(--color-line)] sm:px-6"
           >
             <span className="flex size-8 shrink-0 items-center justify-center rounded-control bg-subtle text-ink-muted ring-1 ring-line ring-inset">
@@ -230,14 +232,10 @@ export function RankingWidget({
         series={exampleRanking(
           products ? "top-products" : "top-content",
           scope.businessType,
-          products ? "Revenue" : "Views",
+          products ? "Units sold" : "Views",
           days,
         )}
-        valueFormat={
-          products
-            ? { style: "currency", currency: scope.format.currency, maximumFractionDigits: 0 }
-            : { maximumFractionDigits: 0 }
-        }
+        valueFormat={{ maximumFractionDigits: 0 }}
         locale={scope.format.locale}
       />
     </ChartCard>
