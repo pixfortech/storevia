@@ -8,3 +8,6 @@
 
 # The first version of this file quoted that fixture in a comment.
 c6546fb487aa14741a0166259e3e8491351001ab:.gitleaksignore:generic-api-key:5
+
+# A made-up Razorpay key-secret fixture in the payments adapter's unit tests.
+878ce233f8142a243903c6491572a3479e80bfc1:packages/payments/src/payments.test.ts:generic-api-key:108

@@ -573,7 +573,12 @@ describe("idempotency and concurrency", () => {
     await ready(one);
     await ready(two);
     const payments = await migratorDb().payment.count();
-    const results = await Promise.all([pay(one), pay(two)]);
+    // Both shoppers review first; then both press "pay" at once.
+    const [v1, v2] = [await getCheckout(one.req), await getCheckout(two.req)];
+    const results = await Promise.all([
+      beginPayment(one.req, { pricingHash: v1?.pricingHash, returnUrl: RETURN_URL }),
+      beginPayment(two.req, { pricingHash: v2?.pricingHash, returnUrl: RETURN_URL }),
+    ]);
     expect(results.map((r) => r.kind).sort()).toEqual(["changed", "redirect"]);
     expect(results.find((r) => r.kind === "changed")).toEqual({
       kind: "changed",
@@ -592,7 +597,12 @@ describe("idempotency and concurrency", () => {
       await ready(s);
       await applyDiscountCode(s.req, { code: "LASTONE" });
     }
-    const results = await Promise.all([pay(one), pay(two)]);
+    // Both shoppers review first; then both press "pay" at once.
+    const [v1, v2] = [await getCheckout(one.req), await getCheckout(two.req)];
+    const results = await Promise.all([
+      beginPayment(one.req, { pricingHash: v1?.pricingHash, returnUrl: RETURN_URL }),
+      beginPayment(two.req, { pricingHash: v2?.pricingHash, returnUrl: RETURN_URL }),
+    ]);
     expect(results.map((r) => r.kind).sort()).toEqual(["changed", "redirect"]);
     expect(results.find((r) => r.kind === "changed")).toEqual({
       kind: "changed",
