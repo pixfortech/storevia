@@ -33,3 +33,12 @@ export function mediaOrigins(env: NodeJS.ProcessEnv = process.env): MediaOrigins
 /** Served media never runs anything: no scripts, no plugins, a sandbox. */
 export const MEDIA_RESPONSE_CSP =
   "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox";
+
+/**
+ * Processed media is public by design (unguessable keys, READY assets only)
+ * and is embedded by storefronts on other sites: store hosts and custom
+ * domains are never same-site with the media origin. `<img>` needs no CORS,
+ * only a resource policy that lets other sites embed it. Set on served
+ * originals and renditions only; refusals (raw uploads, other keys) carry none.
+ */
+export const PUBLIC_MEDIA_RESOURCE_POLICY = "cross-origin";

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { captureServerAction, createTenant, replay, type Tenant } from "./helpers";
+import { images } from "./images";
 
 // Product media end to end, on http://localhost:3001: the address Next.js
 // prints and many people open, which isn't the configured DASHBOARD_URL
@@ -8,41 +9,6 @@ import { captureServerAction, createTenant, replay, type Tenant } from "./helper
 // the configuration: before the fix, every image here was refused by the
 // page's Content-Security-Policy.
 test.use({ baseURL: "http://localhost:3001" });
-
-/** A real image in each format, drawn by the browser (no image library needed here). */
-async function images(page: Page) {
-  const encoded = await page.evaluate(async () => {
-    const draw = async (type: string, colour: string) => {
-      const canvas = document.createElement("canvas");
-      canvas.width = 800;
-      canvas.height = 600;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("no canvas");
-      ctx.fillStyle = colour;
-      ctx.fillRect(0, 0, 800, 600);
-      ctx.fillStyle = "#fff";
-      ctx.fillRect(100, 100, 300, 200);
-      const blob = await new Promise<Blob | null>((resolve) => {
-        canvas.toBlob(resolve, type, 0.9);
-      });
-      if (blob?.type !== type) throw new Error(`can't encode ${type}`);
-      const bytes = new Uint8Array(await blob.arrayBuffer());
-      let binary = "";
-      for (const b of bytes) binary += String.fromCharCode(b);
-      return btoa(binary);
-    };
-    return {
-      jpeg: await draw("image/jpeg", "#b45309"),
-      png: await draw("image/png", "#1d4ed8"),
-      webp: await draw("image/webp", "#15803d"),
-    };
-  });
-  return [
-    { name: "mug.jpg", mimeType: "image/jpeg", buffer: Buffer.from(encoded.jpeg, "base64") },
-    { name: "bowl.png", mimeType: "image/png", buffer: Buffer.from(encoded.png, "base64") },
-    { name: "vase.webp", mimeType: "image/webp", buffer: Buffer.from(encoded.webp, "base64") },
-  ];
-}
 
 async function addProduct(page: Page, tenant: Tenant, title: string): Promise<string> {
   await page.goto(`${tenant.storePath}/products/new`);

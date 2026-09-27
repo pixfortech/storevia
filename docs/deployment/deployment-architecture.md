@@ -94,7 +94,15 @@ Media bucket and CDN (ADR-0027 §9): the CDN serves only asset keys
 **never serve the `uploads/` prefix**; a lifecycle rule expires `uploads/`
 objects after one day. The CDN adds `X-Content-Type-Options: nosniff`, a
 sandboxing `Content-Security-Policy` and the stored content type to every
-media response. Uploads use S3 POST policies; confirm the provider enforces
+media response, and `Cross-Origin-Resource-Policy: cross-origin` to asset
+responses only (S3 object metadata can't set it). Storefronts
+(`*.storevia.site`, custom domains) are never same-site with
+`media.storeviausercontent.com`, so `same-site` or `same-origin` would block
+every product image (`ERR_BLOCKED_BY_RESPONSE.NotSameSite`). No CORS header
+(`Access-Control-Allow-Origin`) is needed or set: images load with plain
+`<img>`. Refusals (`uploads/`, unknown keys) must not carry the
+`cross-origin` policy. The local `/media/…` route follows the same contract,
+checked by `apps/dashboard/e2e/storefront-media.spec.ts`. Uploads use S3 POST policies; confirm the provider enforces
 `content-length-range` and exact `Content-Type` conditions before switching
 providers.
 

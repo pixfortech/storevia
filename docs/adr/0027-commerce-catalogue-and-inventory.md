@@ -195,8 +195,10 @@ application/octet-stream`. A store may have at most 20 pending uploads
 - Media references (variant, collection and product media) must point at
   `READY`, non-deleted media in the same store; the check locks the asset
   `FOR SHARE` so it serialises with deletion.
-- Media is served with the stored, sniffed content type, `nosniff` and a
-  sandboxing CSP; in production from the user-content domain. In
+- Media is served with the stored, sniffed content type, `nosniff`, a
+  sandboxing CSP and `Cross-Origin-Resource-Policy: cross-origin` (processed
+  media is public and embedded by storefronts on other sites; no CORS); in
+  production from the user-content domain. In
   development the dashboard serves local objects at `/media/…`, only
   cleaned originals and renditions, never the raw upload; the dashboard CSP
   allows the configured media origin for images and uploads. The local adapter is allowed only when `STOREVIA_ENV` is `development`
