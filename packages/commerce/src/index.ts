@@ -74,3 +74,58 @@ export { csvExporter, exportProducts } from "./import-export";
 export type { ProductExporter, ProductImporter } from "./import-export";
 export { getCatalogue } from "./catalogue";
 export type { CatalogueProduct, CatalogueVariant } from "./catalogue";
+
+// Orders, customers and store settings (ADR-0031).
+export { getOrder, listOrders, loadOrderDetail, orderMetrics } from "./orders/read";
+export type {
+  OrderDetail,
+  OrderListItem,
+  OrderListResult,
+  OrderMetrics,
+  OrderStatusFilter,
+} from "./orders/read";
+export {
+  cancelOrder,
+  fulfilOrder,
+  refundOrder,
+  resolvePendingRefund,
+  updateOrderNote,
+} from "./orders/manage";
+export type { CancelResult, FulfilInput, RefundInput, RefundOutcome } from "./orders/manage";
+export { getCustomer, listCustomers, updateCustomer } from "./customers";
+export type { CustomerDetail, CustomerListItem } from "./customers";
+export {
+  createShippingRate,
+  createShippingZone,
+  deleteShippingRate,
+  deleteShippingZone,
+  getShippingSettings,
+  updateShippingRate,
+  updateShippingZone,
+} from "./settings/shipping";
+export type { ShippingRateView, ShippingZoneView } from "./settings/shipping";
+export {
+  createTaxRate,
+  deleteTaxRate,
+  getTaxSettings,
+  percentToPpm,
+  ppmToPercent,
+  updateTaxRate,
+  updateTaxSettings,
+} from "./settings/tax";
+export type { TaxRateView, TaxSettings } from "./settings/tax";
+export {
+  createDiscount,
+  deleteDiscount,
+  listDiscounts,
+  setDiscountActive,
+  updateDiscount,
+} from "./settings/discounts";
+export type { DiscountInput, DiscountState, DiscountView } from "./settings/discounts";
+export {
+  connectRazorpay,
+  connectTestPayments,
+  getPaymentSettings,
+  setPaymentConnectionActive,
+} from "./settings/payments";
+export type { PaymentConnectionView, PaymentSettings } from "./settings/payments";

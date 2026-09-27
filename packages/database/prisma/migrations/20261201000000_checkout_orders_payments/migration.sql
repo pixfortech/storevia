@@ -1316,6 +1316,58 @@ END
 $$;
 
 -- ---------------------------------------------------------------------------
+-- 4b. Integration events (ADR-0031 §11), from the database itself like the
+--     M4 cache events: whichever role changes an order or settles a refund,
+--     the event is written in the same transaction, and no role needs INSERT
+--     on OutboxEvent. Events carry ids and numbers only.
+-- ---------------------------------------------------------------------------
+CREATE FUNCTION app_order_outbox() RETURNS trigger
+  LANGUAGE plpgsql SECURITY DEFINER
+  SET search_path = public, pg_temp
+  AS $$
+  DECLARE
+    events text[] := ARRAY[]::text[];
+    entity_type text := 'Order';
+    payload jsonb;
+    e text;
+  BEGIN
+    IF TG_TABLE_NAME = 'Order' THEN
+      payload := jsonb_build_object('orderNumber', NEW."orderNumber");
+      IF TG_OP = 'INSERT' THEN
+        events := ARRAY['order.created'];
+        IF NEW."paymentStatus" = 'PAID' THEN events := array_append(events, 'order.paid'); END IF;
+      ELSE
+        IF NEW.status = 'CANCELLED' AND OLD.status <> 'CANCELLED' THEN
+          events := array_append(events, 'order.cancelled');
+        END IF;
+        IF NEW."fulfilmentStatus" IS DISTINCT FROM OLD."fulfilmentStatus" THEN
+          events := array_append(events, 'order.fulfilled');
+          payload := payload || jsonb_build_object('fulfilmentStatus', NEW."fulfilmentStatus");
+        END IF;
+      END IF;
+    ELSIF TG_TABLE_NAME = 'Refund' THEN
+      entity_type := 'Refund';
+      payload := jsonb_build_object('orderId', NEW."orderId", 'amount', NEW.amount::text);
+      IF NEW.status = 'SUCCEEDED' AND OLD.status <> 'SUCCEEDED' THEN
+        events := ARRAY['refund.created'];
+      END IF;
+    END IF;
+    FOREACH e IN ARRAY events LOOP
+      INSERT INTO "OutboxEvent" (id, "organisationId", "storeId", type, "entityType", "entityId", payload)
+        VALUES (gen_random_uuid(), NEW."organisationId", NEW."storeId", e, entity_type, NEW.id, payload);
+    END LOOP;
+    RETURN NULL;
+  END
+  $$;
+REVOKE ALL ON FUNCTION app_order_outbox() FROM PUBLIC;
+CREATE TRIGGER "Order_outbox_insert" AFTER INSERT ON "Order"
+  FOR EACH ROW EXECUTE FUNCTION app_order_outbox();
+CREATE TRIGGER "Order_outbox_update" AFTER UPDATE OF status, "fulfilmentStatus" ON "Order"
+  FOR EACH ROW EXECUTE FUNCTION app_order_outbox();
+CREATE TRIGGER "Refund_outbox" AFTER UPDATE OF status ON "Refund"
+  FOR EACH ROW EXECUTE FUNCTION app_order_outbox();
+
+-- ---------------------------------------------------------------------------
 -- 5. Row-level security: the tenant policy on every new table, ownership
 --    columns immutable.
 -- ---------------------------------------------------------------------------
@@ -1518,7 +1570,6 @@ GRANT UPDATE (status, "providerPaymentId", "providerChargeId", "redirectUrl", "c
   "capturedAt", "failureCode", "failureMessage", "orderId", "updatedAt") ON "Payment" TO storevia_checkout;
 GRANT SELECT, INSERT ON "PaymentWebhookEvent" TO storevia_checkout;
 GRANT UPDATE (status, attempts, "lastError", "processedAt") ON "PaymentWebhookEvent" TO storevia_checkout;
-GRANT INSERT ON "OutboxEvent" TO storevia_checkout;
 GRANT SELECT, INSERT, UPDATE ON "RateLimit" TO storevia_checkout;
 
 -- ---------------------------------------------------------------------------

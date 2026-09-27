@@ -25,6 +25,7 @@ export const ID_PREFIXES = {
   // Checkout, orders and payments (ADR-0031).
   customer: "cus",
   order: "order",
+  orderLine: "oline",
   discount: "disc",
   shippingZone: "shipzone",
   shippingRate: "shiprate",

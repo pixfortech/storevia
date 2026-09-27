@@ -72,6 +72,13 @@ const ALLOWED_METADATA_KEYS = new Set([
   "preset",
   "menu",
   "items",
+  // Orders, refunds and payment settings (ADR-0031): numbers, amounts and
+  // provider names, never addresses, card data or credentials.
+  "orderNumber",
+  "amount",
+  "currency",
+  "provider",
+  "mode",
 ]);
 
 /** Longer free text allowed for these keys (staff-entered reasons). */

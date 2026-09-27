@@ -279,10 +279,14 @@ one store can't exhaust another's.
 
 ### 11. Outbox events
 
-`order.created`, `order.paid`, `order.cancelled`, `order.fulfilled`,
-`refund.created` are written by the services in the changing transaction
-(the M4 cache consumer ignores unknown types). They are the source for
-outbound webhooks later.
+`order.created`, `order.paid`, `order.cancelled`, `order.fulfilled` and
+`refund.created` are written **by database triggers** on `Order` (insert;
+status and fulfilment-status changes) and `Refund` (settled as succeeded),
+in the changing transaction, like the M4 cache events: whichever role or
+service changes an order, the event can't be forgotten, and no role needs
+INSERT on `OutboxEvent`. Events carry ids and numbers only. The storefront
+cache consumer maps them to no tags. They are the source for outbound
+webhooks later.
 
 ### 12. Notifications
 

@@ -2,6 +2,7 @@ import type { TenantTx } from "@storevia/database";
 import { createLogger, recordMetric } from "@storevia/observability";
 import type { ProviderPaymentState } from "@storevia/payments";
 import { uuidv7 } from "@storevia/types";
+import { orderEvent, queueNotification } from "../orders/records";
 import { loadCheckout, type CheckoutRow } from "./load";
 import { parseStoredQuote, type PriceQuote } from "./pricing";
 import { assertCheckoutTransition, assertPaymentTransition, type PaymentStatus } from "./state";
@@ -134,34 +135,6 @@ export async function endAttempt(
     await tx.$executeRaw`
       UPDATE "Checkout" SET status = 'OPEN', "updatedAt" = now() WHERE id = ${checkout.id}::uuid`;
   }
-}
-
-async function orderEvent(
-  tx: TenantTx,
-  scope: StockScope,
-  orderId: string,
-  type: string,
-  message: string,
-  data: Record<string, unknown> | null = null,
-): Promise<void> {
-  await tx.$executeRaw`
-    INSERT INTO "OrderEvent" (id, "organisationId", "storeId", "orderId", type, message, data)
-    VALUES (${uuidv7()}::uuid, ${scope.organisationId}::uuid, ${scope.storeId}::uuid,
-      ${orderId}::uuid, ${type}, ${message}, ${data ? JSON.stringify(data) : null}::jsonb)`;
-}
-
-async function outbox(
-  tx: TenantTx,
-  scope: StockScope,
-  type: string,
-  entityType: string,
-  entityId: string,
-  payload: Record<string, unknown>,
-): Promise<void> {
-  await tx.$executeRaw`
-    INSERT INTO "OutboxEvent" (id, "organisationId", "storeId", type, "entityType", "entityId", payload)
-    VALUES (${uuidv7()}::uuid, ${scope.organisationId}::uuid, ${scope.storeId}::uuid, ${type},
-      ${entityType}, ${entityId}::uuid, ${JSON.stringify(payload)}::jsonb)`;
 }
 
 /**
@@ -463,15 +436,14 @@ async function completeCheckout(
       "Payment arrived after the reservation ended; the discount's usage limit was already reached.",
     );
   }
-  await tx.$executeRaw`
-    INSERT INTO "OrderNotification" (id, "organisationId", "storeId", "orderId", kind, "dedupeKey",
-      recipient, "updatedAt")
-    VALUES (${uuidv7()}::uuid, ${scope.organisationId}::uuid, ${scope.storeId}::uuid,
-      ${orderId}::uuid, 'ORDER_CONFIRMATION', ${`order-confirmation:${orderId}`},
-      ${checkout.email}, now())
-    ON CONFLICT ("dedupeKey") DO NOTHING`;
-  await outbox(tx, scope, "order.created", "Order", orderId, { orderNumber });
-  await outbox(tx, scope, "order.paid", "Order", orderId, { paymentId: payment.id });
+  await queueNotification(
+    tx,
+    scope,
+    orderId,
+    "ORDER_CONFIRMATION",
+    `order-confirmation:${orderId}`,
+    checkout.email,
+  );
 
   recordMetric("checkout.order_created", 1, shortage ? { shortage: "true" } : {});
   log.info("order created", { orderId, orderNumber, paymentId: payment.id });
