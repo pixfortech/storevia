@@ -99,6 +99,17 @@ per-app `vercel.json`/project settings documented; a staging topology doc
 with the exact role-separated Neon connection strings; `.env.example`
 completed.
 
+**Status (M8-7):** built. Every app validates its configuration at boot
+and exits on failure (`@storevia/security/env`; stage rules: TLS database
+URLs and the edge IP header in staging/production, no placeholder secrets
+outside development/test); pools have connect/idle timeouts and are named
+per role; TLS comes from `sslmode` in the URL, which staging and
+production require. The worker runs as a container
+(`apps/worker/Dockerfile`, verified: fatal exit without configuration,
+healthy with it, clean SIGTERM) through `tsx` rather than a bundle.
+`vercel.json` per app, a manual-only `Migrate database` workflow on the
+direct endpoint, and [staging.md](../operations/staging.md).
+
 ## 3. Multi-instance cache correctness
 
 - Host cache: in-memory map, 30 s TTL (`domains/src/resolver.ts`).
@@ -193,6 +204,15 @@ presence; an actual drill into a clean database with timings recorded;
 `docs/operations/backup-restore.md` with Neon PITR configuration, RPO/RTO
 derived from the drill and the provider's guarantees.
 
+**Status (M8-7):** built as one script instead of three:
+`pnpm --filter @storevia/database db:restore-drill` (dump, restore into a
+clean database, verify every table's count and content checksum,
+policies, functions, grants and migration head, and role behaviour;
+`--self-test` proves it can fail). Referential integrity is checked by the
+restore itself: `pg_restore` re-creates every foreign key over the data.
+Drilled locally; RPO/RTO and the schedule are in
+[backup-restore.md](../operations/backup-restore.md).
+
 ## 7. Security
 
 **Sound (verified, keep):**
@@ -279,8 +299,9 @@ derived from the drill and the provider's guarantees.
 
 **Status (M8-4, M8-5):** S1–S13 are fixed (S11 in M8-5), each with the tests
 listed in [threat-model §4.10](../security/threat-model.md#410-milestone-8-hardening-review).
-One item remains: S1's boot-time env validation lands with the other
-apps' validation (M8-7).
+S1's remainder (the edge IP header required at boot in staging and
+production, storefront included) landed with the apps' boot validation in
+M8-7.
 
 The audit log viewers are at `/o/{org}/audit` (dashboard, `audit.read`)
 and `/audit` (platform-admin, `platform.audit.read`). The manual test plan
@@ -400,6 +421,15 @@ that CI does run (duplicate, out-of-order, stale and tampered deliveries),
 refund webhook handling so pending refunds settle automatically, and an
 idempotency key on refund creation.
 
+**Status (M8-7):** the replay harness (`razorpay-flow.int.test.ts`, 7
+cases, run in CI), the sandbox script and the idempotency key are built
+([razorpay-staging.md](../operations/razorpay-staging.md)). **Refund
+webhook handling is deferred:** it needs the webhook path to write refunds
+(new grants for the checkout role) and a rule for a refund Razorpay
+accepted and later failed (reversing recorded money). A refund whose
+answer is lost already stays `PENDING` and the merchant settles it, so
+launch correctness doesn't depend on it.
+
 ## 13. Launch checklist
 
 Pieces are spread across `production-hosting.md`, `public-suffix-list.md`
@@ -410,6 +440,9 @@ runbook, no email provider decision.
 wildcard `*.storevia.site`, custom domains, TLS, Neon, media/CDN, worker,
 email, Razorpay, backups, monitoring, PSL, secret rotation) and
 `docs/operations/secrets-rotation.md`.
+
+**Status (M8-7):** both written; the email provider is a launch-checklist
+decision (Postmark or SES, behind the existing SMTP transport).
 
 ## Not to touch
 

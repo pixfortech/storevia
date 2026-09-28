@@ -46,3 +46,6 @@ apps/*/CLAUDE.md
 
 # Local media storage (MEDIA_STORAGE=local)
 .media/
+
+# Local state (email files, load manifests)
+.storevia/

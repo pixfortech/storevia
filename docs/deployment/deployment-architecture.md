@@ -220,6 +220,10 @@ release tag → manual approval → migrate production (expand-only) → rolling
 
 ## 7. Backups and disaster recovery
 
+> Superseded in M8 by [backup-restore.md](../operations/backup-restore.md)
+> (what is set up, RPO/RTO, the drill and its results). The table below is
+> the M0 target.
+
 | Item                | Target                                                                                             |
 | ------------------- | -------------------------------------------------------------------------------------------------- |
 | DB backups          | Continuous (PITR, 35 days) + daily snapshots copied cross-region; monthly snapshots kept 12 months |
@@ -236,8 +240,10 @@ release tag → manual approval → migrate production (expand-only) → rolling
 - Dashboards/alerts: error rate, p95 latency per surface, DB CPU/connections,
   slow queries (`pg_stat_statements`), queue lag, webhook failure rates,
   billing sync failures, certificate provisioning failures.
-- Health endpoints: `/api/health` (liveness, implemented in M1). Readiness
-  (DB reachable, migrations at the expected version) arrives in M8.
+- Health endpoints: `/api/health` on each app (liveness, M1); the worker
+  serves `/health` (scheduler loop) and `/ready` (database reachable), M8.
+  Each app also refuses to boot on invalid configuration (M8,
+  [staging.md §3](../operations/staging.md#3-configuration-is-validated-at-boot)).
 - Multi-instance deployments must set `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY`
   (and a stable build ID) so every instance accepts the same Server Action
   payloads. Next.js otherwise generates the key per build.
