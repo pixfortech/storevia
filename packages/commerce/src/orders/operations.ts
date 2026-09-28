@@ -15,6 +15,7 @@ import {
   type FulfilmentMethod,
   type ShipmentStatus,
 } from "./lifecycle";
+import { cancelOrderStock, orderReservations } from "../checkout/stock";
 import { orderEvent, queueNotification } from "./records";
 
 // Order operations after payment (post-M7): archiving, the fulfilment
@@ -129,6 +130,17 @@ export async function deleteDemoOrder(
         WHERE p."orderId" = ${orderId}::uuid AND c.mode = 'LIVE'`;
       if ((live[0]?.n ?? 0) > 0) {
         throw conflict("This order took a live payment. It can only be archived.");
+      }
+      // Units still held for the order go back on sale first.
+      if (order.status === "OPEN") {
+        const reservations = await orderReservations(tx, orderId);
+        await cancelOrderStock(
+          tx,
+          scopeOf(store),
+          orderId,
+          reservations.map((r) => ({ reservation: r, quantity: r.quantity })),
+          store.userId,
+        );
       }
       // Audit first: the entry outlives the order it describes.
       await recordAudit(

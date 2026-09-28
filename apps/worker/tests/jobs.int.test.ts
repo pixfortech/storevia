@@ -112,10 +112,20 @@ describe("scheduled through the worker", () => {
     const worker = new Worker(scheduler, 50);
     expect(worker.health().status).toBe("starting");
     worker.start();
+    // Every job ran and succeeded. Counted per job: a 15-second job whose
+    // next slot falls due during the test may legitimately run twice.
     await expect
-      .poll(async () => migratorDb().jobRun.count({ where: { status: "SUCCEEDED" } }), {
-        timeout: 10_000,
-      })
+      .poll(
+        async () =>
+          (
+            await migratorDb().jobRun.findMany({
+              where: { status: "SUCCEEDED" },
+              distinct: ["jobName"],
+              select: { jobName: true },
+            })
+          ).length,
+        { timeout: 10_000 },
+      )
       .toBe(JOBS.length);
     expect(worker.health().status).toBe("ok");
     await worker.stop();
