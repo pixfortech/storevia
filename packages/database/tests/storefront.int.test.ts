@@ -1004,22 +1004,31 @@ describe("outbox", () => {
       `UPDATE "Store" SET "nextOrderNumber" = "nextOrderNumber" + 1 WHERE id = $1`,
       [A().id],
     );
+    // A claimed hostname never changes (ADR-0032): domains come and go instead.
+    await expect(
+      admin.query(
+        `UPDATE "StoreDomain" SET hostname = 'www2.a0.example' WHERE hostname = 'www.a0.example'`,
+      ),
+    ).rejects.toThrow(/immutable/);
     await admin.query(
-      `UPDATE "StoreDomain" SET hostname = 'www2.a0.example' WHERE hostname = 'www.a0.example'`,
+      `INSERT INTO "StoreDomain" (id, "organisationId", "storeId", hostname, type, status, "verificationToken", "updatedAt")
+       VALUES (gen_random_uuid(), $1, $2, 'www2.a0.example', 'CUSTOM', 'PENDING', replace(gen_random_uuid()::text, '-', ''), now())`,
+      [ORG_A, A().id],
     );
     await admin.query(`UPDATE "Organisation" SET status = 'SUSPENDED' WHERE id = $1`, [ORG_A]);
     await admin.query(`UPDATE "Organisation" SET status = 'ACTIVE' WHERE id = $1`, [ORG_A]);
-    await admin.query(
-      `UPDATE "StoreDomain" SET hostname = 'www.a0.example' WHERE hostname = 'www2.a0.example'`,
-    );
+    await admin.query(`DELETE FROM "StoreDomain" WHERE hostname = 'www2.a0.example'`);
     const seen = (await events()).map((e) => [e.type, e.storeId]);
     expect(seen.filter(([t]) => t === "collection.changed")).toEqual([
       ["collection.changed", A().id],
     ]);
     // Name change once; order numbers never; two organisation status changes × two stores.
     expect(seen.filter(([t]) => t === "store.changed")).toHaveLength(1 + 2 * 2);
-    const domain = (await events()).find((e) => e.type === "domain.changed");
-    expect(domain?.payload).toEqual({ hostnames: ["www.a0.example", "www2.a0.example"] });
+    const domains = (await events()).filter((e) => e.type === "domain.changed");
+    expect(domains.map((e) => e.payload)).toEqual([
+      { hostnames: ["www2.a0.example"] },
+      { hostnames: ["www2.a0.example"] },
+    ]);
   });
 
   it("refuses malformed events", async () => {
