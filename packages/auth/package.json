@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./next": "./src/next.ts"
+    "./next": "./src/next.ts",
+    "./totp": "./src/totp.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

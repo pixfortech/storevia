@@ -1,4 +1,5 @@
 import { expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import { totpAt, totpStep } from "@storevia/auth/totp";
 import pg from "pg";
 import { PASSWORD, signUpAndVerify, uniqueEmail } from "./helpers";
 
@@ -39,11 +40,41 @@ export async function createStaff(browser: Browser, role: StaffRole): Promise<st
   return email;
 }
 
+// Each staff member's authenticator, played by the test (M8, ADR-0035): the
+// setup key from enrolment, and the last time step used (a code is never
+// accepted twice, so every sign-in takes a fresh step).
+const authenticators = new Map<string, { secret: string; lastStep: number }>();
+
+async function nextCode(email: string): Promise<string> {
+  const device = authenticators.get(email);
+  if (!device) throw new Error(`no authenticator enrolled for ${email} in this worker`);
+  let step = Math.max(totpStep(), device.lastStep + 1);
+  // Codes one step ahead are accepted; beyond that, wait for the clock.
+  while (step > totpStep() + 1) await new Promise((r) => setTimeout(r, 1_000));
+  step = Math.max(step, totpStep() - 1);
+  device.lastStep = step;
+  return totpAt(device.secret, step);
+}
+
 export async function adminSignIn(page: Page, email: string): Promise<void> {
   await page.goto(`${ADMIN_URL}/sign-in`);
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(/\/mfa/);
+  const setupKey = page.getByTestId("mfa-secret");
+  if (await setupKey.isVisible()) {
+    // First sign-in: enrol an authenticator (mandatory for staff).
+    const secret = ((await setupKey.textContent()) ?? "").trim();
+    authenticators.set(email, { secret, lastStep: totpStep() - 2 });
+    await page.getByLabel("Code from your app").fill(await nextCode(email));
+    await page.getByRole("button", { name: "Turn on two-step verification" }).click();
+    await expect(page.getByTestId("recovery-codes").getByRole("listitem")).toHaveCount(10);
+    await page.getByRole("link", { name: "I've saved them, continue" }).click();
+  } else {
+    await page.getByLabel("Code from your app").fill(await nextCode(email));
+    await page.getByRole("button", { name: "Verify" }).click();
+  }
   await page.waitForURL(`${ADMIN_URL}/organisations`);
 }
 

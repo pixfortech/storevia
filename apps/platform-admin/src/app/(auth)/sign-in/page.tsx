@@ -11,7 +11,8 @@ export default async function SignInPage({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const params = await searchParams;
-  if (await getSession()) redirect("/organisations");
+  const session = await getSession();
+  if (session) redirect(session.mfaVerifiedAt ? "/organisations" : "/mfa");
   return (
     <>
       <h1 className="font-display text-h3 text-ink">Staff sign in</h1>

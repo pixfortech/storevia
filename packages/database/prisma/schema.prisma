@@ -506,6 +506,7 @@ model User {
   invitationsSent      Invitation[]        @relation("InvitationInvitedBy")
   invitationsAccepted  Invitation[]        @relation("InvitationAcceptedBy")
   platformStaff        PlatformStaff?
+  staffMfa             StaffMfa?
   organisationsCreated Organisation[]      @relation("OrganisationCreatedBy")
   productsCreated      Product[]           @relation("ProductCreatedBy")
   productsUpdated      Product[]           @relation("ProductUpdatedBy")
@@ -591,6 +592,22 @@ model PlatformStaff {
   updatedAt DateTime     @updatedAt @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+}
+
+/// Platform staff MFA (M8, ADR-0035): TOTP secret sealed with AES-256-GCM,
+/// recovery codes hashed, lastUsedStep refuses a code's reuse. Managed by
+/// packages/auth (system role).
+model StaffMfa {
+  userId             String    @id @db.Uuid
+  secretCiphertext   Bytes
+  keyVersion         Int
+  enabledAt          DateTime? @db.Timestamptz(3)
+  lastUsedStep       BigInt?
+  recoveryCodeHashes String[]  @default([])
+  createdAt          DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // --- Tenancy (Milestone 1) ----------------------------------------------------

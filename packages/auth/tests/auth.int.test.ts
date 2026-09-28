@@ -2,6 +2,7 @@ import { migratorDb, disconnectTestClients, truncateAll } from "@storevia/databa
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { cookieHeader, emailsTo, latestToken, noCookies } from "./helpers";
 import { AuthService, hasRecentAuth } from "../src";
+import { totpAt, totpStep } from "../src/totp";
 
 const dashboard = new AuthService({
   realm: "DASHBOARD",
@@ -443,5 +444,105 @@ describe("realm isolation (T11)", () => {
         noCookies(),
       ),
     ).toMatchObject({ ok: false });
+  });
+});
+
+describe("platform staff MFA (M8, S12)", () => {
+  async function staff(email: string): Promise<Headers> {
+    await registerVerified(email);
+    const user = await migratorDb().user.findFirstOrThrow({ where: { email } });
+    await migratorDb().platformStaff.create({ data: { userId: user.id, role: "SUPPORT" } });
+    return signedIn(platform, email);
+  }
+  const sessionOf = async (headers: Headers) => {
+    const s = await platform.getSession(headers);
+    if (!s) throw new Error("no session");
+    return s;
+  };
+
+  it("a new staff session is unverified until an authenticator is enrolled", async () => {
+    const headers = await staff("mfa-new@example.test");
+    const session = await sessionOf(headers);
+    expect(session.mfaVerifiedAt).toBeNull();
+    expect(await platform.mfaStatus(session)).toEqual({ enrolled: false, recoveryCodesLeft: 0 });
+
+    const started = await platform.startMfaEnrolment(session);
+    if (!started.ok) throw new Error("enrolment refused");
+    const { secret, uri } = started.value;
+    expect(uri).toContain(`secret=${secret}`);
+    // The secret is sealed at rest.
+    const row = await migratorDb().staffMfa.findUniqueOrThrow({
+      where: { userId: session.userId },
+    });
+    expect(Buffer.from(row.secretCiphertext).toString("utf8")).not.toContain(secret);
+
+    expect(await platform.completeMfaEnrolment(session, "000000", noCookies())).toMatchObject({
+      ok: false,
+      code: "INVALID_TOKEN",
+    });
+    const done = await platform.completeMfaEnrolment(
+      session,
+      totpAt(secret, totpStep()),
+      noCookies(),
+    );
+    if (!done.ok) throw new Error("enrolment failed");
+    expect(done.value.recoveryCodes).toHaveLength(10);
+    expect((await sessionOf(headers)).mfaVerifiedAt).not.toBeNull();
+    // Enrolled: a second enrolment is refused (a stolen session can't swap the device).
+    expect((await platform.startMfaEnrolment(session)).ok).toBe(false);
+  });
+
+  it("each sign-in needs a fresh code; a used code or recovery code never works twice", async () => {
+    const first = await staff("mfa-again@example.test");
+    const s1 = await sessionOf(first);
+    const started = await platform.startMfaEnrolment(s1);
+    if (!started.ok) throw new Error("enrolment refused");
+    const secret = started.value.secret;
+    const now = totpStep();
+    const done = await platform.completeMfaEnrolment(s1, totpAt(secret, now), noCookies());
+    if (!done.ok) throw new Error("enrolment failed");
+
+    const second = await signedIn(platform, "mfa-again@example.test");
+    const s2 = await sessionOf(second);
+    expect(s2.mfaVerifiedAt).toBeNull();
+    // The code just used at enrolment is spent.
+    expect(await platform.verifyMfa(s2, totpAt(secret, now), noCookies())).toMatchObject({
+      ok: false,
+    });
+    // The next step's code works once.
+    expect(await platform.verifyMfa(s2, totpAt(secret, now + 1), noCookies())).toEqual({
+      ok: true,
+      value: undefined,
+    });
+    expect((await sessionOf(second)).mfaVerifiedAt).not.toBeNull();
+
+    const third = await sessionOf(await signedIn(platform, "mfa-again@example.test"));
+    expect(await platform.verifyMfa(third, totpAt(secret, now + 1), noCookies())).toMatchObject({
+      ok: false,
+    });
+    const recovery = done.value.recoveryCodes[0] ?? "";
+    expect((await platform.verifyMfa(third, recovery.toUpperCase(), noCookies())).ok).toBe(true);
+    const fourth = await sessionOf(await signedIn(platform, "mfa-again@example.test"));
+    expect((await platform.verifyMfa(fourth, recovery, noCookies())).ok).toBe(false);
+    expect((await platform.mfaStatus(fourth)).recoveryCodesLeft).toBe(9);
+  });
+
+  it("guessing codes is rate limited, and the dashboard realm has no staff MFA", async () => {
+    const headers = await staff("mfa-guess@example.test");
+    const session = await sessionOf(headers);
+    const started = await platform.startMfaEnrolment(session);
+    if (!started.ok) throw new Error("enrolment refused");
+    await platform.completeMfaEnrolment(
+      session,
+      totpAt(started.value.secret, totpStep()),
+      noCookies(),
+    );
+    const again = await sessionOf(await signedIn(platform, "mfa-guess@example.test"));
+    const results = [];
+    for (let i = 0; i < 12; i++) {
+      results.push(await platform.verifyMfa(again, String(100000 + i), noCookies()));
+    }
+    expect(results.at(-1)).toMatchObject({ ok: false, code: "RATE_LIMITED" });
+    await expect(dashboard.mfaStatus(session)).rejects.toThrow(/platform realm/);
   });
 });

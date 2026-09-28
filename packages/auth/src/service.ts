@@ -9,6 +9,13 @@ import {
   type EmailMessage,
 } from "@storevia/email";
 import {
+  completeEnrolment,
+  mfaState,
+  recoveryCodesLeft,
+  startEnrolment,
+  verifySecondFactor,
+} from "./mfa";
+import {
   clientIp,
   ipBucket,
   consumeRateLimits,
@@ -93,6 +100,7 @@ const RATE_LIMITS = {
   verifyResendIp: { name: "auth:verify-resend:ip", limit: 10, windowSeconds: HOUR },
   verifySubmitIp: { name: "auth:verify-submit:ip", limit: 30, windowSeconds: HOUR },
   confirmPasswordUser: { name: "auth:confirm-password:user", limit: 10, windowSeconds: 15 * 60 },
+  mfaUser: { name: "auth:mfa:user", limit: 10, windowSeconds: 15 * 60 },
   changePasswordUser: { name: "auth:change-password:user", limit: 10, windowSeconds: HOUR },
 } satisfies Record<string, RateLimitRule>;
 
@@ -198,6 +206,7 @@ function buildBetterAuth(options: AuthServiceOptions) {
       additionalFields: {
         realm: { type: "string", required: false, input: false, defaultValue: options.realm },
         reauthenticatedAt: { type: "date", required: false, input: false },
+        mfaVerifiedAt: { type: "date", required: false, input: false },
       },
     },
     account: {
@@ -291,7 +300,10 @@ export class AuthService {
   private readonly policy: RealmPolicy;
   private readonly baseURL: string;
 
+  private readonly secret: string;
+
   constructor(options: AuthServiceOptions) {
+    this.secret = options.secret;
     this.realm = options.realm;
     this.policy = POLICIES[options.realm];
     this.baseURL = options.baseURL.replace(/\/$/, "");
@@ -526,6 +538,7 @@ export class AuthService {
     if (status !== "ACTIVE" || deletedAt || !user.emailVerified) return null;
     if (this.realm === "PLATFORM" && !(await sessionAllowed("PLATFORM", user.id))) return null;
     const reauth = (session as { reauthenticatedAt?: Date | string | null }).reauthenticatedAt;
+    const mfaAt = (session as { mfaVerifiedAt?: Date | string | null }).mfaVerifiedAt;
     return {
       sessionId: session.id,
       realm: this.realm,
@@ -535,6 +548,7 @@ export class AuthService {
       emailVerified: user.emailVerified,
       createdAt,
       reauthenticatedAt: reauth ? new Date(reauth) : null,
+      mfaVerifiedAt: mfaAt ? new Date(mfaAt) : null,
     };
   }
 
@@ -617,6 +631,78 @@ export class AuthService {
     });
     await audit("auth.reauthenticated", session.userId, headers);
     return authOk(undefined);
+  }
+
+  // -------------------------------------------------------------------------
+  // Platform staff MFA (M8, ADR-0035). A platform session is usable only once
+  // its second factor is verified (session.mfaVerifiedAt).
+  // -------------------------------------------------------------------------
+
+  /** Whether the staff member has enrolled an authenticator. */
+  async mfaStatus(session: AuthSession): Promise<{ enrolled: boolean; recoveryCodesLeft: number }> {
+    this.platformOnly();
+    const { enrolled } = await mfaState(session.userId);
+    return { enrolled, recoveryCodesLeft: enrolled ? await recoveryCodesLeft(session.userId) : 0 };
+  }
+
+  /** A new authenticator secret to scan (only before enrolment is complete). */
+  async startMfaEnrolment(
+    session: AuthSession,
+  ): Promise<AuthResult<{ secret: string; uri: string }>> {
+    this.platformOnly();
+    const started = await startEnrolment(session.userId, session.email, this.secret);
+    if (!started) return authFail("INVALID_INPUT", "Two-step verification is already set up.");
+    return authOk(started);
+  }
+
+  /** Confirms enrolment with a first code; the session counts as verified. */
+  async completeMfaEnrolment(
+    session: AuthSession,
+    code: unknown,
+    headers: Headers,
+  ): Promise<AuthResult<{ recoveryCodes: readonly string[] }>> {
+    this.platformOnly();
+    const blocked = await this.limited([[RATE_LIMITS.mfaUser, session.userId]]);
+    if (blocked) return blocked;
+    const codes =
+      typeof code === "string" ? await completeEnrolment(session.userId, code, this.secret) : null;
+    if (!codes)
+      return authFail(
+        "INVALID_TOKEN",
+        "That code didn't match. Check the time on your device and try again.",
+      );
+    await this.markMfaVerified(session);
+    await audit("auth.platform.mfa_enrolled", session.userId, headers);
+    return authOk({ recoveryCodes: codes });
+  }
+
+  /** Verifies this sign-in's second factor (authenticator or recovery code). */
+  async verifyMfa(session: AuthSession, code: unknown, headers: Headers): Promise<AuthResult> {
+    this.platformOnly();
+    const blocked = await this.limited([[RATE_LIMITS.mfaUser, session.userId]]);
+    if (blocked) return blocked;
+    const method =
+      typeof code === "string" && code.length <= 32
+        ? await verifySecondFactor(session.userId, code, this.secret)
+        : null;
+    if (!method) {
+      await audit("auth.platform.mfa_failed", session.userId, headers);
+      return authFail("INVALID_TOKEN", "That code didn't match. Try the next code from your app.");
+    }
+    await this.markMfaVerified(session);
+    await audit("auth.platform.mfa_verified", session.userId, headers, { method });
+    return authOk(undefined);
+  }
+
+  private async markMfaVerified(session: AuthSession): Promise<void> {
+    await systemDb().session.update({
+      where: { id: session.sessionId },
+      data: { mfaVerifiedAt: new Date() },
+    });
+  }
+
+  private platformOnly(): void {
+    if (this.realm !== "PLATFORM") throw new Error("staff MFA is for the platform realm");
   }
 
   private mapError(error: unknown, fallback: AuthErrorCode, message: string): AuthResult<never> {

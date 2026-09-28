@@ -10,6 +10,8 @@ export interface AuthSession {
   readonly emailVerified: boolean;
   readonly createdAt: Date;
   readonly reauthenticatedAt: Date | null;
+  /** Platform realm: when this session's second factor was verified (ADR-0035). */
+  readonly mfaVerifiedAt: Date | null;
 }
 
 export interface RequestMeta {

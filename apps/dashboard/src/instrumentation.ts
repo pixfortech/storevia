@@ -1,8 +1,11 @@
 import type { Instrumentation } from "next";
-import { reportRequestError } from "@storevia/observability";
 
 // Server errors Next.js catches (render, route handlers, server actions,
 // proxy) are logged with the request id and counted (M8, docs/operations/alerts.md).
-export const onRequestError: Instrumentation.onRequestError = (error, request, context) => {
+// Node.js runtime only: the logger uses Node APIs, and the Edge bundle
+// drops this branch.
+export const onRequestError: Instrumentation.onRequestError = async (error, request, context) => {
+  if (process.env["NEXT_RUNTIME"] !== "nodejs") return;
+  const { reportRequestError } = await import("@storevia/observability");
   reportRequestError("dashboard", error, request, context);
 };

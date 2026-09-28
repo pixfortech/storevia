@@ -4,7 +4,7 @@ import { Icon } from "@storevia/ui/icons";
 import { Avatar, Badge, Card, CardBody, CardHeader, PageHeader } from "@storevia/ui/surfaces";
 import { Check } from "lucide-react";
 import type { Metadata } from "next";
-import { requireStaff } from "@/lib/auth";
+import { getSession, platformAuth, requireStaff } from "@/lib/auth";
 import { permissionLabel } from "@/lib/format";
 import { stepUpReturnPath } from "@/lib/navigation";
 import { ConfirmPasswordForm } from "./confirm-form";
@@ -21,6 +21,8 @@ export default async function AccountPage({
   // Staff sent here from an organisation page get a way back to it.
   const from = (await searchParams)["from"];
   const returnTo = stepUpReturnPath(typeof from === "string" ? from : null);
+  const session = await getSession();
+  const mfa = session ? await platformAuth().mfaStatus(session) : null;
   return (
     <div className="max-w-3xl space-y-8">
       <PageHeader
@@ -41,6 +43,16 @@ export default async function AccountPage({
         <div className="border-t border-line px-5 py-5 sm:px-6">
           <DescriptionList
             items={[
+              {
+                term: "Two-step verification",
+                detail: (
+                  <span data-testid="mfa-status">
+                    {mfa?.enrolled
+                      ? `On · ${String(mfa.recoveryCodesLeft)} of 10 recovery codes left`
+                      : "Not set up"}
+                  </span>
+                ),
+              },
               {
                 term: "Permissions",
                 detail: (

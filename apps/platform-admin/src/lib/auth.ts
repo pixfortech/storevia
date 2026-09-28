@@ -45,6 +45,10 @@ function toPrincipal(session: AuthSession): Principal {
 export const requireStaff = cache(async (returnTo?: string): Promise<PlatformContext> => {
   const session = await getSession();
   if (!session) redirect(returnTo ? `/sign-in?next=${encodeURIComponent(returnTo)}` : "/sign-in");
+  // No admin page opens before this sign-in's second factor (M8, ADR-0035).
+  if (!session.mfaVerifiedAt) {
+    redirect(returnTo ? `/mfa?next=${encodeURIComponent(returnTo)}` : "/mfa");
+  }
   try {
     return await requirePlatformStaff(toPrincipal(session), await requestInfo());
   } catch (error) {
@@ -56,6 +60,6 @@ export const requireStaff = cache(async (returnTo?: string): Promise<PlatformCon
 /** Staff context for server actions: throws (actions return errors, not redirects). */
 export async function requireActionStaff(): Promise<PlatformContext> {
   const session = await getSession();
-  if (!session) throw unauthenticated();
+  if (!session?.mfaVerifiedAt) throw unauthenticated();
   return requirePlatformStaff(toPrincipal(session), await requestInfo());
 }

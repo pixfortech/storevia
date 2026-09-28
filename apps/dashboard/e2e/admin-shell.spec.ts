@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { ADMIN_URL, adminSignIn, createStaff, grantPlan, staffSession } from "./admin";
-import { createTenant } from "./helpers";
+import { createTenant, PASSWORD } from "./helpers";
 
 // Platform-admin is visibly internal, shows risk at a glance, gates
 // high-risk actions and works on a phone (ADR-0022, ADR-0023).
@@ -47,4 +47,30 @@ test("staff without audit access don't get the jobs view", async ({ browser }) =
   await page.goto(`${ADMIN_URL}/jobs`);
   await expect(page.getByText("You can't view background jobs")).toBeVisible();
   await context.close();
+});
+
+test("a staff sign-in opens nothing until its second factor (M8)", async ({ browser }) => {
+  const email = await createStaff(browser, "SUPPORT");
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await page.goto(`${ADMIN_URL}/sign-in`);
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill(PASSWORD);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await page.waitForURL(/\/mfa/);
+  await expect(page.getByRole("heading", { name: "Set up two-step verification" })).toBeVisible();
+  // Password alone opens no admin page.
+  await page.goto(`${ADMIN_URL}/organisations`);
+  await expect(page).toHaveURL(/\/mfa/);
+  await expect(page.getByRole("heading", { name: "Set up two-step verification" })).toBeVisible();
+  await page.getByLabel("Code from your app").fill("000000");
+  await page.getByRole("button", { name: "Turn on two-step verification" }).click();
+  await expect(page.getByText("That code didn't match.").first()).toBeVisible();
+  await context.close();
+  // With an authenticator (the helper enrols one), the same account gets in.
+  const signedIn = await browser.newContext();
+  const staffPage = await signedIn.newPage();
+  await adminSignIn(staffPage, email);
+  await expect(staffPage).toHaveURL(`${ADMIN_URL}/organisations`);
+  await signedIn.close();
 });

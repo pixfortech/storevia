@@ -40,6 +40,7 @@ Accepted, Superseded by ADR-XXXX, Deprecated.
 | [0032](./0032-custom-domains-hosting.md)                          | Custom domains and hosting (Milestone 7)                           | Accepted |
 | [0033](./0033-order-operations-after-payment.md)                  | Order operations after payment, customer access and messages       | Accepted |
 | [0034](./0034-multi-instance-cache-invalidation.md)               | Multi-instance cache invalidation (M8)                             | Accepted |
+| [0035](./0035-platform-staff-mfa.md)                              | Platform staff MFA (TOTP)                                          | Accepted |
 
 ADRs 0002–0019 were accepted with the Milestone 0 review on 2026-09-24.
 ADRs 0020–0021 were recorded during Milestone 1 and ADR-0022 for the Milestone 2

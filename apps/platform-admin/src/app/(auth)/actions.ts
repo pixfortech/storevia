@@ -19,7 +19,9 @@ export async function signInAction(_prev: ActionState, formData: FormData): Prom
       await headers(),
     );
     if (!result.ok) return { ok: false, message: result.message, values: formValues(formData) };
-    redirect(safeRedirectPath(str(formData, "next"), "/organisations"));
+    // Every staff sign-in completes a second factor first (M8, ADR-0035).
+    const next = safeRedirectPath(str(formData, "next"), "/organisations");
+    redirect(`/mfa?next=${encodeURIComponent(next)}`);
   }, formData);
 }
 
