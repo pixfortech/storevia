@@ -7,11 +7,8 @@ import { Bell } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
-import {
-  loadNotificationsAction,
-  markNotificationsReadAction,
-  type BellState,
-} from "@/app/(app)/notifications/actions";
+import { markNotificationsReadAction } from "@/app/(app)/notifications/actions";
+import type { BellState } from "@/lib/notifications";
 
 // The notification centre (post-M7): a bell with the unread count, a list,
 // and mark read. It refreshes on navigation and every minute while the tab
@@ -43,7 +40,12 @@ export function NotificationBell({
   const [pending, startTransition] = useTransition();
 
   const refresh = useCallback(() => {
-    void loadNotificationsAction(orgId).then(setState, () => undefined);
+    void fetch(`/api/notifications?org=${encodeURIComponent(orgId)}`, { cache: "no-store" })
+      .then(async (response) => (response.ok ? ((await response.json()) as BellState) : null))
+      .then((next) => {
+        if (next) setState(next);
+      })
+      .catch(() => undefined);
   }, [orgId]);
 
   useEffect(() => {

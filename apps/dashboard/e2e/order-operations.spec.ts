@@ -250,15 +250,23 @@ test("a customer's note reaches the merchant; forged and foreign links open noth
 
   // The worker tells the staff who may answer; the bell shows it.
   await page.goto(`${tenant.storePath}/orders`);
+  // The bell loads after the page: wait for it after each reload.
   await expect
     .poll(
       async () => {
         await page.reload();
-        return page.getByTestId("notification-count").count();
+        return page
+          .getByTestId("notification-count")
+          .waitFor({ state: "visible", timeout: 5_000 })
+          .then(
+            () => true,
+            () => false,
+          );
       },
-      { timeout: 60_000, intervals: [2_000] },
+      { timeout: 90_000, intervals: [1_000] },
     )
-    .toBe(1);
+    .toBe(true);
+  await expect(page.getByTestId("notification-count")).toHaveText("1");
   await page.getByTestId("notification-bell").click();
   const item = page.getByRole("link", {
     name: new RegExp(`Customer sent a message on Order ${first.number}`),

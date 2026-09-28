@@ -198,7 +198,15 @@ test("theme, menus, two tabs, and another tenant", async ({ page, browser }) => 
 
   // Theme (its own area, Themes › Customise): the Modern style, published.
   await page.goto(`${tenant.storePath}/themes/customise`);
-  await page.getByRole("radio", { name: /Modern/ }).click();
+  // A click that lands before hydration checks the radio without telling the
+  // editor: choose again until the editor has the change.
+  await expect(async () => {
+    await page.getByRole("radio", { name: /Editorial/ }).click();
+    await page.getByRole("radio", { name: /Modern/ }).click();
+    await expect(page.getByRole("button", { name: "Publish theme" })).toBeEnabled({
+      timeout: 1_000,
+    });
+  }).toPass({ timeout: 15_000 });
   await page.getByRole("button", { name: "Publish theme" }).click();
   await expect(page.getByText(/Theme published/)).toBeVisible();
   await expect
