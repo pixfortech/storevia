@@ -83,7 +83,7 @@ export function NotificationBell({
         {state.unread > 0 ? (
           <span
             aria-hidden
-            data-testid="notification-count"
+            data-testid={variant === "mobile" ? "notification-count-mobile" : "notification-count"}
             className="pointer-events-none absolute -top-0.5 -right-0.5 inline-flex min-w-4 items-center justify-center rounded-full bg-danger-600 px-1 text-[0.6875rem] leading-4 font-semibold text-white tabular-nums"
           >
             {state.unread > 99 ? "99+" : state.unread}

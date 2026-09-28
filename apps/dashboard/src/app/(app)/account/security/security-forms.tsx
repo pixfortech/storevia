@@ -103,7 +103,6 @@ export function SessionList({ sessions }: { sessions: SessionItem[] }) {
           <Button
             variant="ghost"
             size="sm"
-            fullWidth
             trailingIcon={ChevronDown}
             className="text-brand-700 hover:text-brand-800"
             onClick={() => {

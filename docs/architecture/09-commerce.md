@@ -385,3 +385,38 @@ state machines, address input), `packages/commerce/tests/checkout.int.test.ts`,
 `packages/database/tests/checkout-orders.int.test.ts` and
 `packages/validation/src/geo.test.ts`; [11-testing.md](./11-testing.md) lists
 what each covers.
+
+## 12. Order operations after payment (post-M7, ADR-0033)
+
+[ADR-0033](../adr/0033-order-operations-after-payment.md) covers what
+happens after payment:
+
+- **Separate states.** Payment, fulfilment, delivery and order state are
+  kept separate.
+- **Fulfilment journey.**
+  - Shipping: Ready → Shipped → In transit → Out for delivery → Delivered.
+  - Local delivery: Ready → Out for delivery → Delivered.
+  - Tracking can be edited after fulfilment.
+- **Completion.** "Mark complete" is gated, with an audited override.
+- **Archiving.** Real orders are archived, never deleted. Deleting a demo
+  order is possible in development and test only, and never for live
+  payments.
+- **Shopper link.** The private order link (`/orders/view/<token>`) opens a
+  customer-safe view with a message box.
+- **Notifications.** Customer messages notify staff with `order.message`
+  who can open the store, through the worker. Staff replies are emailed
+  through the notification outbox.
+
+Services:
+
+- `packages/commerce/src/orders/lifecycle.ts`: pure rules.
+- `operations.ts`: archive, demo delete, fulfilment edits, completion.
+- `access.ts`: order link tokens.
+- `customer.ts`: the shopper's view and messages.
+- `messages.ts`: the staff side and notification fan-out.
+- `staff-notifications.ts`: the bell.
+
+Migrations:
+
+- `20270201000000_order_operations`
+- `20270201000100_demo_purge_checkout`

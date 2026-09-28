@@ -98,7 +98,7 @@ export function OrderStatusPanel({
         <div key={i.key} className="space-y-1" data-status={i.key}>
           <dt className="text-caption text-ink-muted">{i.term}</dt>
           <dd>
-            <StatusBadge status={i.status} size="md" />
+            <StatusBadge status={i.status} size="md" prefix={`${i.term}:`} />
           </dd>
         </div>
       ))}

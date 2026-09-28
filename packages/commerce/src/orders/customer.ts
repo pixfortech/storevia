@@ -145,8 +145,12 @@ async function loadView(tx: TenantTx, orderId: string): Promise<CustomerOrderVie
       SELECT fl."fulfilmentId" AS fulfilment, ol."productTitle" AS title, fl.quantity
       FROM "FulfilmentLine" fl JOIN "OrderLine" ol ON ol.id = fl."orderLineId"
       WHERE ol."orderId" = ${orderId}::uuid ORDER BY ol."createdAt", ol.id`,
-    tx.$queryRaw<{ type: string; at: Date }[]>`
-      SELECT type, "createdAt" AS at FROM "OrderEvent"
+    // Only the event type and, for a new fulfilment, the status it started
+    // in: never the staff-facing message or anything else in the data.
+    tx.$queryRaw<{ type: string; status: string | null; at: Date }[]>`
+      SELECT type, CASE WHEN type = 'fulfilment.created' THEN data->>'status' END AS status,
+        "createdAt" AS at
+      FROM "OrderEvent"
       WHERE "orderId" = ${orderId}::uuid ORDER BY "createdAt", id`,
     tx.$queryRaw<{ author: "CUSTOMER" | "STAFF"; body: string; at: Date }[]>`
       SELECT "authorType"::text AS author, body, "createdAt" AS at FROM "OrderMessage"
@@ -154,10 +158,15 @@ async function loadView(tx: TenantTx, orderId: string): Promise<CustomerOrderVie
   ]);
   const active = fulfilments.filter((f) => f.state === "SUCCESS");
   const timeline: { kind: string; at: Date }[] = [];
-  for (const e of events) {
-    const kind = SAFE_EVENTS[e.type];
+  const add = (kind: string | undefined, at: Date) => {
     // One milestone of each kind: a second parcel doesn't repeat "shipped".
-    if (kind && !timeline.some((t) => t.kind === kind)) timeline.push({ kind, at: e.at });
+    if (kind && !timeline.some((t) => t.kind === kind)) timeline.push({ kind, at });
+  };
+  for (const e of events) {
+    add(SAFE_EVENTS[e.type], e.at);
+    // A fulfilment created already on its way (e.g. "shipped") is that step too.
+    if (e.status && e.status !== "READY")
+      add(SAFE_EVENTS[`fulfilment.${e.status.toLowerCase()}`], e.at);
   }
   return {
     number: o.number,

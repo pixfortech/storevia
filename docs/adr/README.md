@@ -37,9 +37,12 @@ Accepted, Superseded by ADR-XXXX, Deprecated.
 | [0029](./0029-site-engine-and-commerce-composition.md)            | Site Engine and Storevia Commerce composition                      | Accepted |
 | [0030](./0030-site-presentation-builder-themes-navigation.md)     | Site presentation: structured builder, theme engine and navigation | Accepted |
 | [0031](./0031-checkout-orders-payments.md)                        | Checkout, orders and payments (Milestone 6)                        | Accepted |
+| [0032](./0032-custom-domains-hosting.md)                          | Custom domains and hosting (Milestone 7)                           | Accepted |
+| [0033](./0033-order-operations-after-payment.md)                  | Order operations after payment, customer access and messages       | Accepted |
 
 ADRs 0002–0019 were accepted with the Milestone 0 review on 2026-09-24.
 ADRs 0020–0021 were recorded during Milestone 1 and ADR-0022 for the Milestone 2
 revision (no real payment gateway; manual and mock subscription sources).
 ADRs 0023–0025 were recorded during Milestone 2.5, and ADR-0026 with the toolchain policy revision.
 ADR-0027 was recorded for Milestone 3 and ADR-0028 for Milestone 4.
+ADR-0032 was recorded for Milestone 7 and ADR-0033 for the post-M7 completion pass.

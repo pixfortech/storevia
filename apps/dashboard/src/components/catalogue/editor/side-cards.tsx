@@ -209,7 +209,7 @@ export function StockCard({
                   available: variant.levels[l.id] ?? 0,
                 }))}
                 trigger={
-                  <Button size="sm" variant="secondary" leadingIcon={SlidersHorizontal} fullWidth>
+                  <Button size="sm" variant="secondary" leadingIcon={SlidersHorizontal}>
                     Update stock
                   </Button>
                 }

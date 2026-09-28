@@ -1,5 +1,6 @@
 "use client";
 
+import { buttonClasses } from "@storevia/ui/button";
 import { Switch } from "@storevia/ui/choice";
 import { Field, Input } from "@storevia/ui/form";
 import { RadioGroup, RadioItem } from "@storevia/ui/choice";
@@ -169,14 +170,11 @@ export function ProductCreateForm({
             <TextField label="Product type" name="productType" state={state} placeholder="Shirts" />
           </CardBody>
         </Card>
-        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end lg:flex-col-reverse">
-          <Link
-            href={cancelHref}
-            className="inline-flex h-10 items-center justify-center rounded-control px-4 text-label font-medium text-ink-muted hover:bg-subtle hover:text-ink pointer-coarse:h-11"
-          >
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+          <Link href={cancelHref} className={buttonClasses("ghost", "md")}>
             Cancel
           </Link>
-          <SubmitButton fullWidth>Save product</SubmitButton>
+          <SubmitButton className="max-sm:w-full">Save product</SubmitButton>
         </div>
       </div>
     </form>
