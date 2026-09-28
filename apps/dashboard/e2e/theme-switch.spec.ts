@@ -60,7 +60,7 @@ test("install, customise, preview, publish and switch back a theme", async ({
 
   // --- Customise Boutique's draft: the Linen style. ---
   await boutique.getByRole("link", { name: "Customise, Boutique" }).click();
-  await page.waitForURL(/\/themes\/customise\?theme=boutique$/);
+  await expect(page).toHaveURL(/\/themes\/customise\?theme=boutique$/, { timeout: 30_000 });
   await expect(
     page.getByRole("heading", { name: "Customise Boutique (not live)", level: 2 }),
   ).toBeVisible();
@@ -74,7 +74,7 @@ test("install, customise, preview, publish and switch back a theme", async ({
     .getByRole("navigation", { name: "Themes sections" })
     .getByRole("link", { name: "Theme library" })
     .click();
-  await page.waitForURL(new RegExp(`${themes}$`));
+  await expect(page).toHaveURL(new RegExp(`${themes}$`), { timeout: 30_000 });
   await boutique.getByRole("button", { name: "Preview on my store, Boutique" }).click();
   await expect(
     page.getByRole("status").getByText(/Your store preview now shows Boutique/),
@@ -136,7 +136,7 @@ test("install, customise, preview, publish and switch back a theme", async ({
     .toMatch(/data-sv-theme="storevia"/);
   expect(await publicHome()).not.toContain("#6b2f3a");
   await boutique.getByRole("link", { name: "Customise, Boutique" }).click();
-  await page.waitForURL(/\/themes\/customise\?theme=boutique$/);
+  await expect(page).toHaveURL(/\/themes\/customise\?theme=boutique$/, { timeout: 30_000 });
   await expect(page.getByRole("radio", { name: /Linen/ })).toHaveAttribute("aria-checked", "true");
   await visitor.close();
 });

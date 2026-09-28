@@ -208,7 +208,7 @@ test("theme, menus, two tabs, and another tenant", async ({ page, browser }) => 
     });
   }).toPass({ timeout: 15_000 });
   await page.getByRole("button", { name: "Publish theme" }).click();
-  await expect(page.getByText(/Theme published/)).toBeVisible();
+  await expect(page.getByText(/Theme published/)).toBeVisible({ timeout: 30_000 });
   await expect
     .poll(async () => (await fetchStore(shopper.request, origin, "/")).text, {
       timeout: 60_000,

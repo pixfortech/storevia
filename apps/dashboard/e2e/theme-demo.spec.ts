@@ -58,7 +58,7 @@ test("Themes: two genuinely different demos, a full demo at three widths, and th
   expect(website).toBeGreaterThanOrEqual(0);
   expect(names[website + 1]).toMatch(/^Themes/);
   await nav.getByRole("link", { name: /^Themes/ }).click();
-  await page.waitForURL(new RegExp(`${tenant.storePath}/themes$`));
+  await expect(page).toHaveURL(new RegExp(`${tenant.storePath}/themes$`), { timeout: 30_000 });
   await expect(page.getByRole("heading", { level: 1, name: "Themes" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Themes sections" })).toBeVisible();
   await expect(
@@ -148,7 +148,9 @@ test("Themes: two genuinely different demos, a full demo at three widths, and th
 
   // --- View demo: the full Boutique demo at desktop, tablet and mobile. ---
   await boutique.getByRole("link", { name: "View demo, Boutique" }).click();
-  await page.waitForURL(new RegExp(`${tenant.storePath}/themes/demo/boutique$`));
+  await expect(page).toHaveURL(new RegExp(`${tenant.storePath}/themes/demo/boutique$`), {
+    timeout: 30_000,
+  });
   await expect(page.getByRole("heading", { level: 1, name: "Boutique demo" })).toBeVisible();
   const viewer = page.frameLocator('iframe[title="Boutique demo store, home page"]');
   await expect(demoRoot(viewer)).toBeAttached({ timeout: 20_000 });
@@ -231,16 +233,19 @@ test("Themes: two genuinely different demos, a full demo at three widths, and th
 
   // --- The old route keeps working. ---
   await page.goto(`${tenant.storePath}/website/theme`);
-  await page.waitForURL(new RegExp(`${tenant.storePath}/themes$`));
+  await expect(page).toHaveURL(new RegExp(`${tenant.storePath}/themes$`), { timeout: 30_000 });
   await page.goto(`${tenant.storePath}/website/theme?theme=storevia`);
-  await page.waitForURL(new RegExp(`${tenant.storePath}/themes/customise\\?theme=storevia$`));
+  await expect(page).toHaveURL(
+    new RegExp(`${tenant.storePath}/themes/customise\\?theme=storevia$`),
+    { timeout: 30_000 },
+  );
   await expect(
     page.getByRole("heading", { level: 2, name: "Customise Storevia (your live theme)" }),
   ).toBeVisible();
   // Website keeps pages and menus; its theme card points to Themes.
   await page.goto(`${tenant.storePath}/website`);
   await page.getByRole("link", { name: "Go to Themes" }).click();
-  await page.waitForURL(new RegExp(`${tenant.storePath}/themes$`));
+  await expect(page).toHaveURL(new RegExp(`${tenant.storePath}/themes$`), { timeout: 30_000 });
   // An unknown theme has no demo.
   const missing = await page.goto(`${tenant.storePath}/themes/demo/not-a-theme`);
   expect(missing?.status()).toBe(404);

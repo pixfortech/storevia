@@ -686,7 +686,11 @@ describe("customer messages and staff notifications", () => {
     const reply = sent.find((m) => m.template === "order-message-reply");
     expect(reply?.text).toContain("Noted — we'll come after 5.");
     expect(reply?.text).toMatch(/\/orders\/view\/[A-Za-z0-9_-]{65}/);
-    const confirmation = sent.find((m) => m.template === "order-confirmation");
+    // This order's confirmation (an earlier test revoked another order's link,
+    // and that order's email rightly carries none).
+    const confirmation = sent.find(
+      (m) => m.template === "order-confirmation" && m.text.includes(`#${String(number)}.`),
+    );
     expect(confirmation?.text).toMatch(/\/orders\/view\/[A-Za-z0-9_-]{65}/);
   });
 
