@@ -662,7 +662,14 @@ describe("idempotency and concurrency", () => {
       ingestPaymentWebhook(one.connectionId, one.body, one.headers),
     ]);
     expect(results.every((r) => r.status === 200)).toBe(true);
-    expect(results.map((r) => r.outcome).sort()).toEqual(["duplicate", "processed", "processed"]);
+    // Concurrent deliveries can't see each other's uncommitted ledger rows,
+    // so a second event with the same meaning may also report "processed";
+    // the payment state machine still makes exactly one order (checked
+    // below). A later replay under a new id is a duplicate (next test).
+    const outcomes = results.map((r) => r.outcome);
+    expect(outcomes.filter((o) => o === "processed").length).toBeGreaterThanOrEqual(1);
+    expect(outcomes.filter((o) => o === "duplicate").length).toBeGreaterThanOrEqual(1);
+    expect(outcomes.every((o) => o === "processed" || o === "duplicate")).toBe(true);
     const orders = await migratorDb().order.findMany({
       where: { payments: { some: { id: payment.id } } },
     });
@@ -730,6 +737,36 @@ describe("idempotency and concurrency", () => {
       status: 200,
       outcome: "duplicate",
     });
+  });
+
+  it("a captured delivery replayed under a new event id changes nothing (M8, S6)", async () => {
+    const s = await shopper(storeA, [["mug", 1]]);
+    await ready(s);
+    const started = await pay(s);
+    if (started.kind !== "redirect") throw new Error("expected redirect");
+    const payment = await migratorDb().payment.findFirstOrThrow({
+      where: { providerPaymentId: refOf(started.url) },
+    });
+    const event = signed("a", refOf(started.url), "captured", payment.amount);
+    expect(await ingestPaymentWebhook(event.connectionId, event.body, event.headers)).toEqual({
+      status: 200,
+      outcome: "processed",
+    });
+    // The attacker keeps the signed body and swaps the unsigned event id.
+    const replay = new Headers(event.headers);
+    replay.set("x-storevia-test-event-id", "tev_replayedreplayedreplayed01");
+    expect(await ingestPaymentWebhook(event.connectionId, event.body, replay)).toEqual({
+      status: 200,
+      outcome: "duplicate",
+    });
+    expect(
+      await migratorDb().order.count({ where: { payments: { some: { id: payment.id } } } }),
+    ).toBe(1);
+    expect(
+      await migratorDb().paymentWebhookEvent.findFirstOrThrow({
+        where: { providerEventId: "tev_replayedreplayedreplayed01" },
+      }),
+    ).toMatchObject({ status: "IGNORED" });
   });
 
   it("two shoppers racing for the last unit: exactly one gets to pay", async () => {
@@ -914,6 +951,39 @@ describe("webhook verification", () => {
     });
     // Nothing moved.
     expect((await getCheckout(s.req))?.stage).toBe("paying");
+  });
+
+  it("forged deliveries from one address never throttle the provider's (M8, S7)", async () => {
+    process.env["TRUSTED_CLIENT_IP_HEADER"] = "x-test-client-ip";
+    try {
+      const s = await shopper(storeA, [["mug", 1]]);
+      await ready(s);
+      const started = await pay(s);
+      if (started.kind !== "redirect") throw new Error("expected redirect");
+      const payment = await migratorDb().payment.findFirstOrThrow({
+        where: { providerPaymentId: refOf(started.url) },
+      });
+      const good = signed("a", refOf(started.url), "captured", payment.amount);
+      const forged = new Headers(good.headers);
+      forged.set("x-storevia-test-signature", "t=1,v1=" + "0".repeat(64));
+      forged.set("x-test-client-ip", "203.0.113.99");
+      for (let i = 0; i < 25; i++) {
+        await ingestPaymentWebhook(good.connectionId, good.body, forged);
+      }
+      // The attacker's own budget is spent...
+      expect(await ingestPaymentWebhook(good.connectionId, good.body, forged)).toMatchObject({
+        status: 429,
+      });
+      // ...the provider's genuine delivery, from its own address, still lands.
+      const genuine = new Headers(good.headers);
+      genuine.set("x-test-client-ip", "198.51.100.200");
+      expect(await ingestPaymentWebhook(good.connectionId, good.body, genuine)).toEqual({
+        status: 200,
+        outcome: "processed",
+      });
+    } finally {
+      delete process.env["TRUSTED_CLIENT_IP_HEADER"];
+    }
   });
 
   it("a capture for a different amount fails the attempt and creates no order", async () => {

@@ -225,3 +225,11 @@ describe("export", () => {
     await adjustInventory(store(), { variantId, locationId, delta: 1, reason: "RESTOCK" });
   });
 });
+
+describe("export limits (M8, S10)", () => {
+  it("a store can export 30 times an hour", async () => {
+    await migratorDb().rateLimit.deleteMany({ where: { key: { startsWith: "catalogue:export" } } });
+    for (let i = 0; i < 30; i++) await exportProducts(store());
+    await expectCode(exportProducts(store()), "RATE_LIMITED");
+  });
+});

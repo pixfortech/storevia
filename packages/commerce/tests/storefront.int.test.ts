@@ -25,6 +25,7 @@ import {
   readCart,
   readStorefront,
   removeCartLine,
+  searchAllowed,
   updateCartLine,
   type CartStore,
 } from "../src/storefront";
@@ -485,5 +486,22 @@ describe("carts", () => {
     );
     expect(codes.filter((c) => c === "RATE_LIMITED").length).toBeGreaterThan(0);
     expect(codes.filter((c) => c === "NOT_FOUND").length).toBeLessThanOrEqual(120);
+  });
+});
+
+describe("search flood limits (M8, S10)", () => {
+  it("allow 60 searches a minute per client (a /64 counts once), then refuse", async () => {
+    const store = { storeId: "0190f2a4-0000-7000-8000-0000000fe001" };
+    await migratorDb().rateLimit.deleteMany({
+      where: { key: { startsWith: "storefront:search" } },
+    });
+    const results: boolean[] = [];
+    for (let i = 0; i < 61; i++) {
+      results.push(await searchAllowed(store, `2001:db8:5:5::${(i + 1).toString(16)}`));
+    }
+    expect(results.slice(0, 60).every(Boolean)).toBe(true);
+    expect(results[60]).toBe(false);
+    // Another client is unaffected.
+    expect(await searchAllowed(store, "198.51.100.61")).toBe(true);
   });
 });

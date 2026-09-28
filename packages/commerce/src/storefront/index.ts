@@ -16,6 +16,7 @@ export {
   cartItemCount,
   readCart,
   removeCartLine,
+  searchAllowed,
   updateCartLine,
   type CartLineStock,
   type CartLineView,

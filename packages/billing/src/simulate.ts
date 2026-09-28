@@ -1,4 +1,5 @@
 import "server-only";
+import type { NormalisedBillingEvent } from "./provider";
 import { randomUUID } from "node:crypto";
 import { platformDb } from "@storevia/database/platform";
 import { parsePublicId, recordActorAudit } from "@storevia/tenancy";
@@ -164,7 +165,13 @@ async function lastDelivery(organisationId: string) {
       "CONFLICT",
       "No mock event has been delivered for this organisation yet.",
     );
-  return row.payload;
+  // The ledger keeps the normalised event (M8), not the raw wire payload:
+  // rebuild the same delivery from it (same id, time and snapshot).
+  const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+  const event = JSON.parse(JSON.stringify(row.payload), (_k, v: unknown) =>
+    typeof v === "string" && ISO.test(v) ? new Date(v) : v,
+  ) as NormalisedBillingEvent;
+  return toWire(event.eventId, event.type, event.occurredAt, event.snapshot);
 }
 
 /** Builds, signs and delivers one simulated provider event. */

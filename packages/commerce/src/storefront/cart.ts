@@ -135,6 +135,27 @@ async function rateLimit(
   }
 }
 
+const SEARCH_RULES: Readonly<Record<"client" | "store", RateLimitRule>> = {
+  client: { name: "storefront:search", limit: 60, windowSeconds: 60 },
+  store: { name: "storefront:search-store", limit: 3_000, windowSeconds: 60 },
+};
+
+/**
+ * Whether a storefront search may run (M8, S10): 60 a minute per client
+ * (IPv6 by /64) and 3,000 a minute per store, so query floods can't turn
+ * into database load. Pages degrade to an empty search when refused.
+ */
+export async function searchAllowed(
+  store: { readonly storeId: string },
+  clientIp: string | null,
+): Promise<boolean> {
+  const result = await consumeRateLimitsWith(storefrontDb(), [
+    [SEARCH_RULES.client, clientIp ? `${store.storeId}:${ipBucket(clientIp)}` : null],
+    [SEARCH_RULES.store, store.storeId],
+  ]);
+  return result.allowed;
+}
+
 const emptyCart = (currency: string): CartView => ({
   lines: [],
   itemCount: 0,

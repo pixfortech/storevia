@@ -307,7 +307,11 @@ export async function ingestBillingWebhook(
         provider: event.provider,
         providerEventId: event.eventId,
         type: event.type,
-        payload: JSON.parse(new TextDecoder().decode(rawBody)) as Prisma.InputJsonValue,
+        // What Storevia understood of the event, never the provider's raw
+        // payload (M8, S8: it can carry customer and card details).
+        payload: JSON.parse(
+          JSON.stringify(event, (_k, v: unknown) => (typeof v === "bigint" ? v.toString() : v)),
+        ) as Prisma.InputJsonValue,
       },
     ],
     skipDuplicates: true,

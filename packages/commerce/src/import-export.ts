@@ -1,5 +1,7 @@
 import "server-only";
+import { consumeRateLimit } from "@storevia/security/server";
 import { recordAudit, type TenantContext } from "@storevia/tenancy";
+import { DomainError } from "@storevia/types";
 import { inStore, publicId } from "./internal";
 import { toDecimalString } from "./money";
 
@@ -100,6 +102,7 @@ export const csvExporter: ProductExporter = {
 };
 
 export const EXPORT_ROW_LIMIT = 10_000;
+const EXPORT_LIMIT = { name: "catalogue:export", limit: 30, windowSeconds: 3_600 } as const;
 
 /**
  * Every live variant of the store's non-archived (or all) products, in handle
@@ -115,6 +118,16 @@ export async function exportProducts(
   readonly rows: number;
 }> {
   const exporter = options.exporter ?? csvExporter;
+  // Up to 10,000 rows a file: bounded per store (M8, S10).
+  if (ctx.kind === "store") {
+    const limit = await consumeRateLimit(EXPORT_LIMIT, ctx.storeId);
+    if (!limit.allowed) {
+      throw new DomainError(
+        "RATE_LIMITED",
+        "You've exported several times recently. Try again later.",
+      );
+    }
+  }
   return inStore(ctx, "product.read", async (tx, store) => {
     const products = await tx.product.findMany({
       where: {

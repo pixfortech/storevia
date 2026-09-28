@@ -565,6 +565,18 @@ describe("mock billing through the webhook pipeline", () => {
     expect(mock.entitlements).toEqual(manual.entitlements);
   });
 
+  it("the ledger keeps what Storevia understood, not the raw payload (M8, S8)", async () => {
+    await simulate("created", { planKey: "business" });
+    const row = await migratorDb().billingWebhookEvent.findFirstOrThrow({
+      where: { organisationId: orgId },
+    });
+    const payload = row.payload as Record<string, unknown>;
+    expect(Object.keys(payload).sort()).toEqual(
+      ["eventId", "occurredAt", "provider", "snapshot", "snapshotVersion", "type"].sort(),
+    );
+    expect(payload).not.toHaveProperty("data");
+  });
+
   it("a duplicate delivery is processed once", async () => {
     await simulate("created", { planKey: "business" });
     expect(await simulate("duplicate")).toMatchObject({ outcome: "duplicate", status: 200 });

@@ -7,6 +7,7 @@ import {
   WebhookVerificationError,
   type TestOutcome,
 } from "@storevia/payments";
+import { clientIp, ipBucket } from "@storevia/security";
 import { consumeRateLimitWith, type RateLimitRule } from "@storevia/security/rate-limit";
 import { DomainError, notFound, parseTypeId, toTypeId } from "@storevia/types";
 import { applyPaymentOutcome } from "./confirm";
@@ -42,20 +43,35 @@ interface ConnectionScope {
   provider: string;
 }
 
-/** Whether this connection's failed-signature budget is spent (checked before any work). */
-async function failuresExceeded(connectionId: string): Promise<boolean> {
+/**
+ * Whose failed-signature budget a delivery spends (M8, S7): per connection
+ * and sending client, so an attacker who knows the URL spends only their
+ * own budget, never the provider's. Unknown clients share the connection's.
+ */
+function failureSubject(connectionId: string, headers: Headers): string {
+  const ip = clientIp(headers);
+  return ip ? `${connectionId}:${ipBucket(ip)}` : connectionId;
+}
+
+/** Whether this sender's failed-signature budget is spent (checked before any work). */
+async function failuresExceeded(subject: string): Promise<boolean> {
   const now = Date.now();
   const windowMs = RULES.failures.windowSeconds * 1000;
   const windowStart = BigInt(now - (now % windowMs));
   const rows = await checkoutDb().$queryRaw<{ count: number }[]>`
     SELECT count FROM "RateLimit"
-    WHERE key = ${`${RULES.failures.name}:${connectionId}`} AND "lastRequest" >= ${windowStart}`;
+    WHERE key = ${`${RULES.failures.name}:${subject}`} AND "lastRequest" >= ${windowStart}`;
   return (rows[0]?.count ?? 0) >= RULES.failures.limit;
 }
 
 /** Records a delivery that failed verification. */
-async function recordFailure(connectionId: string, reason: string, provider: string) {
-  await consumeRateLimitWith(checkoutDb(), RULES.failures, connectionId);
+async function recordFailure(
+  connectionId: string,
+  subject: string,
+  reason: string,
+  provider: string,
+) {
+  await consumeRateLimitWith(checkoutDb(), RULES.failures, subject);
   recordMetric("payments.webhook_rejected", 1, { provider, reason });
   log.warn("payment webhook rejected", { connectionId, provider, reason });
 }
@@ -79,7 +95,8 @@ export async function ingestPaymentWebhook(
   if (!scope) return { status: 404, outcome: "rejected" };
 
   const flood = await consumeRateLimitWith(checkoutDb(), RULES.all, connectionId);
-  if (!flood.allowed || (await failuresExceeded(connectionId))) {
+  const subject = failureSubject(connectionId, headers);
+  if (!flood.allowed || (await failuresExceeded(subject))) {
     recordMetric("payments.webhook_throttled", 1, { provider: scope.provider });
     return { status: 429, outcome: "rejected" };
   }
@@ -94,7 +111,7 @@ export async function ingestPaymentWebhook(
     open.provider.verifyWebhook(open.credentials, rawBody, headers);
   } catch (error) {
     if (error instanceof WebhookVerificationError) {
-      await recordFailure(connectionId, error.reason, scope.provider);
+      await recordFailure(connectionId, subject, error.reason, scope.provider);
       return { status: 401, outcome: "rejected" };
     }
     throw error;
@@ -150,6 +167,24 @@ export async function ingestPaymentWebhook(
       if (!payment) {
         await finish("IGNORED");
         return { status: 200, outcome: "ignored" } as const;
+      }
+      // Replay under a new event id (M8, S6): Razorpay doesn't sign its
+      // event-id header, so a captured delivery can be re-sent with another
+      // id. The same meaning (type, payment, status, amount) already applied
+      // is a duplicate, whatever id it carries.
+      const replayed = await tx.$queryRaw<{ id: string }[]>`
+        SELECT id FROM "PaymentWebhookEvent"
+        WHERE "storeId" = ${scope.store_id}::uuid AND provider = ${scope.provider}
+          AND id <> ${eventRow.id}::uuid AND status IN ('PROCESSED', 'IGNORED')
+          AND type = ${event.type.slice(0, 100)}
+          AND payload->>'providerPaymentId' = ${recorded.providerPaymentId}
+          AND payload->>'status' IS NOT DISTINCT FROM ${recorded.status}
+          AND payload->>'amount' IS NOT DISTINCT FROM ${recorded.amount}
+        LIMIT 1`;
+      if (replayed.length > 0) {
+        await finish("IGNORED");
+        recordMetric("payments.webhook_replayed", 1, { provider: scope.provider });
+        return { status: 200, outcome: "duplicate" } as const;
       }
       const found = await tx.$queryRaw<{ id: string | null }[]>`
         SELECT app_checkout_for_payment(${scope.provider}, ${payment.providerPaymentId}) AS id`;
