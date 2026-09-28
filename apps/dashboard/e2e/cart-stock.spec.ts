@@ -56,6 +56,8 @@ test("quantities beyond stock are refused, and a sold-out line blocks checkout",
   await expect(qty).toHaveAttribute("max", "2");
   await qty.fill("2");
   await shop.getByRole("button", { name: "Update" }).first().click();
+  // Updated once the re-rendered cart shows 2 × 1,450.
+  await expect(shop.locator(".sv-cart-summary")).toContainText("2,900.00");
   await expect(qty).toHaveValue("2");
   // The browser's max stops 3 before it is sent; a request that gets past it is
   // refused by the server. Remove the hint to send it anyway.
@@ -65,7 +67,7 @@ test("quantities beyond stock are refused, and a sold-out line blocks checkout",
   await qty.fill("3");
   await shop.getByRole("button", { name: "Update" }).first().click();
   await shop.waitForURL(/error=stock/);
-  await expect(shop.getByRole("alert")).toContainText("Only 2 are available.");
+  await expect(shop.locator(".sv-notice[role=alert]")).toContainText("Only 2 are available.");
   await expect(shop.getByLabel("Quantity of Enamel saucepan")).toHaveValue("2");
 
   // Over the cart's per-line limit: refused, not reduced to 99.
@@ -85,13 +87,17 @@ test("quantities beyond stock are refused, and a sold-out line blocks checkout",
   await expect(shop.getByText("Sold out. Remove it to check out.")).toBeVisible();
   await expect(shop.getByText("Not included")).toBeVisible();
   await expect(shop.getByRole("button", { name: "Check out" })).toBeDisabled();
-  // …and the product page says so.
+  // …and the product page says so once its cached copy is invalidated (worker).
   await expect
-    .poll(async () => {
-      await shop.goto(`${origin}/products/enamel-saucepan`);
-      return shop.getByRole("button", { name: "Sold out" }).isDisabled();
-    })
-    .toBe(true);
+    .poll(
+      async () => {
+        await shop.goto(`${origin}/products/enamel-saucepan`);
+        return shop.getByRole("button", { name: "Sold out" }).count();
+      },
+      { timeout: 60_000, intervals: [1_000] },
+    )
+    .toBe(1);
+  await expect(shop.getByRole("button", { name: "Sold out" })).toBeDisabled();
 
   // Removing it (and adding something else) lets the shopper check out.
   await shop.goto(`${origin}/cart`);
