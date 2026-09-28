@@ -3,7 +3,7 @@
 import { contactRequestMessage, getEmailSender } from "@storevia/email";
 import { marketingDb } from "@storevia/database/marketing";
 import { createLogger, errorFields, recordMetric } from "@storevia/observability";
-import { clientIp } from "@storevia/security";
+import { clientIp, ipBucket } from "@storevia/security";
 import { consumeRateLimitsWith } from "@storevia/security/rate-limit";
 import { headers } from "next/headers";
 import { z } from "zod";
@@ -68,9 +68,10 @@ export async function sendContactRequest(
   }
   const request = parsed.data;
   const h = await headers();
+  const ip = clientIp(h);
   try {
     const limit = await consumeRateLimitsWith(marketingDb(), [
-      [RULES.ip, clientIp(h)],
+      [RULES.ip, ip ? ipBucket(ip) : null],
       [RULES.email, request.email.toLowerCase()],
       [RULES.all, "site"],
     ]);

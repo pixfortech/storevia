@@ -364,6 +364,53 @@ describe("realm isolation (T11)", () => {
     expect(await platform.getSession(adminHeaders)).toBeNull();
   });
 
+  it("failed dashboard sign-ins never lock a staff member out of platform-admin (M8)", async () => {
+    await registerVerified("ops@example.test");
+    const user = await migratorDb().user.findFirstOrThrow({ where: { email: "ops@example.test" } });
+    await migratorDb().platformStaff.create({ data: { userId: user.id, role: "SUPPORT" } });
+    for (let i = 0; i < 12; i++) {
+      await dashboard.signIn(
+        { email: "ops@example.test", password: `guess ${String(i)}xxxx` },
+        noCookies(),
+      );
+    }
+    expect(
+      await dashboard.signIn({ email: "ops@example.test", password: PASSWORD }, noCookies()),
+    ).toMatchObject({ code: "RATE_LIMITED" });
+    expect(
+      await platform.signIn({ email: "ops@example.test", password: PASSWORD }, noCookies()),
+    ).toMatchObject({ ok: true });
+  });
+
+  it("one attacking address can't lock an account out for everyone (M8)", async () => {
+    process.env["TRUSTED_CLIENT_IP_HEADER"] = "x-test-client-ip";
+    try {
+      await registerVerified("target@example.test");
+      const from = (ip: string) => new Headers({ "x-test-client-ip": ip, "user-agent": "vitest" });
+      for (let i = 0; i < 12; i++) {
+        await dashboard.signIn(
+          { email: "target@example.test", password: `guess ${String(i)}xxxx` },
+          from("203.0.113.66"),
+        );
+      }
+      expect(
+        await dashboard.signIn(
+          { email: "target@example.test", password: PASSWORD },
+          from("203.0.113.66"),
+        ),
+      ).toMatchObject({ code: "RATE_LIMITED" });
+      // The account holder, elsewhere, still signs in.
+      expect(
+        await dashboard.signIn(
+          { email: "target@example.test", password: PASSWORD },
+          from("198.51.100.20"),
+        ),
+      ).toMatchObject({ ok: true });
+    } finally {
+      delete process.env["TRUSTED_CLIENT_IP_HEADER"];
+    }
+  });
+
   it("sessions are not valid across realms", async () => {
     await registerVerified("staff@example.test");
     const user = await migratorDb().user.findFirstOrThrow({

@@ -3,6 +3,7 @@ import { withCheckout, checkoutDb, type CheckoutScope } from "@storevia/database
 import type { TenantTx } from "@storevia/database";
 import { createLogger, errorFields, recordMetric } from "@storevia/observability";
 import { PaymentProviderError } from "@storevia/payments";
+import { ipBucket } from "@storevia/security";
 import { consumeRateLimitsWith, type RateLimitRule } from "@storevia/security/rate-limit";
 import {
   DomainError,
@@ -56,22 +57,51 @@ export interface CheckoutRequest {
   readonly clientIp: string | null;
 }
 
+/**
+ * Each limit counts per client (its IP, IPv6 by /64), per checkout (its
+ * token) and, for discount codes, per store (M8): rotating addresses can't
+ * reset the checkout or store budgets, and with no client IP known (the
+ * edge header missing) the checkout and store limits still apply.
+ */
+type Scope = "client" | "checkout" | "store";
+type ScopedRule = RateLimitRule & { readonly scope: Scope };
+
 const RULES = {
-  start: { name: "checkout:start", limit: 20, windowSeconds: 60 },
-  step: { name: "checkout:step", limit: 90, windowSeconds: 60 },
-  discount: { name: "checkout:discount", limit: 10, windowSeconds: 60 },
-  pay: { name: "checkout:pay", limit: 10, windowSeconds: 60 },
-  confirm: { name: "checkout:confirm", limit: 30, windowSeconds: 60 },
-} as const satisfies Record<string, RateLimitRule>;
+  start: [
+    { name: "checkout:start", limit: 20, windowSeconds: 60, scope: "client" },
+    { name: "checkout:start-store", limit: 1_200, windowSeconds: 60, scope: "store" },
+  ],
+  step: [
+    { name: "checkout:step", limit: 90, windowSeconds: 60, scope: "client" },
+    { name: "checkout:step-checkout", limit: 120, windowSeconds: 60, scope: "checkout" },
+  ],
+  discount: [
+    { name: "checkout:discount", limit: 10, windowSeconds: 60, scope: "client" },
+    { name: "checkout:discount-checkout", limit: 20, windowSeconds: 3_600, scope: "checkout" },
+    { name: "checkout:discount-store", limit: 300, windowSeconds: 600, scope: "store" },
+  ],
+  pay: [
+    { name: "checkout:pay", limit: 10, windowSeconds: 60, scope: "client" },
+    { name: "checkout:pay-checkout", limit: 20, windowSeconds: 3_600, scope: "checkout" },
+  ],
+  confirm: [
+    { name: "checkout:confirm", limit: 30, windowSeconds: 60, scope: "client" },
+    { name: "checkout:confirm-checkout", limit: 60, windowSeconds: 60, scope: "checkout" },
+  ],
+} as const satisfies Record<string, readonly ScopedRule[]>;
 
 async function rateLimit(
-  store: CheckoutStore,
-  clientIp: string | null,
-  ...rules: readonly RateLimitRule[]
+  req: Pick<CheckoutRequest, "store" | "clientIp" | "token">,
+  ...ruleSets: readonly (readonly ScopedRule[])[]
 ): Promise<void> {
+  const storeId = req.store.storeId;
+  const client = req.clientIp ? `${storeId}:${ipBucket(req.clientIp)}` : null;
+  const checkout = isCheckoutToken(req.token) ? `${storeId}:${hashCheckoutToken(req.token)}` : null;
+  const subject = (scope: Scope) =>
+    scope === "client" ? client : scope === "checkout" ? checkout : storeId;
   const result = await consumeRateLimitsWith(
     checkoutDb(),
-    rules.map((rule) => [rule, clientIp ? `${store.storeId}:${clientIp}` : null] as const),
+    ruleSets.flat().map((rule) => [rule, subject(rule.scope)] as const),
   );
   if (!result.allowed) {
     throw new DomainError("RATE_LIMITED", "Too many attempts. Please wait a moment and try again.");
@@ -357,7 +387,7 @@ export interface StartResult {
 export async function startCheckout(
   req: CheckoutRequest & { readonly cartToken: string | null },
 ): Promise<StartResult> {
-  await rateLimit(req.store, req.clientIp, RULES.start);
+  await rateLimit(req, RULES.start);
   const cartTokenHash =
     req.cartToken && /^[A-Za-z0-9_-]{43}$/.test(req.cartToken)
       ? hashCartToken(req.cartToken)
@@ -423,10 +453,10 @@ export async function getCheckout(req: CheckoutRequest): Promise<CheckoutView | 
 
 async function step(
   req: CheckoutRequest,
-  rules: readonly RateLimitRule[],
+  rules: readonly (readonly ScopedRule[])[],
   change: (tx: TenantTx, checkout: CheckoutRow) => Promise<void>,
 ): Promise<CheckoutView> {
-  await rateLimit(req.store, req.clientIp, ...rules);
+  await rateLimit(req, ...rules);
   const result = await inCheckout(req, true, async (tx, checkout) => {
     if (checkout.status === "COMPLETED") {
       throw new DomainError("CONFLICT", "This order has already been placed.");
@@ -591,7 +621,7 @@ export async function beginPayment(
   req: CheckoutRequest,
   input: { readonly pricingHash: unknown; readonly returnUrl: string },
 ): Promise<BeginPaymentResult> {
-  await rateLimit(req.store, req.clientIp, RULES.pay);
+  await rateLimit(req, RULES.pay);
   const confirmed = typeof input.pricingHash === "string" ? input.pricingHash : "";
   let started: {
     paymentId: string;
@@ -748,7 +778,7 @@ export async function beginPayment(
  * nothing; only the provider's server-side answer does.
  */
 export async function confirmPayment(req: CheckoutRequest): Promise<CheckoutView | null> {
-  await rateLimit(req.store, req.clientIp, RULES.confirm);
+  await rateLimit(req, RULES.confirm);
   const pending = await inCheckout(req, false, async (tx, checkout) => {
     if (checkout.status !== "PAYMENT_PENDING") return null;
     const rows = await tx.$queryRaw<{ provider: string; ref: string | null; connection: string }[]>`
@@ -790,7 +820,7 @@ export async function confirmPayment(req: CheckoutRequest): Promise<CheckoutView
  * instead.
  */
 export async function cancelPayment(req: CheckoutRequest): Promise<CheckoutView> {
-  await rateLimit(req.store, req.clientIp, RULES.step);
+  await rateLimit(req, RULES.step);
   const pending = await inCheckout(req, false, async (tx, checkout) => {
     if (checkout.status !== "PAYMENT_PENDING") return { checkoutId: checkout.id, row: null };
     const rows = await tx.$queryRaw<{ provider: string; ref: string | null; connection: string }[]>`

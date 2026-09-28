@@ -833,6 +833,40 @@ describe("idempotency and concurrency", () => {
   });
 });
 
+describe("rate limits hold without a client address (M8)", () => {
+  it("discount guessing is capped per checkout even when the edge header is missing", async () => {
+    const s = await shopper(storeA, [["mug", 1]]);
+    // No trusted client IP (misconfigured edge): only the checkout and store
+    // budgets can stop enumeration, and they must.
+    const req = { ...s.req, clientIp: null };
+    let limited = 0;
+    for (let i = 0; i < 25; i++) {
+      try {
+        await applyDiscountCode(req, { code: `GUESS${String(i)}` });
+      } catch (error) {
+        if ((error as { code?: string }).code === "RATE_LIMITED") limited += 1;
+      }
+    }
+    // 20 per checkout per hour: the last 5 are refused.
+    expect(limited).toBe(5);
+  });
+
+  it("rotating addresses within one IPv6 /64 shares one client budget", async () => {
+    const s = await shopper(storeA, [["mug", 1]]);
+    let limited = 0;
+    for (let i = 0; i < 12; i++) {
+      const req = { ...s.req, clientIp: `2001:db8:77:1::${(i + 1).toString(16)}` };
+      try {
+        await applyDiscountCode(req, { code: `ROTATE${String(i)}` });
+      } catch (error) {
+        if ((error as { code?: string }).code === "RATE_LIMITED") limited += 1;
+      }
+    }
+    // 10 per client per minute across the whole /64.
+    expect(limited).toBe(2);
+  });
+});
+
 describe("webhook verification", () => {
   it("refuses unsigned, tampered, stale and other-store deliveries", async () => {
     const s = await shopper(storeA, [["mug", 1]]);

@@ -10,6 +10,7 @@ import {
 } from "@storevia/email";
 import {
   clientIp,
+  ipBucket,
   consumeRateLimits,
   userAgent,
   type RateLimitRule,
@@ -69,9 +70,19 @@ const POLICIES: Record<Realm, RealmPolicy> = {
   },
 };
 
+/** The client's rate-limit bucket (IPv6 by /64), or null when unknown. */
+function clientKey(headers: Headers): string | null {
+  const ip = clientIp(headers);
+  return ip ? ipBucket(ip) : null;
+}
+
 const RATE_LIMITS = {
   signInIp: { name: "auth:sign-in:ip", limit: 30, windowSeconds: 5 * 60 },
-  signInEmail: { name: "auth:sign-in:email", limit: 10, windowSeconds: 15 * 60 },
+  // Per realm (a dashboard sign-in never spends a staff member's platform
+  // budget) and per client: one address can't lock an account out; many
+  // addresses together get a bounded number of guesses (M8).
+  signInEmailClient: { name: "auth:sign-in:email-client", limit: 10, windowSeconds: 15 * 60 },
+  signInEmail: { name: "auth:sign-in:email", limit: 50, windowSeconds: 15 * 60 },
   signUpIp: { name: "auth:sign-up:ip", limit: 10, windowSeconds: HOUR },
   // Bounds "account already exists" emails to one address (email bombing).
   signUpEmail: { name: "auth:sign-up:email", limit: 3, windowSeconds: HOUR },
@@ -79,6 +90,7 @@ const RATE_LIMITS = {
   resetRequestIp: { name: "auth:reset-request:ip", limit: 10, windowSeconds: HOUR },
   resetSubmitIp: { name: "auth:reset-submit:ip", limit: 20, windowSeconds: HOUR },
   verifyResendEmail: { name: "auth:verify-resend:email", limit: 3, windowSeconds: HOUR },
+  verifyResendIp: { name: "auth:verify-resend:ip", limit: 10, windowSeconds: HOUR },
   verifySubmitIp: { name: "auth:verify-submit:ip", limit: 30, windowSeconds: HOUR },
   confirmPasswordUser: { name: "auth:confirm-password:user", limit: 10, windowSeconds: 15 * 60 },
   changePasswordUser: { name: "auth:change-password:user", limit: 10, windowSeconds: HOUR },
@@ -305,7 +317,7 @@ export class AuthService {
     if (!parsed.success)
       return authFail("INVALID_INPUT", parsed.error.issues[0]?.message ?? "Invalid input.");
     const blocked = await this.limited([
-      [RATE_LIMITS.signUpIp, clientIp(headers)],
+      [RATE_LIMITS.signUpIp, clientKey(headers)],
       [RATE_LIMITS.signUpEmail, parsed.data.email],
     ]);
     if (blocked) return blocked;
@@ -329,8 +341,12 @@ export class AuthService {
     const parsed = signInSchema.safeParse(input);
     if (!parsed.success) return authFail("INVALID_CREDENTIALS", GENERIC_SIGN_IN_ERROR);
     const blocked = await this.limited([
-      [RATE_LIMITS.signInIp, clientIp(headers)],
-      [RATE_LIMITS.signInEmail, parsed.data.email],
+      [RATE_LIMITS.signInIp, clientKey(headers)],
+      [
+        RATE_LIMITS.signInEmailClient,
+        `${this.realm}:${parsed.data.email}:${clientKey(headers) ?? "unknown"}`,
+      ],
+      [RATE_LIMITS.signInEmail, `${this.realm}:${parsed.data.email}`],
     ]);
     if (blocked) return blocked;
     try {
@@ -366,7 +382,7 @@ export class AuthService {
   }
 
   async verifyEmail(token: string, headers: Headers): Promise<AuthResult> {
-    const blocked = await this.limited([[RATE_LIMITS.verifySubmitIp, clientIp(headers)]]);
+    const blocked = await this.limited([[RATE_LIMITS.verifySubmitIp, clientKey(headers)]]);
     if (blocked) return blocked;
     if (!token || token.length > 4096)
       return authFail("INVALID_TOKEN", "This link is invalid or has expired.");
@@ -381,7 +397,10 @@ export class AuthService {
   async resendVerification(email: unknown, headers: Headers): Promise<AuthResult> {
     const parsed = emailSchema.safeParse(email);
     if (!parsed.success) return authOk(undefined);
-    const blocked = await this.limited([[RATE_LIMITS.verifyResendEmail, parsed.data]]);
+    const blocked = await this.limited([
+      [RATE_LIMITS.verifyResendIp, clientKey(headers)],
+      [RATE_LIMITS.verifyResendEmail, parsed.data],
+    ]);
     if (blocked) return blocked;
     try {
       await this.auth.api.sendVerificationEmail({ body: { email: parsed.data }, headers });
@@ -395,7 +414,7 @@ export class AuthService {
     const parsed = emailSchema.safeParse(email);
     if (!parsed.success) return authFail("INVALID_INPUT", "Enter a valid email address.");
     const blocked = await this.limited([
-      [RATE_LIMITS.resetRequestIp, clientIp(headers)],
+      [RATE_LIMITS.resetRequestIp, clientKey(headers)],
       [RATE_LIMITS.resetRequestEmail, parsed.data],
     ]);
     if (blocked) return blocked;
@@ -414,7 +433,7 @@ export class AuthService {
     const parsed = passwordSchema.safeParse(newPassword);
     if (!parsed.success)
       return authFail("INVALID_INPUT", parsed.error.issues[0]?.message ?? "Invalid password.");
-    const blocked = await this.limited([[RATE_LIMITS.resetSubmitIp, clientIp(headers)]]);
+    const blocked = await this.limited([[RATE_LIMITS.resetSubmitIp, clientKey(headers)]]);
     if (blocked) return blocked;
     if (await isBreachedPassword(parsed.data)) {
       return authFail(

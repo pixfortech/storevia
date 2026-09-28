@@ -1,4 +1,5 @@
 import "server-only";
+import { ipBucket } from "@storevia/security";
 import { createHash, randomBytes } from "node:crypto";
 import type { TenantTx } from "@storevia/database";
 import { storefrontDb, withStorefront } from "@storevia/database/storefront";
@@ -123,7 +124,7 @@ async function rateLimit(
   token: string | null,
 ): Promise<void> {
   const result = await consumeRateLimitsWith(storefrontDb(), [
-    [RULES.ip, clientIp ? `${store.storeId}:${clientIp}` : null],
+    [RULES.ip, clientIp ? `${store.storeId}:${ipBucket(clientIp)}` : null],
     [RULES.cart, token && TOKEN_RE.test(token) ? hashCartToken(token).slice(0, 32) : null],
   ]);
   if (!result.allowed) {

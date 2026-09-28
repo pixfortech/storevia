@@ -1,4 +1,5 @@
 import "server-only";
+import { ipBucket } from "@storevia/security";
 import { withCheckout } from "@storevia/database/checkout";
 import { recordMetric } from "@storevia/observability";
 import { consumeRateLimitsWith, type RateLimitRule } from "@storevia/security/rate-limit";
@@ -266,7 +267,7 @@ export async function sendCustomerOrderMessage(
       if (!orderId) return "not_found" as const;
       const limited = await consumeRateLimitsWith(checkoutDb(), [
         [RULES.perOrder, `${store.storeId}:${orderId}`],
-        [RULES.perClient, clientIp ? `${store.storeId}:${clientIp}` : null],
+        [RULES.perClient, clientIp ? `${store.storeId}:${ipBucket(clientIp)}` : null],
       ]);
       if (!limited.allowed) {
         throw new DomainError(

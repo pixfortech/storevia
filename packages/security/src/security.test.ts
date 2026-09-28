@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { contentSecurityPolicy } from "./headers";
 import { safeRedirectPath } from "./redirect";
-import { clientIp } from "./request";
+import { clientIp, ipBucket } from "./request";
 import { maskIdentifier, parseKeyring, SecretCipher, SecretCipherError } from "./secrets";
 import { constantTimeEqual, generateToken, hashToken } from "./tokens";
 
@@ -147,5 +147,35 @@ describe("secret cipher (ADR-0031 §4)", () => {
   it("masks identifiers", () => {
     expect(maskIdentifier("rzp_test_ABCDEF1234")).toBe("rzp_test_…1234");
     expect(maskIdentifier("short")).toBe("…hort");
+  });
+});
+
+describe("rate-limit buckets (M8)", () => {
+  it("bucket IPv6 by /64 and keep IPv4 as is", () => {
+    expect(ipBucket("203.0.113.9")).toBe("203.0.113.9");
+    const a = ipBucket("2001:db8:85a3:12:1:2:3:4");
+    expect(a).toBe("2001:db8:85a3:12::/64");
+    // Every address in the same /64 shares the bucket, however written.
+    expect(ipBucket("2001:0db8:85a3:0012:ffff::1")).toBe(a);
+    expect(ipBucket("2001:db8:85a3:12::")).toBe(a);
+    expect(ipBucket("2001:db8:85a3:13::1")).not.toBe(a);
+    expect(ipBucket("::1")).toBe("0:0:0:0::/64");
+    expect(ipBucket("::ffff:198.51.100.7")).toBe("198.51.100.7");
+  });
+
+  it("take the client from behind the configured number of trusted proxies", () => {
+    const previous = { ...process.env };
+    try {
+      process.env["TRUSTED_CLIENT_IP_HEADER"] = "x-forwarded-for";
+      const headers = new Headers({ "x-forwarded-for": "6.6.6.6, 198.51.100.7, 10.0.0.2" });
+      expect(clientIp(headers)).toBe("10.0.0.2");
+      process.env["TRUSTED_PROXY_HOPS"] = "2";
+      expect(clientIp(headers)).toBe("198.51.100.7");
+      // The spoofable left-most entry is never used, whatever the setting.
+      process.env["TRUSTED_PROXY_HOPS"] = "99";
+      expect(clientIp(headers)).not.toBe("6.6.6.6");
+    } finally {
+      process.env = previous;
+    }
   });
 });
