@@ -121,9 +121,10 @@ Differences from the M0 proposal:
 - **Soft-deleted catalogue rows** aren't purged yet (the purge job is still
   open, ADR-0027 §6).
 - **Media objects** are deleted at once rather than after 30 days.
-- **Backups:** 35 days PITR plus monthly snapshots for 12 months; see
-  `docs/operations/backup-restore.md`. Backups hold deleted data until
-  they expire.
+- **Backups:** point-in-time recovery for the Neon plan's history window
+  (at least 7 days), plus nightly logical dumps kept 35 days and monthly
+  dumps kept 12 months; see `docs/operations/backup-restore.md`. Backups
+  hold deleted data until they expire.
 
 ### Soft delete vs hard delete
 
