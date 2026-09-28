@@ -433,6 +433,44 @@ reverted (database mutants as SQL on the test database, rebuilt after each).
 
 Result: 28 mutants, 25 killed (4 after new tests), 3 equivalent.
 
+## M6 functional correction: cart stock, addresses, shipping
+
+| Guarantee                                          | Where                                                                                                                                                                                                                                                     |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| One stock rule for cart, product page and checkout | database `storefront.int.test.ts` "stock ceiling": the largest single online-fulfilling location (not the sum), not-online and inactive locations never count, capped at 100, null when stock doesn't limit, store-scoped, storefront/checkout roles only |
+| Quantities refused, never clamped                  | commerce `cart-stock.int.test.ts`: stock 2 → 1, 2 accepted, 3 refused and the line keeps 2; adding counts the cart; over 99 refused; forged quantities (`abc`, `2.5`, `-1`, `1e3`, `0x10`) refused                                                        |
+| Lines stock can no longer supply                   | same file: `sold_out` / `insufficient`, left out of the subtotal; only removing or lowering resolves them; checkout can't start (`checkout.int.test.ts` LOW_STOCK)                                                                                        |
+| Oversellable and untracked variants                | same file: only the cart's 99 applies                                                                                                                                                                                                                     |
+| The cart doesn't reserve                           | `checkout.int.test.ts`: two carts hold the last 2; the first to pay reserves them; the second is refused (`ITEM_UNAVAILABLE`) and can't oversell                                                                                                          |
+| Tenancy and cost                                   | `cart-stock.int.test.ts`: another store's variants/stock never reach the cart; reading a cart costs the same queries for 1 or 8 lines                                                                                                                     |
+| Regions and addresses                              | unit `packages/validation/src/geo.test.ts`, `checkout/input.test.ts`: region lists, lookups by code or name, India PIN                                                                                                                                    |
+| Shipping from the store's settings                 | commerce `shipping.int.test.ts`: ₹799 → Standard only, ₹2,500 → Standard and free; a West Bengal zone covers WB not KA; inactive/deleted rates vanish; forged and foreign rate ids refused; another store's zones never appear                            |
+| End to end                                         | E2E `cart-stock.spec.ts`, `shipping-admin.spec.ts`, `checkout-journey.spec.ts` (variant, stock, State list, threshold rate, an admin rate edit reaching checkout, payment), plus the existing checkout specs                                              |
+
+Mutation checks (correction pass), each applied alone and reverted:
+
+| Mutant                                            | Result                                                                                               |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| C1 stock quantity guard skipped                   | killed (cart-stock, sold-out refusal)                                                                |
+| C2 cart line limit (99) not enforced              | killed                                                                                               |
+| C3 quantities clamped instead of refused          | killed                                                                                               |
+| C4 update skips the stock check                   | killed                                                                                               |
+| C5 add ignores what's already in the cart         | killed                                                                                               |
+| C6 unpurchasable lines counted in the subtotal    | killed                                                                                               |
+| C7 checkout starts with lines needing attention   | killed                                                                                               |
+| C8 checkout ignores the stock ceiling             | killed                                                                                               |
+| D1 sold-out variant reported as unlimited (SQL)   | killed                                                                                               |
+| D2 locations not fulfilling online orders counted | killed                                                                                               |
+| D3 sum of locations instead of one location       | killed                                                                                               |
+| D4 stock function not store-scoped                | killed (database)                                                                                    |
+| S1 region matching ignores the zone's states      | killed (shipping)                                                                                    |
+| S2 forged or foreign rate id accepted             | killed (shipping)                                                                                    |
+| S3 subtotal threshold not applied                 | killed (checkout)                                                                                    |
+| T1 category assignment not validated              | killed (taxonomy)                                                                                    |
+| T2 tag suggestions' `storeId` predicate removed   | equivalent: the merchant role's RLS already scopes `Product` to the current store (defence in depth) |
+
+Result: 17 mutants, 16 killed, 1 equivalent.
+
 ## Product taxonomy and tags: what is proven where
 
 Migration `20261210000000_product_taxonomy` ([09-commerce.md §2.1](./09-commerce.md#21-categories-collections-product-types-and-tags)).

@@ -75,7 +75,7 @@ The storefront connects as **`storevia_storefront`** (`LOGIN NOBYPASSRLS`,
   shopper. There is no grant on inventory tables:
   availability comes from `app_storefront_availability(variant_ids)`, a
   `SECURITY DEFINER` function that returns one boolean per variant of the
-  current store and never a count. *M6 correction:* `app_variant_stock`
+  current store and never a count. _M6 correction:_ `app_variant_stock`
   adds how many can be bought (the largest `available` at one active,
   online-fulfilling location, capped at 100, null when stock doesn't limit
   the variant), for the cart's quantity checks; availability is defined by it.
@@ -168,7 +168,7 @@ query-count test harness (M4-09).
 - Every mutation is a server action that re-validates the variant against
   **this** store (a variant id from another store is "not found"), requires
   its product `ACTIVE`, limits a line to 1–99 and a cart to 50 lines, and refuses
-  a variant that is out of stock and can't be oversold. *M6 correction:*
+  a variant that is out of stock and can't be oversold. _M6 correction:_
   quantities are refused, never clamped — above 99, or above what
   `app_variant_stock` says can be supplied ("Only 2 are available.") — and
   the line keeps its quantity. There are no reservations (M6).

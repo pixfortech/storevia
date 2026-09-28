@@ -450,6 +450,39 @@ merchant `owner@acme.test`, password `storevia-dev-password`):
   the seed completed); order emails are written to `apps/worker/.storevia/mail`
   when `EMAIL_TRANSPORT=file`.
 
+#### Functional correction pass (cart stock, addresses, shipping, taxonomy)
+
+Two new migrations (`20261210000000_product_taxonomy`,
+`20261210010000_cart_stock`) and the category reference data:
+
+```sh
+pnpm db:migrate          # applies both
+pnpm db:seed             # loads the product categories (reference data)
+pnpm db:seed:dev         # adds categories and tags to the Acme products
+pnpm dev
+```
+
+To review:
+
+- **Stock:** Enamel saucepan (2 left) → set the quantity to 3 on the product
+  page: "Only 2 are available". Add 1, raise to 2 in the cart ("Only 2
+  available"), try 3: refused and the line keeps 2. In the dashboard, set its
+  stock to 0: the cart marks the line "Sold out", leaves it out of the
+  subtotal and disables Check out until it is removed. A quantity over 99 is
+  refused, never reduced.
+- **Address:** checkout asks for the State from a list (India: states and
+  union territories by name) and a 6-digit PIN; West Bengal is stored as
+  `WB`. Other countries without a list get a free-text State / region.
+- **Shipping:** Settings → Shipping picks countries and states by name. With
+  the seeded India zone, a ₹900 cart sees Standard ₹60 only; ₹2,500 sees
+  Standard and Free shipping. Narrow the zone to West Bengal: a Karnataka
+  address is told "We don't currently ship to this address." and a chosen
+  method is cleared. Editing, deactivating or deleting a rate shows in
+  checkout on the next reload.
+- **Tags and category:** open a product → Category (search "cookware") and
+  Tags (Enter or comma; suggestions are the store's own tags) → Save →
+  reload. Products → Filter by tag or category.
+
 ## Milestone 1 plan (as scheduled at M0)
 
 Order of work, each step a vertical slice with tests:
