@@ -23,6 +23,7 @@ export function migratorDb(): PrismaClient {
 // Tenant and ledger tables only: the plan catalogue (Plan, PlanPrice,
 // Feature, PlanFeature) is reference data loaded by migrations and the seed.
 const TABLES = [
+  "StorefrontInvalidation",
   "OutboxEvent",
   "CartLine",
   "Cart",

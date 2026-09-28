@@ -9,6 +9,7 @@ import { baseSecurityHeaders, contentSecurityPolicy } from "@storevia/security";
 import { NextResponse, type NextRequest } from "next/server";
 import { STORE_HEADER, signStoreHeader, type Availability } from "./context";
 import { internalHeaderKey, isSecure, previewSecret } from "./env";
+import { syncPublicCaches } from "./revalidate";
 import { unknownHostPage } from "./html";
 
 // The public request pipeline (06-storefront.md §2, ADR-0028 §3-§4, ADR-0029):
@@ -95,6 +96,8 @@ export async function handlePublicRequest(
   }
 
   const hostname = normaliseHostname(request.headers.get("host"));
+  // Apply invalidations other instances' changes wrote before trusting the host cache.
+  await syncPublicCaches();
   const store = hostname ? await resolveStoreHost(hostname) : null;
   if (!store) {
     const body = (options.unknownHostHtml ?? unknownHostPage)(nonce);

@@ -6,7 +6,8 @@ import type { TenantTx, TransactionOptions } from "./tenant";
  * The storefront connection (storevia_storefront: NOBYPASSRLS, ADR-0028 §2).
  * It resolves hosts through app_storefront_resolve() and reads only the
  * scoped store's sellable rows. Importers: packages/domains (host
- * resolution) and @storevia/commerce/storefront (read models, carts) only.
+ * resolution), the Site Engine (reader, invalidation log) and
+ * @storevia/commerce/storefront (read models, carts) only.
  */
 export function storefrontDb() {
   return getClient("storefront");

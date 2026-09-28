@@ -144,13 +144,17 @@ verification".
   (Fly.io, Render, ECS) with `DATABASE_WORKER_URL` and the domain
   variables above. Several workers are safe: each domain is claimed with
   `FOR UPDATE SKIP LOCKED`.
-- **Caches are per instance.** The storefront's host cache (30 s) and
-  page-data cache (5 min) live in each process; the worker posts each
-  invalidation to one `STOREFRONT_INTERNAL_URL`. On Vercel, many instances
-  run at once, so a primary switch or a removed domain is seen by other
-  instances when their cached entry expires: at most 30 s for host
-  routing, 5 min for page data. A shared cache or fan-out invalidation is
-  M8; until then this delay is the documented behaviour.
+- **Caches are per instance, invalidation reaches all of them (M8,
+  ADR-0034).** The storefront's host cache (30 s) and page-data cache
+  (5 min) live in each process. The worker (`storefront.outbox-dispatch`,
+  every 5 s) appends the tags of each change to the `StorefrontInvalidation`
+  log; every instance reads the log at most once a second, before serving
+  from cache, and drops what the tags name. A primary switch, removed
+  domain, page publish, product or stock change, or store suspension is
+  seen by every instance within about 6 s of the change committing. The
+  signed post to `STOREFRONT_INTERNAL_URL` is now an optional fast path.
+  If the log can't be read, an instance clears its caches rather than
+  serve possibly stale data.
 
 ## 7. Metrics and alerts
 

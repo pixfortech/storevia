@@ -182,6 +182,7 @@ export default defineConfig(
       "packages/database/**",
       "packages/domains/src/resolver.ts",
       "packages/site-engine/src/read.ts",
+      "packages/site-engine/src/invalidation-log.ts",
       "packages/commerce/src/storefront/**",
       "**/tests/**",
       "**/e2e/**",

@@ -4,9 +4,11 @@
 // Both sides live here so they can't drift apart.
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { invalidateHostCache } from "@storevia/domains/resolver";
-import { recordMetric } from "@storevia/observability";
+import { logger, recordMetric } from "@storevia/observability";
 import { pageDataCache } from "./cache";
-import type { CacheTag } from "./cache-tags";
+import { isWellFormedCacheTag, type CacheTag } from "./cache-tags";
+import { InvalidationFeed } from "./invalidation-feed";
+import { INVALIDATION_READ_LIMIT, invalidationLog } from "./invalidation-log";
 
 export const REVALIDATE_PATH = "/api/internal/revalidate";
 export const MAX_REVALIDATE_BODY = 64 * 1024;
@@ -37,6 +39,49 @@ export function invalidatePublicCaches(tags: readonly CacheTag[]): number {
     else if (tag.startsWith("store:")) invalidateHostCache();
   }
   return pageDataCache().invalidate(tags);
+}
+
+/** Drops everything this process has cached (host resolutions and page data). */
+export function clearPublicCaches(): void {
+  invalidateHostCache();
+  pageDataCache().clear();
+}
+
+const globalFeed = globalThis as typeof globalThis & {
+  __storeviaInvalidationFeed?: InvalidationFeed;
+};
+
+function publicCacheFeed(): InvalidationFeed {
+  globalFeed.__storeviaInvalidationFeed ??= new InvalidationFeed({
+    source: invalidationLog,
+    apply: (tags) => {
+      const dropped = invalidatePublicCaches(tags as CacheTag[]);
+      recordMetric("storefront.cache_invalidated", dropped, { via: "log" });
+    },
+    clear: clearPublicCaches,
+    isTag: isWellFormedCacheTag,
+    readLimit: INVALIDATION_READ_LIMIT,
+    onApplied: (rows, lagMs) => {
+      recordMetric("storefront.invalidation_lag_ms", lagMs, {});
+      recordMetric("storefront.invalidations_applied", rows, {});
+    },
+    onError: (error) => {
+      recordMetric("storefront.invalidation_feed_failed", 1, {});
+      logger.warn("invalidation feed unreadable; caches cleared", {
+        error: error instanceof Error ? error.name : "unknown",
+      });
+    },
+  });
+  return globalFeed.__storeviaInvalidationFeed;
+}
+
+/**
+ * Brings this process's public caches up to date with the invalidation log
+ * (every instance, not just the one the worker posted to). Throttled to one
+ * read a second per process; call before serving anything from cache.
+ */
+export function syncPublicCaches(): Promise<void> {
+  return publicCacheFeed().sync();
 }
 
 /**
@@ -70,7 +115,7 @@ export async function handleRevalidation(
     return Response.json({ error: "invalid body" }, { status: 400 });
   }
   const dropped = invalidatePublicCaches(tags);
-  recordMetric("storefront.cache_invalidated", dropped, {});
+  recordMetric("storefront.cache_invalidated", dropped, { via: "post" });
   return Response.json(
     { tags: tags.length, dropped },
     { headers: { "Cache-Control": "no-store" } },

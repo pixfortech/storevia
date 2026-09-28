@@ -37,6 +37,14 @@ export function cacheTagGrammar(
   return (value: unknown): value is CacheTag => typeof value === "string" && re.test(value);
 }
 
+/**
+ * Any tag in the grammar's shape, whatever its namespace: what the
+ * invalidation log (written only by the worker) may carry.
+ */
+export function isWellFormedCacheTag(value: unknown): value is CacheTag {
+  return typeof value === "string" && /^[a-z][a-z-]{1,30}:[a-z0-9.-]{1,253}$/.test(value);
+}
+
 /** The Site Engine's own tags only. */
 export const isSiteCacheTag = cacheTagGrammar(SITE_TAG_NAMESPACES);
 

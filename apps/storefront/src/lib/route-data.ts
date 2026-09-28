@@ -25,6 +25,7 @@ import { createLogger, recordMetric } from "@storevia/observability";
 import { pageDataCache } from "@storevia/site-engine/cache";
 import { designTag, pagesTag, storeTag } from "@storevia/site-engine/cache-tags";
 import type { StoreRequestContext } from "@storevia/site-engine/context";
+import { syncPublicCaches } from "@storevia/site-engine/revalidate";
 import type { MenuLink } from "@storevia/site-engine/shell";
 import { THEME_PLATFORM, renderableTheme, type ThemeTokens } from "@storevia/editor/theme";
 
@@ -186,9 +187,10 @@ async function loadRoute(
 }
 
 /** The data for a route: from the cache or one storefront transaction (previews bypass the cache). */
-export function routeData(store: StoreRequestContext, route: StoreRoute): Promise<RouteData> {
-  if (store.preview) return loadRoute(store, route).then((r) => r.value);
+export async function routeData(store: StoreRequestContext, route: StoreRoute): Promise<RouteData> {
+  if (store.preview) return (await loadRoute(store, route)).value;
   const key = `route:${store.storeId}:${JSON.stringify(route)}`;
+  await syncPublicCaches();
   return pageDataCache().get(key, () => loadRoute(store, route));
 }
 
@@ -258,8 +260,9 @@ async function loadChrome(store: StoreRequestContext): Promise<StoreChrome> {
 }
 
 /** The store's theme and menus (cached like pages; previews read the draft theme uncached). */
-export function storeChrome(store: StoreRequestContext): Promise<StoreChrome> {
+export async function storeChrome(store: StoreRequestContext): Promise<StoreChrome> {
   if (store.preview) return loadChrome(store);
+  await syncPublicCaches();
   return pageDataCache().get(`chrome:${store.storeId}`, async () => ({
     value: await loadChrome(store),
     tags: [
@@ -272,7 +275,8 @@ export function storeChrome(store: StoreRequestContext): Promise<StoreChrome> {
 }
 
 /** Sitemap paths for the store (cached like pages; never drafts). */
-export function storeSitemap(store: StoreRequestContext) {
+export async function storeSitemap(store: StoreRequestContext) {
+  await syncPublicCaches();
   return pageDataCache().get(`sitemap:${store.storeId}`, async () => ({
     value: await readStorefront(store, async (reader, site) =>
       [...(await site.sitemapPages()), ...(await reader.sitemap())].sort((a, b) =>

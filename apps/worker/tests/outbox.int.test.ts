@@ -72,6 +72,11 @@ const revalidator = () => {
 };
 
 const undispatched = async () => migratorDb().outboxEvent.count({ where: { dispatchedAt: null } });
+const logged = async () =>
+  (
+    await migratorDb().$queryRaw<{ tags: string[] }[]>`
+      SELECT tags FROM "StorefrontInvalidation" ORDER BY id`
+  ).map((r) => [...r.tags].sort());
 
 describe("outbox dispatch", () => {
   it("posts signed, de-duplicated tags and marks the events dispatched", async () => {
@@ -87,15 +92,38 @@ describe("outbox dispatch", () => {
       [`catalogue:${STORE}`, `product:${PRODUCT}`, `store:${STORE}`].sort(),
     );
     expect(await undispatched()).toBe(0);
+    // The same tags reach every storefront instance through the log.
+    expect(await logged()).toEqual([
+      [`catalogue:${STORE}`, `product:${PRODUCT}`, `store:${STORE}`].sort(),
+    ]);
     expect(await dispatchOutbox(revalidator())).toBe(0);
     expect(received).toHaveLength(1);
+    expect(await logged()).toHaveLength(1);
   });
 
-  it("a failed post leaves the events for the next run", async () => {
+  it("a failed post never blocks the queue: the log carries the tags", async () => {
     status = 500;
-    await expect(dispatchOutbox(revalidator())).rejects.toThrow(/HTTP 500/);
-    expect(await undispatched()).toBe(1);
-    status = 200;
+    expect(await dispatchOutbox(revalidator())).toBe(1);
+    expect(await undispatched()).toBe(0);
+    expect(await logged()).toEqual([[`catalogue:${STORE}`, `product:${PRODUCT}`].sort()]);
+  });
+
+  it("with no storefront URL, the log alone carries the tags", async () => {
+    expect(await dispatchOutbox(null)).toBe(1);
+    expect(await undispatched()).toBe(0);
+    expect(await logged()).toHaveLength(1);
+  });
+
+  it("a failed log write leaves the events for the next run", async () => {
+    await migratorDb().$executeRaw`
+      ALTER TABLE "StorefrontInvalidation" ADD CONSTRAINT test_block CHECK (false) NOT VALID`;
+    try {
+      await expect(dispatchOutbox(revalidator())).rejects.toThrow(/test_block/);
+      expect(await undispatched()).toBe(1);
+    } finally {
+      await migratorDb()
+        .$executeRaw`ALTER TABLE "StorefrontInvalidation" DROP CONSTRAINT test_block`;
+    }
     expect(await dispatchOutbox(revalidator())).toBe(1);
     expect(await undispatched()).toBe(0);
   });
@@ -113,8 +141,14 @@ describe("outbox dispatch", () => {
     expect(await undispatched()).toBe(0);
   });
 
-  it("without a storefront configured: skipped in development and test, refused elsewhere", () => {
+  it("the fast path is optional; a URL without a secret is refused outside development", () => {
     expect(httpRevalidator({ STOREVIA_ENV: "test" })).toBeNull();
-    expect(() => httpRevalidator({ STOREVIA_ENV: "production" })).toThrow(/must be set/);
+    expect(httpRevalidator({ STOREVIA_ENV: "production" })).toBeNull();
+    expect(
+      httpRevalidator({ STOREVIA_ENV: "test", STOREFRONT_INTERNAL_URL: "http://127.0.0.1:1" }),
+    ).toBeNull();
+    expect(() =>
+      httpRevalidator({ STOREVIA_ENV: "production", STOREFRONT_INTERNAL_URL: "http://sf" }),
+    ).toThrow(/must be set/);
   });
 });

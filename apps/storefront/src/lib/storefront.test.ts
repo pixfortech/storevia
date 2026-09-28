@@ -34,3 +34,18 @@ describe("routes", () => {
     expect(linkHref(data, { type: "blog", id: "post_1" })).toBeNull();
   });
 });
+
+describe("multi-instance caching (M8)", () => {
+  it("every cached page-data read applies the invalidation log first", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const source = await readFile(new URL("./route-data.ts", import.meta.url), "utf8");
+    const reads = source.split("pageDataCache().get(").slice(1);
+    expect(reads.length).toBeGreaterThanOrEqual(3);
+    // Each read's preceding statement in its function is the sync.
+    const chunks = source.split("pageDataCache().get(").slice(0, -1);
+    for (const before of chunks) {
+      const fn = before.slice(before.lastIndexOf("export "));
+      expect(fn).toContain("await syncPublicCaches();");
+    }
+  });
+});
