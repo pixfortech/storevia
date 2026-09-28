@@ -1,0 +1,22 @@
+# Build context for container images (apps/worker/Dockerfile). Never send
+# secrets, local state or build output to the daemon.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+.git
+.github
+.claude
+**/node_modules
+**/.next
+**/.next-*
+**/.turbo
+**/dist
+**/coverage
+**/test-results
+**/playwright-report
+.media
+.storevia
+apps/dashboard/.media
+apps/dashboard/.storevia

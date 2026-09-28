@@ -8,6 +8,7 @@ import { disconnectAll } from "@storevia/database";
 import { workerDb } from "@storevia/database/worker";
 import { Scheduler, Worker } from "@storevia/jobs";
 import { createLogger } from "@storevia/observability";
+import { verifyOrExit } from "@storevia/security/env";
 import { loadWorkerEnv } from "./env";
 import { JOBS } from "./jobs";
 
@@ -15,7 +16,7 @@ const rootEnv = resolve(import.meta.dirname, "../../../.env");
 if (existsSync(rootEnv) && !process.env["CI"]) process.loadEnvFile(rootEnv);
 
 const log = createLogger({ app: "worker" });
-const env = loadWorkerEnv();
+const env = verifyOrExit(() => loadWorkerEnv());
 
 const workerId = `${hostname()}-${String(process.pid)}`;
 const scheduler = new Scheduler({ workerId });

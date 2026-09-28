@@ -164,14 +164,14 @@ export function runBootChecks(
  * never serve, which an orchestrator would count as healthy. The message
  * names variables and rules only.
  */
-export function verifyOrExit(check: () => void): void {
+export function verifyOrExit<T>(check: () => T): T {
   try {
-    check();
+    return check();
   } catch (error) {
     const message = error instanceof ConfigurationError ? error.message : String(error);
     process.stderr.write(
       `${JSON.stringify({ level: "fatal", msg: "configuration invalid", error: message })}\n`,
     );
-    process.exit(1);
+    return process.exit(1);
   }
 }
