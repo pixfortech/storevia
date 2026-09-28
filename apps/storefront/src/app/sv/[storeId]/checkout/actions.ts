@@ -114,7 +114,7 @@ export async function addressAction(form: FormData): Promise<void> {
     "line2",
     "city",
     "region",
-    "regionCode",
+    "regionCountry",
     "postalCode",
     "countryCode",
     "phone",

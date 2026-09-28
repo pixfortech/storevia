@@ -234,8 +234,53 @@ What the sections above describe, as implemented, with the refinements:
 | Refunds               | `refundOrder()`                                                                                                                       | Bounded by captured − (succeeded + pending) under the payment row lock; the provider is called after commit; restock only for fulfilled units, explicitly per line                                                                                  |
 | Fulfilment            | `fulfilOrder()`                                                                                                                       | Per-line quantities under row locks and a conditional update; reserved stock ships from the reservation's location                                                                                                                                  |
 | Emails                | `commerce/src/orders/notifications.ts`, worker job `orders.notifications`                                                             | Queued in the changing transaction, sent at least once with backoff; a failure never touches the order                                                                                                                                              |
+| Shipping, addresses   | `commerce/src/settings/shipping.ts`, `commerce/src/checkout/input.ts` (`parseAddress`), reference data `@storevia/validation/geo`     | Zones and addresses use the same country and region codes; a country is in at most one zone per store; rates come only from the store's rows (no built-in amounts or countries)                                                                     |
+
+**Countries and regions.** `packages/validation/src/geo.ts` is the one list
+of countries (ISO 3166-1 alpha-2, English names) that the store country,
+shipping zones, tax rates and checkout addresses are chosen from, with
+lookups `countryByCode`, `regionByCode`, `regionByName` (case, accent and
+spacing insensitive) and `hasRegions`. Region codes are ISO 3166-2
+subdivision codes without the country prefix (`IN-WB` is stored as `WB`), so
+a zone's `regionCodes`, a tax rate's `regionCode` and an address's
+`regionCode` compare directly. India (28 states, 8 union territories, codes
+current as of 2025: `CG`, `OD`, `TS`, `UK`, `DH`, `LA`), the US (50 states
+and DC), Canada and Australia have region lists; other countries have
+`regions: null`. Superseded ISO codes (`OR`, `CT`, `TG`, `UT`, `DN`, `DD`)
+are accepted as input and stored as the current code.
+
+- Checkout (no client script): the address form is drawn for one country
+  (the one just submitted, else the saved one, else the store's). With a
+  region list it shows a required State select of names (value = code);
+  otherwise an optional "State / region" text field. The form also sends
+  `regionCountry`, the country whose list it showed: when the shopper
+  changes the country, a state from the old list isn't trusted, so the form
+  comes back with "Choose your state." and the new country's list.
+  `parseAddress` accepts a region as code or name and stores both the
+  canonical code and the name; India's PIN is required and must be 6 digits
+  (first 1–9, spaces removed); other countries keep free-text postal codes.
+  Saved addresses are read back by shape only (`storedAddress`), so stricter
+  rules never drop an address a payment in flight relies on.
+- Matching: a rate covers an address when a zone country matches and the
+  zone has no regions or lists the address's region code; `PRICE_BASED`
+  rates also check the subtotal after discount. After a valid address, no
+  matching rate is `SHIPPING_UNAVAILABLE`: "We don't currently ship to this
+  address."
+- Settings → Shipping: countries are ticked by name in a searchable
+  checklist; with exactly one country that has a region list, its regions
+  can be ticked too (none = whole country). The service accepts lists or
+  comma-separated codes, refuses codes not in the reference data and
+  regions for anything but a single listed country, and names the country
+  and zone when a country is already in another zone.
+- To add a country's regions: give its entry in `geo.ts` the full current
+  ISO 3166-2 list (`regions`), `regionLabel`/`regionsLabel`, any superseded
+  codes as `formerCodes`, and a count test in `geo.test.ts`; a postal rule
+  (`postalCode`) is optional. Existing zones and tax rates for that country
+  keep working (they cover the whole country until regions are ticked).
 
 Tests (§10) live in `packages/commerce/src/checkout/*.test.ts` (pricing,
-state machines), `packages/commerce/tests/checkout.int.test.ts`,
-`orders.int.test.ts` and `packages/database/tests/checkout-orders.int.test.ts`;
-[11-testing.md](./11-testing.md) lists what each covers.
+state machines, address input), `packages/commerce/tests/checkout.int.test.ts`,
+`shipping.int.test.ts`, `orders.int.test.ts`,
+`packages/database/tests/checkout-orders.int.test.ts` and
+`packages/validation/src/geo.test.ts`; [11-testing.md](./11-testing.md) lists
+what each covers.

@@ -6,22 +6,48 @@ import { fetchStore } from "./storefront-helpers";
 // dashboard (shipping to India, test payments, live), and a shopper who
 // fills a cart and the checkout steps.
 
-export async function setUpStore(page: Page, tenant: Tenant) {
+/**
+ * Adds a shipping zone from Settings → Shipping: countries and (for a single
+ * country with a list) states are ticked by name in searchable checklists.
+ */
+export async function addZone(
+  page: Page,
+  tenant: Tenant,
+  name: string,
+  countries: readonly string[],
+  regions: readonly string[] = [],
+) {
   await page.goto(`${tenant.storePath}/settings/shipping`);
   await page.getByRole("button", { name: "Add zone" }).first().click();
   const zone = page.getByRole("dialog");
-  await zone.getByLabel("Zone name").fill("India");
-  await zone.getByLabel("Countries").fill("IN");
+  await zone.getByLabel("Zone name").fill(name);
+  for (const country of countries) {
+    await zone.getByRole("searchbox", { name: "Search countries" }).fill(country);
+    await zone.getByRole("checkbox", { name: country, exact: true }).check();
+  }
+  await expect(zone.getByText(`Chosen: ${countries.join(", ")}.`)).toBeVisible();
+  for (const region of regions) {
+    const list = zone.getByRole("group", { name: new RegExp(` of ${countries[0] ?? ""}$`) });
+    await list.getByRole("searchbox").fill(region);
+    await list.getByRole("checkbox", { name: region, exact: true }).check();
+  }
   await zone.getByRole("button", { name: "Add zone" }).click();
   await expect(zone).toBeHidden();
-  await page.getByRole("button", { name: "Add rate to India" }).click();
+}
+
+/** Adds a flat rate to a zone (the shipping settings page must be open). */
+export async function addRate(page: Page, zoneName: string, rateName: string, price: string) {
+  await page.getByRole("button", { name: `Add rate to ${zoneName}` }).click();
   const rate = page.getByRole("dialog");
-  await rate.getByLabel("Rate name").fill("Standard");
-  await rate.getByLabel("Price").fill("50");
+  await rate.getByLabel("Rate name").fill(rateName);
+  await rate.getByLabel("Price").fill(price);
   await rate.getByRole("button", { name: "Add rate" }).click();
   await expect(rate).toBeHidden();
-  await expect(page.getByRole("button", { name: "Edit Standard" })).toBeVisible();
+  await expect(page.getByRole("button", { name: `Edit ${rateName}` })).toBeVisible();
+}
 
+/** Test payments on, and the store live. */
+export async function goLive(page: Page, tenant: Tenant) {
   await page.goto(`${tenant.storePath}/settings/payments`);
   await page.getByRole("button", { name: "Connect test payments" }).click();
   await expect(page.getByText(/Test mode/).first()).toBeVisible();
@@ -30,6 +56,12 @@ export async function setUpStore(page: Page, tenant: Tenant) {
   await page.goto(`${tenant.storePath}/settings`);
   await page.getByRole("button", { name: "Go live" }).click();
   await expect(page.getByText("Your store is live.")).toBeVisible();
+}
+
+export async function setUpStore(page: Page, tenant: Tenant) {
+  await addZone(page, tenant, "India", ["India"]);
+  await addRate(page, "India", "Standard", "50");
+  await goLive(page, tenant);
 }
 
 export async function shopperWithCart(browser: Browser, origin: string, quantity: string) {
@@ -62,7 +94,9 @@ export async function fillDetails(shop: Page, email: string) {
   await address.getByLabel("Last name").first().fill("Rao");
   await address.getByLabel("Address", { exact: true }).first().fill("12 MG Road");
   await address.getByLabel("City").first().fill("Bengaluru");
-  await address.getByLabel("Postal code").first().fill("560001");
+  // The store is in India: its states are a list, and the PIN is required.
+  await address.locator("#ship_region").selectOption({ label: "Karnataka" });
+  await address.locator("#ship_postalCode").fill("560001");
   await address.getByRole("button", { name: "Continue" }).click();
   await expect(shop.getByRole("button", { name: "Update address" })).toBeVisible();
   await shop.getByRole("radio", { name: /Standard/ }).check();

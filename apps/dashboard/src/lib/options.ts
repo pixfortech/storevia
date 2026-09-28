@@ -1,64 +1,15 @@
 import { SUPPORTED_CURRENCIES } from "@storevia/validation";
+import { countries } from "@storevia/validation/geo";
 
-// Option lists for forms. Built with Intl so names are correct and
-// localisable (docs 01 §7 i18n); the server validates every value anyway.
+// Option lists for forms. Countries come from the geo reference data (the
+// list shipping zones, tax rates and addresses are checked against);
+// currency names are built with Intl so they are correct and localisable
+// (docs 01 §7 i18n). The server validates every value anyway.
 
-const REGIONS = [
-  "IN",
-  "US",
-  "GB",
-  "AE",
-  "AU",
-  "CA",
-  "DE",
-  "FR",
-  "ES",
-  "IT",
-  "NL",
-  "IE",
-  "SG",
-  "MY",
-  "ID",
-  "PH",
-  "TH",
-  "VN",
-  "JP",
-  "KR",
-  "NZ",
-  "ZA",
-  "NG",
-  "KE",
-  "EG",
-  "SA",
-  "QA",
-  "BR",
-  "MX",
-  "AR",
-  "CL",
-  "CO",
-  "SE",
-  "NO",
-  "DK",
-  "FI",
-  "CH",
-  "AT",
-  "BE",
-  "PT",
-  "PL",
-  "CZ",
-  "BD",
-  "LK",
-  "NP",
-  "PK",
-] as const;
+/** Sorted by English name. */
+export const COUNTRY_OPTIONS = countries.map((c) => ({ value: c.code, label: c.name }));
 
-const regionNames = new Intl.DisplayNames(["en"], { type: "region" });
 const currencyNames = new Intl.DisplayNames(["en"], { type: "currency" });
-
-export const COUNTRY_OPTIONS = REGIONS.map((code) => ({
-  value: code,
-  label: regionNames.of(code) ?? code,
-})).sort((a, b) => a.label.localeCompare(b.label));
 
 export const CURRENCY_OPTIONS = SUPPORTED_CURRENCIES.map((code) => ({
   value: code,

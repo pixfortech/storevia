@@ -26,6 +26,12 @@ const text = (formData: FormData, name: string) => {
   return typeof value === "string" ? value : "";
 };
 
+const all = (formData: FormData, name: string) =>
+  formData
+    .getAll(name)
+    .filter((v): v is string => typeof v === "string")
+    .slice(0, 300);
+
 export async function saveShippingZoneAction(
   storeId: string,
   zoneId: string | null,
@@ -34,10 +40,11 @@ export async function saveShippingZoneAction(
 ): Promise<ActionState> {
   return runAction(async () => {
     const ctx = await storeActionContext(storeId);
+    // One field per ticked country or region (the checklists repeat the name).
     const input = {
       name: text(formData, "name"),
-      countries: text(formData, "countries"),
-      regions: text(formData, "regions"),
+      countries: all(formData, "countries"),
+      regions: all(formData, "regions"),
     };
     if (zoneId) await updateShippingZone(ctx, zoneId, input);
     else await createShippingZone(ctx, input);

@@ -1,6 +1,8 @@
 import "server-only";
+import type { TenantTx } from "@storevia/database";
 import { recordAudit, type TenantContext } from "@storevia/tenancy";
 import { notFound, validationFailed } from "@storevia/types";
+import { countryByCode, hasRegions, regionByCode } from "@storevia/validation/geo";
 import {
   inStore,
   internalId,
@@ -13,9 +15,10 @@ import {
 import type { MoneyJson } from "../money";
 
 // Shipping settings (ADR-0031 §7), `settings.manage`: zones by country
-// (optionally a single country's regions) with FLAT or PRICE_BASED rates
-// in the store currency. A price-based rate with amount 0 is "free over X".
-// Checkout re-validates every rate against the address and subtotal.
+// (optionally a single country's regions, all from the geo reference data)
+// with FLAT or PRICE_BASED rates in the store currency. A price-based rate
+// with amount 0 is "free over X". Each country is in at most one zone per
+// store. Checkout re-validates every rate against the address and subtotal.
 
 export interface ShippingRateView {
   readonly id: string;
@@ -75,43 +78,102 @@ export async function getShippingSettings(
   });
 }
 
-const list = (value: unknown): string[] =>
-  typeof value === "string"
-    ? [
-        ...new Set(
-          value
-            .split(/[\s,]+/)
-            .map((v) => v.trim().toUpperCase())
-            .filter(Boolean),
-        ),
-      ]
-    : [];
+/**
+ * Codes from a list (repeated form fields, as the dashboard's checkbox lists
+ * send them) or a comma- or space-separated string ("IN, NP"), upper-cased
+ * and de-duplicated.
+ */
+const list = (value: unknown): string[] => {
+  const items =
+    typeof value === "string"
+      ? [value]
+      : Array.isArray(value)
+        ? value.filter((v): v is string => typeof v === "string")
+        : [];
+  return [
+    ...new Set(
+      items
+        .flatMap((v) => v.split(/[\s,]+/))
+        .map((v) => v.trim().toUpperCase())
+        .filter(Boolean),
+    ),
+  ];
+};
 
-function zoneInput(input: {
+export interface ShippingZoneInput {
   readonly name?: unknown;
+  /** Country codes: a list, or "IN, NP". */
   readonly countries?: unknown;
+  /** Region codes of a single-country zone: a list, or "KA, MH". Empty covers the whole country. */
   readonly regions?: unknown;
-}) {
+}
+
+/**
+ * Countries and regions must be in the geo reference data, so zones use the
+ * same canonical ISO codes as checkout addresses and tax rates (a superseded
+ * region code is stored as the current one). Regions narrow a zone of one
+ * country that has a region list.
+ */
+function zoneInput(input: ShippingZoneInput) {
   const name = typeof input.name === "string" ? input.name.trim() : "";
   const countries = list(input.countries);
-  const regions = list(input.regions);
+  const typedRegions = list(input.regions);
   const errors: Record<string, string> = {};
   if (!name || name.length > 100) errors["name"] = "Enter a zone name of up to 100 characters.";
-  if (
-    countries.length === 0 ||
-    countries.length > 250 ||
-    countries.some((c) => !/^[A-Z]{2}$/.test(c))
-  ) {
-    errors["countries"] = "Enter two-letter country codes, like IN or US, separated by commas.";
+  const unknown = countries.filter((c) => !countryByCode(c));
+  if (countries.length === 0) {
+    errors["countries"] = "Choose at least one country.";
+  } else if (unknown.length > 0 || countries.length > 250) {
+    errors["countries"] = "Choose countries from the list.";
   }
-  if (regions.length > 0 && countries.length !== 1) {
-    errors["regions"] = "Regions can be set for a zone with a single country.";
-  }
-  if (regions.length > 100 || regions.some((r) => !/^[A-Z0-9-]{1,10}$/.test(r))) {
-    errors["regions"] = "Enter region codes, like KA or MH, separated by commas.";
+  let regions: string[] = [];
+  if (typedRegions.length > 0) {
+    const country = countries.length === 1 ? countryByCode(countries[0]) : undefined;
+    if (countries.length !== 1) {
+      errors["regions"] = "Regions can be set for a zone with a single country.";
+    } else if (country && !hasRegions(country)) {
+      errors["regions"] =
+        `${country.name} has no regions to choose from. The zone covers the whole country.`;
+    } else if (country) {
+      const found = typedRegions.map((code) => regionByCode(country, code));
+      if (found.some((r) => !r)) {
+        errors["regions"] = `Choose regions of ${country.name} from the list.`;
+      } else {
+        // Canonical codes, in the reference list's order.
+        const chosen = new Set(found.map((r) => r?.code));
+        regions = (country.regions ?? []).filter((r) => chosen.has(r.code)).map((r) => r.code);
+      }
+    }
   }
   if (Object.keys(errors).length > 0) throw validationFailed(errors);
   return { name, countries, regions };
+}
+
+const nameOf = (code: string) => countryByCode(code)?.name ?? code;
+
+/**
+ * Refuses a country that another of the store's zones already has: one zone
+ * per country keeps checkout's matching unambiguous (the unique index on
+ * (storeId, countryCode) enforces it; this names the country and zone).
+ */
+async function assertCountriesFree(
+  tx: TenantTx,
+  countries: readonly string[],
+  zoneId: string | null,
+): Promise<void> {
+  const taken = await tx.shippingZoneCountry.findFirst({
+    where: {
+      countryCode: { in: [...countries] },
+      ...(zoneId ? { zoneId: { not: zoneId } } : {}),
+    },
+    orderBy: { countryCode: "asc" },
+    select: { countryCode: true, zone: { select: { name: true } } },
+  });
+  if (taken) {
+    throw validationFailed({
+      countries: `${nameOf(taken.countryCode.trim())} is already in the zone “${taken.zone.name}”. A country can be in one zone only.`,
+    });
+  }
 }
 
 function countryTaken(error: unknown): never {
@@ -123,7 +185,7 @@ function countryTaken(error: unknown): never {
 
 export async function createShippingZone(
   ctx: TenantContext,
-  input: { readonly name?: unknown; readonly countries?: unknown; readonly regions?: unknown },
+  input: ShippingZoneInput,
 ): Promise<{ readonly zoneId: string }> {
   const zone = zoneInput(input);
   return inStore(
@@ -131,6 +193,7 @@ export async function createShippingZone(
     "settings.manage",
     async (tx, store) => {
       const base = { organisationId: store.organisationId, storeId: store.storeId };
+      await assertCountriesFree(tx, zone.countries, null);
       try {
         const created = await tx.shippingZone.create({
           data: { ...base, name: zone.name },
@@ -165,7 +228,7 @@ export async function createShippingZone(
 export async function updateShippingZone(
   ctx: TenantContext,
   zonePublicId: unknown,
-  input: { readonly name?: unknown; readonly countries?: unknown; readonly regions?: unknown },
+  input: ShippingZoneInput,
 ): Promise<void> {
   const id = internalId("shippingZone", zonePublicId);
   const zone = zoneInput(input);
@@ -176,6 +239,7 @@ export async function updateShippingZone(
       const existing = await tx.shippingZone.findUnique({ where: { id }, select: { id: true } });
       if (!existing) throw notFound();
       const base = { organisationId: store.organisationId, storeId: store.storeId };
+      await assertCountriesFree(tx, zone.countries, id);
       try {
         await tx.shippingZone.update({ where: { id }, data: { name: zone.name } });
         await tx.shippingZoneCountry.deleteMany({ where: { zoneId: id } });

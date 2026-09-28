@@ -89,6 +89,7 @@ async function placeOrder(
     line1: "4 Park Street",
     city: "Kolkata",
     countryCode: "IN",
+    region: "WB",
     postalCode: "700016",
   });
   const priced = await getCheckout(req);

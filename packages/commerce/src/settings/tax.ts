@@ -1,6 +1,7 @@
 import "server-only";
 import { recordAudit, type TenantContext } from "@storevia/tenancy";
 import { notFound, validationFailed } from "@storevia/types";
+import { countryByCode, findRegion, hasRegions } from "@storevia/validation/geo";
 import { inStore, internalId, publicId } from "../internal";
 
 // Tax settings (ADR-0031 §7), `settings.manage`: manual rates by country
@@ -113,14 +114,22 @@ function rateInput(input: {
   const name = typeof input.name === "string" ? input.name.trim() : "";
   const countryCode =
     typeof input.countryCode === "string" ? input.countryCode.trim().toUpperCase() : "";
-  const regionCode =
-    typeof input.regionCode === "string" ? input.regionCode.trim().toUpperCase() || null : null;
+  const typedRegion = typeof input.regionCode === "string" ? input.regionCode.trim() : "";
   const errors: Record<string, string> = {};
   if (!name || name.length > 100)
     errors["name"] = "Enter a name of up to 100 characters, like GST.";
   if (!/^[A-Z]{2}$/.test(countryCode)) errors["countryCode"] = "Enter a two-letter country code.";
-  if (regionCode && !/^[A-Z0-9-]{1,10}$/.test(regionCode)) {
-    errors["regionCode"] = "Enter a region code, like KA.";
+  // A region is one of the country's in the geo reference data, stored as
+  // its canonical code: the same code checkout addresses and shipping zones
+  // carry, so the rate can match.
+  let regionCode: string | null = null;
+  if (typedRegion) {
+    const country = countryByCode(countryCode);
+    const region = findRegion(country, typedRegion);
+    if (region) regionCode = region.code;
+    else if (country && !hasRegions(country)) {
+      errors["regionCode"] = `Regions aren't available for ${country.name}. Leave this empty.`;
+    } else errors["regionCode"] = "Enter a state or region code, like KA.";
   }
   if (Object.keys(errors).length > 0) throw validationFailed(errors);
   return { name, countryCode, regionCode, ratePpm: percentToPpm(input.rate) };

@@ -13,7 +13,9 @@ import {
   saveShippingZoneAction,
 } from "@/app/(app)/s/[storeId]/settings/shipping/actions";
 import { ConfirmDialog } from "@/components/areas/confirm-dialog";
+import { countries, countryByCode } from "@storevia/validation/geo";
 import { FormMessage, SelectField, SubmitButton, TextField } from "@/components/forms";
+import { Checklist, type ChecklistOption } from "./checklist";
 import { useCloseOnSave } from "./use-close-on-save";
 
 // Shipping zone and rate dialogs. Each form mounts when its dialog opens, so
@@ -23,11 +25,14 @@ import { useCloseOnSave } from "./use-close-on-save";
 export interface ZoneValues {
   readonly id: string;
   readonly name: string;
-  /** "IN, US". */
-  readonly countries: string;
-  /** "KA, MH" (a single-country zone only). */
-  readonly regions: string;
+  /** Country codes, e.g. ["IN"]. */
+  readonly countries: readonly string[];
+  /** Region codes of a single-country zone, e.g. ["WB"]; empty for the whole country. */
+  readonly regions: readonly string[];
 }
+
+/** Countries already in the store's other zones: code → zone name. */
+export type TakenCountries = Readonly<Record<string, string>>;
 
 export interface RateValues {
   readonly id: string;
@@ -43,10 +48,12 @@ export interface RateValues {
 export function ZoneDialog({
   storeId,
   zone,
+  taken,
   trigger,
 }: {
   storeId: string;
   zone?: ZoneValues;
+  taken: TakenCountries;
   trigger?: ReactNode;
 }) {
   const router = useRouter();
@@ -62,6 +69,7 @@ export function ZoneDialog({
       <ZoneForm
         storeId={storeId}
         {...(zone ? { zone } : {})}
+        taken={taken}
         onSaved={() => {
           setOpen(false);
           router.refresh();
@@ -71,13 +79,22 @@ export function ZoneDialog({
   );
 }
 
+const COUNTRY_CHOICES = countries.map((c) => ({ value: c.code, label: c.name }));
+
+/**
+ * Countries by name; when exactly one country with a region list is chosen,
+ * its regions by name (none ticked covers the whole country). The server
+ * checks every code against the same reference data.
+ */
 function ZoneForm({
   storeId,
   zone,
+  taken,
   onSaved,
 }: {
   storeId: string;
   zone?: ZoneValues;
+  taken: TakenCountries;
   onSaved: () => void;
 }) {
   const [state, action] = useActionState(
@@ -85,6 +102,28 @@ function ZoneForm({
     { ok: false },
   );
   useCloseOnSave(state, onSaved);
+  const [chosenCountries, setCountries] = useState<string[]>([...(zone?.countries ?? [])]);
+  const [chosenRegions, setRegions] = useState<string[]>([...(zone?.regions ?? [])]);
+  const single = chosenCountries.length === 1 ? countryByCode(chosenCountries[0]) : undefined;
+  const regionList = single?.regions ?? null;
+  // Regions of a country that is no longer the zone's only one aren't sent.
+  const regions = regionList
+    ? chosenRegions.filter((code) => regionList.some((r) => r.code === code))
+    : [];
+  // A country in another zone is shown but can't be ticked (the server
+  // refuses it too). A code the list doesn't have, saved before the list
+  // existed, stays visible so it can be unticked.
+  const countryOptions: ChecklistOption[] = COUNTRY_CHOICES.map((c) => {
+    const zoneName = taken[c.value];
+    return zoneName && !chosenCountries.includes(c.value)
+      ? { ...c, disabled: true, description: `In ${zoneName}` }
+      : c;
+  });
+  for (const code of chosenCountries) {
+    if (!countryByCode(code)) countryOptions.push({ value: code, label: code });
+  }
+  const countryNames = chosenCountries.map((code) => countryByCode(code)?.name ?? code);
+  const regionsLabel = single?.regionsLabel ?? "Regions";
   return (
     <form action={action} className="space-y-5" noValidate>
       {!state.ok ? <FormMessage state={state} /> : null}
@@ -96,25 +135,41 @@ function ZoneForm({
         defaultValue={zone?.name}
         placeholder="Domestic"
       />
-      <TextField
-        label="Countries"
+      <Checklist
+        legend="Countries"
         name="countries"
-        required
-        state={state}
-        defaultValue={zone?.countries}
-        placeholder="IN"
-        autoCapitalize="characters"
-        hint="Two-letter country codes, separated by commas: IN, or US, CA. Each country can be in one zone only."
+        hint="Each country can be in one zone only."
+        searchLabel="Search countries"
+        options={countryOptions}
+        selected={chosenCountries}
+        onChange={setCountries}
+        status={
+          countryNames.length === 0
+            ? "No countries chosen yet."
+            : `Chosen: ${countryNames.join(", ")}.`
+        }
+        error={state.fieldErrors?.["countries"]}
       />
-      <TextField
-        label="Regions"
-        name="regions"
-        state={state}
-        defaultValue={zone?.regions}
-        placeholder="KA, MH"
-        autoCapitalize="characters"
-        hint="Optional, for a zone with one country: state or region codes separated by commas. Leave empty to cover the whole country."
-      />
+      {single && regionList ? (
+        <Checklist
+          key={single.code}
+          legend={`${regionsLabel} of ${single.name}`}
+          name="regions"
+          hint={`Optional. Tick the ones this zone covers, or leave them all unticked for the whole of ${single.name}.`}
+          searchLabel={`Search ${regionsLabel.toLowerCase()}`}
+          options={regionList.map((r) => ({ value: r.code, label: r.name }))}
+          selected={regions}
+          onChange={setRegions}
+          status={
+            regions.length === 0
+              ? `Whole country: all of ${single.name}.`
+              : `${String(regions.length)} of ${String(regionList.length)} chosen.`
+          }
+          error={state.fieldErrors?.["regions"]}
+        />
+      ) : state.fieldErrors?.["regions"] ? (
+        <FormMessage state={{ ok: false, message: state.fieldErrors["regions"] }} />
+      ) : null}
       <DialogFooter>
         <DialogClose asChild>
           <Button variant="secondary" type="button">

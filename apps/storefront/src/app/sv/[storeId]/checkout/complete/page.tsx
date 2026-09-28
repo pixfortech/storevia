@@ -54,7 +54,7 @@ export default async function OrderCompletePage({
                   </>
                 ) : null}
                 <br />
-                {[a.city, a.regionCode, a.postalCode].filter(Boolean).join(", ")}
+                {[a.city, a.region ?? a.regionCode, a.postalCode].filter(Boolean).join(", ")}
                 <br />
                 {a.countryCode}
               </address>

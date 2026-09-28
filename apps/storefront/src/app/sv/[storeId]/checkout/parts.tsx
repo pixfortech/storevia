@@ -62,6 +62,7 @@ export function Field({
   required,
   autoComplete,
   defaultValue,
+  inputMode,
   ...shell
 }: ShellProps & {
   name: string;
@@ -69,6 +70,7 @@ export function Field({
   required?: boolean;
   autoComplete: string;
   defaultValue: string;
+  inputMode?: "numeric" | undefined;
 }) {
   return (
     <FieldShell {...shell}>
@@ -79,6 +81,7 @@ export function Field({
         required={required}
         autoComplete={autoComplete}
         defaultValue={defaultValue}
+        inputMode={inputMode}
       />
     </FieldShell>
   );
