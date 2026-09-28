@@ -5,9 +5,11 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./resolver": "./src/resolver.ts"
+    "./resolver": "./src/resolver.ts",
+    "./provisioner": "./src/provisioner/index.ts"
   },
   "scripts": {
+    "domains:simulate": "tsx --env-file-if-exists=../../.env scripts/simulate.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests --exclude \"tests/**\"",
     "test:integration": "vitest run --config vitest.int.config.ts"

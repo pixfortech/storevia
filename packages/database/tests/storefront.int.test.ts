@@ -113,9 +113,9 @@ async function seedStore(key: string, org: string, n: number): Promise<Store> {
   const host = `${key}.store.test`;
   await admin.query(
     `INSERT INTO "StoreDomain" (id, "organisationId", "storeId", hostname, type, status, "verificationToken", "isPrimary", "updatedAt")
-     VALUES (gen_random_uuid(), $1, $2, $3, 'PLATFORM_SUBDOMAIN', 'ACTIVE', 'x', true, now()),
-            (gen_random_uuid(), $1, $2, $4, 'CUSTOM', 'ACTIVE', 'x', false, now()),
-            (gen_random_uuid(), $1, $2, $5, 'CUSTOM', 'PENDING', 'x', false, now())`,
+     VALUES (gen_random_uuid(), $1, $2, $3, 'PLATFORM_SUBDOMAIN', 'ACTIVE', replace(gen_random_uuid()::text, '-', ''), true, now()),
+            (gen_random_uuid(), $1, $2, $4, 'CUSTOM', 'ACTIVE', replace(gen_random_uuid()::text, '-', ''), false, now()),
+            (gen_random_uuid(), $1, $2, $5, 'CUSTOM', 'PENDING', replace(gen_random_uuid()::text, '-', ''), false, now())`,
     [org, id, host, `www.${key}.example`, `pending.${key}.example`],
   );
   const media = (status: string) =>

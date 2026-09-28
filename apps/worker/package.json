@@ -13,6 +13,7 @@
     "@storevia/billing": "workspace:*",
     "@storevia/commerce": "workspace:*",
     "@storevia/database": "workspace:*",
+    "@storevia/domains": "workspace:*",
     "@storevia/email": "workspace:*",
     "@storevia/entitlements": "workspace:*",
     "@storevia/jobs": "workspace:*",

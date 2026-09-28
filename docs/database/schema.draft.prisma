@@ -773,6 +773,12 @@ model StoreDomain {
   failureReason     String?
   /// Reference at the edge/TLS provider (e.g. custom-hostname id).
   providerRef       String?
+  /// Checks since the last state change: verification backoff and the
+  /// monitoring streak of an ACTIVE domain (ADR-0032 §4).
+  checkAttempts     Int          @default(0)
+  /// The hosting provider's DNS instructions ([{ type, name, value, purpose }]),
+  /// stored so the dashboard never waits on the provider.
+  dnsRecords        Json?
   createdAt         DateTime     @default(now()) @db.Timestamptz(3)
   updatedAt         DateTime     @updatedAt @db.Timestamptz(3)
 

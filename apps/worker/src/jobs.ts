@@ -12,6 +12,7 @@ import { reconcileUsage } from "@storevia/entitlements";
 import type { JobDefinition } from "@storevia/jobs";
 import { recordMetric } from "@storevia/observability";
 import { recordActorAudit } from "@storevia/tenancy";
+import { domainVerifyJob } from "./domains";
 import { outboxDispatchJob } from "./outbox";
 
 // Job definitions (ADR-0023). Every handler is idempotent: a slot can run
@@ -140,4 +141,5 @@ export const JOBS: readonly JobDefinition[] = [
   subscriptionExpiryJob,
   usageReconciliationJob,
   outboxDispatchJob,
+  domainVerifyJob,
 ];

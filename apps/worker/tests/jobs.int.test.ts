@@ -95,6 +95,7 @@ describe("scheduled through the worker", () => {
       ["billing.subscription-expiry", 300],
       ["checkout.expiry", 60],
       ["checkout.purge", 3600],
+      ["domains.verify", 60],
       ["entitlements.usage-reconciliation", 86_400],
       ["orders.notifications", 30],
       ["storefront.outbox-dispatch", 15],
@@ -114,7 +115,7 @@ describe("scheduled through the worker", () => {
       .poll(async () => migratorDb().jobRun.count({ where: { status: "SUCCEEDED" } }), {
         timeout: 10_000,
       })
-      .toBe(6);
+      .toBe(JOBS.length);
     expect(worker.health().status).toBe("ok");
     await worker.stop();
     expect(worker.health().status).toBe("stopping");

@@ -22,6 +22,8 @@ export const ID_PREFIXES = {
   media: "media",
   // Storefront content (ADR-0028).
   page: "page",
+  // Custom domains (ADR-0032).
+  domain: "domain",
   // Checkout, orders and payments (ADR-0031).
   customer: "cus",
   order: "order",

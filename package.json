@@ -32,7 +32,8 @@
     "check:schema": "node scripts/check-schema-agreement.mjs packages/database/prisma/schema.prisma docs/database/schema.draft.prisma && node scripts/check-fk-indexes.mjs packages/database/prisma/schema.prisma",
     "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm db:validate:draft && pnpm check:schema",
     "postinstall": "pnpm --filter @storevia/database generate",
-    "db:seed:dev": "pnpm --filter @storevia/dashboard seed:dev"
+    "db:seed:dev": "pnpm --filter @storevia/dashboard seed:dev",
+    "domains:simulate": "pnpm --filter @storevia/domains domains:simulate"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

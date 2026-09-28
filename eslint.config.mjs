@@ -8,6 +8,7 @@ import tseslint from "typescript-eslint";
 
 export default defineConfig(
   globalIgnores([
+    ".claude/",
     "**/node_modules/",
     "**/.next/",
     "**/.next-*/",

@@ -21,8 +21,8 @@ beforeAll(async () => {
     VALUES (${STORE}::uuid, ${ORG}::uuid, 'Clay & Co', 'clay', 'ACTIVE', 'INR', 'en-IN', 'Asia/Kolkata', 'IN', now())`;
   await db.$executeRaw`
     INSERT INTO "StoreDomain" (id, "organisationId", "storeId", hostname, type, status, "verificationToken", "isPrimary", "updatedAt")
-    VALUES (gen_random_uuid(), ${ORG}::uuid, ${STORE}::uuid, 'clay.store.test', 'PLATFORM_SUBDOMAIN', 'ACTIVE', 'x', true, now()),
-           (gen_random_uuid(), ${ORG}::uuid, ${STORE}::uuid, 'old-clay.store.test', 'PLATFORM_SUBDOMAIN', 'ACTIVE', 'x', false, now())`;
+    VALUES (gen_random_uuid(), ${ORG}::uuid, ${STORE}::uuid, 'clay.store.test', 'PLATFORM_SUBDOMAIN', 'ACTIVE', replace(gen_random_uuid()::text, '-', ''), true, now()),
+           (gen_random_uuid(), ${ORG}::uuid, ${STORE}::uuid, 'old-clay.store.test', 'PLATFORM_SUBDOMAIN', 'ACTIVE', replace(gen_random_uuid()::text, '-', ''), false, now())`;
 });
 
 afterAll(disconnectTestClients);
@@ -52,7 +52,7 @@ describe("resolveStoreHost", () => {
     expect(await resolveStoreHost("nope.store.test")).toBeNull();
     await migratorDb().$executeRaw`
       INSERT INTO "StoreDomain" (id, "organisationId", "storeId", hostname, type, status, "verificationToken", "isPrimary", "updatedAt")
-      VALUES (gen_random_uuid(), ${ORG}::uuid, ${STORE}::uuid, 'nope.store.test', 'CUSTOM', 'ACTIVE', 'x', false, now())`;
+      VALUES (gen_random_uuid(), ${ORG}::uuid, ${STORE}::uuid, 'nope.store.test', 'CUSTOM', 'ACTIVE', replace(gen_random_uuid()::text, '-', ''), false, now())`;
     expect(await resolveStoreHost("nope.store.test")).toBeNull();
     invalidateHostCache("nope.store.test");
     expect(await resolveStoreHost("nope.store.test")).not.toBeNull();

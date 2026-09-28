@@ -8,4 +8,5 @@ export {
   storefrontRootDomain,
 } from "./hostname";
 export * from "./preview";
+export * from "./custom";
 export { RESERVED_STORE_SLUGS, STORE_SLUG_RE, storeSlugSchema } from "@storevia/validation";

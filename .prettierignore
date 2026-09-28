@@ -8,3 +8,4 @@ coverage
 *.prisma
 **/src/generated/
 **/prisma/migrations/**/*.sql
+.claude

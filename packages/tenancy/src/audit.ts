@@ -82,6 +82,10 @@ const ALLOWED_METADATA_KEYS = new Set([
   "currency",
   "provider",
   "mode",
+  // Custom domains (ADR-0032): hostnames and states, never tokens or
+  // provider responses.
+  "hostname",
+  "previousHostname",
 ]);
 
 /** Longer free text allowed for these keys (staff-entered reasons). */

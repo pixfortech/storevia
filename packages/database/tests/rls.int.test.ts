@@ -68,7 +68,7 @@ async function seedTenant(t: typeof A, slug: string): Promise<void> {
       type: "PLATFORM_SUBDOMAIN",
       status: "ACTIVE",
       isPrimary: true,
-      verificationToken: "x",
+      verificationToken: "t".repeat(43),
     },
   });
   await db.auditLog.create({
@@ -229,7 +229,7 @@ describe("T14 composite foreign keys and invariants", () => {
           storeId: B.store,
           hostname: "cross.storevia.site",
           type: "CUSTOM",
-          verificationToken: "x",
+          verificationToken: "t".repeat(43),
         },
       }),
     ).rejects.toThrow();
