@@ -248,11 +248,16 @@ describe("constraints", () => {
         PRODUCT,
       ]),
     ).toBe("23503");
-    expect(await adminError(`DELETE FROM "ProductCategory" WHERE code = 'hg-kd-cookware'`)).toBe(
-      "23503",
+    // ON DELETE RESTRICT: foreign_key_violation (23503) up to PostgreSQL 18,
+    // restrict_violation (23001) from the newer server the canary job runs.
+    const RESTRICTED = /^(23503|23001)$/;
+    expect(await adminError(`DELETE FROM "ProductCategory" WHERE code = 'hg-kd-cookware'`)).toMatch(
+      RESTRICTED,
     );
     // A parent can't be deleted from under its children either.
-    expect(await adminError(`DELETE FROM "ProductCategory" WHERE code = 'hg-lg'`)).toBe("23503");
+    expect(await adminError(`DELETE FROM "ProductCategory" WHERE code = 'hg-lg'`)).toMatch(
+      RESTRICTED,
+    );
     // Null stays valid: products needn't be categorised.
     expect(
       await adminError(`UPDATE "Product" SET "categoryCode" = NULL WHERE id = $1`, [PRODUCT]),
