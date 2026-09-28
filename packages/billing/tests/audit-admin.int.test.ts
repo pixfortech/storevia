@@ -24,7 +24,7 @@ async function makeUser(label: string): Promise<Principal> {
 async function staff(role: "SUPPORT" | "READ_ONLY"): Promise<PlatformContext> {
   const user = await makeUser(role.toLowerCase());
   await migratorDb().platformStaff.create({ data: { userId: user.userId, role } });
-  return requirePlatformStaff(user, { requestId: "req-audit", ipAddress: null, userAgent: null });
+  return requirePlatformStaff(user, { requestId: "req-audit" });
 }
 
 let support: PlatformContext;

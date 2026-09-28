@@ -38,11 +38,20 @@ const isPublic = (pathname: string) =>
 
 const secure = () => (process.env["DASHBOARD_URL"] ?? "").startsWith("https://");
 
-function withSecurityHeaders(response: NextResponse, csp: string, requestId: string): NextResponse {
+function withSecurityHeaders(
+  response: NextResponse,
+  csp: string,
+  requestId: string,
+  pathname: string,
+): NextResponse {
   response.headers.set("Content-Security-Policy", csp);
   response.headers.set("x-request-id", requestId);
+  // Nothing else may embed the dashboard's responses (M8), except local
+  // media: storefronts on other sites display it, and its route sets its
+  // own cross-origin policy.
+  const media = pathname.startsWith("/media/");
   for (const [key, value] of Object.entries(
-    baseSecurityHeaders(secure(), { resourcePolicy: "same-origin" }),
+    baseSecurityHeaders(secure(), media ? {} : { resourcePolicy: "same-origin" }),
   )) {
     response.headers.set(key, value);
   }
@@ -73,6 +82,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
       NextResponse.next({ request: { headers: forwarded } }),
       csp,
       requestId,
+      pathname,
     );
   }
 
@@ -84,12 +94,12 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
       pathname === "/"
         ? ""
         : `?next=${encodeURIComponent(safeRedirectPath(`${pathname}${search}`))}`;
-    return withSecurityHeaders(NextResponse.redirect(url), csp, requestId);
+    return withSecurityHeaders(NextResponse.redirect(url), csp, requestId, pathname);
   }
 
   const response = NextResponse.next({ request: { headers: forwarded } });
   for (const cookie of setCookies) response.headers.append("Set-Cookie", cookie);
-  return withSecurityHeaders(response, csp, requestId);
+  return withSecurityHeaders(response, csp, requestId, pathname);
 }
 
 export const config = {

@@ -241,7 +241,9 @@ those would force HTTPS onto the merchant's other subdomains ·
 `Referrer-Policy: strict-origin-when-cross-origin` · `Permissions-Policy`
 restrictive defaults · `Cross-Origin-Opener-Policy: same-origin` ·
 `Cross-Origin-Resource-Policy: same-origin` on the dashboard and
-platform-admin (M8). COEP isn't sent: it would block media-host images, and
+platform-admin (M8). The dashboard's local media route keeps its own
+`cross-origin` policy, because storefronts on other sites display that
+media. COEP isn't sent: it would block media-host images, and
 COOP already isolates the browsing context.
 The storefront CSP's `form-action` additionally allows the payment
 providers' hosted-page origins (the "Pay" form redirects there); no provider
