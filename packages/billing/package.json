@@ -27,6 +27,6 @@
   "devDependencies": {
     "@storevia/commerce": "workspace:*",
     "tsx": "4.23.15",
-    "vitest": "4.1.11"
+    "vitest": "5.0.1"
   }
 }
