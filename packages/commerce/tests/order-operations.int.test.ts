@@ -467,9 +467,10 @@ describe("archive and deletion", () => {
     await db.$executeRaw`UPDATE "PaymentProviderConnection" SET provider = 'razorpay', mode = 'LIVE'
       WHERE id = ${payment.connectionId}::uuid`;
     try {
-      await expect(deleteDemoOrder(s, id, { confirm: `#${String(number)}` })).rejects.toMatchObject(
-        { code: "CONFLICT", message: expect.stringMatching(/live payment/) },
+      await expect(deleteDemoOrder(s, id, { confirm: `#${String(number)}` })).rejects.toThrow(
+        /live payment/,
       );
+      await expectCode(deleteDemoOrder(s, id, { confirm: `#${String(number)}` }), "CONFLICT");
       await expect(
         withTenant(
           { ...scopeA(), userId: s.userId },
