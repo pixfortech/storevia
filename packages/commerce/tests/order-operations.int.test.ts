@@ -690,6 +690,23 @@ describe("customer messages and staff notifications", () => {
     expect(confirmation?.text).toMatch(/\/orders\/view\/[A-Za-z0-9_-]{65}/);
   });
 
+  it("a member without order access is never told and can't read the conversation", async () => {
+    const s = storeOf(a);
+    const { id, token } = await placeOrder(storeA, "lamp");
+    const designer = await memberContext(a, "DESIGNER", s);
+    expect(designer.permissions.has("order.read")).toBe(false);
+    await sendCustomerOrderMessage(scopeA(), token, "Can you gift wrap it?", null);
+    await notifyStaffOfCustomerMessages(MEMBER_ROLES);
+    expect(
+      await migratorDb().staffNotification.count({
+        where: { orderId: internal(id), userId: designer.userId },
+      }),
+    ).toBe(0);
+    expect(await staffNotifications(designer)).toEqual({ unread: 0, items: [] });
+    await expectCode(orderMessages(designer, id), "FORBIDDEN");
+    await expectCode(replyToOrderMessage(designer, id, { body: "hi" }), "FORBIDDEN");
+  });
+
   it("access narrowed later: old notifications stop showing", async () => {
     const s = storeOf(a);
     const { token } = await placeOrder(storeA, "lamp");
