@@ -110,6 +110,9 @@ erDiagram
     enum type
     enum status
     bool isPrimary
+    string verificationToken
+    int checkAttempts
+    json dnsRecords
   }
 ```
 

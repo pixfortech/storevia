@@ -65,29 +65,29 @@ flowchart TB
   DASH & SF & WRK --> KMS
 ```
 
-| Component                     | Recommendation                                                                                | Replaceable by                                                                                                                       |
-| ----------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Edge, WAF, CDN, DNS           | Cloudflare                                                                                    | Fastly, CloudFront + AWS WAF                                                                                                         |
-| Merchant custom domains + TLS | Cloudflare for SaaS (custom hostnames, managed certificates)                                  | Caddy on-demand TLS, Vercel Domains API, AWS ACM + CloudFront. Hidden behind the `DomainProvisioner` interface in `packages/domains` |
-| Compute                       | AWS ECS Fargate (or EKS later)                                                                | Any container platform (Fly.io, GKE, Render). A Vercel deployment of the Next.js apps is also viable for early stages                |
-| Database                      | Amazon RDS / Aurora PostgreSQL 17, Multi-AZ                                                   | Neon, Crunchy Bridge, Cloud SQL                                                                                                      |
-| Pooling                       | RDS Proxy or PgBouncer, **transaction mode** (compatible with transaction-local RLS settings) | —                                                                                                                                    |
-| Object storage                | S3 (+ CDN)                                                                                    | R2, GCS, MinIO. Behind the S3 API                                                                                                    |
-| Secrets / keys                | AWS Secrets Manager + KMS (envelope encryption keys)                                          | Vault, GCP KMS                                                                                                                       |
-| Email                         | Amazon SES or Postmark                                                                        | behind the `EmailSender` interface                                                                                                   |
-| Observability                 | OpenTelemetry → Grafana Cloud / Datadog; Sentry for errors                                    | any OTLP backend                                                                                                                     |
-| Region                        | India (ap-south-1) first if launching in India; data-residency review pending (Q-S2)          | multi-region later                                                                                                                   |
+| Component                     | Recommendation                                                                                | Replaceable by                                                                                                                              |
+| ----------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Edge, WAF, CDN, DNS           | Cloudflare                                                                                    | Fastly, CloudFront + AWS WAF                                                                                                                |
+| Merchant custom domains + TLS | Vercel (domains on the one storefront project, managed certificates), M7 / ADR-0032           | Cloudflare for SaaS, Caddy on-demand TLS, AWS ACM + CloudFront. Behind the `DomainProvisioner` interface in `@storevia/domains/provisioner` |
+| Compute                       | AWS ECS Fargate (or EKS later)                                                                | Any container platform (Fly.io, GKE, Render). A Vercel deployment of the Next.js apps is also viable for early stages                       |
+| Database                      | Amazon RDS / Aurora PostgreSQL 17, Multi-AZ                                                   | Neon, Crunchy Bridge, Cloud SQL                                                                                                             |
+| Pooling                       | RDS Proxy or PgBouncer, **transaction mode** (compatible with transaction-local RLS settings) | —                                                                                                                                           |
+| Object storage                | S3 (+ CDN)                                                                                    | R2, GCS, MinIO. Behind the S3 API                                                                                                           |
+| Secrets / keys                | AWS Secrets Manager + KMS (envelope encryption keys)                                          | Vault, GCP KMS                                                                                                                              |
+| Email                         | Amazon SES or Postmark                                                                        | behind the `EmailSender` interface                                                                                                          |
+| Observability                 | OpenTelemetry → Grafana Cloud / Datadog; Sentry for errors                                    | any OTLP backend                                                                                                                            |
+| Region                        | India (ap-south-1) first if launching in India; data-residency review pending (Q-S2)          | multi-region later                                                                                                                          |
 
 ## 4. Domains and TLS
 
-| Host                                   | Points to                                 | TLS                                          |
-| -------------------------------------- | ----------------------------------------- | -------------------------------------------- |
-| `storevia.com`, `www`                  | marketing                                 | edge certificate                             |
-| `app.storevia.com`, `api.storevia.com` | dashboard                                 | edge certificate                             |
-| `admin.storevia.com`                   | platform-admin (behind zero-trust access) | edge certificate                             |
-| `*.storevia.site`                      | storefront                                | wildcard edge certificate                    |
-| merchant `shop.example.com`            | storefront via custom hostname            | issued and renewed automatically by the edge |
-| `media.storeviausercontent.com`        | object storage via CDN                    | edge certificate                             |
+| Host                                   | Points to                                 | TLS                                        |
+| -------------------------------------- | ----------------------------------------- | ------------------------------------------ |
+| `storevia.com`, `www`                  | marketing                                 | edge certificate                           |
+| `app.storevia.com`, `api.storevia.com` | dashboard                                 | edge certificate                           |
+| `admin.storevia.com`                   | platform-admin (behind zero-trust access) | edge certificate                           |
+| `*.storevia.site`                      | storefront                                | wildcard edge certificate                  |
+| merchant `shop.example.com`            | storefront project (domain added via API) | issued and renewed by the hosting provider |
+| `media.storeviausercontent.com`        | object storage via CDN                    | edge certificate                           |
 
 Media bucket and CDN (ADR-0027 §9): the CDN serves only asset keys
 (`{organisationId}/{storeId}/{mediaId}/original.*` and `w*.webp`) and must
@@ -180,13 +180,15 @@ max-age=31536000` on every host it serves, without `includeSubDomains`
   environment variables or services.
 - **Public Suffix List:** see [public-suffix-list.md](./public-suffix-list.md).
 
-Custom domain flow (M7): merchant adds hostname → Storevia shows DNS
-instructions (CNAME `shops.storevia.site` for subdomains; A/ALIAS records or
-a CNAME-flattening provider for apex domains) and a TXT verification record →
-worker polls DNS (`VERIFYING`) → on success registers the custom hostname with
-the edge provider (`DomainProvisioner.provision`) → certificate issued →
-`ACTIVE`. Failures move to `FAILED` with a readable reason, and the worker
-keeps re-checking for 72 h.
+### Custom domains and production hosting (Milestone 7)
+
+See [production-hosting.md](./production-hosting.md) (ADR-0032): one
+storefront deployment for every store, the Vercel project and wildcard
+setup, the domain lifecycle and DNS records, the control plane (dashboard
+and worker call the provider) and data plane (the storefront never does),
+the provider variables, and what the owner configures by hand. The
+Milestone 0 topology above (Cloudflare for SaaS in front of containers)
+remains a valid alternative behind the same `DomainProvisioner` interface.
 
 ## 5. CI/CD
 

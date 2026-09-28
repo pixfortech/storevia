@@ -8,7 +8,8 @@ import {
 } from "@storevia/domains";
 import { getDomainProvisioner, type DomainProvisioner } from "@storevia/domains/provisioner";
 import type { JobDefinition } from "@storevia/jobs";
-import { recordActorAudit, runDomainCheck, type DomainCheckRow } from "@storevia/tenancy";
+import { recordActorAudit } from "@storevia/tenancy";
+import { runDomainCheck, type DomainCheckRow } from "@storevia/tenancy/domains";
 
 // Custom-domain verification and monitoring (ADR-0032 §5). Every minute it
 // checks the domains that are due: waiting ones on a backoff, ACTIVE ones a

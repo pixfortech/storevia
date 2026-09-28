@@ -240,6 +240,11 @@ export default defineConfig(
               regex: "^@storevia/media(?!/urls$)",
               message: "The Site Engine uses only @storevia/media/urls (ADR-0029).",
             },
+            {
+              regex: "^@storevia/domains/provisioner$",
+              message:
+                "Shopper requests never call the hosting provider: the control plane owns it (ADR-0032 §1).",
+            },
           ],
         },
       ],
@@ -317,6 +322,11 @@ export default defineConfig(
               message:
                 "The storefront uses @storevia/commerce/storefront and the host resolver only (ADR-0028).",
             })),
+            {
+              name: "@storevia/domains/provisioner",
+              message:
+                "Shopper requests never call the hosting provider: the control plane owns it (ADR-0032 §1).",
+            },
           ],
           patterns: [
             {

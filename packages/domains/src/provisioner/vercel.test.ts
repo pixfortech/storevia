@@ -116,12 +116,10 @@ describe("VercelProvisioner", () => {
               name: "abc.com",
               verified: false,
               verification: [
-                {
-                  type: "TXT",
-                  domain: "_vercel.abc.com",
-                  value: "vc-domain-verify=abc.com,1a2b",
-                  reason: "pending",
-                },
+                // Vercel's field name, parsed from JSON as the API sends it.
+                JSON.parse(
+                  '{"type":"TXT","domain":"_vercel.abc.com","value":"vc-domain-verify=abc.com,1a2b","reason":"pending"}',
+                ) as unknown,
                 { type: "UNKNOWN", junk: true },
               ],
               internalField: "never shown",

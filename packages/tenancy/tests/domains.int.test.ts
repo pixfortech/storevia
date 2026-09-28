@@ -21,13 +21,15 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import {
   addCustomDomain,
   checkCustomDomain,
-  createOrganisation,
-  createStore,
   listStoreDomains,
   removeCustomDomain,
+  setPrimaryDomain,
+} from "../src/domains";
+import {
+  createOrganisation,
+  createStore,
   requireOrganisationAccess,
   requireStoreAccess,
-  setPrimaryDomain,
   setStorefrontLive,
   type MemberRole,
   type OrganisationContext,

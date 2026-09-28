@@ -167,8 +167,8 @@ export class VercelProvisioner implements DomainProvisioner {
     return { type: "CNAME", name: hostname, value, purpose: "routing" };
   }
 
-  private verificationRecords(domain: DomainBody): DnsRecord[] {
-    const list = Array.isArray(domain.verification) ? domain.verification : [];
+  private verificationRecords(body: DomainBody): DnsRecord[] {
+    const list = Array.isArray(body.verification) ? body.verification : [];
     return list.filter(isObject).flatMap((v) =>
       v["type"] === "TXT" && typeof v["domain"] === "string" && typeof v["value"] === "string"
         ? [
@@ -183,11 +183,8 @@ export class VercelProvisioner implements DomainProvisioner {
     );
   }
 
-  private async describe(
-    hostname: string,
-    domain: DomainBody | null,
-  ): Promise<ProviderDomainStatus> {
-    if (!domain) {
+  private async describe(hostname: string, body: DomainBody | null): Promise<ProviderDomainStatus> {
+    if (!body) {
       return {
         registered: false,
         ref: null,
@@ -198,7 +195,7 @@ export class VercelProvisioner implements DomainProvisioner {
       };
     }
     const config = await this.dnsConfig(hostname);
-    const verified = domain.verified === true;
+    const verified = body.verified === true;
     const configured = config.misconfigured === false;
     return {
       registered: true,
@@ -206,7 +203,7 @@ export class VercelProvisioner implements DomainProvisioner {
       verified,
       configured,
       certificate: verified && configured ? "ready" : "pending",
-      records: [this.routing(hostname, config), ...this.verificationRecords(domain)],
+      records: [this.routing(hostname, config), ...this.verificationRecords(body)],
     };
   }
 

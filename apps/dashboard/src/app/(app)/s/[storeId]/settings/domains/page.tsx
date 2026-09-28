@@ -1,9 +1,9 @@
+import { hasPermission } from "@storevia/tenancy";
 import {
-  hasPermission,
   listStoreDomains,
   type DomainRecordView,
   type StoreDomainView,
-} from "@storevia/tenancy";
+} from "@storevia/tenancy/domains";
 import { Alert, Badge, Card, CardBody, CardHeader } from "@storevia/ui/surfaces";
 import { Info, Lock, TriangleAlert } from "lucide-react";
 import type { Metadata } from "next";
@@ -304,9 +304,7 @@ export default async function DomainsSettingsPage({
                     <DnsRecords domain={domain} />
                   ) : domain.kind === "custom" && domain.records.length > 0 ? (
                     <details className="text-body-sm">
-                      <summary className="cursor-pointer font-medium text-ink">
-                        DNS records
-                      </summary>
+                      <summary className="cursor-pointer font-medium text-ink">DNS records</summary>
                       <div className="mt-3">
                         <DnsRecords domain={domain} />
                       </div>

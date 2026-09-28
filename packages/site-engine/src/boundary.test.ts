@@ -53,8 +53,24 @@ function workspaces(): Map<string, Workspace> {
 const stripComments = (source: string) =>
   source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`\\])\/\/.*$/gm, "$1");
 
-function specifiers(file: string): string[] {
-  const source = stripComments(readFileSync(file, "utf8"));
+function specifiers(file: string, runtimeOnly = false): string[] {
+  let source = stripComments(readFileSync(file, "utf8"));
+  // Type-only imports are erased by the compiler: nothing is loaded.
+  if (runtimeOnly) {
+    source = source
+      .replace(/\b(import|export)\s+type\s[^;]*;/g, "")
+      .replace(
+        /\b(import|export)\s*\{([^}]*)\}\s*from\s*["'][^"']+["'];?/g,
+        (all, _kw, names: string) =>
+          names
+            .split(",")
+            .map((n) => n.trim())
+            .filter(Boolean)
+            .every((n) => n.startsWith("type "))
+            ? ""
+            : all,
+      );
+  }
   const found = new Set<string>();
   for (const re of [
     /\bfrom\s*["']([^"']+)["']/g,
@@ -93,7 +109,7 @@ const rel = (path: string) => relative(ROOT, path).split(sep).join("/");
 const isThemeModule = (path: string) =>
   /^packages\/site-engine\/src\/(theme|theme-core|themes\/[a-z-]+)\.ts$/.test(path);
 
-function walk(entries: readonly string[]) {
+function walk(entries: readonly string[], runtimeOnly = false) {
   const packages = workspaces();
   const visited = new Set<string>();
   const externals = new Set<string>();
@@ -104,7 +120,7 @@ function walk(entries: readonly string[]) {
     const file = queue.pop();
     if (!file || visited.has(file)) continue;
     visited.add(file);
-    for (const spec of specifiers(file)) {
+    for (const spec of specifiers(file, runtimeOnly)) {
       let target: string | null;
       if (spec.startsWith(".")) {
         target = resolveFile(resolve(dirname(file), spec));
@@ -213,6 +229,25 @@ describe("commerce blocks stay client-safe", () => {
       ),
     ).toEqual([]);
     expect([...graph.externals].filter((name) => name === "server-only")).toEqual([]);
+  });
+});
+
+describe("the data plane never reaches the hosting provider (ADR-0032 §1)", () => {
+  it("no storefront or Site Engine file reaches the domain provisioner or domain services", () => {
+    // Runtime imports only: type-only imports are erased and load nothing.
+    const graph = walk(
+      [...sourceFiles(join(ROOT, "apps/storefront/src")), ...sourceFiles(ENGINE)],
+      true,
+    );
+    const reached = [...graph.visited]
+      .map(rel)
+      .filter(
+        (path) =>
+          path.startsWith("packages/domains/src/provisioner/") ||
+          path === "packages/tenancy/src/domains.ts" ||
+          path.startsWith("packages/site-admin/"),
+      );
+    expect(reached).toEqual([]);
   });
 });
 

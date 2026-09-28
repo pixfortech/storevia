@@ -58,6 +58,15 @@ sequenceDiagram
   primary) redirect `301` to it, preserving path and query. Redirect targets
   come only from `StoreDomain` rows, never from request input, so there is no
   open redirect.
+- **Custom domains (M7, ADR-0032):** a merchant's domain becomes a
+  `StoreDomain` row (`CUSTOM`) that is served only once `ACTIVE`: Storevia's
+  ownership TXT record plus the hosting provider's verification, routing
+  and certificate. The storefront never asks the provider or DNS anything;
+  the dashboard and the worker (`domains.verify`) do, and the resulting
+  status change invalidates `host:{hostname}` and `store:{id}`. A primary
+  is always ACTIVE (database constraint); when a primary custom domain is
+  removed or fails for good, the store's platform address is primary again.
+  See [production-hosting.md](../deployment/production-hosting.md).
 - **Store status:** `ACTIVE` → serve; `DRAFT` → "coming soon" page (the
   merchant previews with a signed preview token); `SUSPENDED` (store or
   organisation), `ARCHIVED` or an organisation pending deletion → 503
@@ -149,7 +158,8 @@ only `ACTIVE`, published, non-deleted records.
 
 - Cached rendering with **cache tags**: `store:{id}`, `page:{id}`,
   `product:{id}`, `collection:{id}`, `theme:{storeThemeId}`, `nav:{id}`,
-  `domain:{hostname}`.
+  `host:{hostname}` (as implemented: `domain.changed` events name every
+  affected hostname, e.g. both hosts of a primary switch).
 - Invalidation is **event-driven**: `publishPage()`, product updates, theme
   publish, navigation save and domain changes write `OutboxEvent`s; the
   worker calls the revalidation endpoint (authenticated with a service

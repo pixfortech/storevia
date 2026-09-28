@@ -8,7 +8,8 @@
     "./rbac": "./src/rbac.ts",
     "./platform": "./src/platform.ts",
     "./platform-rbac": "./src/platform-rbac.ts",
-    "./business-types": "./src/business-types.ts"
+    "./business-types": "./src/business-types.ts",
+    "./domains": "./src/domains.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

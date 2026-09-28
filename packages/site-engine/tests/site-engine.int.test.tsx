@@ -48,7 +48,7 @@ async function store(id: string, org: string, slug: string, status: string, host
     const primary = i === 0;
     await db.$executeRaw`
       INSERT INTO "StoreDomain" (id, "organisationId", "storeId", hostname, type, status, "verificationToken", "isPrimary", "updatedAt")
-      VALUES (gen_random_uuid(), ${org}::uuid, ${id}::uuid, ${host}, 'PLATFORM_SUBDOMAIN', 'ACTIVE', 'x', ${primary}, now())`;
+      VALUES (gen_random_uuid(), ${org}::uuid, ${id}::uuid, ${host}, 'PLATFORM_SUBDOMAIN', 'ACTIVE', replace(gen_random_uuid()::text, '-', ''), ${primary}, now())`;
   }
 }
 

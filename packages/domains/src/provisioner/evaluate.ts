@@ -65,12 +65,12 @@ async function ownershipProven(
 }
 
 export async function evaluateDomain(
-  domain: DomainSnapshot,
+  snapshot: DomainSnapshot,
   provisioner: DomainProvisioner,
 ): Promise<DomainOutcome> {
-  const own = ownershipRecord(domain.hostname, domain.verificationToken);
-  const attempts = domain.checkAttempts + 1;
-  const wasActive = domain.status === "ACTIVE";
+  const own = ownershipRecord(snapshot.hostname, snapshot.verificationToken);
+  const attempts = snapshot.checkAttempts + 1;
+  const wasActive = snapshot.status === "ACTIVE";
 
   /** A check that didn't succeed: wait (or monitor), and fail once the budget is spent. */
   const notYet = (
@@ -83,7 +83,7 @@ export async function evaluateDomain(
       : attempts >= MAX_VERIFY_ATTEMPTS;
     return {
       status: exhausted ? "FAILED" : wasActive ? "ACTIVE" : (extra.status ?? "VERIFYING"),
-      providerRef: extra.providerRef ?? domain.providerRef,
+      providerRef: extra.providerRef ?? snapshot.providerRef,
       failureReason: exhausted && !wasActive ? "verification_timeout" : reason,
       checkAttempts: attempts,
       dnsRecords: records,
@@ -96,10 +96,10 @@ export async function evaluateDomain(
   //    repairs a domain removed at the provider behind Storevia's back).
   let provider: ProviderDomainStatus;
   try {
-    provider = await provisioner.getDomainStatus(domain.hostname);
-    if (!provider.registered) provider = await provisioner.addDomain(domain.hostname);
+    provider = await provisioner.getDomainStatus(snapshot.hostname);
+    if (!provider.registered) provider = await provisioner.addDomain(snapshot.hostname);
     if (provider.registered && !provider.verified) {
-      provider = await provisioner.verifyDomain(domain.hostname);
+      provider = await provisioner.verifyDomain(snapshot.hostname);
     }
   } catch (error) {
     if (error instanceof ProvisionerError) {
@@ -109,9 +109,9 @@ export async function evaluateDomain(
       if (wasActive) {
         return {
           status: "ACTIVE",
-          providerRef: domain.providerRef,
-          failureReason: isDomainReason(domain.failureReason) ? domain.failureReason : null,
-          checkAttempts: domain.checkAttempts,
+          providerRef: snapshot.providerRef,
+          failureReason: isDomainReason(snapshot.failureReason) ? snapshot.failureReason : null,
+          checkAttempts: snapshot.checkAttempts,
           dnsRecords: null,
           becameActive: false,
           providerError,
@@ -121,17 +121,17 @@ export async function evaluateDomain(
         error.kind === "conflict" ? "provider_conflict" : "provider_error";
       return notYet(
         reason,
-        { status: domain.providerRef ? "VERIFYING" : "PENDING", providerError },
+        { status: snapshot.providerRef ? "VERIFYING" : "PENDING", providerError },
         null,
       );
     }
     throw error;
   }
   const records = [own, ...provider.records];
-  const ref = provider.ref ?? domain.providerRef;
+  const ref = provider.ref ?? snapshot.providerRef;
 
   // 2. Storevia's ownership proof, then the provider's readiness.
-  const owned = await ownershipProven(provisioner, domain.hostname, domain.verificationToken);
+  const owned = await ownershipProven(provisioner, snapshot.hostname, snapshot.verificationToken);
   if (!owned)
     return notYet(wasActive ? "dns_lost" : "dns_txt_missing", { providerRef: ref }, records);
   if (!provider.verified || !provider.configured) {

@@ -50,20 +50,6 @@ export {
 } from "./storefront";
 export type { OnlineStore } from "./storefront";
 export type { ActivityDetailKey, ActivityEntry } from "./activity";
-export {
-  addCustomDomain,
-  checkCustomDomain,
-  listStoreDomains,
-  MAX_CUSTOM_DOMAINS_PER_STORE,
-  removeCustomDomain,
-  runDomainCheck,
-  setPrimaryDomain,
-} from "./domains";
-export type {
-  DomainAuditWriter,
-  DomainCheckRow,
-  DomainRecordView,
-  DomainServiceOptions,
-  StoreDomains,
-  StoreDomainView,
-} from "./domains";
+// Custom domains (ADR-0032) are at @storevia/tenancy/domains: that module
+// reaches the hosting provider, so it stays out of this index, which the
+// storefront's graph reaches through commerce.

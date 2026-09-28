@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   composeEventTags,
   designTag,
+  hostTag,
   isSiteCacheTag,
   pagesTag,
   siteCacheTagsForEvent,
@@ -28,6 +29,21 @@ describe("site cache tags (ADR-0030 §10)", () => {
   it("theme and menu changes refresh only the store's design", () => {
     expect(siteCacheTagsForEvent(event("theme.changed"))).toEqual([designTag(STORE)]);
     expect(siteCacheTagsForEvent(event("navigation.changed"))).toEqual([designTag(STORE)]);
+  });
+
+  it("a domain change evicts the store and every hostname it names (ADR-0032 §7)", () => {
+    // A primary switch names both hosts: the old primary must start
+    // redirecting and the new one must stop.
+    expect(
+      siteCacheTagsForEvent(
+        event("domain.changed", { hostnames: ["shop.abc.com", "clay.storevia.site"] }),
+      ),
+    ).toEqual([storeTag(STORE), hostTag("shop.abc.com"), hostTag("clay.storevia.site")]);
+    expect(siteCacheTagsForEvent(event("domain.changed", { hostnames: [42, null] }))).toEqual([
+      storeTag(STORE),
+    ]);
+    expect(isSiteCacheTag(hostTag("shop.abc.com"))).toBe(true);
+    expect(isSiteCacheTag("host:shop abc")).toBe(false);
   });
 
   it("anything unknown refreshes the whole site", () => {

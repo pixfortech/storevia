@@ -5,7 +5,7 @@ import {
   checkCustomDomain,
   removeCustomDomain,
   setPrimaryDomain,
-} from "@storevia/tenancy";
+} from "@storevia/tenancy/domains";
 import { revalidatePath } from "next/cache";
 import { runAction, type ActionState } from "@/lib/action";
 import { settingsPath } from "@/lib/settings-tabs";
