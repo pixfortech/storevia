@@ -1,9 +1,9 @@
-// The store settings tab strip (client-safe): General, then the checkout
-// settings that need `settings.manage`. Each tab is its own URL.
+// The store settings tab strip (client-safe): General, the checkout
+// settings that need `settings.manage`, then Domains. Each tab is its own URL.
 import type { LinkTab } from "@/components/catalogue/link-tabs";
 import { storePath } from "./ids";
 
-export type SettingsTab = "general" | "shipping" | "tax" | "payments";
+export type SettingsTab = "general" | "shipping" | "tax" | "payments" | "domains";
 
 /** A path under the store's settings, from its internal or public id. */
 export const settingsPath = (storeId: string, suffix = "") =>
@@ -20,6 +20,7 @@ const TABS: readonly {
   { key: "shipping", label: "Shipping", suffix: "/shipping" },
   { key: "tax", label: "Tax", suffix: "/tax" },
   { key: "payments", label: "Payments", suffix: "/payments" },
+  { key: "domains", label: "Domains", suffix: "/domains" },
 ];
 
 export function settingsTabs(storeId: string, current: SettingsTab): LinkTab[] {

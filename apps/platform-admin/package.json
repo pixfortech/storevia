@@ -14,6 +14,7 @@
     "@storevia/auth": "workspace:*",
     "@storevia/billing": "workspace:*",
     "@storevia/database": "workspace:*",
+    "@storevia/domains": "workspace:*",
     "@storevia/email": "workspace:*",
     "@storevia/entitlements": "workspace:*",
     "@storevia/observability": "workspace:*",

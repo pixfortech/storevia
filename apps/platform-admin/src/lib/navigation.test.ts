@@ -3,15 +3,16 @@ import { toTypeId } from "@storevia/types";
 import { adminNavItems, isNavItemActive, stepUpHref, stepUpReturnPath } from "./navigation";
 
 describe("adminNavItems", () => {
-  it("lists Organisations, Jobs and Account for staff with audit access", () => {
+  it("lists Organisations, Domains, Jobs and Account for staff with audit access", () => {
     expect(adminNavItems({ canViewJobs: true }).map((i) => i.label)).toEqual([
       "Organisations",
+      "Domains",
       "Jobs",
       "Account",
     ]);
   });
 
-  it("leaves Jobs out without audit access", () => {
+  it("leaves Domains and Jobs out without audit access", () => {
     expect(adminNavItems({ canViewJobs: false }).map((i) => i.href)).toEqual([
       "/organisations",
       "/account",
