@@ -15,6 +15,10 @@ export interface FilterOptions {
   readonly vendors: readonly string[];
   readonly productTypes: readonly string[];
   readonly collections: readonly { readonly id: string; readonly title: string }[];
+  /** The store's most used tags. */
+  readonly tags: readonly string[];
+  /** Categories in use (and their ancestors), as breadcrumbs. */
+  readonly categories: readonly { readonly code: string; readonly path: readonly string[] }[];
 }
 
 const SORTS = [
@@ -32,11 +36,37 @@ const STOCK = [
   { value: "untracked", label: "Not tracked" },
 ];
 
-type FilterKey = "stock" | "vendor" | "productType" | "collection" | "sort";
-const EVERY_FILTER: readonly FilterKey[] = ["stock", "vendor", "productType", "collection", "sort"];
+type FilterKey = "stock" | "vendor" | "productType" | "category" | "tag" | "collection" | "sort";
+const EVERY_FILTER: readonly FilterKey[] = [
+  "stock",
+  "vendor",
+  "productType",
+  "category",
+  "tag",
+  "collection",
+  "sort",
+];
 /** Filters that live behind "More filters" at desktop width. */
-const MORE_FILTERS: readonly FilterKey[] = ["vendor", "productType", "collection"];
-const CLEARED = { stock: "", vendor: "", productType: "", collection: "" };
+const MORE_FILTERS: readonly FilterKey[] = [
+  "vendor",
+  "productType",
+  "category",
+  "tag",
+  "collection",
+];
+const FILTERS = ["stock", "vendor", "productType", "category", "tag", "collection"] as const;
+const CLEARED = Object.fromEntries(FILTERS.map((k) => [k, ""]));
+
+/** Keeps a filter from the URL selectable even when it isn't among the facets. */
+function withCurrent(
+  items: readonly { value: string; label: string }[],
+  current: string | undefined,
+  label: string = current ?? "",
+): { value: string; label: string }[] {
+  return current && !items.some((i) => i.value === current)
+    ? [...items, { value: current, label }]
+    : [...items];
+}
 
 function FilterFields({
   values,
@@ -86,6 +116,26 @@ function FilterFields({
             ...options.productTypes.map((v) => ({ value: v, label: v })),
           ])
         : null}
+      {shows("category") && (options.categories.length > 0 || values["category"])
+        ? select("category", "Category", [
+            { value: "", label: "Any category" },
+            ...withCurrent(
+              options.categories.map((c) => ({ value: c.code, label: c.path.join(" › ") })),
+              values["category"],
+              // A category none of the products use: never show its code.
+              "Selected category",
+            ),
+          ])
+        : null}
+      {shows("tag") && (options.tags.length > 0 || values["tag"])
+        ? select("tag", "Tag", [
+            { value: "", label: "Any tag" },
+            ...withCurrent(
+              options.tags.map((t) => ({ value: t, label: t })),
+              values["tag"],
+            ),
+          ])
+        : null}
       {shows("collection") && options.collections.length > 0
         ? select("collection", "Collection", [
             { value: "", label: "Any collection" },
@@ -108,12 +158,19 @@ export function ProductFilters({ options }: { options: FilterOptions }) {
     vendor: params.get("vendor") ?? "",
     productType: params.get("productType") ?? "",
     collection: params.get("collection") ?? "",
+    category: params.get("category") ?? "",
+    tag: params.get("tag") ?? "",
     sort: params.get("sort") ?? "updated",
   };
-  const active = ["stock", "vendor", "productType", "collection"].filter((k) => values[k]).length;
+  const active = FILTERS.filter((k) => values[k]).length;
   const moreActive = MORE_FILTERS.filter((k) => values[k]).length;
   const hasMore =
-    options.vendors.length + options.productTypes.length + options.collections.length > 0;
+    options.vendors.length +
+      options.productTypes.length +
+      options.collections.length +
+      options.tags.length +
+      options.categories.length >
+      0 || moreActive > 0;
 
   const navigate = (changes: Record<string, string>) => {
     const next = new URLSearchParams(params.toString());

@@ -28,6 +28,7 @@ import {
 import { ensureDefaultLocation } from "./locations";
 import type { MoneyJson } from "./money";
 import { parseRichText, renderRichTextHtml, RichTextError, type RichTextDoc } from "./rich-text";
+import { requireAssignableCategory, splitCategoryPath, type CategoryRef } from "./taxonomy";
 
 // Products (ADR-0027). Products are archived, never deleted; product_limit
 // counts non-archived products and is consumed on create and restore, in the
@@ -124,6 +125,9 @@ export async function createProduct(
         await consumeUsage(tx, store.organisationId, "product_limit");
         await lockStoreKey(tx, store.storeId, "product-handle");
         const handle = await resolveHandle(tx, "Product", data.handle, data.title);
+        const categoryCode = data.categoryCode
+          ? await requireAssignableCategory(tx, data.categoryCode)
+          : null;
         const { currency } = await storeSettings(tx, store.storeId);
         const price = data.price ? parseMoneyField("price", data.price, currency) : 0n;
         const compareAt =
@@ -148,6 +152,7 @@ export async function createProduct(
             vendor: data.vendor ?? null,
             productType: data.productType ?? null,
             tags: data.tags ?? [],
+            categoryCode,
             seoTitle: data.seoTitle ?? null,
             seoDescription: data.seoDescription ?? null,
             publishedAt: data.status === "ACTIVE" ? now : null,
@@ -206,6 +211,7 @@ export async function createProduct(
             title: data.title,
             handle,
             status: data.status,
+            ...(categoryCode ? { category: categoryCode } : {}),
           },
         );
         return { productId: publicId("product", product.id) };
@@ -219,14 +225,19 @@ export async function createProduct(
 
 // --- update --------------------------------------------------------------------
 
+interface LockedProduct {
+  id: string;
+  status: ProductStatus;
+  handle: string;
+  title: string;
+  categoryCode: string | null;
+  updatedAt: Date;
+}
+
 /** Locks the product row; refuses when someone saved after the editor loaded. */
-async function lockProduct(
-  tx: TenantTx,
-  productId: string,
-): Promise<{ id: string; status: ProductStatus; handle: string; title: string; updatedAt: Date }> {
-  const rows = await tx.$queryRaw<
-    { id: string; status: ProductStatus; handle: string; title: string; updatedAt: Date }[]
-  >`SELECT id, status::text AS status, handle, title, "updatedAt" FROM "Product"
+async function lockProduct(tx: TenantTx, productId: string): Promise<LockedProduct> {
+  const rows = await tx.$queryRaw<LockedProduct[]>`
+    SELECT id, status::text AS status, handle, title, "categoryCode", "updatedAt" FROM "Product"
     WHERE id = ${productId}::uuid AND "deletedAt" IS NULL FOR UPDATE`;
   const row = rows[0];
   if (!row) throw notFound();
@@ -289,6 +300,22 @@ export async function updateProduct(
         changes.tags = data.tags;
         fields.push("tags");
       }
+      // The category changes only when a different one is chosen, so saving
+      // other fields never trips over a category the taxonomy has retired.
+      let category: {
+        readonly category: string | null;
+        readonly previousCategory: string | null;
+      } | null = null;
+      if (data.categoryCode !== undefined && data.categoryCode !== current.categoryCode) {
+        if (data.categoryCode === null) {
+          changes.category = { disconnect: true };
+        } else {
+          const code = await requireAssignableCategory(tx, data.categoryCode);
+          changes.category = { connect: { code } };
+        }
+        category = { category: data.categoryCode, previousCategory: current.categoryCode };
+        fields.push("category");
+      }
       if (data.taxable !== undefined) {
         await tx.productVariant.updateMany({
           where: { productId, deletedAt: null },
@@ -309,6 +336,7 @@ export async function updateProduct(
         {
           fields: fields.join(","),
           ...(handle !== current.handle ? { handle, previousHandle: current.handle } : {}),
+          ...(category ?? {}),
         },
       );
       return { updatedAt: updated.updatedAt };
@@ -516,6 +544,8 @@ export interface ProductDetails {
   readonly vendor: string | null;
   readonly productType: string | null;
   readonly tags: readonly string[];
+  /** The taxonomy category, with its breadcrumb; null when not categorised. */
+  readonly category: CategoryRef | null;
   readonly seoTitle: string | null;
   readonly seoDescription: string | null;
   readonly currency: string;
@@ -574,6 +604,7 @@ export async function getProduct(
         vendor: true,
         productType: true,
         tags: true,
+        category: { select: { code: true, name: true, path: true, active: true } },
         seoTitle: true,
         seoDescription: true,
         createdAt: true,
@@ -667,6 +698,9 @@ export async function getProduct(
       vendor: product.vendor,
       productType: product.productType,
       tags: product.tags,
+      category: product.category
+        ? { ...product.category, path: splitCategoryPath(product.category.path) }
+        : null,
       seoTitle: product.seoTitle,
       seoDescription: product.seoDescription,
       currency: product.store.currency,

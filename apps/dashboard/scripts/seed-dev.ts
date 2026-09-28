@@ -11,7 +11,8 @@
 //
 // Catalogue (seed-catalogue.ts, fictional):
 //   acme-flagship  7 products (5 active, 1 draft, 1 archived), 12 variants, two
-//                  collections, Main location and Bengaluru warehouse, one
+//                  collections, categories and tags on every product (reruns
+//                  add them to an older catalogue), Main location and Bengaluru warehouse, one
 //                  product low on stock and two variants out of stock; its
 //                  storefront is live at http://acme-flagship.store.localhost:3002
 //   globex-home    3 products, at a product limit of 3 (staff override)
@@ -44,7 +45,7 @@ import {
 import { requirePlatformStaff, type PlatformContext } from "@storevia/tenancy/platform";
 import { toTypeId, uuidv7 } from "@storevia/types";
 import pg from "pg";
-import { seedAcmeCatalogue, seedGlobexAtLimit } from "./seed-catalogue";
+import { convergeAcmeTaxonomy, seedAcmeCatalogue, seedGlobexAtLimit } from "./seed-catalogue";
 import { seedAcmeCommerce } from "./seed-commerce";
 
 const rootEnv = resolve(import.meta.dirname, "../../../.env");
@@ -217,6 +218,11 @@ async function main(): Promise<void> {
   };
   const flagship = await storeContext(acmeOwner, acmeId, "acme-flagship");
   if (await seedAcmeCatalogue(flagship)) console.log("Seeded the Acme Flagship catalogue.");
+  else {
+    // An existing catalogue still catches up on categories and tags.
+    const updated = await convergeAcmeTaxonomy(flagship);
+    if (updated > 0) console.log(`Categorised and tagged ${String(updated)} Acme products.`);
+  }
   const commerce = await seedAcmeCommerce(flagship);
   if (commerce.created.length > 0) {
     console.log(`Seeded Acme Flagship commerce: ${commerce.created.join(", ")}.`);

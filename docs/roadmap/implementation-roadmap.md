@@ -200,16 +200,16 @@ Delivered ([ADR-0027](../adr/0027-commerce-catalogue-and-inventory.md)):
 
 Moved out of Milestone 3, with the reason:
 
-| Item                                                 | Now                          | Why                                                                                       |
-| ---------------------------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------- |
-| M3-06 smart collection rules                         | Later (after M4)             | Manual collections cover the review scope; the `type` and `rules` columns already exist   |
-| M3-09 Admin API v1 and API keys                      | M6 (with outbound webhooks)  | No external consumer before checkout; ADR-0027 §1                                         |
-| M3-10 product taxonomy (`Category`)                  | M6 (with tax)                | Category matters for tax rules, which arrive with checkout                                |
-| Media rename                                         | Later                        | File names are metadata only; alt text, search, reuse and delete are in                   |
-| CSV import                                           | Later                        | The `CatalogueImporter` interface exists; export shipped                                  |
-| Image processing in the worker                       | Later (scaling)              | In-request processing is bounded (20 MB, 40 MP); the `PROCESSING` state exists            |
-| docker compose with MinIO                            | Open                         | Container registries were unreachable in the build environment; S3 signing is unit-tested |
-| Purge of deleted media objects and soft-deleted rows | With the data-lifecycle jobs | [data-lifecycle.md](../database/data-lifecycle.md); nothing is hard-deleted in M3         |
+| Item                                                 | Now                          | Why                                                                                                                                                        |
+| ---------------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M3-06 smart collection rules                         | Later (after M4)             | Manual collections cover the review scope; the `type` and `rules` columns already exist                                                                    |
+| M3-09 Admin API v1 and API keys                      | M6 (with outbound webhooks)  | No external consumer before checkout; ADR-0027 §1                                                                                                          |
+| M3-10 product taxonomy (`Category`)                  | Done after M6                | `ProductCategory` reference data, picker and tags ([09-commerce.md §2.1](../architecture/09-commerce.md#21-categories-collections-product-types-and-tags)) |
+| Media rename                                         | Later                        | File names are metadata only; alt text, search, reuse and delete are in                                                                                    |
+| CSV import                                           | Later                        | The `CatalogueImporter` interface exists; export shipped                                                                                                   |
+| Image processing in the worker                       | Later (scaling)              | In-request processing is bounded (20 MB, 40 MP); the `PROCESSING` state exists                                                                             |
+| docker compose with MinIO                            | Open                         | Container registries were unreachable in the build environment; S3 signing is unit-tested                                                                  |
+| Purge of deleted media objects and soft-deleted rows | With the data-lifecycle jobs | [data-lifecycle.md](../database/data-lifecycle.md); nothing is hard-deleted in M3                                                                          |
 
 ### Running the Milestone 3 catalogue locally
 
@@ -399,7 +399,7 @@ Open, with the reason:
 | Item                                                                                 | Now                    | Why                                                                                                    |
 | ------------------------------------------------------------------------------------ | ---------------------- | ------------------------------------------------------------------------------------------------------ |
 | Admin API, API keys, outbound webhooks                                               | Later, as one platform | ADR-0031 §13: half of it would be worse than none; the outbox events are the integration point         |
-| Product taxonomy (`Category`)                                                        | Later                  | ADR-0031 §14: manual rates by country and region need no taxonomy yet                                  |
+| Product taxonomy (`Category`)                                                        | Done after M6          | Migration `20261210000000_product_taxonomy`; no tax rule uses it yet (ADR-0031 §14)                    |
 | Automatic, free-shipping, targeted and per-customer discounts                        | Later                  | Order-wide codes cover the review scope (ADR-0031 §7)                                                  |
 | Weight-based and carrier-calculated shipping, compound and automatic tax             | Later                  | Flat and subtotal-based rates, manual rates only                                                       |
 | Customer accounts, saved addresses, erasure workflow                                 | Later / M8             | Guests only; erasure is a documented manual procedure until then                                       |

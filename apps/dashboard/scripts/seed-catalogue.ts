@@ -18,11 +18,13 @@ import {
   createCollection,
   createLocation,
   createProduct,
+  getCategoryPath,
   getProduct,
   listLocations,
   listProducts,
   moveInventory,
   setProductStatus,
+  updateProduct,
   updateVariants,
 } from "@storevia/commerce";
 import { completeMediaUpload, createMediaUpload, mediaStorage } from "@storevia/media";
@@ -134,6 +136,8 @@ interface SeedProduct {
   readonly vendor: string;
   readonly productType: string;
   readonly tags: readonly string[];
+  /** A code from packages/database/prisma/reference/product-categories.json. */
+  readonly category: string;
   readonly price: string;
   readonly compareAtPrice?: string;
   readonly sku: string;
@@ -154,7 +158,8 @@ const ACME: readonly SeedProduct[] = [
     description: "A heavy, hand-glazed mug that keeps tea warm. Holds 350 ml.",
     vendor: "Acme Kitchen",
     productType: "Mugs",
-    tags: ["kitchen", "ceramics"],
+    tags: ["kitchen", "ceramics", "gift ideas"],
+    category: "hg-kd-drinkware-mugs",
     price: "450",
     sku: "ACM-MUG",
     image: ["#EFE8DC", "#B08B63", "round"],
@@ -168,7 +173,8 @@ const ACME: readonly SeedProduct[] = [
     description: "Washed linen with a long tie and a deep front pocket.",
     vendor: "Acme Textiles",
     productType: "Aprons",
-    tags: ["textiles", "kitchen"],
+    tags: ["textiles", "kitchen", "linen"],
+    category: "hg-kd-linens-aprons",
     price: "1250",
     sku: "ACM-APR",
     image: ["#E7ECE6", "#5E7466", "tall"],
@@ -188,6 +194,7 @@ const ACME: readonly SeedProduct[] = [
     vendor: "Acme Textiles",
     productType: "Tea towels",
     tags: ["textiles", "kitchen"],
+    category: "hg-kd-linens-tea-towels",
     price: "399",
     sku: "ACM-TWL-2",
     image: ["#F2EEE4", "#C9A24A", "wide"],
@@ -200,7 +207,8 @@ const ACME: readonly SeedProduct[] = [
     description: "A 1.5 litre enamel pan for the hob and the oven.",
     vendor: "Acme Kitchen",
     productType: "Cookware",
-    tags: ["kitchen", "cookware"],
+    tags: ["kitchen", "cookware", "gift ideas"],
+    category: "hg-kd-cookware",
     price: "1899",
     compareAtPrice: "2199",
     sku: "ACM-PAN-15",
@@ -214,7 +222,8 @@ const ACME: readonly SeedProduct[] = [
     description: "Matte glaze outside, drainage hole and saucer included.",
     vendor: "Acme Home",
     productType: "Planters",
-    tags: ["home", "ceramics"],
+    tags: ["home", "ceramics", "garden"],
+    category: "hg-lg-planters",
     price: "799",
     sku: "ACM-PLT",
     image: ["#EDE6E1", "#A25B45", "round"],
@@ -230,6 +239,7 @@ const ACME: readonly SeedProduct[] = [
     vendor: "Acme Kitchen",
     productType: "Utensils",
     tags: ["kitchen", "wood"],
+    category: "hg-kd-tools",
     price: "249",
     sku: "ACM-SPN",
     image: ["#F1EADF", "#9C7A4E", "tall"],
@@ -243,6 +253,7 @@ const ACME: readonly SeedProduct[] = [
     vendor: "Acme Textiles",
     productType: "Bags",
     tags: ["textiles"],
+    category: "lb-totes",
     price: "699",
     sku: "ACM-TOTE",
     image: ["#ECE9E2", "#6B6259", "tall"],
@@ -321,6 +332,44 @@ async function seedProduct(ctx: StoreContext, p: SeedProduct) {
 }
 
 /**
+ * Brings the Acme products' categories and tags in line with ACME, so a
+ * catalogue seeded before the taxonomy existed catches up on a rerun. It
+ * converges without clobbering: products are found by title (none are
+ * created), a category is set only where none is, and seed tags missing
+ * from a product are added after the merchant's own. Returns how many
+ * products changed; a second run returns 0. Needs the taxonomy loaded by
+ * `pnpm db:seed`; without it, categories are skipped with a warning.
+ */
+export async function convergeAcmeTaxonomy(ctx: StoreContext): Promise<number> {
+  let changed = 0;
+  let missingTaxonomy = false;
+  for (const seed of ACME) {
+    const status = seed.status === "ARCHIVED" ? "ARCHIVED" : undefined;
+    const { items } = await listProducts(ctx, { q: seed.title, status, limit: 10 });
+    const match = items.find((i) => i.title === seed.title);
+    if (!match) continue;
+    const product = await getProduct(ctx, match.id);
+    const have = new Set(product.tags.map((t) => t.toLocaleLowerCase("en")));
+    const missing = seed.tags.filter((t) => !have.has(t.toLocaleLowerCase("en")));
+    let categoryCode: string | undefined;
+    if (!product.category) {
+      if (await getCategoryPath(ctx, seed.category)) categoryCode = seed.category;
+      else missingTaxonomy = true;
+    }
+    if (missing.length === 0 && categoryCode === undefined) continue;
+    await updateProduct(ctx, product.id, {
+      ...(missing.length > 0 ? { tags: [...product.tags, ...missing] } : {}),
+      ...(categoryCode ? { categoryCode } : {}),
+    });
+    changed += 1;
+  }
+  if (missingTaxonomy) {
+    console.warn("Product categories are missing: run `pnpm db:seed`, then seed again.");
+  }
+  return changed;
+}
+
+/**
  * Acme Flagship's catalogue: 7 products (5 active, 1 draft, 1 archived), 12
  * variants, two collections, a second location with transferred stock, one
  * product running low and two variants out of stock. Skipped when the store
@@ -338,6 +387,7 @@ export async function seedAcmeCatalogue(ctx: StoreContext): Promise<boolean> {
   };
   const ids: Record<string, string> = {};
   for (const p of ACME) ids[p.key] = await seedProduct(ctx, p);
+  await convergeAcmeTaxonomy(ctx);
 
   for (const c of COLLECTIONS) {
     const { collectionId } = await createCollection(ctx, {

@@ -60,7 +60,9 @@ enum ProductStatus {
 }
 
 /// SQL: partial unique (storeId, handle) WHERE deletedAt IS NULL;
-/// GIN full-text index over title/tags (see search ADR).
+/// GIN full-text index over title/tags (see search ADR); CHECK
+/// catalogue_tags_valid(tags) and a GIN index over lower-cased tags
+/// (Product_tags_folded) for the tag filter.
 model Product {
   id              String        @id @default(uuid(7)) @db.Uuid
   organisationId  String        @db.Uuid
@@ -74,8 +76,10 @@ model Product {
   descriptionHtml String?
   productType     String?
   vendor          String?
+  /// Merchant labels: normalised by the service (at most 50, each at most
+  /// 40 characters, de-duplicated ignoring case). Not storefront navigation.
   tags            String[]
-  /// Reference into the global product taxonomy (deferred, see erd.md §7).
+  /// Global product taxonomy (ProductCategory); null when not categorised.
   categoryCode    String?
   seoTitle        String?
   seoDescription  String?
@@ -92,6 +96,7 @@ model Product {
   store       Store               @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
   createdBy   User?               @relation("ProductCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   updatedBy   User?               @relation("ProductUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  category    ProductCategory?    @relation(fields: [categoryCode], references: [code], onDelete: Restrict)
   options     ProductOption[]
   variants    ProductVariant[]
   media       ProductMedia[]
@@ -102,6 +107,34 @@ model Product {
   @@index([createdById])
   @@index([updatedById])
   @@index([storeId, status, updatedAt])
+  // Leads with categoryCode for the foreign key; serves the store's category filter.
+  @@index([categoryCode, storeId])
+}
+
+/// Global product taxonomy (erd.md §4.3): platform reference data, no tenant
+/// columns. Loaded from packages/database/prisma/reference/product-categories.json
+/// by `pnpm db:seed`; application roles may only read it. Codes are stable and
+/// never reused: a category removed from the file is deactivated, never deleted.
+/// SQL: CHECKs on code, name, level and path; trigram index on lower(path).
+model ProductCategory {
+  code       String   @id
+  name       String
+  parentCode String?
+  /// 1 for a top-level category.
+  level      Int
+  /// Names from the root, e.g. "Home & Garden > Kitchen & Dining > Cookware".
+  path       String
+  /// Order among siblings.
+  position   Int      @default(0)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+
+  parent   ProductCategory?  @relation("ProductCategoryTree", fields: [parentCode], references: [code], onDelete: Restrict)
+  children ProductCategory[] @relation("ProductCategoryTree")
+  products Product[]
+
+  @@index([parentCode, position])
 }
 
 /// e.g. "Size", "Colour". Max 3 options per product (service rule).

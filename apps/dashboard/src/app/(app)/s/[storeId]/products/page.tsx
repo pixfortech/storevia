@@ -65,6 +65,8 @@ export default async function ProductsPage({
       vendor: search["vendor"],
       productType: search["productType"],
       collectionId: search["collection"],
+      tag: search["tag"],
+      category: search["category"],
       stock: search["stock"],
       sort: search["sort"],
       cursor: search["cursor"],
@@ -85,6 +87,8 @@ export default async function ProductsPage({
     handle: item.handle,
     status: item.status,
     vendor: item.vendor,
+    category: item.categoryName,
+    tags: item.tags,
     price: formatPriceRange(item.priceMin, item.priceMax),
     stock: (() => {
       const s = stockSummary(item);
@@ -119,7 +123,16 @@ export default async function ProductsPage({
 
   const tabHref = (value?: string) => {
     const next = new URLSearchParams();
-    for (const key of ["q", "vendor", "productType", "collection", "stock", "sort"]) {
+    for (const key of [
+      "q",
+      "vendor",
+      "productType",
+      "category",
+      "tag",
+      "collection",
+      "stock",
+      "sort",
+    ]) {
       const v = search[key];
       if (v) next.set(key, v);
     }
@@ -134,8 +147,8 @@ export default async function ProductsPage({
     const qs = next.toString();
     return productsPath(ctx.storeId, qs ? `?${qs}` : "");
   };
-  const filtered = ["q", "vendor", "productType", "collection", "stock"].some((key) =>
-    Boolean(search[key]),
+  const filtered = ["q", "vendor", "productType", "category", "tag", "collection", "stock"].some(
+    (key) => Boolean(search[key]),
   );
   const totalInTab =
     status === "ACTIVE"
@@ -251,6 +264,8 @@ export default async function ProductsPage({
               vendors: result.vendors,
               productTypes: result.productTypes,
               collections: collections.map((c) => ({ id: c.id, title: c.title })),
+              tags: result.tags,
+              categories: result.categories,
             }}
           />
           {rows.length > 0 ? (

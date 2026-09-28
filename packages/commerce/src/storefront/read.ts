@@ -62,6 +62,11 @@ export interface ProductDto {
   readonly handle: string;
   readonly title: string;
   readonly vendor: string | null;
+  readonly productType: string | null;
+  /** The merchant's tags: plain text for display (never links or pages). */
+  readonly tags: readonly string[];
+  /** Taxonomy breadcrumb names from the top level down; no codes. */
+  readonly category: { readonly name: string; readonly path: readonly string[] } | null;
   readonly description: RichTextDoc | null;
   readonly images: readonly ImageDto[];
   readonly options: readonly { readonly name: string; readonly values: readonly string[] }[];
@@ -69,6 +74,13 @@ export interface ProductDto {
   readonly seoTitle: string | null;
   readonly seoDescription: string | null;
   readonly updatedAt: Date;
+}
+
+/** A taxonomy breadcrumb ("A > B > C") as display names. */
+function categoryDto(path: string | null): ProductDto["category"] {
+  if (!path) return null;
+  const names = path.split(" > ");
+  return { name: names.at(-1) ?? path, path: names };
 }
 
 export interface PagedProductsDto {
@@ -322,6 +334,9 @@ export class StorefrontReader {
         handle: string;
         title: string;
         vendor: string | null;
+        productType: string | null;
+        tags: string[] | null;
+        categoryPath: string | null;
         descriptionDoc: unknown;
         seoTitle: string | null;
         seoDescription: string | null;
@@ -343,6 +358,8 @@ export class StorefrontReader {
       }[]
     >`
       SELECT p.id, p.handle, p.title, p.vendor, p."descriptionDoc", p."seoTitle", p."seoDescription", p."updatedAt",
+        p."productType", p.tags,
+        (SELECT c.path FROM "ProductCategory" c WHERE c.code = p."categoryCode") AS "categoryPath",
         (SELECT json_agg(json_build_object('name', o.name, 'values',
             (SELECT coalesce(json_agg(ov.value ORDER BY ov.position), '[]'::json) FROM "ProductOptionValue" ov WHERE ov."optionId" = o.id))
           ORDER BY o.position)
@@ -387,6 +404,9 @@ export class StorefrontReader {
       handle: row.handle,
       title: row.title,
       vendor: row.vendor,
+      productType: row.productType,
+      tags: row.tags ?? [],
+      category: categoryDto(row.categoryPath),
       description: safeRichText(row.descriptionDoc),
       images: images.map((i) => i.view),
       options: row.options ?? [],

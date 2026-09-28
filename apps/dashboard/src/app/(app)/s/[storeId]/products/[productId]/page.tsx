@@ -78,6 +78,13 @@ export default async function ProductPage({
       vendor: product.vendor ?? "",
       productType: product.productType ?? "",
       tags: product.tags,
+      category: product.category
+        ? {
+            code: product.category.code,
+            path: product.category.path,
+            active: product.category.active,
+          }
+        : null,
       seoTitle: product.seoTitle ?? "",
       seoDescription: product.seoDescription ?? "",
       currency: product.currency,
