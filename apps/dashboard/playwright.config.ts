@@ -1,10 +1,18 @@
 import { defineConfig, devices } from "@playwright/test";
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 
 // Local runs read the repository root .env (CI injects variables directly).
 const rootEnv = resolve(import.meta.dirname, "../../.env");
 if (existsSync(rootEnv) && !process.env["CI"]) process.loadEnvFile(rootEnv);
+
+// The local domain provider's simulated DNS (ADR-0032 §2): one state file
+// shared by the dashboard, the worker and the specs that set DNS records.
+const domainState = process.env["DOMAIN_PROVIDER_LOCAL_STATE"];
+if (domainState === undefined || domainState === "") {
+  process.env["DOMAIN_PROVIDER_LOCAL_STATE"] = join(tmpdir(), "storevia-e2e-domains.json");
+}
 
 const baseURL = process.env["E2E_BASE_URL"] ?? "http://app.localhost:3001";
 const adminURL = process.env["E2E_ADMIN_URL"] ?? "http://admin.localhost:3003";
