@@ -56,6 +56,9 @@ importers:
       '@storevia/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@storevia/domains':
+        specifier: workspace:*
+        version: link:../../packages/domains
       '@storevia/editor':
         specifier: workspace:*
         version: link:../../packages/editor
@@ -71,6 +74,9 @@ importers:
       '@storevia/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@storevia/payments':
+        specifier: workspace:*
+        version: link:../../packages/payments
       '@storevia/security':
         specifier: workspace:*
         version: link:../../packages/security
@@ -329,6 +335,9 @@ importers:
       server-only:
         specifier: 0.0.1
         version: 0.0.1
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
     devDependencies:
       '@types/node':
         specifier: 24.13.6
@@ -372,6 +381,9 @@ importers:
       '@storevia/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@storevia/security':
+        specifier: workspace:*
+        version: link:../../packages/security
       '@storevia/site-engine':
         specifier: workspace:*
         version: link:../../packages/site-engine
@@ -387,6 +399,9 @@ importers:
       tsx:
         specifier: 4.23.15
         version: 4.23.15
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
     devDependencies:
       vitest:
         specifier: 4.1.11

@@ -69,12 +69,31 @@ export class SerialClient extends pg.Client {
   }
 }
 
-export function createPrismaClient(connectionString: string): PrismaClient {
-  const adapter = new PrismaPg({
+const positive = (name: string, fallback: number): number => {
+  const value = Number(process.env[name] ?? fallback);
+  return Number.isInteger(value) && value > 0 ? value : fallback;
+};
+
+/**
+ * Pool settings for one role (docs/operations/staging.md). Behind a pooler
+ * (Neon's pgbouncer endpoint) each instance keeps a small pool; a connection
+ * that can't be had within the timeout fails fast instead of queueing a
+ * request forever, and idle connections are released so scaled-down
+ * instances don't hold pooler slots. TLS comes from the URL's sslmode.
+ */
+export function poolConfig(connectionString: string, role?: DatabaseRole) {
+  return {
     connectionString,
-    max: Number(process.env["DATABASE_POOL_MAX"] ?? 10),
-    Client: SerialClient,
-  });
+    max: positive("DATABASE_POOL_MAX", 10),
+    connectionTimeoutMillis: positive("DATABASE_CONNECT_TIMEOUT_MS", 10_000),
+    idleTimeoutMillis: positive("DATABASE_IDLE_TIMEOUT_MS", 30_000),
+    // Visible in pg_stat_activity: which role's pool a connection belongs to.
+    application_name: role ? `storevia-${role}` : "storevia",
+  };
+}
+
+export function createPrismaClient(connectionString: string, role?: DatabaseRole): PrismaClient {
+  const adapter = new PrismaPg({ ...poolConfig(connectionString, role), Client: SerialClient });
   if (process.env["STOREVIA_QUERY_EVENTS"] !== "1") return new PrismaClient({ adapter });
   const client = new PrismaClient({ adapter, log: [{ emit: "event", level: "query" }] });
   client.$on("query", (event) => {
@@ -89,7 +108,7 @@ export function getClient(role: DatabaseRole): PrismaClient {
   if (existing) return existing;
   const url = process.env[URL_ENV[role]];
   if (!url) throw new Error(`${URL_ENV[role]} is not set`);
-  const client = createPrismaClient(url);
+  const client = createPrismaClient(url, role);
   cache[role] = client;
   return client;
 }

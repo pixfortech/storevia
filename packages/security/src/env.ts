@@ -157,3 +157,21 @@ export function runBootChecks(
     throw new ConfigurationError(`Invalid ${app} configuration: ${problems.join("; ")}`);
   }
 }
+
+/**
+ * Runs a server's configuration check at boot and exits the process when it
+ * fails. `next start` otherwise logs the error and keeps a process that can
+ * never serve, which an orchestrator would count as healthy. The message
+ * names variables and rules only.
+ */
+export function verifyOrExit(check: () => void): void {
+  try {
+    check();
+  } catch (error) {
+    const message = error instanceof ConfigurationError ? error.message : String(error);
+    process.stderr.write(
+      `${JSON.stringify({ level: "fatal", msg: "configuration invalid", error: message })}\n`,
+    );
+    process.exit(1);
+  }
+}

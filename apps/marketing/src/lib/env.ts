@@ -1,45 +1,39 @@
 import "server-only";
+import {
+  databaseUrlSchema,
+  liveRules,
+  loadEnv,
+  optionalSchema,
+  stageSchema,
+} from "@storevia/security/env";
 import { z } from "zod";
 
 // The marketing site's whole configuration. It holds no auth secret and only
-// the marketing database role (ADR-0025).
-const schema = z
-  .object({
-    STOREVIA_ENV: z
-      .enum(["development", "test", "preview", "staging", "production"])
-      .default("development"),
-    MARKETING_URL: z.url(),
-    DASHBOARD_URL: z.url(),
-    DATABASE_MARKETING_URL: z.string().min(1),
-    /** Where contact-form messages are delivered. */
-    CONTACT_INBOX: z.email(),
-    TRUSTED_CLIENT_IP_HEADER: z
-      .string()
-      .optional()
-      .transform((value) => (value === "" ? undefined : value)),
-  })
-  .refine(
-    (value) =>
-      !["staging", "production"].includes(value.STOREVIA_ENV) ||
-      Boolean(value.TRUSTED_CLIENT_IP_HEADER),
-    {
-      path: ["TRUSTED_CLIENT_IP_HEADER"],
-      message: "required in staging and production (e.g. cf-connecting-ip)",
-    },
-  );
+// the marketing database role (ADR-0025). Validated when the server boots
+// (instrumentation.ts) and read lazily afterwards.
+const schema = z.object({
+  STOREVIA_ENV: stageSchema,
+  MARKETING_URL: z.url(),
+  DASHBOARD_URL: z.url(),
+  DATABASE_MARKETING_URL: databaseUrlSchema,
+  /** Where contact-form messages are delivered. */
+  CONTACT_INBOX: z.email(),
+  TRUSTED_CLIENT_IP_HEADER: optionalSchema,
+});
 
 export type MarketingEnv = z.infer<typeof schema>;
+
+const rules = [
+  liveRules<MarketingEnv>({
+    required: ["TRUSTED_CLIENT_IP_HEADER"],
+    databaseUrls: ["DATABASE_MARKETING_URL"],
+  }),
+];
 
 let cached: MarketingEnv | undefined;
 
 export function env(): MarketingEnv {
-  if (cached) return cached;
-  const parsed = schema.safeParse(process.env);
-  if (!parsed.success) {
-    const problems = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
-    throw new Error(`Invalid marketing configuration: ${problems}`);
-  }
-  cached = parsed.data;
+  cached ??= loadEnv("marketing", schema, rules);
   return cached;
 }
 

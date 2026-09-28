@@ -1,45 +1,58 @@
 import "server-only";
+import {
+  databaseUrlSchema,
+  flagSchema,
+  liveRules,
+  loadEnv,
+  optionalSchema,
+  secretSchema,
+  stageSchema,
+} from "@storevia/security/env";
 import { z } from "zod";
 
-// Fail fast on missing or malformed configuration (docs 02 §5).
-const schema = z
-  .object({
-    STOREVIA_ENV: z
-      .enum(["development", "test", "preview", "staging", "production"])
-      .default("development"),
-    DASHBOARD_URL: z.url(),
-    AUTH_SECRET: z.string().min(32, "AUTH_SECRET must be at least 32 characters"),
-    DATABASE_URL: z.string().min(1),
-    DATABASE_SYSTEM_URL: z.string().min(1),
-    STOREFRONT_ROOT_DOMAIN: z.string().min(1).default("storevia.site"),
-    TRUSTED_CLIENT_IP_HEADER: z
-      .string()
-      .optional()
-      .transform((value) => (value === "" ? undefined : value)),
-  })
-  .refine(
-    // Without it every client shares one unknown IP and per-IP limits are off.
-    (value) =>
-      !["staging", "production"].includes(value.STOREVIA_ENV) ||
-      Boolean(value.TRUSTED_CLIENT_IP_HEADER),
-    {
-      path: ["TRUSTED_CLIENT_IP_HEADER"],
-      message: "required in staging and production (e.g. cf-connecting-ip)",
-    },
-  );
+// Fail fast on missing or malformed configuration (docs 02 §5). Validated
+// when the server boots (instrumentation.ts) and read lazily afterwards.
+const schema = z.object({
+  STOREVIA_ENV: stageSchema,
+  DASHBOARD_URL: z.url(),
+  AUTH_SECRET: secretSchema(),
+  DATABASE_URL: databaseUrlSchema,
+  DATABASE_SYSTEM_URL: databaseUrlSchema,
+  // Payment-provider and billing webhooks land on the dashboard.
+  DATABASE_CHECKOUT_URL: databaseUrlSchema,
+  DATABASE_BILLING_URL: databaseUrlSchema,
+  STOREFRONT_ROOT_DOMAIN: z.string().min(1).default("storevia.site"),
+  STOREFRONT_PROTOCOL: z.enum(["http", "https"]).default("https"),
+  // Signs the preview links the storefront verifies.
+  STOREFRONT_PREVIEW_SECRET: secretSchema(),
+  // Without it every client shares one unknown IP and per-IP limits are off.
+  TRUSTED_CLIENT_IP_HEADER: optionalSchema,
+  DEMO_ORDER_DELETION_ENABLED: flagSchema,
+});
 
 export type DashboardEnv = z.infer<typeof schema>;
+
+const rules = [
+  liveRules<DashboardEnv>({
+    secrets: ["AUTH_SECRET", "STOREFRONT_PREVIEW_SECRET"],
+    required: ["TRUSTED_CLIENT_IP_HEADER"],
+    databaseUrls: [
+      "DATABASE_URL",
+      "DATABASE_SYSTEM_URL",
+      "DATABASE_CHECKOUT_URL",
+      "DATABASE_BILLING_URL",
+    ],
+  }),
+  (value: DashboardEnv) =>
+    value.STOREVIA_ENV === "production" && value.STOREFRONT_PROTOCOL !== "https"
+      ? [{ path: "STOREFRONT_PROTOCOL", message: "must be https in production" }]
+      : [],
+];
 
 let cached: DashboardEnv | undefined;
 
 export function env(): DashboardEnv {
-  if (cached) return cached;
-  const parsed = schema.safeParse(process.env);
-  if (!parsed.success) {
-    const problems = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
-    throw new Error(`Invalid dashboard configuration: ${problems}`);
-  }
-  cached = parsed.data;
+  cached ??= loadEnv("dashboard", schema, rules);
   return cached;
 }
 

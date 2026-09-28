@@ -19,11 +19,13 @@
     "@storevia/jobs": "workspace:*",
     "@storevia/media": "workspace:*",
     "@storevia/observability": "workspace:*",
+    "@storevia/security": "workspace:*",
     "@storevia/site-engine": "workspace:*",
     "@storevia/tenancy": "workspace:*",
     "@storevia/types": "workspace:*",
     "server-only": "0.0.1",
-    "tsx": "4.23.15"
+    "tsx": "4.23.15",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "vitest": "4.1.11"

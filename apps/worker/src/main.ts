@@ -1,5 +1,5 @@
-// Storevia worker (ADR-0023): runs the periodic jobs. Needs
-// DATABASE_WORKER_URL and DATABASE_BILLING_URL.
+// Storevia worker (ADR-0023): runs the periodic jobs. Its configuration is
+// validated first (src/env.ts): a bad deploy exits before claiming a job.
 import { existsSync } from "node:fs";
 import { createServer } from "node:http";
 import { hostname } from "node:os";
@@ -8,28 +8,25 @@ import { disconnectAll } from "@storevia/database";
 import { workerDb } from "@storevia/database/worker";
 import { Scheduler, Worker } from "@storevia/jobs";
 import { createLogger } from "@storevia/observability";
+import { loadWorkerEnv } from "./env";
 import { JOBS } from "./jobs";
 
 const rootEnv = resolve(import.meta.dirname, "../../../.env");
 if (existsSync(rootEnv) && !process.env["CI"]) process.loadEnvFile(rootEnv);
 
 const log = createLogger({ app: "worker" });
-for (const name of ["DATABASE_WORKER_URL", "DATABASE_BILLING_URL"]) {
-  if (!process.env[name]) throw new Error(`${name} is not set`);
-}
+const env = loadWorkerEnv();
 
 const workerId = `${hostname()}-${String(process.pid)}`;
 const scheduler = new Scheduler({ workerId });
 await scheduler.register(JOBS);
-const worker = new Worker(scheduler, Number(process.env["WORKER_POLL_INTERVAL_MS"] ?? 5_000));
+const worker = new Worker(scheduler, env.WORKER_POLL_INTERVAL_MS);
 worker.start();
 log.info("worker started", { workerId, jobs: JOBS.map((j) => j.name) });
 
 // Liveness (/health) and readiness (/ready) for the orchestrator. No tenant
 // data is exposed. Bound to WORKER_HEALTH_HOST (127.0.0.1 by default; a
 // container sets 0.0.0.0 so the platform's probe can reach it).
-const port = Number(process.env["WORKER_HEALTH_PORT"] ?? 3004);
-const host = process.env["WORKER_HEALTH_HOST"] ?? "127.0.0.1";
 const server = createServer((req, res) => {
   const reply = (status: number, body: unknown) => {
     res
@@ -49,7 +46,7 @@ const server = createServer((req, res) => {
   }
   res.writeHead(404).end();
 });
-server.listen(port, host);
+server.listen(env.WORKER_HEALTH_PORT, env.WORKER_HEALTH_HOST);
 
 async function databaseReachable(): Promise<boolean> {
   try {
