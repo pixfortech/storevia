@@ -1,6 +1,7 @@
 import { baseSecurityHeaders, contentSecurityPolicy, safeRedirectPath } from "@storevia/security";
 import { NextResponse, type NextRequest } from "next/server";
 import { platformAuth } from "./lib/auth";
+import { requestIdFrom } from "@storevia/observability";
 
 // Platform-admin request proxy: request ID, nonce CSP and security headers on
 // every response; no indexing; redirect to sign-in without a valid platform
@@ -27,7 +28,7 @@ function withSecurityHeaders(response: NextResponse, csp: string, requestId: str
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
-  const requestId = crypto.randomUUID();
+  const requestId = requestIdFrom(request.headers);
   const csp = contentSecurityPolicy({
     nonce,
     isDevelopment: process.env.NODE_ENV !== "production",

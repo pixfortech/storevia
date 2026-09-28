@@ -17,7 +17,7 @@ import {
   type StoreContext,
   type TenantContext,
 } from "@storevia/tenancy";
-import { createLogger } from "@storevia/observability";
+import { createLogger, recordMetric } from "@storevia/observability";
 import { DomainError, notFound, toTypeId, uuidv7 } from "@storevia/types";
 import { z } from "zod";
 import { mediaStorage } from "./config";
@@ -163,6 +163,7 @@ async function markRejected(store: StoreContext, id: string): Promise<void> {
 }
 
 async function reject(store: StoreContext, id: string, message: string): Promise<never> {
+  recordMetric("media.processed", 1, { outcome: "rejected" });
   await markRejected(store, id);
   throw new DomainError("VALIDATION_FAILED", message, { file: message });
 }
@@ -223,6 +224,7 @@ export async function completeMediaUpload(
   });
 
   const rawKey = uploadKey(owner);
+  const started = Date.now();
   let bytes: Uint8Array;
   try {
     const info = await storage.head(rawKey);
@@ -243,6 +245,7 @@ export async function completeMediaUpload(
   } catch (error) {
     await storage.delete(rawKey).catch(() => undefined);
     if (error instanceof MediaRejectedError) return reject(store, id, error.message);
+    recordMetric("media.processed", 1, { outcome: "failed" });
     await markRejected(store, id);
     throw error;
   }
@@ -266,6 +269,7 @@ export async function completeMediaUpload(
       });
     }
   } catch (error) {
+    recordMetric("media.processed", 1, { outcome: "failed" });
     await Promise.all(written.map((k) => storage.delete(k).catch(() => undefined)));
     await storage.delete(rawKey).catch(() => undefined);
     await markRejected(store, id);
@@ -303,7 +307,10 @@ export async function completeMediaUpload(
           bytes: storedBytes,
         },
       );
-      return toView(tx, id, storage);
+      const view = await toView(tx, id, storage);
+      recordMetric("media.processed", 1, { outcome: "ready" });
+      recordMetric("media.processing_ms", Date.now() - started, {});
+      return view;
     });
   } catch (error) {
     await Promise.all(written.map((k) => storage.delete(k).catch(() => undefined)));
@@ -527,10 +534,10 @@ export async function deleteMedia(ctx: TenantContext, mediaPublicId: string): Pr
   const storage = mediaStorage();
   for (const key of keys) {
     await storage.delete(key).catch((error: unknown) => {
-      log.warn("media object not deleted", {
-        key,
-        error: error instanceof Error ? error.message : "unknown",
-      });
+      // Error names only (a storage message can echo the request); the
+      // worker's media sweep retries the delete.
+      recordMetric("media.object_delete_failed", 1, {});
+      log.warn("media object not deleted", { key, error });
     });
   }
 }

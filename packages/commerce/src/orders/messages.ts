@@ -163,27 +163,37 @@ export async function notifyStaffOfCustomerMessages(
   const eligible = rolesNotifiedOfMessages(roles);
   let messages = 0;
   let notifications = 0;
+  // A message that can't be announced is skipped for the rest of this run
+  // (and counted) so it never blocks the ones behind it; the next run tries
+  // it again.
+  const skipped: string[] = [];
   for (let i = 0; i < limit; i++) {
-    const done = await workerDb().$transaction(async (tx) => {
-      const rows = await tx.$queryRaw<
-        {
-          id: string;
-          organisation_id: string;
-          store_id: string;
-          order_id: string;
-          number: number;
-        }[]
-      >`
+    // Set inside the transaction callback, read if it throws.
+    const claim: { id: string | null } = { id: null };
+    let done: number | null;
+    try {
+      done = await workerDb().$transaction(async (tx) => {
+        const rows = await tx.$queryRaw<
+          {
+            id: string;
+            organisation_id: string;
+            store_id: string;
+            order_id: string;
+            number: number;
+          }[]
+        >`
         SELECT m.id, m."organisationId" AS organisation_id, m."storeId" AS store_id,
           m."orderId" AS order_id, o."orderNumber" AS number
         FROM "OrderMessage" m JOIN "Order" o ON o.id = m."orderId"
         WHERE m."authorType" = 'CUSTOMER' AND m."staffNotifiedAt" IS NULL
+          AND m.id <> ALL(${skipped}::uuid[])
         ORDER BY m."createdAt"
         LIMIT 1
         FOR UPDATE OF m SKIP LOCKED`;
-      const m = rows[0];
-      if (!m) return null;
-      const created = await tx.$executeRaw`
+        const m = rows[0];
+        if (!m) return null;
+        claim.id = m.id;
+        const created = await tx.$executeRaw`
         INSERT INTO "StaffNotification" (id, "organisationId", "storeId", "userId", kind, "orderId",
           "orderMessageId", title)
         SELECT gen_random_uuid(), ms."organisationId", ${m.store_id}::uuid, ms."userId",
@@ -197,10 +207,17 @@ export async function notifyStaffOfCustomerMessages(
             SELECT 1 FROM "MembershipStoreAccess" a
             WHERE a."membershipId" = ms.id AND a."storeId" = ${m.store_id}::uuid))
         ON CONFLICT ("userId", "orderMessageId") DO NOTHING`;
-      await tx.$executeRaw`
+        await tx.$executeRaw`
         UPDATE "OrderMessage" SET "staffNotifiedAt" = now() WHERE id = ${m.id}::uuid`;
-      return created;
-    });
+        return created;
+      });
+    } catch (error) {
+      if (claim.id === null) throw error;
+      skipped.push(claim.id);
+      recordMetric("orders.staff_notification_failed", 1);
+      log.error("customer message could not be announced", { orderMessageId: claim.id, error });
+      continue;
+    }
     if (done === null) break;
     messages += 1;
     notifications += done;

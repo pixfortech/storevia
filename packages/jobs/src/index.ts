@@ -3,7 +3,13 @@ import "server-only";
 
 export { nextSlot, retryDelayMs, slotAtOrAfter } from "./schedule";
 export type { JobSchedule } from "./schedule";
-export { Scheduler } from "./scheduler";
-export type { JobContext, JobDefinition, JobResult, SchedulerOptions } from "./scheduler";
-export { Worker } from "./worker";
+export { JobTimeoutError, Scheduler } from "./scheduler";
+export type {
+  JobContext,
+  JobDefinition,
+  JobResult,
+  SchedulerActivity,
+  SchedulerOptions,
+} from "./scheduler";
+export { MAX_ABANDONED_RUNS, Worker } from "./worker";
 export type { WorkerHealth } from "./worker";

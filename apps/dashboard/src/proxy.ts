@@ -2,6 +2,7 @@ import { baseSecurityHeaders, contentSecurityPolicy, safeRedirectPath } from "@s
 import { NextResponse, type NextRequest } from "next/server";
 import { dashboardAuth } from "./lib/auth";
 import { MEDIA_RESPONSE_CSP, mediaOrigins } from "./lib/media-origins";
+import { requestIdFrom } from "@storevia/observability";
 
 // Runs before every page and server action (Next.js request proxy, Node runtime).
 // 1. request ID + nonce-based CSP + security headers on every response;
@@ -48,7 +49,7 @@ function withSecurityHeaders(response: NextResponse, csp: string, requestId: str
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
-  const requestId = crypto.randomUUID();
+  const requestId = requestIdFrom(request.headers);
   const { pathname, search } = request.nextUrl;
   const csp = pathname.startsWith("/media/")
     ? MEDIA_RESPONSE_CSP

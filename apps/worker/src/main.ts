@@ -5,6 +5,7 @@ import { createServer } from "node:http";
 import { hostname } from "node:os";
 import { resolve } from "node:path";
 import { disconnectAll } from "@storevia/database";
+import { workerDb } from "@storevia/database/worker";
 import { Scheduler, Worker } from "@storevia/jobs";
 import { createLogger } from "@storevia/observability";
 import { JOBS } from "./jobs";
@@ -24,22 +25,47 @@ const worker = new Worker(scheduler, Number(process.env["WORKER_POLL_INTERVAL_MS
 worker.start();
 log.info("worker started", { workerId, jobs: JOBS.map((j) => j.name) });
 
-// Liveness/readiness for the orchestrator. No tenant data is exposed.
+// Liveness (/health) and readiness (/ready) for the orchestrator. No tenant
+// data is exposed. Bound to WORKER_HEALTH_HOST (127.0.0.1 by default; a
+// container sets 0.0.0.0 so the platform's probe can reach it).
 const port = Number(process.env["WORKER_HEALTH_PORT"] ?? 3004);
+const host = process.env["WORKER_HEALTH_HOST"] ?? "127.0.0.1";
 const server = createServer((req, res) => {
-  if (req.url !== "/health") {
-    res.writeHead(404).end();
+  const reply = (status: number, body: unknown) => {
+    res
+      .writeHead(status, { "content-type": "application/json", "cache-control": "no-store" })
+      .end(JSON.stringify(body));
+  };
+  if (req.url === "/health") {
+    const health = worker.health();
+    reply(health.status === "degraded" || health.status === "stopping" ? 503 : 200, health);
     return;
   }
-  const health = worker.health();
-  res
-    .writeHead(health.status === "degraded" || health.status === "stopping" ? 503 : 200, {
-      "content-type": "application/json",
-      "cache-control": "no-store",
-    })
-    .end(JSON.stringify(health));
+  if (req.url === "/ready") {
+    void databaseReachable().then((ok) => {
+      reply(ok ? 200 : 503, { database: ok ? "ok" : "unreachable" });
+    });
+    return;
+  }
+  res.writeHead(404).end();
 });
-server.listen(port, "127.0.0.1");
+server.listen(port, host);
+
+async function databaseReachable(): Promise<boolean> {
+  try {
+    await Promise.race([
+      workerDb().$queryRaw`SELECT 1`,
+      new Promise((_resolve, reject) => {
+        setTimeout(() => {
+          reject(new Error("timeout"));
+        }, 2_000);
+      }),
+    ]);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 let shuttingDown = false;
 async function shutdown(signal: string): Promise<void> {

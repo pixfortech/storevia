@@ -1,5 +1,6 @@
 import { baseSecurityHeaders, contentSecurityPolicy } from "@storevia/security";
 import { NextResponse, type NextRequest } from "next/server";
+import { requestIdFrom } from "@storevia/observability";
 
 // Marketing request proxy: request ID, nonce CSP and security headers on every
 // response. The site has no sessions: nothing here reads or sets cookies.
@@ -8,7 +9,7 @@ const secure = () => (process.env["MARKETING_URL"] ?? "").startsWith("https://")
 
 export function proxy(request: NextRequest): NextResponse {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
-  const requestId = crypto.randomUUID();
+  const requestId = requestIdFrom(request.headers);
   const csp = contentSecurityPolicy({
     nonce,
     isDevelopment: process.env.NODE_ENV !== "production",

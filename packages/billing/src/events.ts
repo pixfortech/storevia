@@ -1,4 +1,5 @@
 import "server-only";
+import { logger } from "@storevia/observability";
 
 /**
  * Entitlement change notification (ADR-0022 §9). Entitlements are not cached
@@ -21,14 +22,7 @@ export async function notifyEntitlementsChanged(organisationId: string): Promise
     try {
       await listener(organisationId);
     } catch (error) {
-      console.error(
-        JSON.stringify({
-          level: "error",
-          msg: "entitlement change listener failed",
-          organisationId,
-          errorName: error instanceof Error ? error.name : typeof error,
-        }),
-      );
+      logger.error("entitlement change listener failed", { organisationId, error });
     }
   }
 }

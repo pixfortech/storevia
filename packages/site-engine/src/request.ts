@@ -1,4 +1,5 @@
 import "server-only";
+import { bindLogContext } from "@storevia/observability";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { STORE_HEADER, verifyStoreHeader, type StoreRequestContext } from "./context";
@@ -10,8 +11,13 @@ import { internalHeaderKey } from "./env";
  * `/sv/{storeId}` segment can't be used to reach another store.
  */
 export async function requestStore(routeStoreId?: string): Promise<StoreRequestContext> {
-  const store = verifyStoreHeader((await headers()).get(STORE_HEADER), internalHeaderKey());
+  const h = await headers();
+  const store = verifyStoreHeader(h.get(STORE_HEADER), internalHeaderKey());
   if (!store || (routeStoreId !== undefined && routeStoreId !== store.storeId)) notFound();
+  // Everything logged for the rest of this request (checkout, cart, order
+  // messages) carries the proxy's request id and the store (M8).
+  const requestId = h.get("x-request-id");
+  bindLogContext({ ...(requestId ? { requestId } : {}), storeId: store.storeId });
   return store;
 }
 

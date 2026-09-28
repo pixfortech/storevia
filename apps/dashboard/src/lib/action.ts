@@ -1,5 +1,5 @@
 import "server-only";
-import { createLogger } from "@storevia/observability";
+import { createLogger, withLogContext } from "@storevia/observability";
 import { isDomainError } from "@storevia/types";
 import { unstable_rethrow } from "next/navigation";
 import { requestId } from "./request";
@@ -35,6 +35,15 @@ export function formValues(formData: FormData): Record<string, string> {
 export async function runAction(
   fn: () => Promise<ActionState>,
   formData?: FormData,
+): Promise<ActionState> {
+  // Everything the action logs, in any package, carries the request id.
+  const current = await requestId();
+  return withLogContext(current ? { requestId: current } : {}, () => attempt(fn, formData));
+}
+
+async function attempt(
+  fn: () => Promise<ActionState>,
+  formData: FormData | undefined,
 ): Promise<ActionState> {
   try {
     return await fn();

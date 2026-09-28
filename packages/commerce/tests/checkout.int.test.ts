@@ -686,6 +686,52 @@ describe("idempotency and concurrency", () => {
     ).toBe("CAPTURED");
   });
 
+  it("a delivery whose processing fails is recorded FAILED, and the retry processes it (M8)", async () => {
+    const s = await shopper(storeA, [["mug", 1]]);
+    await ready(s);
+    const started = await pay(s);
+    if (started.kind !== "redirect") throw new Error("expected redirect");
+    const payment = await migratorDb().payment.findFirstOrThrow({
+      where: { providerPaymentId: refOf(started.url) },
+    });
+    const event = signed("a", refOf(started.url), "captured", payment.amount);
+    const eventId = event.headers.get("x-storevia-test-event-id") ?? "";
+    const ledger = () =>
+      migratorDb().paymentWebhookEvent.findFirstOrThrow({
+        where: { storeId: storeA.storeId, providerEventId: eventId },
+      });
+    await migratorDb().$executeRaw`
+      ALTER TABLE "Order" ADD CONSTRAINT test_block_orders CHECK (false) NOT VALID`;
+    try {
+      await expect(
+        ingestPaymentWebhook(event.connectionId, event.body, event.headers),
+      ).rejects.toThrow();
+      expect(await ledger()).toMatchObject({ status: "FAILED", attempts: 1 });
+      expect((await ledger()).lastError).toContain("test_block_orders");
+      // A second failed retry counts again.
+      await expect(
+        ingestPaymentWebhook(event.connectionId, event.body, event.headers),
+      ).rejects.toThrow();
+      expect(await ledger()).toMatchObject({ status: "FAILED", attempts: 2 });
+    } finally {
+      await migratorDb().$executeRaw`ALTER TABLE "Order" DROP CONSTRAINT test_block_orders`;
+    }
+    // The provider's retry is processed, not dismissed as a duplicate.
+    expect(await ingestPaymentWebhook(event.connectionId, event.body, event.headers)).toEqual({
+      status: 200,
+      outcome: "processed",
+    });
+    expect(await ledger()).toMatchObject({ status: "PROCESSED", attempts: 3, lastError: null });
+    expect(
+      await migratorDb().order.count({ where: { payments: { some: { id: payment.id } } } }),
+    ).toBe(1);
+    // Once processed, further deliveries are duplicates.
+    expect(await ingestPaymentWebhook(event.connectionId, event.body, event.headers)).toEqual({
+      status: 200,
+      outcome: "duplicate",
+    });
+  });
+
   it("two shoppers racing for the last unit: exactly one gets to pay", async () => {
     const one = await shopper(storeA, [["last", 1]]);
     const two = await shopper(storeA, [["last", 1]]);

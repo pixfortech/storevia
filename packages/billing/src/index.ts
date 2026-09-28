@@ -59,7 +59,7 @@ export type { CatalogueDiagnostics, StoreCatalogueCounts } from "./catalogue-dia
 export { getJobsOverview } from "./operations";
 export { getDomainsOverview } from "./domains-admin";
 export type { AdminDomainRow, DomainStatusFilter, DomainsOverview } from "./domains-admin";
-export type { JobHealth, JobRunSummary, JobsOverview } from "./operations";
+export type { JobHealth, JobRunSummary, JobsOverview, QueueSignal } from "./operations";
 export type {
   AdminFeature,
   AdminOverride,

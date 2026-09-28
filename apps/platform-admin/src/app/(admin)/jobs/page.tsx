@@ -13,7 +13,16 @@ export const metadata: Metadata = { title: "Jobs" };
 // page has no controls on purpose: jobs retry on their own.
 
 const DESCRIPTION =
-  "Scheduled work run by the worker. Read-only: jobs retry on their own and are changed in code, not here.";
+  "Scheduled work run by the worker and the queues it drains. Read-only: jobs retry on their own and are changed in code, not here.";
+
+/** "0 s", "4 min", "2 h 5 min". */
+function queueAge(seconds: number): string {
+  if (seconds < 60) return `${String(seconds)} s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${String(minutes)} min`;
+  const hours = Math.floor(minutes / 60);
+  return `${String(hours)} h ${String(minutes % 60)} min`;
+}
 
 export default async function JobsPage() {
   const ctx = await requireStaff("/jobs");
@@ -29,6 +38,7 @@ export default async function JobsPage() {
   }
   const overview = await getJobsOverview(ctx);
   const attention = overview.jobs.filter(needsAttention);
+  const queueAttention = overview.queues.filter((q) => q.attention);
   const summary = jobsSummary(overview.jobs, overview.recentRuns);
   return (
     <div className="space-y-8">
@@ -46,6 +56,12 @@ export default async function JobsPage() {
       ) : attention.length > 0 ? (
         <Alert tone="danger" title="Jobs need attention">
           {attention.map((j) => j.name).join(", ")}: check the worker logs for these jobs.
+        </Alert>
+      ) : null}
+      {queueAttention.length > 0 ? (
+        <Alert tone="danger" title="Queues need attention">
+          {queueAttention.map((q) => q.label).join("; ")}. See the runbook in
+          docs/operations/alerts.md.
         </Alert>
       ) : null}
 
@@ -71,6 +87,44 @@ export default async function JobsPage() {
           }
         />
       </dl>
+
+      <Card data-testid="queues-card">
+        <CardHeader
+          title="Queues"
+          description="Work waiting across every store, and anything that has failed. Totals only."
+        />
+        <DataList
+          caption="Queue health"
+          rows={overview.queues}
+          rowKey={(q) => q.key}
+          rowTestId="queue-row"
+          columns={[
+            { key: "label", header: "Signal", primary: true, cell: (q) => q.label },
+            {
+              key: "value",
+              header: "Now",
+              align: "end",
+              className: "tabular-nums",
+              cell: (q) =>
+                q.unit === "seconds" ? queueAge(q.value) : q.value.toLocaleString("en"),
+            },
+            {
+              key: "state",
+              header: "State",
+              cell: (q) =>
+                q.attention ? (
+                  <Badge tone="danger" dot>
+                    Needs attention
+                  </Badge>
+                ) : (
+                  <Badge tone="success" dot>
+                    Normal
+                  </Badge>
+                ),
+            },
+          ]}
+        />
+      </Card>
 
       <Card data-testid="jobs-card">
         <CardHeader title="Schedule" description="Each job, how often it runs and its health." />

@@ -17,6 +17,7 @@
     "@storevia/email": "workspace:*",
     "@storevia/entitlements": "workspace:*",
     "@storevia/jobs": "workspace:*",
+    "@storevia/media": "workspace:*",
     "@storevia/observability": "workspace:*",
     "@storevia/site-engine": "workspace:*",
     "@storevia/tenancy": "workspace:*",

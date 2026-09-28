@@ -5,6 +5,7 @@ import {
   storeAvailability,
 } from "@storevia/domains/resolver";
 import { mediaImageOrigin } from "@storevia/media/urls";
+import { requestIdFrom } from "@storevia/observability";
 import { baseSecurityHeaders, contentSecurityPolicy } from "@storevia/security";
 import { NextResponse, type NextRequest } from "next/server";
 import { STORE_HEADER, signStoreHeader, type Availability } from "./context";
@@ -66,7 +67,7 @@ export async function handlePublicRequest(
 ): Promise<NextResponse> {
   const secure = isSecure();
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
-  const requestId = crypto.randomUUID();
+  const requestId = requestIdFrom(request.headers);
   const imageOrigin = mediaImageOrigin();
   const csp = contentSecurityPolicy({
     nonce,

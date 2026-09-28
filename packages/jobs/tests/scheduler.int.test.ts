@@ -1,7 +1,7 @@
 // Scheduler guarantees against PostgreSQL with the worker role (ADR-0023).
 import { disconnectTestClients, migratorDb, truncateAll } from "@storevia/database/testing";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { Scheduler, type JobDefinition } from "../src";
+import { Scheduler, Worker, type JobDefinition } from "../src";
 
 const T0 = new Date("2026-09-24T10:00:00Z");
 const everyFiveMinutes = { everySeconds: 300 };
@@ -132,6 +132,33 @@ describe("concurrency and leases", () => {
     expect(slots).toEqual([`${T0.toISOString()}#2`]); // same slot, next attempt
   });
 
+  it("a run the crashed worker left RUNNING is recorded FAILED when its slot is taken over (M8)", async () => {
+    const c = clock(T0);
+    const s = new Scheduler({ workerId: "survivor", now: c.now, leaseMs: 60_000 });
+    await s.register([job({ run: () => Promise.resolve(undefined) })]);
+    await migratorDb().scheduledJob.update({
+      where: { name: "test.job" },
+      data: { lockedBy: "crashed", lockedUntil: new Date(T0.getTime() + 60_000), attempt: 1 },
+    });
+    await migratorDb().jobRun.create({
+      data: {
+        jobName: "test.job",
+        slot: T0,
+        attempt: 1,
+        workerId: "crashed",
+        status: "RUNNING",
+        startedAt: T0,
+      },
+    });
+    c.set(new Date(T0.getTime() + 61_000));
+    expect(await s.runDue()).toBe(1);
+    const all = await runs();
+    expect(all.map((r) => [r.workerId, r.status, r.error])).toEqual([
+      ["crashed", "FAILED", "lease_expired"],
+      ["survivor", "SUCCEEDED", null],
+    ]);
+  });
+
   it("a running job keeps its lease with heartbeats", async () => {
     const definition = job({
       run: async () => {
@@ -208,6 +235,85 @@ describe("failures", () => {
       consecutiveFailures: 0,
       lastStatus: "SUCCEEDED",
       attempt: 0,
+    });
+  });
+});
+
+describe("hard timeouts and health (M8)", () => {
+  it("a run that ignores its signal is failed at its deadline and the scheduler moves on", async () => {
+    let release: () => void = () => undefined;
+    const hung = job({
+      name: "test.hung",
+      timeoutMs: 300,
+      maxAttempts: 1,
+      // Ignores the abort signal entirely.
+      run: () =>
+        new Promise((resolve) => {
+          release = () => {
+            resolve(undefined);
+          };
+        }),
+    });
+    let ranAfter = false;
+    const next = job({
+      name: "test.after",
+      run: () => {
+        ranAfter = true;
+        return Promise.resolve(undefined);
+      },
+    });
+    const s = new Scheduler({ workerId: "w1", leaseMs: 60_000 });
+    await s.register([hung, next]);
+    await migratorDb().scheduledJob.updateMany({
+      data: { nextRunAt: new Date(Date.now() - 1000), slot: new Date(Date.now() - 1000) },
+    });
+    const started = Date.now();
+    expect(await s.runDue()).toBe(2);
+    expect(Date.now() - started).toBeLessThan(5_000);
+    expect(ranAfter).toBe(true);
+    const hungRun = await migratorDb().jobRun.findFirstOrThrow({ where: { jobName: "test.hung" } });
+    expect(hungRun).toMatchObject({ status: "FAILED", error: "timeout" });
+    const hungRow = await migratorDb().scheduledJob.findUniqueOrThrow({
+      where: { name: "test.hung" },
+    });
+    expect(hungRow).toMatchObject({ lockedBy: null, consecutiveFailures: 1 });
+    expect(s.activity().abandoned).toBe(1);
+    release();
+    await new Promise((r) => setTimeout(r, 10));
+    expect(s.activity().abandoned).toBe(0);
+  });
+
+  it("a long job within its deadline is healthy; a stall or abandoned runs are not", () => {
+    const now = Date.parse("2026-09-24T10:00:00Z");
+    const activity = {
+      running: null as null | { job: string; startedAt: Date; deadline: Date },
+      lastProgressAt: new Date(now) as Date | null,
+      abandoned: 0,
+    };
+    const scheduler = { activity: () => activity } as unknown as Scheduler;
+    const worker = new Worker(scheduler, 5_000);
+    // Polled recently.
+    expect(worker.health(now + 10_000).status).toBe("ok");
+    // Nothing for 12 poll intervals: stalled.
+    expect(worker.health(now + 61_000).status).toBe("degraded");
+    // A 30-minute job, 20 minutes in: healthy.
+    activity.running = {
+      job: "entitlements.usage-reconciliation",
+      startedAt: new Date(now),
+      deadline: new Date(now + 30 * 60_000),
+    };
+    expect(worker.health(now + 20 * 60_000)).toMatchObject({
+      status: "ok",
+      running: "entitlements.usage-reconciliation",
+    });
+    // Past its deadline (plus a minute): degraded.
+    expect(worker.health(now + 32 * 60_000).status).toBe("degraded");
+    activity.running = null;
+    activity.lastProgressAt = new Date(now + 32 * 60_000);
+    activity.abandoned = 3;
+    expect(worker.health(now + 32 * 60_000 + 1_000)).toMatchObject({
+      status: "degraded",
+      abandoned: 3,
     });
   });
 });

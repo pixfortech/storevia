@@ -593,6 +593,57 @@ describe("the shopper's order link", () => {
 });
 
 describe("customer messages and staff notifications", () => {
+  it("a message that can't be announced never blocks the ones behind it (M8)", async () => {
+    const first = await placeOrder(storeA, "lamp");
+    const second = await placeOrder(storeA, "lamp");
+    expect(await sendCustomerOrderMessage(scopeA(), first.token, "First", "203.0.113.21")).toBe(
+      "sent",
+    );
+    expect(await sendCustomerOrderMessage(scopeA(), second.token, "Second", "203.0.113.22")).toBe(
+      "sent",
+    );
+    const poisoned = await migratorDb().orderMessage.findFirstOrThrow({
+      where: { orderId: internal(first.id) },
+    });
+    const db = migratorDb();
+    await db.$executeRaw`CREATE FUNCTION test_poison() RETURNS trigger LANGUAGE plpgsql AS $$
+      BEGIN
+        IF NEW."orderMessageId" = ${poisoned.id}::uuid THEN RAISE EXCEPTION 'poisoned'; END IF;
+        RETURN NEW;
+      END $$`.catch(async () => {
+      // Parameters aren't allowed in a function body: inline the id.
+      await db.$executeRawUnsafe(`CREATE OR REPLACE FUNCTION test_poison() RETURNS trigger LANGUAGE plpgsql AS $$
+        BEGIN
+          IF NEW."orderMessageId" = '${poisoned.id}'::uuid THEN RAISE EXCEPTION 'poisoned'; END IF;
+          RETURN NEW;
+        END $$`);
+    });
+    await db.$executeRaw`CREATE TRIGGER test_poison BEFORE INSERT ON "StaffNotification"
+      FOR EACH ROW EXECUTE FUNCTION test_poison()`;
+    try {
+      const run = await notifyStaffOfCustomerMessages(MEMBER_ROLES);
+      expect(run.messages).toBe(1);
+      expect(
+        await db.staffNotification.count({ where: { orderId: internal(second.id) } }),
+      ).toBeGreaterThan(0);
+      expect(
+        (await db.orderMessage.findUniqueOrThrow({ where: { id: poisoned.id } })).staffNotifiedAt,
+      ).toBeNull();
+    } finally {
+      await db.$executeRaw`DROP TRIGGER test_poison ON "StaffNotification"`;
+      await db.$executeRaw`DROP FUNCTION test_poison()`;
+    }
+    // The next run announces it.
+    expect((await notifyStaffOfCustomerMessages(MEMBER_ROLES)).messages).toBe(1);
+    expect(
+      await db.staffNotification.count({ where: { orderId: internal(first.id) } }),
+    ).toBeGreaterThan(0);
+    // Leave the bell as the next test expects it.
+    await db.staffNotification.deleteMany({
+      where: { orderId: { in: [internal(first.id), internal(second.id)] } },
+    });
+  });
+
   it("a message reaches the staff allowed to answer it, in its store only; replies email the shopper", async () => {
     const s = storeOf(a);
     const { id, token } = await placeOrder(storeA, "lamp");

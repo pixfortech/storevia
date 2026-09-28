@@ -21,6 +21,8 @@ import { hashCheckoutToken, isCheckoutToken } from "./tokens";
 // received, and only then parsed. Each provider event is recorded once per
 // store (unique key) in the same transaction that applies it, so a
 // duplicate delivery finds the event already processed and changes nothing.
+// A delivery whose processing fails is recorded FAILED (M8): visible to
+// operations, and taken again by the provider's retry.
 // Logs carry ids and reasons only: no signatures, secrets or payloads.
 
 const log = createLogger({ component: "payment-webhooks" });
@@ -128,7 +130,11 @@ export async function ingestPaymentWebhook(
         VALUES (gen_random_uuid(), ${scope.organisation_id}::uuid, ${scope.store_id}::uuid,
           ${scope.provider}, ${event.eventId}, ${event.type.slice(0, 100)}, 'PROCESSING', 1,
           ${JSON.stringify(recorded)}::jsonb)
-        ON CONFLICT ("storeId", provider, "providerEventId") DO NOTHING
+        ON CONFLICT ("storeId", provider, "providerEventId") DO UPDATE
+          SET status = 'PROCESSING', attempts = "PaymentWebhookEvent".attempts + 1,
+            "lastError" = NULL
+          -- Only a delivery whose processing failed is taken again.
+          WHERE "PaymentWebhookEvent".status = 'FAILED'
         RETURNING id`;
       const eventRow = inserted[0];
       if (!eventRow) {
@@ -161,10 +167,53 @@ export async function ingestPaymentWebhook(
       } as const;
     });
   } catch (error) {
-    // Nothing was committed: the provider retries the delivery.
-    log.error("payment webhook processing failed", { connectionId, ...errorFields(error) });
+    // Nothing from the attempt was committed; the provider retries the
+    // delivery. The failure itself is recorded (outside the rolled-back
+    // transaction) so operations can see it, and the retry takes it again.
+    const fields = errorFields(error);
+    log.error("payment webhook processing failed", { connectionId, ...fields });
     recordMetric("payments.webhook_failed", 1, { provider: scope.provider });
+    await recordProcessingFailure(
+      base,
+      scope.provider,
+      event.eventId,
+      event.type,
+      recorded,
+      fields,
+    );
     throw error;
+  }
+}
+
+/** Marks a delivery FAILED (new, or already FAILED), never touching one that succeeded. */
+async function recordProcessingFailure(
+  base: { organisationId: string; storeId: string },
+  provider: string,
+  eventId: string,
+  type: string,
+  recorded: Readonly<Record<string, string | null>>,
+  fields: Readonly<Record<string, unknown>>,
+): Promise<void> {
+  const reason =
+    [fields["errorName"], fields["errorCode"], fields["dbConstraint"]]
+      .filter((f): f is string => typeof f === "string")
+      .join(":")
+      .slice(0, 200) || "error";
+  try {
+    await withCheckout(
+      base,
+      (tx) => tx.$executeRaw`
+      INSERT INTO "PaymentWebhookEvent" (id, "organisationId", "storeId", provider, "providerEventId",
+        type, status, attempts, "lastError", payload)
+      VALUES (gen_random_uuid(), ${base.organisationId}::uuid, ${base.storeId}::uuid, ${provider},
+        ${eventId}, ${type.slice(0, 100)}, 'FAILED', 1, ${reason}, ${JSON.stringify(recorded)}::jsonb)
+      ON CONFLICT ("storeId", provider, "providerEventId") DO UPDATE
+        SET status = 'FAILED', "lastError" = EXCLUDED."lastError",
+          attempts = "PaymentWebhookEvent".attempts + 1
+        WHERE "PaymentWebhookEvent".status IN ('FAILED', 'PROCESSING')`,
+    );
+  } catch (recordError) {
+    log.error("payment webhook failure could not be recorded", { error: recordError });
   }
 }
 

@@ -1,5 +1,5 @@
 import { ingestPaymentWebhook } from "@storevia/commerce/checkout";
-import { createLogger } from "@storevia/observability";
+import { createLogger, withLogContext } from "@storevia/observability";
 import { NextResponse, type NextRequest } from "next/server";
 
 // Payment provider webhooks (ADR-0031 §4). The URL names a store's payment
@@ -45,6 +45,15 @@ async function readCapped(request: NextRequest, max: number): Promise<Uint8Array
 }
 
 export async function POST(
+  request: NextRequest,
+  context: { params: Promise<{ connectionId: string }> },
+): Promise<NextResponse> {
+  // Every line the ingest logs (commerce, payments) carries the request id.
+  const requestId = request.headers.get("x-request-id");
+  return withLogContext(requestId ? { requestId } : {}, () => handle(request, context));
+}
+
+async function handle(
   request: NextRequest,
   { params }: { params: Promise<{ connectionId: string }> },
 ): Promise<NextResponse> {

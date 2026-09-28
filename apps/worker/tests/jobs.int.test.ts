@@ -97,9 +97,11 @@ describe("scheduled through the worker", () => {
       ["checkout.purge", 3600],
       ["domains.verify", 60],
       ["entitlements.usage-reconciliation", 86_400],
+      ["media.sweep", 600],
+      ["ops.metrics", 60],
       ["orders.message-notifications", 15],
       ["orders.notifications", 30],
-      ["storefront.outbox-dispatch", 15],
+      ["storefront.outbox-dispatch", 5],
     ]);
     // Nightly slots are aligned to 03:00 UTC.
     expect(
