@@ -36,6 +36,8 @@ export const ID_PREFIXES = {
   payment: "pay",
   refund: "refund",
   fulfilment: "ful",
+  // Order operations (post-M7).
+  notification: "notif",
 } as const;
 
 export type IdKind = keyof typeof ID_PREFIXES;

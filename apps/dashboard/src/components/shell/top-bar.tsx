@@ -7,6 +7,7 @@ import { Plus } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CommandTrigger } from "./command";
+import { NotificationBell } from "./notification-bell";
 import { breadcrumbTrail, fittingCreateAction } from "./navigation";
 import { StoreSwitcher } from "./switchers";
 import type { ShellData } from "./types";
@@ -34,7 +35,7 @@ function CreateActionButton({ data }: { data: ShellData }) {
  * The 56 px context bar above the workspace (tablet and desktop). Desktop
  * shows the breadcrumb trail; the tablet rail has no store selector, so the
  * bar carries it instead. Search (⌘K) and the page's create action sit on
- * the right. No notifications until notifications exist.
+ * the right, with the notification bell.
  */
 export function TopBar({ data }: { data: ShellData }) {
   return (
@@ -47,6 +48,7 @@ export function TopBar({ data }: { data: ShellData }) {
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-3">
         <CommandTrigger />
+        <NotificationBell organisationId={data.organisation.id} />
         <CreateActionButton data={data} />
       </div>
     </header>

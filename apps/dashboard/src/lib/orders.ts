@@ -46,6 +46,30 @@ const ORDER_FULFILMENT: Readonly<Record<string, StatusLabel>> = {
   FULFILLED: { label: "Fulfilled", tone: "success" },
 };
 
+/** Where the goods are, across the order's fulfilments. */
+const ORDER_DELIVERY: Readonly<Record<string, StatusLabel>> = {
+  NOT_STARTED: { label: "Not shipped", tone: "neutral" },
+  READY: { label: "Ready to send", tone: "info" },
+  IN_TRANSIT: { label: "On its way", tone: "info" },
+  PARTIALLY_DELIVERED: { label: "Partially delivered", tone: "info" },
+  DELIVERED: { label: "Delivered", tone: "success" },
+};
+
+/** One fulfilment's journey step. */
+const SHIPMENT: Readonly<Record<string, StatusLabel>> = {
+  READY: { label: "Ready", tone: "neutral" },
+  SHIPPED: { label: "Shipped", tone: "info" },
+  IN_TRANSIT: { label: "In transit", tone: "info" },
+  OUT_FOR_DELIVERY: { label: "Out for delivery", tone: "info" },
+  DELIVERED: { label: "Delivered", tone: "success" },
+};
+
+const ORDER_STATE: Readonly<Record<string, StatusLabel>> = {
+  OPEN: { label: "Open", tone: "neutral" },
+  COMPLETED: { label: "Completed", tone: "success" },
+  CANCELLED: { label: "Cancelled", tone: "danger" },
+};
+
 /** One payment's state with the provider (PaymentStatus). */
 const PAYMENT: Readonly<Record<string, StatusLabel>> = {
   PENDING: { label: "Pending", tone: "warning" },
@@ -67,9 +91,13 @@ export const paymentStatusLabel = (status: string) => lookup(ORDER_PAYMENT, stat
 export const fulfilmentStatusLabel = (status: string) => lookup(ORDER_FULFILMENT, status);
 export const paymentRecordLabel = (status: string) => lookup(PAYMENT, status);
 export const refundStatusLabel = (status: string) => lookup(REFUND, status);
+export const deliveryStatusLabel = (status: string) => lookup(ORDER_DELIVERY, status);
+export const shipmentStatusLabel = (status: string) => lookup(SHIPMENT, status);
+export const orderStateLabel = (state: string) => lookup(ORDER_STATE, state);
 
 export const CANCELLED_LABEL: StatusLabel = { label: "Cancelled", tone: "danger" };
 export const STOCK_SHORTAGE_LABEL: StatusLabel = { label: "Stock shortage", tone: "danger" };
+export const ARCHIVED_LABEL: StatusLabel = { label: "Archived", tone: "neutral" };
 
 const PROVIDERS: Readonly<Record<string, string>> = {
   razorpay: "Razorpay",
@@ -81,13 +109,16 @@ export const providerLabel = (provider: string) => PROVIDERS[provider] ?? humani
 /** "#1001". */
 export const orderNumber = (n: number) => `#${String(n)}`;
 
-export type OrderTab = "all" | "unfulfilled" | "unpaid" | "cancelled";
+export type OrderTab = "all" | "unfulfilled" | "unpaid" | "completed" | "cancelled" | "archived";
 
+/** Every tab but Archived leaves archived orders out. */
 export const ORDER_TABS: readonly { readonly value: OrderTab; readonly label: string }[] = [
   { value: "all", label: "All" },
   { value: "unfulfilled", label: "Unfulfilled" },
   { value: "unpaid", label: "Unpaid" },
+  { value: "completed", label: "Completed" },
   { value: "cancelled", label: "Cancelled" },
+  { value: "archived", label: "Archived orders" },
 ];
 
 export function parseOrderTab(value: string | undefined): OrderTab {

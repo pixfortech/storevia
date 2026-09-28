@@ -9,6 +9,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { AccountMenu } from "./account-menu";
 import { CommandTrigger } from "./command";
+import { NotificationBell } from "./notification-bell";
 import { NAV_ICONS } from "./icons";
 import { GroupedNavigation } from "./nav-links";
 import { bottomBarTabs, isActive } from "./navigation";
@@ -26,6 +27,7 @@ export function MobileTopBar({ data }: { data: ShellData }) {
           <StoreSwitcher data={data} variant="compact" />
         </div>
         <CommandTrigger variant="icon" />
+        <NotificationBell organisationId={data.organisation.id} variant="mobile" />
         <AccountMenu user={data.user} variant="icon" align="end" />
       </div>
     </header>

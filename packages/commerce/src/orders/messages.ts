@@ -1,7 +1,12 @@
 import "server-only";
 import { workerDb } from "@storevia/database/worker";
 import { createLogger, recordMetric } from "@storevia/observability";
-import { permissionsFor, recordAudit, type MemberRole, type TenantContext } from "@storevia/tenancy";
+import {
+  permissionsFor,
+  recordAudit,
+  type MemberRole,
+  type TenantContext,
+} from "@storevia/tenancy";
 import { notFound, uuidv7 } from "@storevia/types";
 import { inStore, internalId } from "../internal";
 import { cleanMessageBody } from "./customer";
@@ -72,7 +77,7 @@ export async function orderMessages(
         read: r.author === "STAFF" || r.read_at !== null,
       }));
     },
-    { write: options.markRead === true },
+    // Reading (and marking read) works in a read-only store too.
   );
 }
 
@@ -112,7 +117,15 @@ export async function replyToOrderMessage(
         null,
         store.userId,
       );
-      await queueNotification(tx, scope, orderId, "ORDER_MESSAGE_REPLY", `message:${id}`, order.email, id);
+      await queueNotification(
+        tx,
+        scope,
+        orderId,
+        "ORDER_MESSAGE_REPLY",
+        `message:${id}`,
+        order.email,
+        id,
+      );
       // The message body is the shopper's business: the audit keeps the fact only.
       await recordAudit(
         tx,
@@ -153,7 +166,13 @@ export async function notifyStaffOfCustomerMessages(
   for (let i = 0; i < limit; i++) {
     const done = await workerDb().$transaction(async (tx) => {
       const rows = await tx.$queryRaw<
-        { id: string; organisation_id: string; store_id: string; order_id: string; number: number }[]
+        {
+          id: string;
+          organisation_id: string;
+          store_id: string;
+          order_id: string;
+          number: number;
+        }[]
       >`
         SELECT m.id, m."organisationId" AS organisation_id, m."storeId" AS store_id,
           m."orderId" AS order_id, o."orderNumber" AS number

@@ -104,6 +104,15 @@ export {
 } from "./orders/operations";
 export type { CompleteInput, FulfilmentUpdateInput } from "./orders/operations";
 export * from "./orders/lifecycle";
+export { ORDER_MESSAGE_MAX } from "./orders/customer";
+export { orderMessages, replyToOrderMessage } from "./orders/messages";
+export type { OrderMessageView } from "./orders/messages";
+export {
+  markStaffNotificationsRead,
+  staffNotifications,
+  unreadStaffNotifications,
+} from "./orders/staff-notifications";
+export type { StaffNotificationList, StaffNotificationView } from "./orders/staff-notifications";
 export { getCustomer, listCustomers, updateCustomer } from "./customers";
 export type { CustomerDetail, CustomerListItem } from "./customers";
 export {

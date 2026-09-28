@@ -1,4 +1,12 @@
-import { getOrder, listLocations, type OrderDetail } from "@storevia/commerce";
+import {
+  demoOrderDeletionEnabled,
+  getOrder,
+  listLocations,
+  METHOD_LABELS,
+  ORDER_MESSAGE_MAX,
+  orderMessages,
+  type OrderDetail,
+} from "@storevia/commerce";
 import {
   fromJSON,
   subtract,
@@ -13,9 +21,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AccessNotice } from "@/components/areas/access-notice";
-import { OrderBadges, StatusBadge } from "@/components/orders/badges";
+import { OrderStatusPanel, StatusBadge } from "@/components/orders/badges";
 import { CancelOrderDialog } from "@/components/orders/cancel-dialog";
 import { FulfilDialog } from "@/components/orders/fulfil-dialog";
+import {
+  ArchiveOrderButton,
+  CompleteOrderDialog,
+  DeleteDemoOrderDialog,
+  EditFulfilmentDialog,
+  FulfilmentStepButton,
+  ReplyForm,
+} from "@/components/orders/operations";
 import { OrderNoteForm, ResolveRefundButtons } from "@/components/orders/order-forms";
 import { RefundDialog } from "@/components/orders/refund-dialog";
 import { PageHeader } from "@/components/shell/app-shell";
@@ -30,6 +46,8 @@ import {
   paymentRecordLabel,
   providerLabel,
   refundStatusLabel,
+  shipmentStatusLabel,
+  STOCK_SHORTAGE_LABEL,
 } from "@/lib/orders";
 import { storeContextOr404 } from "@/lib/tenant";
 
@@ -89,9 +107,12 @@ export default async function OrderPage({
   const canRefund = hasPermission(ctx, "order.refund") && writable;
   const canSeeCustomer = hasPermission(ctx, "customer.read");
   const canSeeProducts = hasPermission(ctx, "product.read");
-  const [store, locations] = await Promise.all([
+  const canMessage = hasPermission(ctx, "order.message") && writable;
+  const [store, locations, messages] = await Promise.all([
     getStore(ctx),
     canRefund && hasPermission(ctx, "inventory.read") ? listLocations(ctx) : Promise.resolve([]),
+    // Opening the order marks the customer's messages (and your notifications) read.
+    orderMessages(ctx, order.id, { markRead: true }),
   ]);
   const time = (d: Date) => formatDateTime(d, store.timezone);
   const label = orderNumber(order.number);
@@ -140,6 +161,7 @@ export default async function OrderPage({
     ? [order.shippingAddress.firstName, order.shippingAddress.lastName].filter(Boolean).join(" ")
     : "";
 
+  const canComplete = canManage && order.state === "OPEN";
   const actions = [
     canManage && fulfilLines.length > 0 ? (
       <FulfilDialog
@@ -170,6 +192,15 @@ export default async function OrderPage({
         orderId={order.id}
         orderLabel={label}
         refundable={cancelRefundable}
+      />
+    ) : null,
+    canComplete ? (
+      <CompleteOrderDialog
+        key="complete"
+        storeId={storeId}
+        orderId={order.id}
+        orderLabel={label}
+        blockers={order.completionBlockers}
       />
     ) : null,
   ].filter(Boolean);
@@ -228,13 +259,7 @@ export default async function OrderPage({
         }
         title={`Order ${label}`}
         meta={
-          <OrderBadges
-            status={order.status}
-            paymentStatus={order.paymentStatus}
-            fulfilmentStatus={order.fulfilmentStatus}
-            stockShortage={order.stockShortage}
-            size="md"
-          />
+          order.stockShortage ? <StatusBadge status={STOCK_SHORTAGE_LABEL} size="md" /> : undefined
         }
         description={
           <>
@@ -243,6 +268,16 @@ export default async function OrderPage({
         }
         actions={actions.length > 0 ? actions : undefined}
       />
+
+      <Card className="mb-6 px-5 py-4 sm:px-6">
+        <OrderStatusPanel
+          paymentStatus={order.paymentStatus}
+          fulfilmentStatus={order.fulfilmentStatus}
+          deliveryStatus={order.deliveryStatus}
+          state={order.state}
+          archived={order.archivedAt !== null}
+        />
+      </Card>
 
       <div className="mb-6 space-y-3 empty:hidden">
         {order.stockShortage ? (
@@ -268,6 +303,17 @@ export default async function OrderPage({
           <Alert tone="neutral" title="Cancelled">
             {order.cancelledAt ? `Cancelled ${time(order.cancelledAt)}.` : "Cancelled."}
             {order.cancelReason ? ` Reason: ${order.cancelReason}` : ""}
+          </Alert>
+        ) : null}
+        {order.archivedAt ? (
+          <Alert tone="neutral" title="Archived">
+            Archived {time(order.archivedAt)}. It stays in your reports and search; restore it to
+            show it in your order list again.
+          </Alert>
+        ) : null}
+        {order.completedAt ? (
+          <Alert tone="success" title="Complete">
+            Completed {time(order.completedAt)}. Only tracking details and refunds can still change.
           </Alert>
         ) : null}
       </div>
@@ -460,47 +506,138 @@ export default async function OrderPage({
             <Card>
               <CardHeader title="Fulfilments" />
               <ul className="divide-y divide-line">
-                {order.fulfilments.map((f) => (
-                  <li key={f.id} className="space-y-1.5 px-5 py-4 sm:px-6">
-                    <p className="text-body-sm font-medium text-ink">
-                      Shipped from {f.locationName}
-                      <span className="font-normal text-ink-faint">
-                        {" · "}
+                {order.fulfilments.map((f) => {
+                  const edit = {
+                    id: f.id,
+                    method: f.method,
+                    status: f.shipmentStatus,
+                    trackingCompany: f.trackingCompany ?? "",
+                    trackingNumber: f.trackingNumber ?? "",
+                    trackingUrl: f.trackingUrl ?? "",
+                    shippedAt: f.shippedAt?.toISOString() ?? null,
+                    deliveredAt: f.deliveredAt?.toISOString() ?? null,
+                  };
+                  const editable = canManage && order.status === "OPEN";
+                  return (
+                    <li
+                      key={f.id}
+                      className="space-y-2 px-5 py-4 sm:px-6"
+                      data-testid="fulfilment"
+                      data-shipment-status={f.shipmentStatus}
+                    >
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusBadge status={shipmentStatusLabel(f.shipmentStatus)} />
+                        <p className="text-body-sm font-medium text-ink">
+                          {METHOD_LABELS[f.method]} from {f.locationName}
+                        </p>
+                      </div>
+                      <p className="text-caption text-ink-muted">
+                        {f.lines
+                          .map((l) => `${l.productTitle} × ${l.quantity.toLocaleString("en-IN")}`)
+                          .join(", ")}
+                      </p>
+                      <p className="text-caption text-ink-faint">
+                        Created{" "}
                         <time dateTime={f.createdAt.toISOString()}>{time(f.createdAt)}</time>
-                      </span>
-                    </p>
-                    <p className="text-caption text-ink-muted">
-                      {f.lines
-                        .map((l) => `${l.productTitle} × ${l.quantity.toLocaleString("en-IN")}`)
-                        .join(", ")}
-                    </p>
-                    {f.trackingCompany || f.trackingNumber || f.trackingUrl ? (
-                      <p className="text-body-sm break-words text-ink">
-                        {[f.trackingCompany, f.trackingNumber].filter(Boolean).join(" · ") ||
-                          "Tracking"}
-                        {f.trackingUrl ? (
+                        {f.shippedAt ? (
                           <>
-                            {" · "}
-                            <a
-                              href={f.trackingUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="font-medium text-brand-700 hover:underline"
-                            >
-                              Track shipment
-                              <span className="sr-only"> (opens in a new tab)</span>
-                            </a>
+                            {" · Sent "}
+                            <time dateTime={f.shippedAt.toISOString()}>{time(f.shippedAt)}</time>
+                          </>
+                        ) : null}
+                        {f.deliveredAt ? (
+                          <>
+                            {" · Delivered "}
+                            <time dateTime={f.deliveredAt.toISOString()}>
+                              {time(f.deliveredAt)}
+                            </time>
                           </>
                         ) : null}
                       </p>
-                    ) : (
-                      <p className="text-caption text-ink-faint">No tracking added.</p>
-                    )}
-                  </li>
-                ))}
+                      {f.trackingCompany || f.trackingNumber || f.trackingUrl ? (
+                        <p className="text-body-sm break-words text-ink" data-testid="tracking">
+                          {[f.trackingCompany, f.trackingNumber].filter(Boolean).join(" · ") ||
+                            "Tracking"}
+                          {f.trackingUrl ? (
+                            <>
+                              {" · "}
+                              <a
+                                href={f.trackingUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-medium text-brand-700 hover:underline"
+                              >
+                                Track shipment
+                                <span className="sr-only"> (opens in a new tab)</span>
+                              </a>
+                            </>
+                          ) : null}
+                        </p>
+                      ) : (
+                        <p className="text-caption text-ink-faint">No tracking added.</p>
+                      )}
+                      {editable ? (
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
+                          {order.state === "OPEN" ? (
+                            <FulfilmentStepButton
+                              storeId={storeId}
+                              orderId={order.id}
+                              fulfilment={edit}
+                            />
+                          ) : null}
+                          <EditFulfilmentDialog
+                            storeId={storeId}
+                            orderId={order.id}
+                            fulfilment={edit}
+                            trackingOnly={order.state === "COMPLETED"}
+                          />
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
               </ul>
             </Card>
           ) : null}
+
+          <Card id="messages" className="scroll-mt-24">
+            <CardHeader
+              title="Messages"
+              description="What the customer wrote from their order page, and your replies. Separate from your team's note."
+            />
+            <CardBody className="space-y-4">
+              {messages.length === 0 ? (
+                <p className="text-body-sm text-ink-muted">No messages yet.</p>
+              ) : (
+                <ol className="space-y-3" data-testid="order-messages">
+                  {messages.map((m, i) => (
+                    <li
+                      key={i}
+                      data-from={m.from}
+                      className={
+                        m.from === "customer"
+                          ? "rounded-card border border-line px-4 py-3"
+                          : "rounded-card border border-line bg-subtle px-4 py-3"
+                      }
+                    >
+                      <p className="text-caption text-ink-muted">
+                        {m.from === "customer" ? "Customer" : (m.authorName ?? "Your team")}
+                        {" · "}
+                        <time dateTime={m.createdAt.toISOString()}>{time(m.createdAt)}</time>
+                      </p>
+                      {/* Plain text, shown as text (never HTML). */}
+                      <p className="mt-1 text-body-sm break-words whitespace-pre-wrap text-ink">
+                        {m.body}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              )}
+              {canMessage && order.email ? (
+                <ReplyForm storeId={storeId} orderId={order.id} max={ORDER_MESSAGE_MAX} />
+              ) : null}
+            </CardBody>
+          </Card>
 
           <Card>
             <CardHeader title="Timeline" description="Newest first." />
@@ -608,6 +745,29 @@ export default async function OrderPage({
               )}
             </CardBody>
           </Card>
+
+          {canManage ? (
+            <Card>
+              <CardHeader
+                title="Order record"
+                description={
+                  order.archivedAt
+                    ? "Restore it to show it in your order list again."
+                    : "Archiving hides it from your order list. Nothing is deleted; it stays in reports and search."
+                }
+              />
+              <CardBody className="flex flex-wrap items-center gap-3">
+                <ArchiveOrderButton
+                  storeId={storeId}
+                  orderId={order.id}
+                  archived={order.archivedAt !== null}
+                />
+                {demoOrderDeletionEnabled() ? (
+                  <DeleteDemoOrderDialog storeId={storeId} orderId={order.id} orderLabel={label} />
+                ) : null}
+              </CardBody>
+            </Card>
+          ) : null}
         </div>
       </div>
     </>

@@ -186,7 +186,9 @@ async function loadView(tx: TenantTx, orderId: string): Promise<CustomerOrderVie
       trackingUrl: f.url,
       shippedAt: f.shipped_at,
       deliveredAt: f.delivered_at,
-      items: items.filter((i) => i.fulfilment === f.id).map(({ title, quantity }) => ({ title, quantity })),
+      items: items
+        .filter((i) => i.fulfilment === f.id)
+        .map(({ title, quantity }) => ({ title, quantity })),
     })),
     timeline,
     messages: messages.map((m) => ({

@@ -14,6 +14,7 @@ import { ListSearch } from "@/components/orders/list-search";
 import { PageHeader } from "@/components/shell/app-shell";
 import { formatMoney } from "@/lib/catalogue";
 import {
+  ARCHIVED_LABEL,
   CANCELLED_LABEL,
   formatDateTime,
   fulfilmentStatusLabel,
@@ -23,6 +24,7 @@ import {
   ordersPath,
   parseOrderTab,
   paymentStatusLabel,
+  orderStateLabel,
   STOCK_SHORTAGE_LABEL,
   type OrderTab,
 } from "@/lib/orders";
@@ -76,6 +78,7 @@ export default async function OrdersPage({
     all: page.counts.all,
     unfulfilled: page.counts.unfulfilled,
     cancelled: page.counts.cancelled,
+    archived: page.counts.archived,
   };
   const filtered = Boolean(q) || tab !== "all";
   const date = (d: Date) => formatShortDate(d, store.timezone);
@@ -85,7 +88,7 @@ export default async function OrdersPage({
       <PageHeader
         eyebrow={ctx.storeName}
         title="Orders"
-        description="Orders placed on your storefront, newest first, with their payment and fulfilment status."
+        description="Orders placed on your storefront, newest first, with their payment and fulfilment status. Archived orders stay searchable under Archived orders."
       />
       {page.counts.all > 0 ? (
         <Card className="mb-6 px-5 py-4 sm:px-6">
@@ -190,6 +193,11 @@ export default async function OrdersPage({
                             <StatusBadge status={STOCK_SHORTAGE_LABEL} />
                           </span>
                         ) : null}
+                        {o.archived ? (
+                          <span className="mt-1 block">
+                            <StatusBadge status={ARCHIVED_LABEL} />
+                          </span>
+                        ) : null}
                       </td>
                       <td className="px-3 py-3 align-top text-body-sm whitespace-nowrap text-ink-muted">
                         <time
@@ -215,7 +223,9 @@ export default async function OrdersPage({
                           status={
                             o.status === "CANCELLED"
                               ? CANCELLED_LABEL
-                              : fulfilmentStatusLabel(o.fulfilmentStatus)
+                              : o.state === "COMPLETED"
+                                ? orderStateLabel("COMPLETED")
+                                : fulfilmentStatusLabel(o.fulfilmentStatus)
                           }
                         />
                       </td>
@@ -256,6 +266,8 @@ export default async function OrdersPage({
                         paymentStatus={o.paymentStatus}
                         fulfilmentStatus={o.fulfilmentStatus}
                         stockShortage={o.stockShortage}
+                        state={o.state}
+                        archived={o.archived}
                       />
                     </span>
                   </Link>

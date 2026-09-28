@@ -38,6 +38,15 @@ export default async function OrderCompletePage({
         We&apos;ve received your payment. A confirmation will be sent to{" "}
         <strong>{view.email}</strong>.
       </p>
+      {view.order.accessPath ? (
+        <p>
+          <a href={view.order.accessPath} data-order-link>
+            View your order
+          </a>{" "}
+          to follow its delivery or send the store a message. Keep this link private: anyone with it
+          can see your order.
+        </p>
+      ) : null}
       <div className="sv-checkout-grid">
         <div>
           {a ? (

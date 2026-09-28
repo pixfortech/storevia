@@ -6,12 +6,13 @@ import {
   sweepExpiredPayments,
 } from "@storevia/commerce/checkout";
 import { sendOrderNotifications } from "@storevia/commerce/notifications";
+import { notifyStaffOfCustomerMessages } from "@storevia/commerce/order-messages";
 import { getEmailSender } from "@storevia/email";
 import { workerDb } from "@storevia/database/worker";
 import { reconcileUsage } from "@storevia/entitlements";
 import type { JobDefinition } from "@storevia/jobs";
 import { recordMetric } from "@storevia/observability";
-import { recordActorAudit } from "@storevia/tenancy";
+import { MEMBER_ROLES, recordActorAudit } from "@storevia/tenancy";
 import { domainVerifyJob } from "./domains";
 import { outboxDispatchJob } from "./outbox";
 
@@ -134,10 +135,26 @@ export const orderNotificationsJob: JobDefinition = {
   },
 };
 
+/**
+ * Tells the staff allowed to answer (order.message, with access to the
+ * store) that a shopper wrote about an order: in-app notifications, never
+ * on the shopper's request path.
+ */
+export const orderMessageNotificationsJob: JobDefinition = {
+  name: "orders.message-notifications",
+  schedule: { everySeconds: 15 },
+  maxAttempts: 3,
+  timeoutMs: 60_000,
+  async run() {
+    return { ...(await notifyStaffOfCustomerMessages(MEMBER_ROLES)) };
+  },
+};
+
 export const JOBS: readonly JobDefinition[] = [
   checkoutExpiryJob,
   checkoutPurgeJob,
   orderNotificationsJob,
+  orderMessageNotificationsJob,
   subscriptionExpiryJob,
   usageReconciliationJob,
   outboxDispatchJob,

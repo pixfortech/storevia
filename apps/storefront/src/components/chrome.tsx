@@ -55,6 +55,20 @@ export const COMMERCE_CSS = `
 .sv-summary-totals dd{margin:0;text-align:right}
 .sv-summary-total{font-weight:700;font-size:var(--sv-fontSize-lg);border-top:1px solid var(--sv-color-border);padding-top:var(--sv-space-sm)}
 .sv-order-number{font-size:var(--sv-fontSize-lg)}
+.sv-order-meta{color:var(--sv-color-muted);margin:0 0 var(--sv-space-md)}
+.sv-order-statuses{display:flex;flex-wrap:wrap;gap:var(--sv-space-lg);margin:0}
+.sv-order-statuses dt{font-size:var(--sv-fontSize-sm);color:var(--sv-color-muted)}
+.sv-order-statuses dd{margin:0;font-weight:600}
+.sv-order-shipments,.sv-order-timeline,.sv-order-messages{list-style:none;margin:0;padding:0;display:grid;gap:var(--sv-space-md)}
+.sv-order-shipments p,.sv-order-messages p{margin:0}
+.sv-order-timeline li{display:flex;justify-content:space-between;gap:var(--sv-space-md);flex-wrap:wrap}
+.sv-order-timeline time{color:var(--sv-color-muted);font-size:var(--sv-fontSize-sm)}
+.sv-order-messages li{border:1px solid var(--sv-color-border);border-radius:var(--sv-radius-md);padding:var(--sv-space-sm) var(--sv-space-md)}
+.sv-order-messages li[data-from=store]{background:var(--sv-color-surface)}
+.sv-order-message-body{white-space:pre-wrap;overflow-wrap:anywhere}
+.sv-order-notice{font-weight:600;margin:var(--sv-space-md) 0 0}
+.sv-field textarea{padding:var(--sv-space-sm);border:1px solid var(--sv-color-border);border-radius:var(--sv-radius-md);font:inherit;width:100%;background:var(--sv-color-background);color:inherit;resize:vertical}
+.sv-field textarea[aria-invalid=true]{border-color:currentColor;border-width:2px}
 .sv-test-badge{display:inline-block;border:2px dashed currentColor;border-radius:var(--sv-radius-sm);padding:var(--sv-space-xs) var(--sv-space-sm);font-weight:700}
 .sv-button[disabled]{opacity:.55;cursor:not-allowed}
 @media (min-width:900px){.sv-checkout-grid{grid-template-columns:minmax(0,1fr) 22rem}}

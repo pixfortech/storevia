@@ -97,6 +97,7 @@ describe("scheduled through the worker", () => {
       ["checkout.purge", 3600],
       ["domains.verify", 60],
       ["entitlements.usage-reconciliation", 86_400],
+      ["orders.message-notifications", 15],
       ["orders.notifications", 30],
       ["storefront.outbox-dispatch", 15],
     ]);

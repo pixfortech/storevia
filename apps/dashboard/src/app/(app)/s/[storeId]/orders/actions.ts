@@ -2,13 +2,21 @@
 
 import {
   cancelOrder,
+  completeOrder,
+  deleteDemoOrder,
   fulfilOrder,
   refundOrder,
+  replyToOrderMessage,
   resolvePendingRefund,
+  setOrderArchived,
+  SHIPMENT_LABELS,
+  updateFulfilment,
   updateOrderNote,
   type RefundOutcome,
+  type ShipmentStatus,
 } from "@storevia/commerce";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { runAction, type ActionState } from "@/lib/action";
 import { customersPath, ordersPath } from "@/lib/orders";
 import { inventoryPath } from "@/lib/catalogue";
@@ -50,6 +58,8 @@ export async function fulfilOrderAction(
     trackingCompany: string;
     trackingNumber: string;
     trackingUrl: string;
+    method?: string;
+    status?: string;
   },
 ): Promise<ActionState> {
   return runAction(async () => {
@@ -67,6 +77,8 @@ export async function fulfilOrderAction(
       trackingCompany: input.trackingCompany,
       trackingNumber: input.trackingNumber,
       trackingUrl: input.trackingUrl,
+      ...(input.method ? { method: input.method } : {}),
+      ...(input.status ? { status: input.status } : {}),
     });
     refresh(ctx.storeId);
     return { ok: true, message: "Items marked as fulfilled." };
@@ -156,5 +168,93 @@ export async function saveOrderNoteAction(
     await updateOrderNote(ctx, orderId, { note: formData.get("note") ?? "" });
     refresh(ctx.storeId);
     return { ok: true, message: "Note saved." };
+  }, formData);
+}
+
+export async function archiveOrderAction(
+  storeId: string,
+  orderId: string,
+  archived: boolean,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const ctx = await storeActionContext(storeId);
+    await setOrderArchived(ctx, orderId, archived);
+    refresh(ctx.storeId);
+    return {
+      ok: true,
+      message: archived
+        ? "Order archived. Find it under Archived orders."
+        : "Order restored from the archive.",
+    };
+  });
+}
+
+/** Development and test data only: the service and the database both refuse otherwise. */
+export async function deleteDemoOrderAction(
+  storeId: string,
+  orderId: string,
+  input: { confirm: string },
+): Promise<ActionState> {
+  const result = await runAction(async () => {
+    const ctx = await storeActionContext(storeId);
+    await deleteDemoOrder(ctx, orderId, { confirm: input.confirm.trim() });
+    refresh(ctx.storeId);
+    return { ok: true, message: "Demo order deleted." };
+  });
+  if (result.ok) redirect(ordersPath(storeId));
+  return result;
+}
+
+export async function updateFulfilmentAction(
+  storeId: string,
+  orderId: string,
+  fulfilmentId: string,
+  input: {
+    method?: string;
+    status?: string;
+    trackingCompany?: string;
+    trackingNumber?: string;
+    trackingUrl?: string;
+    shippedAt?: string;
+    deliveredAt?: string;
+  },
+): Promise<ActionState> {
+  return runAction(async () => {
+    const ctx = await storeActionContext(storeId);
+    await updateFulfilment(ctx, orderId, fulfilmentId, input);
+    refresh(ctx.storeId);
+    return {
+      ok: true,
+      message: input.status
+        ? `Marked as ${SHIPMENT_LABELS[input.status as ShipmentStatus].toLowerCase()}.`
+        : "Fulfilment updated.",
+    };
+  });
+}
+
+export async function completeOrderAction(
+  storeId: string,
+  orderId: string,
+  input: { override: boolean; reason: string },
+): Promise<ActionState> {
+  return runAction(async () => {
+    const ctx = await storeActionContext(storeId);
+    await completeOrder(ctx, orderId, input);
+    refresh(ctx.storeId);
+    return { ok: true, message: "Order complete." };
+  });
+}
+
+export async function replyToMessageAction(
+  storeId: string,
+  orderId: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const ctx = await storeActionContext(storeId);
+    await replyToOrderMessage(ctx, orderId, { body: formData.get("body") ?? "" });
+    refresh(ctx.storeId);
+    return { ok: true, message: "Reply sent. The customer gets it by email." };
   }, formData);
 }
