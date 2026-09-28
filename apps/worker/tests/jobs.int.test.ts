@@ -92,6 +92,7 @@ describe("scheduled through the worker", () => {
     await scheduler.register(JOBS);
     const rows = await migratorDb().scheduledJob.findMany({ orderBy: { name: "asc" } });
     expect(rows.map((r) => [r.name, r.intervalSeconds])).toEqual([
+      ["billing.notices", 3600],
       ["billing.subscription-expiry", 300],
       ["checkout.expiry", 60],
       ["checkout.purge", 3600],

@@ -40,6 +40,8 @@ export interface SubscriptionSummary {
   readonly trialEndsAt: string; // yyyy-mm-dd or ""
   readonly expiresAt: string;
   readonly defaultAccessEnd: string;
+  /** yyyy-mm-dd or "" (only while past due). */
+  readonly graceEndsAt: string;
 }
 
 const INTERVALS = [
@@ -266,16 +268,21 @@ function ActionGroup({ title, children }: { title: string; children: ReactNode }
  * never buried: a danger frame, the consequence in words and the timing
  * ("Reversible" or "Immediate") beside each one.
  */
-function HighRiskZone({ children }: { children: ReactNode }) {
+function HighRiskZone({
+  children,
+  id = "high-risk-title",
+  title = "High-risk actions: these end access",
+}: {
+  children: ReactNode;
+  id?: string;
+  title?: string;
+}) {
   return (
-    <section
-      aria-labelledby="high-risk-title"
-      className="overflow-hidden rounded-card border border-danger-100"
-    >
+    <section aria-labelledby={id} className="overflow-hidden rounded-card border border-danger-100">
       <div className="flex items-center gap-2 border-b border-danger-100 bg-danger-50 px-4 py-2.5">
         <Icon icon={OctagonAlert} size="sm" className="text-danger-600" />
-        <h3 id="high-risk-title" className="text-label text-danger-700">
-          High-risk actions: these end access
+        <h3 id={id} className="text-label text-danger-700">
+          {title}
         </h3>
       </div>
       <ul className="divide-y divide-line">{children}</ul>
@@ -290,7 +297,7 @@ function HighRiskRow({
   action,
 }: {
   title: string;
-  timing: "Reversible" | "Immediate";
+  timing: "Reversible" | "Immediate" | "Queued";
   children: ReactNode;
   action: ReactNode;
 }) {
@@ -323,6 +330,7 @@ export function SubscriptionActions({
     activate: Action;
     cancel: Action;
     expire: Action;
+    extendGrace: Action;
   };
 }) {
   const planOptions = plans.map((p) => ({ value: p.key, label: p.name }));
@@ -440,6 +448,25 @@ export function SubscriptionActions({
             </>
           )}
         </ActionDialog>
+
+        {status === "PAST_DUE" ? (
+          <ActionDialog
+            label="Extend grace"
+            title="Extend the grace period"
+            description={`The plan stays active until the new date while payment is sorted out (currently ${subscription.graceEndsAt || "not set"}). At most 60 days ahead. The merchant is emailed the new date.`}
+            action={actions.extendGrace}
+            submitLabel="Extend grace"
+            testId="extend-grace"
+          >
+            {(state) => (
+              <>
+                {hidden}
+                <TextField label="Grace ends" name="graceEndsAt" type="date" state={state} />
+                <ReasonFields state={state} />
+              </>
+            )}
+          </ActionDialog>
+        ) : null}
 
         {status === "TRIAL" || status === "PAST_DUE" || status === "CANCELLED" ? (
           <ActionDialog
@@ -894,5 +921,157 @@ export function ReconcileButton({ action }: { action: Action }) {
         />
       )}
     </ActionDialog>
+  );
+}
+
+/** Fields every support repair asks for: the target's name typed out, and why. */
+function RepairFields({ state, confirm }: { state: FormState; confirm: string }) {
+  return (
+    <>
+      <TextField
+        label={`Type ${confirm} to confirm`}
+        name="confirm"
+        state={state}
+        autoComplete="off"
+        required
+      />
+      <TextAreaField
+        label="Reason"
+        name="reason"
+        state={state}
+        rows={2}
+        required
+        hint="At least 10 characters. Recorded in the audit log."
+      />
+    </>
+  );
+}
+
+export interface SupportStore {
+  readonly id: string; // store_… public ID
+  readonly name: string;
+  readonly slug: string;
+  readonly status: "DRAFT" | "ACTIVE" | "SUSPENDED" | "ARCHIVED";
+  readonly suspend: Action;
+  readonly restore: Action;
+}
+
+/**
+ * Support repairs (M8): suspend or restore the organisation or one store,
+ * and retry failed order emails. High-risk: acknowledgement, typed name,
+ * reason; the service also requires platform.support.manage and step-up.
+ */
+export function SupportActions({
+  organisation,
+  stores,
+  actions,
+}: {
+  organisation: { name: string; status: string };
+  stores: readonly SupportStore[];
+  actions: { suspend: Action; restore: Action; retryEmails: Action };
+}) {
+  return (
+    <HighRiskZone id="support-risk-title" title="Support repairs: suspend, restore and retry">
+      {organisation.status === "ACTIVE" ? (
+        <HighRiskRow
+          title="Suspend the organisation"
+          timing="Immediate"
+          action={
+            <ActionDialog
+              risk={{
+                consequence:
+                  "Every store's storefront goes offline at once, and no member can open the organisation until it is restored. Nothing is deleted.",
+              }}
+              label="Suspend"
+              title="Suspend the organisation"
+              action={actions.suspend}
+              submitLabel="Suspend organisation"
+              testId="suspend-organisation"
+            >
+              {(state) => <RepairFields state={state} confirm={organisation.name} />}
+            </ActionDialog>
+          }
+        >
+          For abuse, fraud or a legal request. Reversible.
+        </HighRiskRow>
+      ) : null}
+      {organisation.status === "SUSPENDED" ? (
+        <HighRiskRow
+          title="Restore the organisation"
+          timing="Immediate"
+          action={
+            <ActionDialog
+              label="Restore"
+              title="Restore the organisation"
+              description="Members can open it again and active stores come back online."
+              action={actions.restore}
+              submitLabel="Restore organisation"
+              testId="restore-organisation"
+            >
+              {(state) => <RepairFields state={state} confirm={organisation.name} />}
+            </ActionDialog>
+          }
+        >
+          The organisation is suspended.
+        </HighRiskRow>
+      ) : null}
+      {stores.map((store) =>
+        store.status === "ARCHIVED" ? null : (
+          <HighRiskRow
+            key={store.id}
+            title={store.status === "SUSPENDED" ? `Restore ${store.name}` : `Suspend ${store.name}`}
+            timing="Immediate"
+            action={
+              store.status === "SUSPENDED" ? (
+                <ActionDialog
+                  label="Restore store"
+                  title={`Restore ${store.name}`}
+                  description="The store returns to the status it had before (a draft stays a draft)."
+                  action={store.restore}
+                  submitLabel="Restore store"
+                  testId={`restore-store-${store.slug}`}
+                >
+                  {(state) => <RepairFields state={state} confirm={store.slug} />}
+                </ActionDialog>
+              ) : (
+                <ActionDialog
+                  risk={{
+                    consequence:
+                      "This store's storefront goes offline at once on every domain. The merchant can't reopen it. Nothing is deleted.",
+                  }}
+                  label="Suspend store"
+                  title={`Suspend ${store.name}`}
+                  action={store.suspend}
+                  submitLabel="Suspend store"
+                  testId={`suspend-store-${store.slug}`}
+                >
+                  {(state) => <RepairFields state={state} confirm={store.slug} />}
+                </ActionDialog>
+              )
+            }
+          >
+            {store.slug}
+          </HighRiskRow>
+        ),
+      )}
+      <HighRiskRow
+        title="Retry failed order emails"
+        timing="Queued"
+        action={
+          <ActionDialog
+            label="Retry emails"
+            title="Retry failed order emails"
+            description="Failed confirmation, shipping and refund emails go back in the queue. Emails to erased customers are never retried."
+            action={actions.retryEmails}
+            submitLabel="Retry emails"
+            testId="retry-emails"
+          >
+            {(state) => <RepairFields state={state} confirm={organisation.name} />}
+          </ActionDialog>
+        }
+      >
+        After a mail outage has been fixed.
+      </HighRiskRow>
+    </HighRiskZone>
   );
 }

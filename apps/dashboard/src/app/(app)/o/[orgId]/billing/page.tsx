@@ -34,6 +34,9 @@ const TONES = {
 
 const MANAGED_ICON = { STOREVIA: Building2, TEST_BILLING: FlaskConical, PROVIDER: CreditCard };
 
+/** A trial within this many days of its end is called out (M8). */
+const TRIAL_WARNING_DAYS = 7;
+
 /** Counts and storage: what the plan allows, as quiet figures. */
 function LimitTiles({ rows }: { rows: readonly EntitlementRow[] }) {
   return (
@@ -127,7 +130,26 @@ export default async function BillingPage({ params }: { params: Promise<{ orgId:
   const { limits, features } = entitlementGroups(billing.entitlements);
   const over = billing.usage.filter((l) => l.overLimit);
 
+  const now = new Date();
+  const trialEnds =
+    sub?.status === "TRIAL" &&
+    sub.trialEndsAt !== null &&
+    sub.trialEndsAt.getTime() - now.getTime() <= TRIAL_WARNING_DAYS * 24 * 3600 * 1000
+      ? sub.trialEndsAt
+      : null;
   const alerts = [
+    trialEnds ? (
+      <Alert key="trial" tone="info" title={`Your trial ends on ${formatLongDate(trialEnds)}`}>
+        Contact Storevia support to keep {sub?.planName ?? "your plan"}. If the trial ends, nothing
+        is deleted: you keep working within the free allowance.
+      </Alert>
+    ) : null,
+    sub && (sub.status === "EXPIRED" || !sub.entitling) ? (
+      <Alert key="ended" tone="warning" title="Your plan has ended">
+        Nothing has been deleted. Your stores keep working within the free allowance, and anything
+        above it can&apos;t be added to. Contact Storevia support to choose a plan.
+      </Alert>
+    ) : null,
     sub?.status === "PAST_DUE" ? (
       <Alert key="past-due" tone="warning" title="Payment is overdue">
         Your plan stays active until {sub.graceEndsAt ? formatLongDate(sub.graceEndsAt) : null}.
@@ -197,9 +219,13 @@ export default async function BillingPage({ params }: { params: Promise<{ orgId:
                   />
                 </>
               ) : (
-                <p className="text-body-sm text-ink-muted">
-                  Your organisation uses Storevia&apos;s free allowance: one store and one team
-                  member.
+                <p className="text-body-sm text-ink-muted" data-testid="free-allowance">
+                  Your organisation uses Storevia&apos;s free allowance:{" "}
+                  {limits
+                    .filter((row) => row.included)
+                    .map((row) => `${row.name.toLowerCase()} ${row.label.toLowerCase()}`)
+                    .join(", ")}
+                  .
                 </p>
               )}
             </div>

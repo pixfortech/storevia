@@ -74,6 +74,62 @@ export function existingAccountMessage(to: string, name: string, signInUrl: stri
   };
 }
 
+/** Billing notices (M8). The plan name is shown, never used to decide anything. */
+export type BillingNoticeKind = "trial_ending" | "payment_overdue" | "plan_ended";
+
+export interface BillingNoticeInput {
+  readonly kind: BillingNoticeKind;
+  readonly organisationName: string;
+  readonly planName: string;
+  /** Trial end, grace end or the date the plan ended. */
+  readonly date: Date;
+  /** The organisation's billing page, when the dashboard URL is known. */
+  readonly billingUrl: string | null;
+}
+
+const longDate = (date: Date) =>
+  new Intl.DateTimeFormat("en-GB", { dateStyle: "long", timeZone: "UTC" }).format(date);
+
+export function billingNoticeMessage(to: string, notice: BillingNoticeInput): EmailMessage {
+  const org = notice.organisationName;
+  const when = longDate(notice.date);
+  const copy: Record<BillingNoticeKind, { subject: string; title: string; lines: string[] }> = {
+    trial_ending: {
+      subject: `Your Storevia trial for ${org} ends on ${when}`,
+      title: "Your trial is ending",
+      lines: [
+        `The ${notice.planName} trial for ${org} ends on ${when}.`,
+        "To keep its features, contact Storevia support before then. If the trial ends, your stores and data stay; anything beyond the free allowance can't be added to until a plan is in place.",
+      ],
+    },
+    payment_overdue: {
+      subject: `Payment for ${org} is overdue`,
+      title: "Payment is overdue",
+      lines: [
+        `Payment for the ${notice.planName} plan of ${org} is overdue.`,
+        `Your plan stays active until ${when}. Contact Storevia support to settle it before then.`,
+      ],
+    },
+    plan_ended: {
+      subject: `The ${notice.planName} plan for ${org} has ended`,
+      title: "Your plan has ended",
+      lines: [
+        `The ${notice.planName} plan for ${org} ended on ${when}.`,
+        "Nothing has been deleted: your stores keep working within the free allowance, and anything above it can't be added to. Contact Storevia support to choose a plan.",
+      ],
+    },
+  };
+  const { subject, title, lines } = copy[notice.kind];
+  const action = notice.billingUrl ? { label: "View billing", url: notice.billingUrl } : undefined;
+  return {
+    to,
+    template: `billing-${notice.kind.replaceAll("_", "-")}`,
+    subject,
+    text: [...lines, ...(action ? [`View billing: ${action.url}`] : [])].join("\n\n"),
+    html: layout(title, lines, action),
+  };
+}
+
 export function accountDeletedMessage(to: string, name: string): EmailMessage {
   const lines = [
     `Hi ${name},`,

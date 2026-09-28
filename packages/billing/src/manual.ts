@@ -138,6 +138,15 @@ export const removeOverrideSchema = z.object({
 
 export const reconcileSchema = z.object({ organisationId: z.string(), reason: reasonSchema });
 
+export const extendGraceSchema = z.object({
+  ...base,
+  subscriptionId: z.string(),
+  graceEndsAt: optionalDate,
+});
+
+/** How far past today staff may extend a grace period in one step. */
+export const MAX_GRACE_EXTENSION_DAYS = 60;
+
 function parse<T extends z.ZodType>(schema: T, input: unknown): z.output<T> {
   const result = schema.safeParse(input);
   if (!result.success) {
@@ -484,6 +493,51 @@ export async function activateSubscription(
   return { subscriptionId: result.subscriptionId, overLimit: result.overLimit };
 }
 
+/**
+ * Failed-payment recovery (M8): a PAST_DUE subscription keeps its plan
+ * until a later grace end, while the merchant sorts out payment. Staff only,
+ * step-up and a reason; audited and recorded in the subscription history.
+ * The merchant is emailed the new date (billing notices key on it).
+ */
+export async function extendGrace(ctx: PlatformContext, input: unknown): Promise<ManualResult> {
+  authorise(ctx, "platform.subscription.manage");
+  const data = parse(extendGraceSchema, input);
+  const graceEndsAt = data.graceEndsAt;
+  if (!graceEndsAt) throw fieldError("graceEndsAt", "Choose the new grace end.");
+  const now = new Date();
+  assertFuture("graceEndsAt", graceEndsAt, "The grace period must end in the future.");
+  if (graceEndsAt.getTime() > now.getTime() + MAX_GRACE_EXTENSION_DAYS * DAY)
+    throw fieldError(
+      "graceEndsAt",
+      `Extend by at most ${String(MAX_GRACE_EXTENSION_DAYS)} days at a time.`,
+    );
+  const result = await inTransaction(async (tx) => {
+    const organisationId = await loadOrganisation(tx, data.organisationId);
+    const current = await lockManual(tx, organisationId, data.subscriptionId);
+    if (current.status !== "PAST_DUE")
+      throw new DomainError("CONFLICT", "Only a past-due subscription has a grace period.");
+    if (current.graceEndsAt && graceEndsAt <= current.graceEndsAt)
+      throw fieldError("graceEndsAt", "Choose a date after the current grace end.");
+    const planKey = await planKeyOf(tx, current.planId);
+    const applied = await applySubscriptionChange(tx, {
+      organisationId,
+      current,
+      next: { ...stateOf(current), graceEndsAt },
+      eventType: "grace_extended",
+      auditAction: "billing.subscription.grace_extended",
+      actor: actorOf(ctx),
+      reason: data.reason,
+      note: data.note,
+      occurredAt: now,
+      planKeys: { before: planKey, after: planKey },
+      extraAudit: { expiresAt: graceEndsAt.toISOString() },
+    });
+    return { organisationId, subscriptionId: applied.subscriptionId };
+  });
+  await notifyEntitlementsChanged(result.organisationId);
+  return { subscriptionId: result.subscriptionId, overLimit: [] };
+}
+
 /** TRIAL, ACTIVE or PAST_DUE → CANCELLED, keeping access until a chosen date. */
 export async function cancelSubscription(
   ctx: PlatformContext,
@@ -759,12 +813,15 @@ export async function removeEntitlementOverride(
   return { overLimit: result.overLimit };
 }
 
-/** Recomputes gauge counters from source tables (no step-up: it only corrects counts). */
+/**
+ * Recomputes gauge counters from source tables. Step-up since M8: a
+ * correction can lift or impose a limit, like any entitlement change.
+ */
 export async function reconcileOrganisationUsage(
   ctx: PlatformContext,
   input: unknown,
 ): Promise<{ readonly corrected: number }> {
-  authorise(ctx, "platform.subscription.manage", false);
+  authorise(ctx, "platform.subscription.manage");
   const data = parse(reconcileSchema, input);
   return inTransaction(async (tx) => {
     const organisationId = await loadOrganisation(tx, data.organisationId);

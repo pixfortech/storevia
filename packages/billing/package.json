@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@storevia/database": "workspace:*",
+    "@storevia/domains": "workspace:*",
     "@storevia/entitlements": "workspace:*",
     "@storevia/observability": "workspace:*",
     "@storevia/tenancy": "workspace:*",

@@ -207,7 +207,7 @@ describe("billing presentation", () => {
         name: "Custom domains",
         label: "Included",
         included: true,
-        availability: "Coming in Milestone 7",
+        availability: null,
       },
       {
         key: "api_access",
@@ -226,15 +226,18 @@ describe("billing presentation", () => {
         expect(availability).toMatch(/^(Coming in Milestone \d+|On the roadmap)$/);
       }
     }
-    // Stores, team members, products, media storage, the page builder and
-    // discount codes are the plan features merchants can use today.
+    // Stores, team members, products, media storage, the page builder,
+    // discount codes, custom domains (M7) and data export (M8) are the plan
+    // features merchants can use today.
     expect(FEATURE_KEYS.filter((key) => FEATURE_AVAILABILITY[key] === null)).toEqual([
       "store_count",
       "staff_accounts",
       "product_limit",
       "media_storage",
+      "custom_domain",
       "visual_builder",
       "discounts",
+      "export",
     ]);
   });
 });

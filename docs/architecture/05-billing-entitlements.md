@@ -313,12 +313,44 @@ billing page is informational.
 | Cancel (access until a chosen date) | `platform.subscription.manage`                                 | `TRIAL`, `ACTIVE`, `PAST_DUE`                                                                     |
 | Expire now                          | `platform.subscription.manage`                                 | any live `MANUAL` subscription, or a provider-managed one that no longer grants entitlements (A9) |
 | Add / change / remove override      | `platform.entitlement_override.manage`                         | any organisation                                                                                  |
-| Recalculate usage                   | `platform.subscription.manage`                                 | any organisation                                                                                  |
+| Recalculate usage                   | `platform.subscription.manage` + step-up (M8)                  | any organisation                                                                                  |
+| Extend grace (failed payment, M8)   | `platform.subscription.manage`                                 | `PAST_DUE` `MANUAL`, a later date at most 60 days ahead                                           |
 | Simulate mock provider events       | `platform.billing.simulate` + env gate + step-up + reason (A6) | non-production only (§6)                                                                          |
 
 Platform roles: `SUPER_ADMIN` and `BILLING` hold the manage permissions.
 `OPERATIONS`, `SUPPORT` and `READ_ONLY` can read. `OPERATIONS` may also
 simulate outside production.
+
+Support repairs (M8) sit under their own permission,
+`platform.support.manage`. It is held by `SUPER_ADMIN` and `OPERATIONS`,
+never by `BILLING` or `SUPPORT`. The repairs are:
+
+- suspend or restore a store; a restored store returns to its previous
+  status, so a draft stays a draft;
+- suspend or restore an organisation;
+- retry an organisation's failed order emails.
+
+Each repair needs step-up, the target's name typed out and a reason of at
+least 10 characters, and writes an audit entry. Each runs through one
+SECURITY DEFINER function, so the platform role keeps no write access to
+tenant tables. Suspension raises the outbox events that take every
+storefront instance offline.
+
+Read-only diagnostics come from `app_support_diagnostics()`: counts only,
+per store, for any staff member who can read organisations.
+
+**Billing notices (M8).** The worker job `billing.notices` runs hourly and
+emails the organisation's owners and its billing address:
+
+- when a trial ends within 3 days;
+- when a payment is overdue, with the grace end;
+- when a plan ended in the last 2 days.
+
+`BillingNotice` keys each notice on the subscription and the date, so a
+notice goes once per date, and a grace extension or a new trial notifies
+again. The ledger stores no addresses. The merchant billing page shows the
+same states. The copy uses the plan's name for display only; nothing
+branches on it.
 
 Every manual operation requires:
 

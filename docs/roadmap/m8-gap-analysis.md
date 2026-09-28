@@ -341,6 +341,16 @@ expired) through the email outbox; step-up on usage reconciliation; a
 "restore access" support action (extend grace) with step-up, reason and
 audit.
 
+**Status (M8-6):** built.
+
+- Merchant billing page: trial ending (7 days), past due, cancelled and
+  ended states. The free allowance copy comes from the entitlement
+  registry.
+- `billing.notices` job: trial ending, payment overdue and plan ended
+  emails, deduplicated per date.
+- Staff actions: step-up on usage reconciliation; an extend-grace action
+  with step-up, reason and audit.
+
 ## 10. Support tooling
 
 Read-only organisation list/detail, domain diagnostics, jobs, account
@@ -354,6 +364,18 @@ suspend/restore store and organisation as high-risk actions (permission,
 step-up, typed confirmation, reason, audit) that invalidate every storefront
 instance. Impersonation and the abuse queue stay deferred (not required for
 launch correctness; support works from diagnostics).
+
+**Status (M8-6):** built.
+
+- Per-store support diagnostics in platform-admin: storefront state by
+  the storefront's own rule, orders, failed webhooks and emails, stuck
+  media, domains.
+- Suspend and restore for a store and an organisation, and retry of
+  failed order emails.
+- Every repair runs under `platform.support.manage`, with step-up, the
+  target's name typed out, a reason and an audit entry.
+- Storefront invalidation comes from the outbox triggers.
+- Impersonation and the abuse queue stay deferred.
 
 ## 11. Performance and load
 

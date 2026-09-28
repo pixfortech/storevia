@@ -1,6 +1,8 @@
 import {
   getCatalogueDiagnostics,
   getOrganisationBillingDetail,
+  getSupportDiagnostics,
+  type StoreDiagnostics,
   STATUS_LABELS,
   type AdminOverride,
   type SubscriptionStatus,
@@ -46,16 +48,21 @@ import {
   cancelAction,
   changeSubscriptionAction,
   expireAction,
+  extendGraceAction,
+  organisationSuspensionAction,
   reconcileUsageAction,
   removeOverrideAction,
+  retryEmailsAction,
   setOverrideAction,
   simulateAction,
+  storeSuspensionAction,
 } from "./actions";
 import {
   OverrideManager,
   ReconcileButton,
   SimulationPanel,
   SubscriptionActions,
+  SupportActions,
   type OverrideRow,
 } from "./panels";
 
@@ -142,13 +149,58 @@ function Section({
   );
 }
 
+const STORE_TONES: Record<
+  StoreDiagnostics["status"],
+  "success" | "neutral" | "danger" | "warning"
+> = {
+  ACTIVE: "success",
+  DRAFT: "neutral",
+  SUSPENDED: "danger",
+  ARCHIVED: "warning",
+};
+
+const STOREFRONT: Record<
+  StoreDiagnostics["storefront"],
+  { label: string; tone: "success" | "neutral" | "danger" }
+> = {
+  live: { label: "Live", tone: "success" },
+  "coming-soon": { label: "Coming soon", tone: "neutral" },
+  unavailable: { label: "Offline", tone: "danger" },
+};
+
+const PROBLEM_LABELS: readonly [keyof StoreDiagnostics["metrics"], string][] = [
+  ["orders_unfulfilled", "paid, unfulfilled"],
+  ["payment_webhooks_failed_7d", "failed payment webhooks (7 days)"],
+  ["notifications_failed", "failed emails"],
+  ["media_processing", "media stuck processing"],
+  ["media_rejected_7d", "media rejected (7 days)"],
+  ["domains_not_active", "domains not active"],
+];
+
+/** Non-zero counts that point at a problem, or a quiet "Nothing". */
+function Problems({ store }: { store: StoreDiagnostics }) {
+  const items = PROBLEM_LABELS.filter(([key]) => store.metrics[key] > 0);
+  if (items.length === 0) return <span className="text-ink-faint">Nothing</span>;
+  return (
+    <ul className="space-y-0.5 text-caption text-ink-muted">
+      {items.map(([key, label]) => (
+        <li key={key}>
+          <span className="font-medium text-ink tabular-nums">{store.metrics[key]}</span> {label}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export default async function OrganisationPage({ params }: { params: Promise<{ orgId: string }> }) {
   const { orgId } = await params;
   const ctx = await requireStaff(`/organisations/${orgId}`);
-  const [detail, catalogue] = await Promise.all([
+  const [detail, catalogue, support] = await Promise.all([
     getOrganisationBillingDetail(ctx, orgId),
     getCatalogueDiagnostics(ctx, orgId),
+    getSupportDiagnostics(ctx, orgId),
   ]);
+  const canRepair = hasPlatformPermission(ctx, "platform.support.manage");
   const { organisation: org, subscription: sub } = detail;
   const now = new Date();
   const canManage = hasPlatformPermission(ctx, "platform.subscription.manage");
@@ -171,6 +223,7 @@ export default async function OrganisationPage({ params }: { params: Promise<{ o
     fn.bind(null, orgId);
 
   const sections = [
+    { id: "support", label: "Support" },
     { id: "billing", label: "Subscription and usage" },
     { id: "catalogue", label: "Catalogue" },
     { id: "entitlements", label: "Entitlements" },
@@ -285,6 +338,106 @@ export default async function OrganisationPage({ params }: { params: Promise<{ o
       </div>
 
       <Section
+        id="support"
+        title="Support"
+        description="Counts per store for diagnosing a support request: never customer data. Repairs need a recent password, the name typed out and a reason."
+      >
+        <Card data-testid="support-card">
+          <DataList
+            caption="Store diagnostics"
+            rows={support.stores}
+            rowKey={(store) => store.id}
+            rowTestId="support-store"
+            empty={<p className="px-5 py-6 text-body-sm text-ink-muted sm:px-6">No stores yet.</p>}
+            columns={[
+              {
+                key: "store",
+                header: "Store",
+                primary: true,
+                cell: (store) => (
+                  <span className="grid">
+                    <span className="flex flex-wrap items-center gap-2 font-medium text-ink">
+                      {store.name}
+                      <Badge size="sm" tone={STORE_TONES[store.status]}>
+                        {humanise(store.status)}
+                      </Badge>
+                    </span>
+                    <span className="text-caption text-ink-muted">
+                      {store.primaryHost ?? store.slug}
+                      {store.suspensionReason ? ` · ${store.suspensionReason}` : ""}
+                    </span>
+                  </span>
+                ),
+              },
+              {
+                key: "storefront",
+                header: "Storefront",
+                cell: (store) => (
+                  <Badge tone={STOREFRONT[store.storefront].tone} dot>
+                    {STOREFRONT[store.storefront].label}
+                  </Badge>
+                ),
+              },
+              {
+                key: "orders",
+                header: "Orders (30 days)",
+                align: "end",
+                cell: (store) => (
+                  <span className="grid">
+                    <span>{store.metrics.orders_30d}</span>
+                    <span className="text-caption text-ink-muted">
+                      {store.lastOrderAt ? `last ${formatDate(store.lastOrderAt)}` : "none yet"}
+                    </span>
+                  </span>
+                ),
+              },
+              {
+                key: "problems",
+                header: "Needs attention",
+                cell: (store) => <Problems store={store} />,
+              },
+            ]}
+          />
+          {canRepair ? (
+            <CardBody className="border-t border-line">
+              <SupportActions
+                organisation={{ name: org.name, status: org.status }}
+                stores={support.stores.map((store) => ({
+                  id: toTypeId("store", store.id),
+                  name: store.name,
+                  slug: store.slug,
+                  status: store.status,
+                  suspend: storeSuspensionAction.bind(
+                    null,
+                    orgId,
+                    toTypeId("store", store.id),
+                    true,
+                  ),
+                  restore: storeSuspensionAction.bind(
+                    null,
+                    orgId,
+                    toTypeId("store", store.id),
+                    false,
+                  ),
+                }))}
+                actions={{
+                  suspend: organisationSuspensionAction.bind(null, orgId, true),
+                  restore: organisationSuspensionAction.bind(null, orgId, false),
+                  retryEmails: bind(retryEmailsAction),
+                }}
+              />
+            </CardBody>
+          ) : (
+            <CardFooter>
+              <p className="text-body-sm text-ink-muted">
+                Your platform role can view diagnostics but not suspend, restore or retry.
+              </p>
+            </CardFooter>
+          )}
+        </Card>
+      </Section>
+
+      <Section
         id="billing"
         title="Subscription and usage"
         description="The live subscription decides the plan. Dates are in UTC."
@@ -388,6 +541,7 @@ export default async function OrganisationPage({ params }: { params: Promise<{ o
                               ? sub.trialEndsAt
                               : (sub.expiresAt ?? sub.currentPeriodEnd),
                           ),
+                          graceEndsAt: dateInputValue(sub.graceEndsAt),
                         }
                       : null
                   }
@@ -398,6 +552,7 @@ export default async function OrganisationPage({ params }: { params: Promise<{ o
                     activate: bind(activateAction),
                     cancel: bind(cancelAction),
                     expire: bind(expireAction),
+                    extendGrace: bind(extendGraceAction),
                   }}
                 />
               ) : null}

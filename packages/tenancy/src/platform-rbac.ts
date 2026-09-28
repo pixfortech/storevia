@@ -9,6 +9,8 @@ export const PLATFORM_PERMISSIONS = [
   "platform.subscription.manage",
   "platform.entitlement_override.manage",
   "platform.billing.simulate",
+  // Suspend/restore stores and organisations, retry failed order emails (M8).
+  "platform.support.manage",
 ] as const;
 
 export type PlatformPermission = (typeof PLATFORM_PERMISSIONS)[number];
@@ -25,10 +27,21 @@ export type PlatformRole = (typeof PLATFORM_ROLES)[number];
 
 const GRANTS: Record<PlatformRole, readonly PlatformPermission[]> = {
   SUPER_ADMIN: PLATFORM_PERMISSIONS,
-  BILLING: PLATFORM_PERMISSIONS,
+  BILLING: [
+    "platform.organisation.read",
+    "platform.audit.read",
+    "platform.subscription.manage",
+    "platform.entitlement_override.manage",
+    "platform.billing.simulate",
+  ],
   // Operations can exercise the mock provider outside production (§6), but
   // not change subscriptions or overrides.
-  OPERATIONS: ["platform.organisation.read", "platform.audit.read", "platform.billing.simulate"],
+  OPERATIONS: [
+    "platform.organisation.read",
+    "platform.audit.read",
+    "platform.billing.simulate",
+    "platform.support.manage",
+  ],
   SUPPORT: ["platform.organisation.read", "platform.audit.read"],
   READ_ONLY: ["platform.organisation.read"],
 };

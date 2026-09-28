@@ -66,6 +66,7 @@ const PERMISSION_LABELS: Record<string, string> = {
   "platform.subscription.manage": "Manage subscriptions",
   "platform.entitlement_override.manage": "Manage entitlement overrides",
   "platform.billing.simulate": "Simulate billing events",
+  "platform.support.manage": "Suspend, restore and repair tenants",
 };
 
 /** A platform permission in words; unknown keys fall back to a humanised key. */

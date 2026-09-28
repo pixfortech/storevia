@@ -6,7 +6,11 @@ import {
   cancelSubscription,
   changeSubscription,
   expireSubscription,
+  extendGrace,
   reconcileOrganisationUsage,
+  retryFailedOrderEmails,
+  setOrganisationSuspension,
+  setStoreSuspension,
   removeEntitlementOverride,
   setEntitlementOverride,
   simulateMockBillingEvent,
@@ -202,4 +206,88 @@ export async function simulateAction(
       message: `Webhook ${result.outcome}${detail}: HTTP ${String(result.status)}.`,
     };
   }, formData);
+}
+
+/** Failed-payment recovery: a later grace end for a past-due subscription (M8). */
+export async function extendGraceAction(
+  orgId: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const ctx = await requireActionStaff();
+    const result = await extendGrace(ctx, { ...formObject(formData), organisationId: orgId });
+    refresh(orgId);
+    return done("Grace period extended. The merchant is emailed the new date.", result);
+  });
+}
+
+// Support repairs (M8): platform.support.manage, step-up, the target's name
+// typed out and a reason, all checked by the service.
+
+export async function organisationSuspensionAction(
+  orgId: string,
+  suspend: boolean,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const ctx = await requireActionStaff();
+    await setOrganisationSuspension(ctx, {
+      ...formObject(formData),
+      organisationId: orgId,
+      suspend,
+    });
+    refresh(orgId);
+    return {
+      ok: true,
+      message: suspend
+        ? "Organisation suspended. Its stores are offline everywhere."
+        : "Organisation restored.",
+    };
+  });
+}
+
+export async function storeSuspensionAction(
+  orgId: string,
+  storeId: string,
+  suspend: boolean,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const ctx = await requireActionStaff();
+    const { status } = await setStoreSuspension(ctx, {
+      ...formObject(formData),
+      storeId,
+      suspend,
+    });
+    refresh(orgId);
+    return {
+      ok: true,
+      message: suspend
+        ? "Store suspended. Its storefront is offline everywhere."
+        : `Store restored (${status.toLowerCase()}).`,
+    };
+  });
+}
+
+export async function retryEmailsAction(
+  orgId: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const ctx = await requireActionStaff();
+    const { queued } = await retryFailedOrderEmails(ctx, {
+      ...formObject(formData),
+      organisationId: orgId,
+    });
+    refresh(orgId);
+    return {
+      ok: true,
+      message:
+        queued === 0 ? "No failed emails to retry." : `${String(queued)} email(s) queued again.`,
+    };
+  });
 }

@@ -1,5 +1,12 @@
 import { expect, test } from "@playwright/test";
-import { ADMIN_URL, adminSignIn, createStaff, grantPlan, staffSession } from "./admin";
+import {
+  ADMIN_URL,
+  adminSignIn,
+  confirmPassword,
+  createStaff,
+  grantPlan,
+  staffSession,
+} from "./admin";
 import { createTenant, PASSWORD } from "./helpers";
 
 // Platform-admin is visibly internal, shows risk at a glance, gates
@@ -86,4 +93,42 @@ test("a staff sign-in opens nothing until its second factor (M8)", async ({ brow
   await adminSignIn(staffPage, email);
   await expect(staffPage).toHaveURL(`${ADMIN_URL}/organisations`);
   await signedIn.close();
+});
+
+test("operations staff suspend and restore an organisation (M8)", async ({ page, browser }) => {
+  const tenant = await createTenant(page, "suspendme");
+  const email = await createStaff(browser, "OPERATIONS");
+  const context = await browser.newContext();
+  const staff = await context.newPage();
+  await adminSignIn(staff, email);
+  await confirmPassword(staff);
+  await staff.goto(`${ADMIN_URL}/organisations/${tenant.orgId}`);
+  await expect(staff.getByTestId("support-store")).toHaveCount(1);
+  // A new store is a draft: its storefront says "coming soon".
+  await expect(staff.getByTestId("support-store").first()).toContainText("Coming soon");
+
+  await staff.getByTestId("suspend-organisation").click();
+  const dialog = staff.getByRole("dialog");
+  await dialog.getByLabel(/Type .* to confirm/).fill("Business suspendme");
+  await dialog.getByLabel("Reason").fill("Phishing report confirmed by trust and safety");
+  const submit = dialog.getByRole("button", { name: "Suspend organisation" });
+  await expect(submit).toBeDisabled();
+  await dialog.getByLabel("I understand the consequence for this merchant.").check();
+  await submit.click();
+  // The row turns into "Restore" and every storefront is offline.
+  await expect(staff.getByTestId("restore-organisation")).toBeVisible();
+  await expect(staff.getByTestId("support-store").first()).toContainText("Offline");
+
+  // The merchant can't open it while suspended.
+  expect((await page.goto(tenant.orgPath))?.status()).toBe(404);
+
+  await staff.getByTestId("restore-organisation").click();
+  const restore = staff.getByRole("dialog");
+  await restore.getByLabel(/Type .* to confirm/).fill("Business suspendme");
+  await restore.getByLabel("Reason").fill("Report withdrawn after review");
+  await restore.getByRole("button", { name: "Restore organisation" }).click();
+  await expect(staff.getByTestId("suspend-organisation")).toBeVisible();
+  await expect(staff.getByTestId("support-store").first()).toContainText("Coming soon");
+  expect((await page.goto(tenant.orgPath))?.status()).toBe(200);
+  await context.close();
 });

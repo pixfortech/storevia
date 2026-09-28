@@ -30,6 +30,8 @@ export {
   cancelSubscription,
   changeSubscription,
   expireSubscription,
+  extendGrace,
+  MAX_GRACE_EXTENSION_DAYS,
   reconcileOrganisationUsage,
   removeEntitlementOverride,
   setEntitlementOverride,
@@ -58,6 +60,14 @@ export { getCatalogueDiagnostics } from "./catalogue-diagnostics";
 export type { CatalogueDiagnostics, StoreCatalogueCounts } from "./catalogue-diagnostics";
 export { getJobsOverview } from "./operations";
 export { listPlatformAuditLog } from "./audit-admin";
+export {
+  getSupportDiagnostics,
+  retryFailedOrderEmails,
+  setOrganisationSuspension,
+  setStoreSuspension,
+  SUPPORT_METRICS,
+} from "./support";
+export type { StoreDiagnostics, SupportDiagnostics, SupportMetric } from "./support";
 export type { AuditActorFilter, PlatformAuditEntry, PlatformAuditPage } from "./audit-admin";
 export { getDomainsOverview } from "./domains-admin";
 export type { AdminDomainRow, DomainStatusFilter, DomainsOverview } from "./domains-admin";

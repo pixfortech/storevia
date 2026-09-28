@@ -77,6 +77,7 @@ that request id. Search the logs for it.
 | Domains          | `domain.verified`, `domain.verification_failed` (`reason`), `domain.provider_error`, `domain.primary_changed`                                                                                                                                                                                                          |                           |
 | Media            | `media.processed` (`outcome`: ready, rejected or failed), `media.processing_ms`, `media.stuck_processing_recovered`, `media.abandoned_uploads`, `media.object_delete_failed`                                                                                                                                           |                           |
 | Cache            | `storefront.cache_invalidated` (`via`: log or post), `storefront.invalidations_applied`, `storefront.invalidation_lag_ms`, `storefront.invalidation_feed_failed`, `storefront.invalidation_post_failed`, `storefront.outbox_dispatched`                                                                                |                           |
+| Lifecycle        | `retention.removed` (`item`), `organisations.deleted`, `organisations.delete_failed`, `media.objects_purged`, `billing.notices_sent`, `billing.notices_failed`                                                                                                                                                         | `item` where relevant     |
 | Queues (gauges)  | `ops.outbox_backlog`, `ops.outbox_oldest_seconds`, `ops.notifications_pending`, `ops.notifications_oldest_pending_seconds`, `ops.notifications_failed`, `ops.messages_unannounced_oldest_seconds`, `ops.payment_webhooks_failed`, `ops.jobs_failing`, `ops.jobs_overdue`, `ops.media_processing`, `ops.domains_failed` |                           |
 
 The queue gauges come from the `ops.metrics` job every minute. They are
@@ -109,6 +110,8 @@ Each rule links to a runbook entry below.
 | A12 | `domain.provider_error` > 10 in 15 minutes                                                                      | Ticket                                                                       | [R9](#r9-hosting-provider-errors)        |
 | A13 | `media.processed{outcome=failed}` > 5 in 15 minutes, or `media.stuck_processing_recovered` > 0                  | Ticket                                                                       | [R10](#r10-media-failures)               |
 | A14 | `jobs.timeout` > 0                                                                                              | Ticket                                                                       | [R2](#r2-a-job-keeps-failing)            |
+| A15 | `organisations.delete_failed` > 0 on 3 consecutive hourly runs                                                  | Ticket                                                                       | [R11](#r11-lifecycle-jobs)               |
+| A16 | `billing.notices_failed` > 0 on 3 consecutive hourly runs                                                       | Ticket                                                                       | [R11](#r11-lifecycle-jobs)               |
 
 A status page (M8-03) is an owner decision. Until it exists, A1, A4, A5
 and A11 are the signals a status page would show.
@@ -203,5 +206,22 @@ request path.
   failed. Check `MEDIA_*` settings and the bucket.
 - `media.stuck_processing_recovered`: an instance died mid-upload. The
   merchant sees a failed upload and retries.
-- `media.object_delete_failed`: an object outlived its asset. The
-  retention job retries (see `docs/database/data-lifecycle.md`).
+- `media.object_delete_failed`: an object outlived its asset. The media
+  sweep retries it every 10 minutes until `objectsPurgedAt` is set (see
+  `docs/database/data-lifecycle.md`).
+
+### R11 Lifecycle jobs
+
+- `organisations.delete_failed`: removing a custom domain from the hosting
+  provider failed. The organisation stays `PENDING_DELETION` and is retried
+  hourly. Check the provider token and `domain.provider_error`; the
+  worker log names the organisation, never its data.
+- `billing.notices_failed`: the email transport rejected a billing notice.
+  The claim is released and the next hourly run retries. Check the email
+  provider.
+- Support repairs (platform-admin → organisation → Support) are audited:
+  - `store.suspended` / `store.restored`;
+  - `organisation.suspended` / `organisation.restored`;
+  - `order.notifications_retried`.
+
+  Review them in platform-admin → Audit log.

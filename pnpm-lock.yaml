@@ -431,6 +431,9 @@ importers:
       '@storevia/database':
         specifier: workspace:*
         version: link:../database
+      '@storevia/domains':
+        specifier: workspace:*
+        version: link:../domains
       '@storevia/entitlements':
         specifier: workspace:*
         version: link:../entitlements
@@ -720,6 +723,9 @@ importers:
       server-only:
         specifier: 0.0.1
         version: 0.0.1
+      zod:
+        specifier: 4.6.5
+        version: 4.6.5
     devDependencies:
       vitest:
         specifier: 4.1.11

@@ -5,8 +5,13 @@ import { PERMISSIONS } from "./rbac";
 // docs/architecture/05 §5: who may do what on the platform surface.
 const MATRIX: Record<string, readonly string[]> = {
   SUPER_ADMIN: [...PLATFORM_PERMISSIONS],
-  BILLING: [...PLATFORM_PERMISSIONS],
-  OPERATIONS: ["platform.organisation.read", "platform.audit.read", "platform.billing.simulate"],
+  BILLING: PLATFORM_PERMISSIONS.filter((p) => p !== "platform.support.manage"),
+  OPERATIONS: [
+    "platform.organisation.read",
+    "platform.audit.read",
+    "platform.billing.simulate",
+    "platform.support.manage",
+  ],
   SUPPORT: ["platform.organisation.read", "platform.audit.read"],
   READ_ONLY: ["platform.organisation.read"],
 };

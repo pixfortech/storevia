@@ -79,8 +79,10 @@ export const FEATURE_AVAILABILITY: Readonly<Record<FeatureKey, string | null>> =
   api_access: "On the roadmap",
   visual_builder: null,
   discounts: null,
-  custom_domain: "Coming in Milestone 7",
-  export: "Coming in Milestone 8",
+  custom_domain: null,
+  // Data export works on every plan (M8): the organisation export is a
+  // data-portability right, and product CSV export was never gated.
+  export: null,
   advanced_builder: "On the roadmap",
   premium_themes: "On the roadmap",
   custom_code: "On the roadmap",

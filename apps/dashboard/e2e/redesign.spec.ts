@@ -48,7 +48,6 @@ test("at the store limit the shell offers no create action and billing says what
   await page.goto(`${tenant.orgPath}/billing`);
   await expect(page.getByRole("link", { name: "Create store" })).toHaveCount(0);
   // Plan features that aren't built yet carry their availability.
-  await expect(page.getByText(/Coming in Milestone \d/).first()).toBeVisible();
   await expect(page.getByText("On the roadmap").first()).toBeVisible();
   await expect(page.getByTestId("payments-card").getByRole("button")).toHaveCount(0);
 });

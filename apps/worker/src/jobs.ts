@@ -13,6 +13,7 @@ import { reconcileUsage } from "@storevia/entitlements";
 import type { JobDefinition } from "@storevia/jobs";
 import { recordMetric } from "@storevia/observability";
 import { MEMBER_ROLES, recordActorAudit } from "@storevia/tenancy";
+import { billingNoticesJob } from "./billing-notices";
 import { domainVerifyJob } from "./domains";
 import { organisationDeletionJob, retentionSweepJob } from "./lifecycle";
 import { mediaSweepJob } from "./media";
@@ -166,4 +167,5 @@ export const JOBS: readonly JobDefinition[] = [
   operationsMetricsJob,
   retentionSweepJob,
   organisationDeletionJob,
+  billingNoticesJob,
 ];

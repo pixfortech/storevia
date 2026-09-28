@@ -28,7 +28,9 @@ export interface ResolvedStore {
 /** What a resolved store may show (ADR-0028 §3). */
 export type StoreAvailability = "live" | "coming-soon" | "unavailable";
 
-export function storeAvailability(store: ResolvedStore): StoreAvailability {
+export function storeAvailability(
+  store: Pick<ResolvedStore, "organisationStatus" | "storeStatus">,
+): StoreAvailability {
   if (store.organisationStatus !== "ACTIVE") return "unavailable";
   switch (store.storeStatus) {
     case "ACTIVE":

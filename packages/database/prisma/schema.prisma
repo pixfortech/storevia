@@ -645,6 +645,7 @@ model Organisation {
   subscriptions    Subscription[]
   featureOverrides OrganisationFeatureOverride[]
   usageCounters    UsageCounter[]
+  billingNotices   BillingNotice[]
 
   @@index([createdById])
 }
@@ -752,27 +753,29 @@ enum BusinessType {
 }
 
 model Store {
-  id               String       @id @default(uuid(7)) @db.Uuid
-  organisationId   String       @db.Uuid
-  name             String
-  slug             String       @unique
-  status           StoreStatus  @default(DRAFT)
+  id                  String       @id @default(uuid(7)) @db.Uuid
+  organisationId      String       @db.Uuid
+  name                String
+  slug                String       @unique
+  status              StoreStatus  @default(DRAFT)
   /// Presentation only (ADR-0024): never an authorisation input.
-  businessType     BusinessType @default(ECOMMERCE)
-  currency         String       @db.Char(3)
-  locale           String
-  timezone         String
-  country          String       @db.Char(2)
-  logoMediaId      String?      @db.Uuid
-  faviconMediaId   String?      @db.Uuid
-  contactEmail     String?
-  supportEmail     String?
-  nextOrderNumber  Int          @default(1001)
-  suspendedAt      DateTime?    @db.Timestamptz(3)
-  suspensionReason String?
-  archivedAt       DateTime?    @db.Timestamptz(3)
-  createdAt        DateTime     @default(now()) @db.Timestamptz(3)
-  updatedAt        DateTime     @updatedAt @db.Timestamptz(3)
+  businessType        BusinessType @default(ECOMMERCE)
+  currency            String       @db.Char(3)
+  locale              String
+  timezone            String
+  country             String       @db.Char(2)
+  logoMediaId         String?      @db.Uuid
+  faviconMediaId      String?      @db.Uuid
+  contactEmail        String?
+  supportEmail        String?
+  nextOrderNumber     Int          @default(1001)
+  suspendedAt         DateTime?    @db.Timestamptz(3)
+  suspensionReason    String?
+  /// The status to return to when the platform restores it (M8).
+  suspendedFromStatus StoreStatus?
+  archivedAt          DateTime?    @db.Timestamptz(3)
+  createdAt           DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime     @updatedAt @db.Timestamptz(3)
 
   organisation          Organisation                @relation(fields: [organisationId], references: [id], onDelete: Restrict)
   memberAccess          MembershipStoreAccess[]
@@ -1142,6 +1145,22 @@ model UsageCounter {
 
   @@id([organisationId, featureId, scopeKey, period])
   @@index([featureId])
+}
+
+/// Billing emails sent (M8): which notice for which subscription date. No
+/// address is kept. Managed by SECURITY DEFINER functions only.
+model BillingNotice {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organisationId String    @db.Uuid
+  subscriptionId String    @db.Uuid
+  kind           String
+  dedupeKey      String    @unique
+  sentAt         DateTime? @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+
+  @@index([organisationId])
 }
 
 // --- Audit (Milestone 1) ------------------------------------------------------

@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { FileEmailSender } from "./sender";
-import { invitationMessage, verifyEmailMessage, contactRequestMessage } from "./templates";
+import {
+  invitationMessage,
+  verifyEmailMessage,
+  contactRequestMessage,
+  billingNoticeMessage,
+} from "./templates";
 
 describe("email templates", () => {
   it("escapes user-controlled values in HTML", () => {
@@ -97,5 +102,32 @@ describe("order emails", () => {
         trackingUrl: "https://t.example/1",
       }).html,
     ).toContain('href="https://t.example/1"');
+  });
+});
+
+describe("billing notices (M8)", () => {
+  const base = {
+    organisationName: "Acme <script>",
+    planName: "Business",
+    date: new Date("2027-05-01T00:00:00Z"),
+    billingUrl: "https://app.storevia.test/o/org_x/billing",
+  };
+
+  it("names the date and plan, escapes HTML and links to billing", () => {
+    const trial = billingNoticeMessage("owner@acme.test", { ...base, kind: "trial_ending" });
+    expect(trial.template).toBe("billing-trial-ending");
+    expect(trial.subject).toContain("1 May 2027");
+    expect(trial.html).not.toContain("<script>");
+    expect(trial.html).toContain("Acme &lt;script&gt;");
+    expect(trial.text).toContain(base.billingUrl);
+    const overdue = billingNoticeMessage("owner@acme.test", { ...base, kind: "payment_overdue" });
+    expect(overdue.text).toContain("stays active until 1 May 2027");
+    const ended = billingNoticeMessage("owner@acme.test", { ...base, kind: "plan_ended" });
+    expect(ended.text).toContain("Nothing has been deleted");
+  });
+
+  it("works without a dashboard link", () => {
+    const m = billingNoticeMessage("a@b.test", { ...base, kind: "plan_ended", billingUrl: null });
+    expect(m.text).not.toContain("View billing");
   });
 });
