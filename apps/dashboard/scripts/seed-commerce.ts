@@ -50,7 +50,8 @@ import {
   type CheckoutStore,
 } from "@storevia/commerce/checkout";
 import { addToCart } from "@storevia/commerce/storefront";
-import { getStore, type StoreContext } from "@storevia/tenancy";
+import { getStore, requireStoreAccess, type StoreContext } from "@storevia/tenancy";
+import { toTypeId } from "@storevia/types";
 
 const ADDRESSES = [
   {
@@ -253,7 +254,16 @@ async function ensureOrders(ctx: StoreContext, created: string[]): Promise<void>
       created.push(`shipment of #${String(order.number)}`);
     }
     if ("refund" in seeded && detail.refunds.length === 0) {
-      await refundOrder(ctx, order.id, { amount: seeded.refund, reason: "Box arrived damaged" });
+      // Refunds need a recent password confirmation (M8); the seed acts as
+      // the owner having just confirmed theirs.
+      const confirmed = await requireStoreAccess(
+        { ...ctx.principal, recentlyAuthenticated: true },
+        toTypeId("store", ctx.storeId),
+      );
+      await refundOrder(confirmed, order.id, {
+        amount: seeded.refund,
+        reason: "Box arrived damaged",
+      });
       created.push(`refund on #${String(order.number)}`);
     }
   }

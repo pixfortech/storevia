@@ -11,3 +11,9 @@ c6546fb487aa14741a0166259e3e8491351001ab:.gitleaksignore:generic-api-key:5
 
 # A made-up Razorpay key-secret fixture in the payments adapter's unit tests.
 878ce233f8142a243903c6491572a3479e80bfc1:packages/payments/src/payments.test.ts:generic-api-key:108
+
+# The observability tests' synthetic order-link token (base64 of a plain
+# "order access token id" phrase plus digits and letters), used to show the
+# scrubber removes such values.
+e9c97357255dd915e6d5b40d8c89e050a1c9eb85:packages/observability/src/index.test.ts:generic-api-key:149
+e9c97357255dd915e6d5b40d8c89e050a1c9eb85:packages/observability/src/index.test.ts:generic-api-key:250
