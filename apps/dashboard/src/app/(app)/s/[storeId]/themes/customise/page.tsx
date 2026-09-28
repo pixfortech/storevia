@@ -87,8 +87,11 @@ export default async function CustomiseThemePage({
             </nav>
           ) : null}
         </div>
+        {/* Keyed by theme only: the editor tracks its own revision, and a
+            remount after its own save or publish (the action revalidates this
+            page) would drop its "published" notice. */}
         <ThemeEditor
-          key={`${theme.themeKey}:${String(theme.revision)}`}
+          key={theme.themeKey}
           storeId={storeId}
           themeKey={theme.themeKey}
           live={theme.live}
