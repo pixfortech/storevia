@@ -10,7 +10,7 @@ import {
   sealCredentials,
   type PaymentProviderKey,
 } from "@storevia/payments";
-import { recordAudit, type TenantContext } from "@storevia/tenancy";
+import { recordAudit, requireRecentAuthentication, type TenantContext } from "@storevia/tenancy";
 import { DomainError, notFound, uuidv7, validationFailed } from "@storevia/types";
 import { inStore, internalId, publicId, type TenantTx } from "../internal";
 
@@ -191,6 +191,8 @@ export async function connectRazorpay(
     readonly accountId?: unknown;
   },
 ): Promise<{ readonly connectionId: string }> {
+  // Where the store's money goes: a recent password confirmation (M8, S5).
+  requireRecentAuthentication(ctx, "changing where payments are paid");
   const provider = getPaymentProvider("razorpay");
   if (!provider) throw new DomainError("CONFLICT", "Razorpay isn't available.");
   const trim = (v: unknown) => (typeof v === "string" ? v.trim() : v);
@@ -250,6 +252,10 @@ export async function setPaymentConnectionActive(
         select: { provider: true, keyVersion: true },
       });
       if (!row) throw notFound();
+      // Switching a real provider on or off changes where payments go (M8, S5).
+      if (row.provider !== "storevia-test") {
+        requireRecentAuthentication(store, "changing where payments are paid");
+      }
       if (active) {
         if (!getPaymentProvider(row.provider) || row.keyVersion === null) {
           throw new DomainError("CONFLICT", "This connection can't be used in this environment.");

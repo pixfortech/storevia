@@ -16,6 +16,7 @@ import {
   type ShipmentStatus,
 } from "./lifecycle";
 import { cancelOrderStock, orderReservations } from "../checkout/stock";
+import { createOrderAccess, revokeOrderAccess } from "./access";
 import { orderEvent, queueNotification } from "./records";
 
 // Order operations after payment (post-M7): archiving, the fulfilment
@@ -88,6 +89,66 @@ export async function setOrderArchived(
         { type: "Order", id: orderId },
         { orderNumber: order.number },
       );
+    },
+    { write: true },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The shopper's link (M8, S4): a leaked link is revoked and a new one sent.
+// ---------------------------------------------------------------------------
+
+/**
+ * Revokes every link to the order and issues a new one, which is emailed
+ * to the order's address in a fresh confirmation. The old links stop
+ * working at once. Audited (never with the token); the customer sees no
+ * staff note.
+ */
+export async function resetCustomerOrderLink(
+  ctx: TenantContext,
+  orderPublicId: unknown,
+): Promise<{ readonly revoked: number; readonly emailed: boolean }> {
+  const orderId = internalId("order", orderPublicId);
+  return inStore(
+    ctx,
+    "order.manage",
+    async (tx, store) => {
+      const order = await lockOrderState(tx, orderId);
+      const revoked = await revokeOrderAccess(tx, orderId);
+      await createOrderAccess(tx, scopeOf(store), orderId);
+      const fresh = await tx.$queryRaw<{ id: string }[]>`
+        SELECT id FROM "OrderCustomerAccess"
+        WHERE "orderId" = ${orderId}::uuid AND "revokedAt" IS NULL
+        ORDER BY "createdAt" DESC LIMIT 1`;
+      const emailed = order.email !== null && fresh[0] !== undefined;
+      if (fresh[0]) {
+        await queueNotification(
+          tx,
+          scopeOf(store),
+          orderId,
+          "ORDER_CONFIRMATION",
+          `link-reset:${fresh[0].id}`,
+          order.email,
+        );
+      }
+      await orderEvent(
+        tx,
+        scopeOf(store),
+        orderId,
+        "order.link_reset",
+        "Customer order link reset. The previous link no longer works.",
+        undefined,
+        store.userId,
+      );
+      await recordAudit(
+        tx,
+        store,
+        "order.customer_link_reset",
+        { type: "Order", id: orderId },
+        { orderNumber: order.number, revoked, emailed },
+      );
+      recordMetric("orders.customer_link_reset", 1);
+      return { revoked, emailed };
     },
     { write: true },
   );

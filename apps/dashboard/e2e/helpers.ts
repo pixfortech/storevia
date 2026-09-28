@@ -138,3 +138,16 @@ export async function replay(
   });
   return { status: response.status(), text: await response.text() };
 }
+
+/**
+ * Step-up in the dashboard: confirm the password on the account security
+ * page (refunds, payment connections and domain removal need it, M8).
+ * Returns to `back` afterwards.
+ */
+export async function confirmDashboardPassword(page: Page, back?: string): Promise<void> {
+  await page.goto("/account/security");
+  await page.getByLabel("Password", { exact: true }).fill(PASSWORD);
+  await page.getByRole("button", { name: "Confirm password" }).click();
+  await expect(page.getByText(/Confirmed\./)).toBeVisible();
+  if (back) await page.goto(back);
+}

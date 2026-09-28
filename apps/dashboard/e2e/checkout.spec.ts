@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { fillDetails, setUpStore, shopperWithCart } from "./checkout-helpers";
-import { createTenant } from "./helpers";
+import { createTenant, confirmDashboardPassword } from "./helpers";
 import { addProduct, storefrontOrigin } from "./storefront-helpers";
 
 // Milestone 6, end to end (the roadmap's critical path): a merchant sets up
@@ -81,6 +81,8 @@ test("the critical path: set up, check out with the test provider, fulfil and re
   await expect(fulfil).toBeHidden();
   await expect(page.getByText(/Fulfilment:\s*Fulfilled/).first()).toBeVisible();
 
+  // Refunds move money: a recent password confirmation first (M8).
+  await confirmDashboardPassword(page, page.url());
   await page.getByRole("button", { name: "Refund" }).first().click();
   const refund = page.getByRole("dialog");
   await refund.getByLabel(/^Amount/).fill("100");

@@ -135,3 +135,11 @@ export const productInput = (title: string, extra: Record<string, unknown> = {})
   title,
   ...extra,
 });
+
+/** The same store context, re-issued after a recent password confirmation (step-up, M8). */
+export async function steppedUp(ctx: StoreContext): Promise<StoreContext> {
+  return requireStoreAccess(
+    { ...ctx.principal, recentlyAuthenticated: true },
+    toTypeId("store", ctx.storeId),
+  );
+}

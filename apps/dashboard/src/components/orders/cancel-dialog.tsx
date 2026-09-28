@@ -4,11 +4,11 @@ import { Button } from "@storevia/ui/button";
 import { Checkbox } from "@storevia/ui/choice";
 import { Field, Textarea } from "@storevia/ui/form";
 import { Dialog, DialogClose, DialogFooter } from "@storevia/ui/overlays";
-import { Alert } from "@storevia/ui/surfaces";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { cancelOrderAction } from "@/app/(app)/s/[storeId]/orders/actions";
 import type { FormState } from "@/components/forms";
+import { FormMessage } from "@/components/forms";
 
 /**
  * Cancels an order that has nothing fulfilled: reserved stock goes back on
@@ -65,7 +65,7 @@ export function CancelOrderDialog({
           });
         }}
       >
-        {!state.ok && state.message ? <Alert tone="danger">{state.message}</Alert> : null}
+        {!state.ok ? <FormMessage state={state} /> : null}
         <Field
           label="Reason"
           optional

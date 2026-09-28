@@ -21,6 +21,16 @@ export const ORDER_ACCESS_DAYS = 180;
 const TOKEN_RE = /^[A-Za-z0-9_-]{65}$/;
 const LABEL = "storevia:order-access:v1:";
 
+/**
+ * The secret a link signed before a rotation may still use (M8):
+ * ORDER_ACCESS_SECRET_PREVIOUS keeps existing links working while new ones
+ * are signed with ORDER_ACCESS_SECRET. Remove it to cut the old links off.
+ */
+function previousSecret(env: NodeJS.ProcessEnv = process.env): Buffer | null {
+  const configured = env["ORDER_ACCESS_SECRET_PREVIOUS"];
+  return configured && configured.length >= 32 ? Buffer.from(configured) : null;
+}
+
 function secret(env: NodeJS.ProcessEnv = process.env): Buffer {
   const configured = env["ORDER_ACCESS_SECRET"];
   if (configured && configured.length >= 32) return Buffer.from(configured);
@@ -73,8 +83,11 @@ export function verifiedOrderAccessHash(
   const id = Buffer.from(raw.slice(0, 22), "base64url");
   const given = Buffer.from(raw.slice(22), "base64url");
   if (id.length !== 16 || given.length !== 32) return null;
-  const expected = mac(id, secret(env));
-  if (!timingSafeEqual(given, expected)) return null;
+  const previous = previousSecret(env);
+  const valid =
+    timingSafeEqual(given, mac(id, secret(env))) ||
+    (previous !== null && timingSafeEqual(given, mac(id, previous)));
+  if (!valid) return null;
   return hashOrderAccessToken(raw);
 }
 
@@ -104,6 +117,13 @@ export async function createOrderAccess(
     VALUES (${id}::uuid, ${scope.organisationId}::uuid, ${scope.storeId}::uuid, ${orderId}::uuid,
       ${hashOrderAccessToken(token)}, now() + ${`${String(ORDER_ACCESS_DAYS)} days`}::interval)`;
   return token;
+}
+
+/** Revokes every live link of an order (the app role, under its tenant policy). */
+export async function revokeOrderAccess(tx: TenantTx, orderId: string): Promise<number> {
+  return tx.$executeRaw`
+    UPDATE "OrderCustomerAccess" SET "revokedAt" = now()
+    WHERE "orderId" = ${orderId}::uuid AND "revokedAt" IS NULL`;
 }
 
 /** The newest live access token of an order the transaction can see, or null. */

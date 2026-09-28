@@ -3,7 +3,13 @@ import { resolve } from "node:path";
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { ADMIN_URL, adminSignIn, createStaff, grantPlan } from "./admin";
 import { addRate, addZone, fillDetails, goLive, shopperWithCart } from "./checkout-helpers";
-import { captureServerAction, createTenant, replay, type Tenant } from "./helpers";
+import {
+  captureServerAction,
+  createTenant,
+  replay,
+  type Tenant,
+  confirmDashboardPassword,
+} from "./helpers";
 import { addProduct, fetchStore, storefrontOrigin } from "./storefront-helpers";
 
 // Custom domains end to end (ADR-0032) with the deterministic local
@@ -196,7 +202,9 @@ test("a custom domain from DNS records to primary, shopping on it, then removal"
   await expect(staff.locator("body")).not.toContainText(txt.split("=")[1] ?? "never");
   await staffContext.close();
 
-  // 6. Removal: the platform address is primary again; the domain stops resolving.
+  // 6. Removal (after a password confirmation, M8): the platform address is
+  //    primary again; the domain stops resolving.
+  await confirmDashboardPassword(page);
   await openDomains(page, tenant);
   await domainCard(page, hostname)
     .getByRole("button", { name: `Remove ${hostname}` })
@@ -253,6 +261,9 @@ test("domains belong to one store: claims, crafted requests and plans", async ({
     return m?.[0] ?? "";
   });
   expect(aId).toMatch(/^domain_/);
+  // B is stepped up, so only tenant isolation can stop the replay.
+  const bUrl = pageB.url();
+  await confirmDashboardPassword(pageB, bUrl);
   const action = await captureServerAction(pageB, async () => {
     await domainCard(pageB, theirs)
       .getByRole("button", { name: `Remove ${theirs}` })

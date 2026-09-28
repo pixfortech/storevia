@@ -28,6 +28,7 @@ import {
   parsePublicId,
   requirePermission,
   scopeOf,
+  requireRecentAuthentication,
   type StoreContext,
 } from "./context";
 import { isUniqueViolation } from "./errors";
@@ -644,6 +645,7 @@ export async function removeCustomDomain(
   options: DomainServiceOptions = {},
 ): Promise<void> {
   requirePermission(ctx, "domain.manage");
+  requireRecentAuthentication(ctx, "removing a domain");
   const id = parsePublicId("domain", publicId);
   const provisioner = options.provisioner ?? getDomainProvisioner();
   await withDomainLock(

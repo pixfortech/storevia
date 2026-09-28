@@ -8,6 +8,7 @@ import {
   refundOrder,
   replyToOrderMessage,
   resolvePendingRefund,
+  resetCustomerOrderLink,
   setOrderArchived,
   SHIPMENT_LABELS,
   updateFulfilment,
@@ -185,6 +186,24 @@ export async function archiveOrderAction(
       message: archived
         ? "Order archived. Find it under Archived orders."
         : "Order restored from the archive.",
+    };
+  });
+}
+
+/** Revokes the customer's order links and emails a new one (M8, S4). */
+export async function resetCustomerLinkAction(
+  storeId: string,
+  orderId: string,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const ctx = await storeActionContext(storeId);
+    const { emailed } = await resetCustomerOrderLink(ctx, orderId);
+    refresh(ctx.storeId);
+    return {
+      ok: true,
+      message: emailed
+        ? "Link reset. The old link no longer works, and the customer has been emailed a new one."
+        : "Link reset. The old link no longer works. This order has no email address to send a new one to.",
     };
   });
 }

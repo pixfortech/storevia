@@ -4,12 +4,12 @@ import { Button } from "@storevia/ui/button";
 import { Checkbox } from "@storevia/ui/choice";
 import { Field, Input, Select, Textarea } from "@storevia/ui/form";
 import { Dialog, DialogClose, DialogFooter } from "@storevia/ui/overlays";
-import { Alert } from "@storevia/ui/surfaces";
 import { Undo2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { refundOrderAction } from "@/app/(app)/s/[storeId]/orders/actions";
 import type { FormState } from "@/components/forms";
+import { FormMessage } from "@/components/forms";
 
 export interface RefundPaymentOption {
   readonly id: string;
@@ -151,7 +151,7 @@ export function RefundDialog({
           });
         }}
       >
-        {!state.ok && state.message ? <Alert tone="danger">{state.message}</Alert> : null}
+        {!state.ok ? <FormMessage state={state} /> : null}
         {payments.length > 1 ? (
           <Field label="Payment" error={state.fieldErrors?.["paymentId"]}>
             <Select

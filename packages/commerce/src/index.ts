@@ -99,6 +99,7 @@ export {
   deleteDemoOrder,
   demoOrderDeletionEnabled,
   markFulfilmentDelivered,
+  resetCustomerOrderLink,
   setOrderArchived,
   updateFulfilment,
 } from "./orders/operations";

@@ -48,7 +48,7 @@ import {
 import { addToCart } from "../src/storefront";
 import { sendOrderNotifications } from "../src/orders/notifications";
 import type { EmailMessage, EmailSender } from "@storevia/email";
-import { expectCode, makeTenant, memberContext, storeOf, type Tenant } from "./fixtures";
+import { expectCode, makeTenant, memberContext, steppedUp, storeOf, type Tenant } from "./fixtures";
 
 let a: Tenant;
 let b: Tenant;
@@ -223,10 +223,10 @@ describe("store settings", () => {
 
     const sb = storeOf(b);
     await expectCode(
-      connectRazorpay(sb, { keyId: "nope", keySecret: "x", webhookSecret: "y" }),
+      connectRazorpay(await steppedUp(sb), { keyId: "nope", keySecret: "x", webhookSecret: "y" }),
       "VALIDATION_FAILED",
     );
-    await connectRazorpay(sb, {
+    await connectRazorpay(await steppedUp(sb), {
       keyId: "rzp_test_ABCDEFGH12345678",
       keySecret: "s3cr3t-key-secret-value-1234",
       webhookSecret: "whsec-value-at-least-long",
@@ -289,7 +289,7 @@ describe("orders", () => {
     await expectCode(getOrder(viewer, id), "FORBIDDEN");
     expect((await getOrder(support, id)).number).toBeGreaterThan(1000);
     await expectCode(fulfilOrder(support, id, {}), "FORBIDDEN");
-    await expectCode(refundOrder(support, id, { amount: "1" }), "FORBIDDEN");
+    await expectCode(refundOrder(await steppedUp(support), id, { amount: "1" }), "FORBIDDEN");
     await expectCode(cancelOrder(support, id, {}), "FORBIDDEN");
     // A cancel with refund needs order.refund up front.
     await fulfilOrder(orders, id, {});
@@ -362,7 +362,10 @@ describe("cancellation", () => {
     const before = await level("tee");
     const id = await placeOrder([["tee", 2]]);
     const s = storeOf(a);
-    const result = await cancelOrder(s, id, { reason: "Customer asked", refund: true });
+    const result = await cancelOrder(await steppedUp(s), id, {
+      reason: "Customer asked",
+      refund: true,
+    });
     expect(result).toMatchObject({ cancelled: true, refund: { status: "SUCCEEDED" } });
     expect(await level("tee")).toEqual(before);
     const detail = await getOrder(s, id);
@@ -387,26 +390,49 @@ describe("cancellation", () => {
 });
 
 describe("refunds", () => {
+  it("moving money needs a recent password confirmation (M8, S5)", async () => {
+    const id = await placeOrder([["tee", 1]]);
+    const s = storeOf(a);
+    await expect(refundOrder(s, id, { amount: "100" })).rejects.toMatchObject({
+      code: "REAUTHENTICATION_REQUIRED",
+      message: "Confirm your password before refunding a payment.",
+    });
+    await expectCode(cancelOrder(s, id, { refund: true }), "REAUTHENTICATION_REQUIRED");
+    await expectCode(
+      connectRazorpay(storeOf(b), {
+        keyId: "rzp_test_ABCDEFGH12345678",
+        keySecret: "s3cr3t-key-secret-value-1234",
+        webhookSecret: "whsec-value-at-least-long",
+      }),
+      "REAUTHENTICATION_REQUIRED",
+    );
+    // Nothing moved.
+    expect((await getOrder(s, id)).paymentStatus).toBe("PAID");
+  });
+
   it("partial refunds are bounded by what was captured", async () => {
     const id = await placeOrder([["tee", 1]]);
     const s = storeOf(a);
     const detail = await getOrder(s, id);
     // 500.00 + 40.00 shipping + 18% GST on the goods (shipping isn't taxed).
     expect(detail.total.amount).toBe("63000");
-    const first = await refundOrder(s, id, { amount: "100", reason: "Damaged box" });
+    const first = await refundOrder(await steppedUp(s), id, {
+      amount: "100",
+      reason: "Damaged box",
+    });
     expect(first.status).toBe("SUCCEEDED");
     expect((await getOrder(s, id)).paymentStatus).toBe("PARTIALLY_REFUNDED");
-    await expect(refundOrder(s, id, { amount: "1000" })).rejects.toMatchObject({
+    await expect(refundOrder(await steppedUp(s), id, { amount: "1000" })).rejects.toMatchObject({
       code: "VALIDATION_FAILED",
       fieldErrors: { amount: expect.stringContaining("up to") as unknown },
     });
-    await expectCode(refundOrder(s, id, { amount: "0" }), "VALIDATION_FAILED");
-    await expectCode(refundOrder(s, id, { amount: "1.234" }), "VALIDATION_FAILED");
+    await expectCode(refundOrder(await steppedUp(s), id, { amount: "0" }), "VALIDATION_FAILED");
+    await expectCode(refundOrder(await steppedUp(s), id, { amount: "1.234" }), "VALIDATION_FAILED");
     const rest = await getOrder(s, id);
     const remaining = rest.payments[0]?.refundable.amount ?? "0";
-    await refundOrder(s, id, { amount: (Number(remaining) / 100).toFixed(2) });
+    await refundOrder(await steppedUp(s), id, { amount: (Number(remaining) / 100).toFixed(2) });
     expect((await getOrder(s, id)).paymentStatus).toBe("REFUNDED");
-    await expectCode(refundOrder(s, id, { amount: "1" }), "VALIDATION_FAILED");
+    await expectCode(refundOrder(await steppedUp(s), id, { amount: "1" }), "VALIDATION_FAILED");
   });
 
   it("a refund the provider hasn't confirmed still counts against the bound", async () => {
@@ -430,7 +456,7 @@ describe("refunds", () => {
     const refundable = (await getOrder(s, id)).payments[0]?.refundable.amount;
     expect(refundable).toBe((payment.capturedAmount - 10000n).toString());
     const total = (Number(payment.capturedAmount) / 100).toFixed(2);
-    await expect(refundOrder(s, id, { amount: total })).rejects.toMatchObject({
+    await expect(refundOrder(await steppedUp(s), id, { amount: total })).rejects.toMatchObject({
       code: "VALIDATION_FAILED",
     });
   });
@@ -441,8 +467,8 @@ describe("refunds", () => {
     const total = (await getOrder(s, id)).total.amount;
     const decimal = (Number(total) / 100).toFixed(2);
     const results = await Promise.allSettled([
-      refundOrder(s, id, { amount: decimal }),
-      refundOrder(s, id, { amount: decimal }),
+      refundOrder(await steppedUp(s), id, { amount: decimal }),
+      refundOrder(await steppedUp(s), id, { amount: decimal }),
     ]);
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
     const payment = await migratorDb().payment.findFirstOrThrow({
@@ -456,14 +482,14 @@ describe("refunds", () => {
     const id = await placeOrder([["tee", 2]]);
     const s = storeOf(a);
     // The test provider declines amounts ending in 13 minor units.
-    const declined = await refundOrder(s, id, { amount: "0.13" });
+    const declined = await refundOrder(await steppedUp(s), id, { amount: "0.13" });
     expect(declined).toMatchObject({ status: "FAILED" });
     const detail = await getOrder(s, id);
     expect(detail.payments[0]?.refundable).toEqual(detail.total);
     const lineId = detail.lines[0]?.id;
     const location = (await listLocations(s))[0]?.id;
     await expectCode(
-      refundOrder(s, id, {
+      refundOrder(await steppedUp(s), id, {
         amount: "100",
         lines: [{ lineId, quantity: 1, restock: true }],
         locationId: location,
@@ -475,7 +501,7 @@ describe("refunds", () => {
       available: before.available - 2,
       reserved: before.reserved,
     });
-    const refunded = await refundOrder(s, id, {
+    const refunded = await refundOrder(await steppedUp(s), id, {
       amount: "500",
       lines: [{ lineId, quantity: 1, restock: true }],
       locationId: location,

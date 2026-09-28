@@ -27,7 +27,7 @@ import {
   type CheckoutStore,
 } from "../src/checkout";
 import { addToCart } from "../src/storefront";
-import { expectCode, makeTenant, memberContext, storeOf, type Tenant } from "./fixtures";
+import { expectCode, makeTenant, memberContext, steppedUp, storeOf, type Tenant } from "./fixtures";
 
 let a: Tenant;
 let b: Tenant;
@@ -173,15 +173,15 @@ describe("sales figures", () => {
   beforeAll(async () => {
     await placeOrder("a", [["tee", 2]], "one@example.test");
     const o2 = await placeOrder("a", [["cap", 1]], "two@example.test");
-    await refundOrder(storeOf(a), o2, { amount: "100" });
+    await refundOrder(await steppedUp(storeOf(a)), o2, { amount: "100" });
     const o3 = await placeOrder("a", [["tee", 1]], "three@example.test");
-    await cancelOrder(storeOf(a), o3, { reason: "Changed mind", refund: true });
+    await cancelOrder(await steppedUp(storeOf(a)), o3, { reason: "Changed mind", refund: true });
     const o4 = await placeOrder("a", [["cap", 3]], "four@example.test");
     await backdate(o4, 3);
     // A returning customer orders again today: no new customer record. The
     // order is cancelled, so it adds nothing to the sales figures either.
     const again = await placeOrder("a", [["cap", 1]], "four@example.test");
-    await cancelOrder(storeOf(a), again, { refund: true });
+    await cancelOrder(await steppedUp(storeOf(a)), again, { refund: true });
     const o5 = await placeOrder("a", [["tee", 1]], "five@example.test");
     await backdate(o5, 10);
     await placeOrder("b", [["tee", 5]], "b-shopper@example.test");

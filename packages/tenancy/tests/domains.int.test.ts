@@ -135,6 +135,14 @@ async function activate(store: StoreContext, hostname: string) {
   return checkCustomDomain(store, added.id, opts());
 }
 
+/** The same store context, re-issued after a recent password confirmation (step-up, M8). */
+function steppedUp(ctx: StoreContext): Promise<StoreContext> {
+  return requireStoreAccess(
+    { ...ctx.principal, recentlyAuthenticated: true },
+    toTypeId("store", ctx.storeId),
+  );
+}
+
 async function resolve(hostname: string) {
   invalidateHostCache();
   return resolveStoreHost(hostname);
@@ -342,10 +350,16 @@ describe("verification and primary", () => {
 });
 
 describe("removal and reuse", () => {
+  it("removing a domain needs a recent password confirmation (M8, S5)", async () => {
+    const domain = await activate(store, "abc.test");
+    await expectCode(removeCustomDomain(store, domain.id, opts()), "REAUTHENTICATION_REQUIRED");
+    expect(await migratorDb().storeDomain.count({ where: { hostname: "abc.test" } })).toBe(1);
+  });
+
   it("removing the primary hands primary back to the platform address and stops serving", async () => {
     const domain = await activate(store, "abc.test");
     await setPrimaryDomain(store, domain.id);
-    await removeCustomDomain(store, domain.id, opts());
+    await removeCustomDomain(await steppedUp(store), domain.id, opts());
     expect(await migratorDb().storeDomain.count({ where: { hostname: "abc.test" } })).toBe(0);
     expect((await listStoreDomains(store)).primaryHostname).toBe("clay.storevia.site");
     expect((await provisioner.getDomainStatus("abc.test")).registered).toBe(false);
@@ -355,7 +369,7 @@ describe("removal and reuse", () => {
     expect(
       (await migratorDb().auditLog.findMany({ where: { action: "domain.removed" } }))[0]?.metadata,
     ).toEqual({ hostname: "abc.test", status: "ACTIVE" });
-    await expectCode(removeCustomDomain(store, domain.id, opts()), "NOT_FOUND");
+    await expectCode(removeCustomDomain(await steppedUp(store), domain.id, opts()), "NOT_FOUND");
   });
 
   it("another store can claim a removed domain, but must prove ownership afresh", async () => {
@@ -365,7 +379,7 @@ describe("removal and reuse", () => {
     ).verificationToken;
     const listed = await listStoreDomains(store);
     const custom = listed.domains.find((d) => d.kind === "custom");
-    await removeCustomDomain(store, custom?.id, opts());
+    await removeCustomDomain(await steppedUp(store), custom?.id, opts());
 
     const buyer = await newOrganisation("Buyer");
     const buyerStore = await newStore(buyer.owner, buyer.org, "buyer");
@@ -451,7 +465,7 @@ describe("removal and reuse", () => {
 
   it("Storevia addresses can't be removed", async () => {
     const platform = (await listStoreDomains(store)).domains.find((d) => d.kind === "platform");
-    await expectCode(removeCustomDomain(store, platform?.id, opts()), "CONFLICT");
+    await expectCode(removeCustomDomain(await steppedUp(store), platform?.id, opts()), "CONFLICT");
   });
 });
 
@@ -462,7 +476,7 @@ describe("tenant isolation", () => {
     const theirs = await activate(rivalStore, "rival.test");
     await expectCode(checkCustomDomain(store, theirs.id, opts()), "NOT_FOUND");
     await expectCode(setPrimaryDomain(store, theirs.id), "NOT_FOUND");
-    await expectCode(removeCustomDomain(store, theirs.id, opts()), "NOT_FOUND");
+    await expectCode(removeCustomDomain(await steppedUp(store), theirs.id, opts()), "NOT_FOUND");
     await expectCode(checkCustomDomain(store, "domain_bogus", opts()), "NOT_FOUND");
     await expectCode(setPrimaryDomain(store, toTypeId("store", store.storeId)), "NOT_FOUND");
     expect((await listStoreDomains(store)).domains.map((d) => d.hostname)).toEqual([
@@ -471,7 +485,7 @@ describe("tenant isolation", () => {
     // A second store in the same organisation can't touch it either.
     const sibling = await newStore(acme.owner, acme.org, "sibling");
     const mine = await activate(store, "mine.test");
-    await expectCode(removeCustomDomain(sibling, mine.id, opts()), "NOT_FOUND");
+    await expectCode(removeCustomDomain(await steppedUp(sibling), mine.id, opts()), "NOT_FOUND");
     expect((await listStoreDomains(rivalStore)).domains.map((d) => d.status)).toEqual([
       "ACTIVE",
       "ACTIVE",
@@ -523,7 +537,7 @@ describe("races", () => {
     };
     const check = checkCustomDomain(store, added.id, { provisioner: slow });
     await new Promise((r) => setTimeout(r, 300));
-    const removal = removeCustomDomain(store, added.id, opts());
+    const removal = removeCustomDomain(await steppedUp(store), added.id, opts());
     const [checked, removed] = await Promise.allSettled([check, removal]);
     expect(checked.status === "rejected" ? checked.reason : "ok").toBe("ok");
     expect(removed.status === "rejected" ? removed.reason : "ok").toBe("ok");
@@ -545,7 +559,9 @@ describe("races", () => {
         return provisioner.removeDomain(h);
       },
     };
-    const removal = removeCustomDomain(store, domain.id, { provisioner: slowRemove });
+    const removal = removeCustomDomain(await steppedUp(store), domain.id, {
+      provisioner: slowRemove,
+    });
     await new Promise((r) => setTimeout(r, 300));
     await expect(checkCustomDomain(store, domain.id, opts())).rejects.toMatchObject({
       code: "CONFLICT",

@@ -1,6 +1,13 @@
 import "server-only";
 import { withTenant, type TenantScope } from "@storevia/database";
-import { forbidden, notFound, parseTypeId, unauthenticated, type IdKind } from "@storevia/types";
+import {
+  DomainError,
+  forbidden,
+  notFound,
+  parseTypeId,
+  unauthenticated,
+  type IdKind,
+} from "@storevia/types";
 import type { BusinessType } from "./business-types";
 import { permissionsFor, type MemberRole, type Permission } from "./rbac";
 
@@ -15,6 +22,20 @@ export interface Principal {
   readonly emailVerified: boolean;
   /** Step-up re-authentication happened recently (see packages/auth). */
   readonly recentlyAuthenticated: boolean;
+}
+
+/**
+ * Money- and identity-moving actions need a recent password confirmation
+ * (docs 04 §4 step-up; M8 extends it to refunds, payment connections and
+ * domain removal). `what` finishes "Confirm your password before …".
+ */
+export function requireRecentAuthentication(
+  ctx: { readonly principal: Principal },
+  what: string,
+): void {
+  if (!ctx.principal.recentlyAuthenticated) {
+    throw new DomainError("REAUTHENTICATION_REQUIRED", `Confirm your password before ${what}.`);
+  }
 }
 
 export interface RequestInfo {

@@ -26,6 +26,7 @@ import {
   markStaffNotificationsRead,
   orderMessages,
   replyToOrderMessage,
+  resetCustomerOrderLink,
   setOrderArchived,
   staffNotifications,
   unreadStaffNotifications,
@@ -42,7 +43,11 @@ import {
   updateContact,
   type CheckoutStore,
 } from "../src/checkout";
-import { hashOrderAccessToken } from "../src/orders/access";
+import {
+  hashOrderAccessToken,
+  orderAccessToken,
+  verifiedOrderAccessHash,
+} from "../src/orders/access";
 import { getCustomerOrder, sendCustomerOrderMessage } from "../src/orders/customer";
 import { notifyStaffOfCustomerMessages } from "../src/orders/messages";
 import { sendOrderNotifications } from "../src/orders/notifications";
@@ -500,6 +505,55 @@ describe("archive and deletion", () => {
 });
 
 describe("the shopper's order link", () => {
+  it("staff can reset a leaked link: the old one dies, a new one is emailed (M8, S4)", async () => {
+    const s = storeOf(a);
+    const { id, token } = await placeOrder(storeA, "lamp");
+    expect(await getCustomerOrder(scopeA(), token)).not.toBeNull();
+
+    // A viewer can't; order.manage can.
+    const viewer = await memberContext(a, "VIEWER", s);
+    await expectCode(resetCustomerOrderLink(viewer, id), "FORBIDDEN");
+    expect(await resetCustomerOrderLink(s, id)).toEqual({ revoked: 1, emailed: true });
+
+    expect(await getCustomerOrder(scopeA(), token)).toBeNull();
+    const live = await migratorDb().orderCustomerAccess.findFirstOrThrow({
+      where: { orderId: internal(id), revokedAt: null },
+    });
+    const fresh = orderAccessToken(live.id);
+    expect(fresh).not.toBe(token);
+    expect(await getCustomerOrder(scopeA(), fresh)).not.toBeNull();
+    // A fresh confirmation carries the new link.
+    expect(
+      await migratorDb().orderNotification.count({
+        where: { orderId: internal(id), dedupeKey: `link-reset:${live.id}` },
+      }),
+    ).toBe(1);
+    const audit = await migratorDb().auditLog.findFirstOrThrow({
+      where: { action: "order.customer_link_reset", entityId: internal(id) },
+    });
+    expect(JSON.stringify(audit.metadata)).not.toContain(fresh);
+    // The shopper's timeline shows nothing of it.
+    const view = await getCustomerOrder(scopeA(), fresh);
+    expect(
+      JSON.stringify(view, (_k, v: unknown) => (typeof v === "bigint" ? v.toString() : v)),
+    ).not.toMatch(/reset/i);
+  });
+
+  it("a secret rotation keeps links working while the previous secret is kept", () => {
+    const id = "0190f2a4-0000-7000-8000-00000000e001";
+    const oldEnv = { STOREVIA_ENV: "production", ORDER_ACCESS_SECRET: "o".repeat(40) };
+    const token = orderAccessToken(id, oldEnv);
+    const rotated = { STOREVIA_ENV: "production", ORDER_ACCESS_SECRET: "n".repeat(40) };
+    expect(verifiedOrderAccessHash(token, rotated)).toBeNull();
+    expect(
+      verifiedOrderAccessHash(token, { ...rotated, ORDER_ACCESS_SECRET_PREVIOUS: "o".repeat(40) }),
+    ).toBe(hashOrderAccessToken(token));
+    // A short "previous" secret is ignored, never a way in.
+    expect(
+      verifiedOrderAccessHash(token, { ...rotated, ORDER_ACCESS_SECRET_PREVIOUS: "o" }),
+    ).toBeNull();
+  });
+
   it("opens exactly one order of one store, and only with a genuine, live token", async () => {
     const s = storeOf(a);
     const { id, token } = await placeOrder(storeA, "lamp");

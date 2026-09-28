@@ -5,6 +5,7 @@ import { PaymentProviderError, type RefundResult } from "@storevia/payments";
 import {
   recordAudit,
   requirePermission,
+  requireRecentAuthentication,
   scopeOf,
   type StoreContext,
   type TenantContext,
@@ -342,7 +343,10 @@ export async function cancelOrder(
   const wantsRefund = input.refund === true || input.refund === "on";
   const store = requireStoreContext(ctx);
   // Checked up front, so a cancellation never half-happens for lack of refund rights.
-  if (wantsRefund) requirePermission(store, "order.refund");
+  if (wantsRefund) {
+    requirePermission(store, "order.refund");
+    requireRecentAuthentication(store, "refunding a payment");
+  }
   const cancelled = await inStore(
     ctx,
     "order.manage",
@@ -465,6 +469,7 @@ export async function refundOrder(
   const reason = text(input.reason, 500, "reason");
   const store = requireStoreContext(ctx);
   requirePermission(store, "order.refund");
+  requireRecentAuthentication(store, "refunding a payment");
   requireWritableStore(store);
 
   const created = await withTenant(scopeOf(store), async (tx) => {

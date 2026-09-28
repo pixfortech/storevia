@@ -28,6 +28,7 @@ import {
   ArchiveOrderButton,
   CompleteOrderDialog,
   DeleteDemoOrderDialog,
+  ResetCustomerLinkDialog,
   EditFulfilmentDialog,
   FulfilmentStepButton,
   ReplyForm,
@@ -765,6 +766,18 @@ export default async function OrderPage({
                 {demoOrderDeletionEnabled() ? (
                   <DeleteDemoOrderDialog storeId={storeId} orderId={order.id} orderLabel={label} />
                 ) : null}
+              </CardBody>
+            </Card>
+          ) : null}
+
+          {canManage ? (
+            <Card>
+              <CardHeader
+                title="Customer's order link"
+                description="The private link in the customer's emails opens this order without a password. If it was shared by mistake, reset it: the old link stops working and the customer is emailed a new one."
+              />
+              <CardBody>
+                <ResetCustomerLinkDialog storeId={storeId} orderId={order.id} orderLabel={label} />
               </CardBody>
             </Card>
           ) : null}

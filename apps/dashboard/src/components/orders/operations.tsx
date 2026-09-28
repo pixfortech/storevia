@@ -13,7 +13,7 @@ import { Checkbox } from "@storevia/ui/choice";
 import { Field, Input, Select, Textarea } from "@storevia/ui/form";
 import { Dialog, DialogClose, DialogFooter } from "@storevia/ui/overlays";
 import { Alert } from "@storevia/ui/surfaces";
-import { Archive, ArchiveRestore, CheckCheck, Pencil, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, CheckCheck, KeyRound, Pencil, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useActionState, useState, useTransition } from "react";
 import {
@@ -21,6 +21,7 @@ import {
   completeOrderAction,
   deleteDemoOrderAction,
   replyToMessageAction,
+  resetCustomerLinkAction,
   updateFulfilmentAction,
 } from "@/app/(app)/s/[storeId]/orders/actions";
 import { FormMessage, SubmitButton, type FormState } from "@/components/forms";
@@ -79,6 +80,66 @@ export function ArchiveOrderButton({
       </Button>
       {!state.ok && state.message ? (
         <p role="alert" className="text-label text-danger-700">
+          {state.message}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+/** Revokes the customer's order links and emails a new one (M8, S4). */
+export function ResetCustomerLinkDialog({
+  storeId,
+  orderId,
+  orderLabel,
+}: {
+  storeId: string;
+  orderId: string;
+  orderLabel: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const { state, setState, pending, run } = useOrderAction();
+  return (
+    <>
+      <Dialog
+        role="alertdialog"
+        size="sm"
+        open={open}
+        onOpenChange={(next) => {
+          if (next) setState({ ok: false });
+          setOpen(next);
+        }}
+        trigger={
+          <Button variant="secondary" leadingIcon={KeyRound}>
+            Reset customer link
+          </Button>
+        }
+        title={`Reset the customer link for ${orderLabel}?`}
+        description="Every link sent so far stops working at once. The customer is emailed a new one."
+      >
+        {!state.ok && state.message ? <Alert tone="danger">{state.message}</Alert> : null}
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="secondary">Cancel</Button>
+          </DialogClose>
+          <Button
+            variant="danger"
+            pending={pending}
+            onClick={() => {
+              run(
+                () => resetCustomerLinkAction(storeId, orderId),
+                () => {
+                  setOpen(false);
+                },
+              );
+            }}
+          >
+            Reset link
+          </Button>
+        </DialogFooter>
+      </Dialog>
+      {state.ok && state.message ? (
+        <p role="status" className="mt-3 text-body-sm text-ink-muted">
           {state.message}
         </p>
       ) : null}
