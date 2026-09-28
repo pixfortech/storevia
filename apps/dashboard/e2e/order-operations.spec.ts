@@ -188,7 +188,7 @@ test("archive keeps the order out of the list but searchable; deleting a paid or
 
   // Deletion needs the typed order number, and the server checks it too.
   await page.getByRole("button", { name: "Delete demo order" }).click();
-  const dialog = page.getByRole("dialog");
+  const dialog = page.getByRole("alertdialog");
   await dialog.getByLabel(/Type .* to confirm/).fill("#1");
   await expect(dialog.getByRole("button", { name: "Delete demo order" })).toBeDisabled();
   await dialog.getByLabel(/Type .* to confirm/).fill(number);

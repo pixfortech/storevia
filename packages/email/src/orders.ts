@@ -88,7 +88,11 @@ export function orderConfirmationMessage(to: string, order: OrderEmail): EmailMe
 }
 
 /** The store answered the shopper's message about their order. */
-export function orderMessageReplyMessage(to: string, order: OrderEmail, reply: string): EmailMessage {
+export function orderMessageReplyMessage(
+  to: string,
+  order: OrderEmail,
+  reply: string,
+): EmailMessage {
   const intro = [`${order.storeName} replied about your order #${String(order.orderNumber)}.`];
   const link = orderLink(order);
   const quoted = `<blockquote style="margin:0 0 16px;padding:8px 12px;border-left:3px solid #e5e7eb;white-space:pre-wrap">${escapeHtml(reply)}</blockquote>`;

@@ -13,7 +13,7 @@ import {
 } from "@storevia/email";
 import { createLogger, errorFields, recordMetric } from "@storevia/observability";
 import { format, money } from "../money";
-import { orderAccessPath, orderAccessToken } from "./access";
+import { orderAccessConfigured, orderAccessPath, orderAccessToken } from "./access";
 
 // Order emails (ADR-0031 §12), sent by the worker from the OrderNotification
 // queue that order changes write in their own transactions. An email that
@@ -98,7 +98,7 @@ async function orderEmail(
     ORDER BY a."createdAt" DESC LIMIT 1`;
   const link = access[0];
   const orderUrl =
-    link?.host != null
+    link?.host != null && orderAccessConfigured()
       ? `${storefrontOrigin(link.host)}${orderAccessPath(orderAccessToken(link.id))}`
       : null;
   const totals: [string, string][] = [["Subtotal", fmt(o.subtotal)]];

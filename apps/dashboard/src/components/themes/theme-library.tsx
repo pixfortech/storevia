@@ -89,12 +89,10 @@ export function ThemeLibrary({
   }
 
   function actionControl(entry: ThemeLibraryEntry, action: ThemeCardAction) {
-    const label = (
-      <>
-        {action.label}
-        <span className="sr-only">, {entry.name}</span>
-      </>
-    );
+    // One accessible name, "Install, Boutique" (a visually hidden suffix
+    // would be read with a stray space in some browsers).
+    const name = `${action.label}, ${entry.name}`;
+    const label = action.label;
     const className = buttonClasses(action.variant, "md", "w-full");
     switch (action.kind) {
       case "link":
@@ -108,16 +106,22 @@ export function ThemeLibrary({
                   : `${themesHref}/customise?theme=${encodeURIComponent(entry.key)}`
             }
             className={className}
+            aria-label={name}
           >
             {label}
           </Link>
         );
       case "external":
         return (
-          <a href={previewHref} target="_blank" rel="noopener" className={className}>
+          <a
+            href={previewHref}
+            target="_blank"
+            rel="noopener"
+            className={className}
+            aria-label={`${name} (opens in a new tab)`}
+          >
             {label}
             <ExternalLink className="size-4" aria-hidden="true" />
-            <span className="sr-only"> (opens in a new tab)</span>
           </a>
         );
       case "button":
@@ -125,6 +129,7 @@ export function ThemeLibrary({
           <Button
             variant={action.variant}
             fullWidth
+            aria-label={name}
             disabled={pending !== null}
             pending={pending?.key === entry.key && pending.run === action.run}
             onClick={() => {
@@ -136,7 +141,7 @@ export function ThemeLibrary({
         );
       case "disabled":
         return (
-          <Button variant={action.variant} fullWidth disabled>
+          <Button variant={action.variant} fullWidth disabled aria-label={name}>
             {label}
           </Button>
         );
