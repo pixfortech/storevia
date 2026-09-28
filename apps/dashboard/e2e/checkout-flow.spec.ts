@@ -1,6 +1,6 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import pg from "pg";
-import { setUpStore } from "./checkout-helpers";
+import { addRate, addZone, setUpStore } from "./checkout-helpers";
 import { createTenant, type Tenant } from "./helpers";
 import { addProduct, fetchStore, storefrontOrigin } from "./storefront-helpers";
 
@@ -119,7 +119,7 @@ async function shippingAddress(shop: Page, city: string) {
   await form.locator("#ship_lastName").fill("Lohia");
   await form.locator("#ship_line1").fill("7 Park Street");
   await form.locator("#ship_postalCode").fill("700016");
-  await form.locator("#ship_regionCode").fill("WB");
+  await form.locator("#ship_region").selectOption({ label: "West Bengal" });
   if (city) await form.locator("#ship_city").fill(city);
 }
 
@@ -220,6 +220,7 @@ test("checkout step by step at desktop, tablet and phone widths", async ({ page,
       await billing.locator("#billing_lastName").fill("Team");
       await billing.locator("#billing_line1").fill("1 Office Road");
       await billing.locator("#billing_postalCode").fill("411001");
+      await billing.locator("#billing_region").selectOption({ label: "Maharashtra" });
       await shop.locator("#address").getByRole("button", { name: "Continue" }).click();
 
       // Only the billing city is missing: its error, every value kept, box unticked.
@@ -269,19 +270,8 @@ test("changing the address clears a shipping method that no longer applies", asy
   await addProduct(page, tenant, "Stoneware mug", "999.50", "5");
   await setUpStore(page, tenant);
   // The store also ships to Nepal, at its own rate.
-  await page.goto(`${tenant.storePath}/settings/shipping`);
-  await page.getByRole("button", { name: "Add zone" }).first().click();
-  const zone = page.getByRole("dialog");
-  await zone.getByLabel("Zone name").fill("Nepal");
-  await zone.getByLabel("Countries").fill("NP");
-  await zone.getByRole("button", { name: "Add zone" }).click();
-  await expect(zone).toBeHidden();
-  await page.getByRole("button", { name: "Add rate to Nepal" }).click();
-  const rate = page.getByRole("dialog");
-  await rate.getByLabel("Rate name").fill("Nepal post");
-  await rate.getByLabel("Price").fill("300");
-  await rate.getByRole("button", { name: "Add rate" }).click();
-  await expect(rate).toBeHidden();
+  await addZone(page, tenant, "Nepal", ["Nepal"]);
+  await addRate(page, "Nepal", "Nepal post", "300");
   const origin = await storefrontOrigin(page, tenant);
 
   const { context, shop } = await toCheckout(browser, origin, VIEWPORTS[0]);
@@ -297,10 +287,11 @@ test("changing the address clears a shipping method that no longer applies", asy
   await expect(shop.locator(".sv-summary-total")).toContainText("1,049.50");
 
   // Moving the address to Nepal: India's rate is gone and nothing is chosen.
+  // (The Indian state picked earlier is dropped: Nepal has no state list.)
   await shop.locator("#ship_countryCode").selectOption("NP");
-  await shop.locator("#ship_regionCode").fill("");
   await shop.locator("#address").getByRole("button", { name: "Update address" }).click();
   await expect(shop.locator("#ship_countryCode")).toHaveValue("NP");
+  await expect(shop.getByLabel("State / region (optional)")).toHaveValue("");
   await expect(shop.locator(".sv-option")).toHaveCount(1);
   await expect(shop.locator(".sv-option").first()).toContainText("Nepal post");
   await expect(shop.getByRole("radio", { name: /Nepal post/ })).not.toBeChecked();
@@ -308,10 +299,19 @@ test("changing the address clears a shipping method that no longer applies", asy
   await expect(shop.locator(".sv-summary-total")).toContainText("999.50");
   await expect(shop.getByRole("button", { name: /^Pay / })).toBeDisabled();
 
-  // Back to India: the old method isn't silently chosen again.
+  // Back to India: without a script the form can't offer India's states
+  // until it's sent, so it comes back asking for one, keeping the country.
   await shop.locator("#ship_countryCode").selectOption("IN");
   await shop.locator("#address").getByRole("button", { name: "Update address" }).click();
+  await shop.waitForURL(/step=address&f=/);
   await expect(shop.locator("#ship_countryCode")).toHaveValue("IN");
+  await expect(shop.locator("#ship_region-error")).toHaveText(/Choose your state\./);
+  await expect(shop.locator("#ship_region")).toHaveAttribute("aria-invalid", "true");
+  await shop.locator("#ship_region").selectOption({ label: "West Bengal" });
+  await shop.locator("#address").getByRole("button", { name: "Update address" }).click();
+  await expect(fieldErrors(shop)).toHaveCount(0);
+  await expect(shop.locator("#ship_region")).toHaveValue("WB");
+  // ...and the old method isn't silently chosen again.
   await expect(shop.getByRole("radio", { name: /Standard/ })).not.toBeChecked();
   await expect(shop.locator(".sv-summary-total")).toContainText("999.50");
   await context.close();

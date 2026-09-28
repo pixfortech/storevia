@@ -1,4 +1,10 @@
-import { getCheckout, type CheckoutAddress, type CheckoutView } from "@storevia/commerce/checkout";
+import {
+  countryByCode,
+  findRegion,
+  getCheckout,
+  type CheckoutAddress,
+  type CheckoutView,
+} from "@storevia/commerce/checkout";
 import { formatPrice } from "@storevia/commerce/blocks";
 import { isBrowsable, requestStore } from "@storevia/site-engine/request";
 import type { Metadata } from "next";
@@ -39,7 +45,7 @@ const PROBLEMS: Record<string, string> = {
     "Some items are no longer available and aren't included. Update your cart to continue.",
   EMAIL: "Add your email address.",
   ADDRESS: "Add a shipping address.",
-  SHIPPING_UNAVAILABLE: "We don't ship to this address yet.",
+  SHIPPING_UNAVAILABLE: "We don't currently ship to this address.",
   SHIPPING: "Choose a shipping method.",
   DISCOUNT: "Your discount code can't be used. Remove it to continue.",
   ZERO_TOTAL: "Orders must have something to pay.",
@@ -181,75 +187,112 @@ function OpenSteps({
   const ready = view.problems.length === 0;
   const lastPayment = view.lastPaymentProblem ? LAST_PAYMENT[view.lastPaymentProblem] : undefined;
 
+  // The form is drawn for one country: the one just submitted, else the
+  // saved one, else the store's. With no script, the state list can't follow
+  // the country select live, so the form says which country its list was for
+  // (regionCountry); if the shopper picks another country, the server refuses
+  // the old state and the form comes back with the new country's list.
   const addressFields = (prefix: "" | "billing_", value: (n: keyof CheckoutAddress) => string) => {
     const errors = errorsFor("address");
+    const section = prefix ? "billing" : "shipping";
     const f = (name: keyof CheckoutAddress) => ({
       id: `${prefix || "ship_"}${name}`,
       name: `${prefix}${name}`,
       error: errors[`${prefix}${name}`],
       defaultValue: value(name),
     });
+    const selected = value("countryCode") || country;
+    const geo = countryByCode(selected);
+    const offeredFor = addressValues[`${prefix}regionCountry`];
+    const regionInput = offeredFor && offeredFor !== selected ? "" : value("region");
+    const region_ = {
+      id: `${prefix || "ship_"}region`,
+      label: geo?.regions ? (geo.regionLabel ?? "State / region") : "State / region (optional)",
+      error: errors[`${prefix}region`],
+    };
+    const postal = geo?.postalCode;
     const country_ = {
       id: `${prefix || "ship_"}countryCode`,
       label: "Country",
+      hint:
+        countries.length > 1
+          ? "If you change the country, you'll choose the state next."
+          : undefined,
       error: errors[`${prefix}countryCode`],
     };
     return (
       <div className="sv-field-grid">
         <Field
           label="First name"
-          autoComplete={`${prefix ? "billing" : "shipping"} given-name`}
+          autoComplete={`${section} given-name`}
           required
           {...f("firstName")}
         />
         <Field
           label="Last name"
-          autoComplete={`${prefix ? "billing" : "shipping"} family-name`}
+          autoComplete={`${section} family-name`}
           required
           {...f("lastName")}
         />
         <Field
           label="Company (optional)"
-          autoComplete={`${prefix ? "billing" : "shipping"} organization`}
+          autoComplete={`${section} organization`}
           wide
           {...f("company")}
         />
         <Field
           label="Address"
-          autoComplete={`${prefix ? "billing" : "shipping"} address-line1`}
+          autoComplete={`${section} address-line1`}
           required
           wide
           {...f("line1")}
         />
         <Field
           label="Apartment, suite, etc. (optional)"
-          autoComplete={`${prefix ? "billing" : "shipping"} address-line2`}
+          autoComplete={`${section} address-line2`}
           wide
           {...f("line2")}
         />
+        <Field label="City" autoComplete={`${section} address-level2`} required {...f("city")} />
+        <input type="hidden" name={`${prefix}regionCountry`} value={selected} />
+        {geo?.regions ? (
+          <FieldShell {...region_}>
+            <select
+              {...controlProps(region_)}
+              name={`${prefix}region`}
+              autoComplete={`${section} address-level1`}
+              required
+              defaultValue={findRegion(geo, regionInput)?.code ?? ""}
+            >
+              <option value="">Choose…</option>
+              {geo.regions.map((r) => (
+                <option key={r.code} value={r.code}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          </FieldShell>
+        ) : (
+          <Field
+            {...f("region")}
+            {...region_}
+            defaultValue={regionInput}
+            autoComplete={`${section} address-level1`}
+          />
+        )}
         <Field
-          label="City"
-          autoComplete={`${prefix ? "billing" : "shipping"} address-level2`}
-          required
-          {...f("city")}
-        />
-        <Field
-          label="State or region code (optional)"
-          hint="For example KA or MH"
-          autoComplete="off"
-          {...f("regionCode")}
-        />
-        <Field
-          label="Postal code"
-          autoComplete={`${prefix ? "billing" : "shipping"} postal-code`}
+          label={postal ? postal.label : "Postal code (optional)"}
+          autoComplete={`${section} postal-code`}
+          required={postal?.required ?? false}
+          inputMode={postal?.numeric ? "numeric" : undefined}
           {...f("postalCode")}
         />
         <FieldShell {...country_}>
           <select
             {...controlProps(country_)}
             name={`${prefix}countryCode`}
-            autoComplete={`${prefix ? "billing" : "shipping"} country`}
-            defaultValue={value("countryCode") || country}
+            autoComplete={`${section} country`}
+            defaultValue={selected}
           >
             {countries.map((c) => (
               <option key={c.code} value={c.code}>
@@ -261,7 +304,7 @@ function OpenSteps({
         <Field
           label="Phone (optional)"
           type="tel"
-          autoComplete={`${prefix ? "billing" : "shipping"} tel`}
+          autoComplete={`${section} tel`}
           {...f("phone")}
         />
       </div>
@@ -346,7 +389,7 @@ function OpenSteps({
             <p className="sv-muted">Add your shipping address to see shipping options.</p>
           ) : view.shippingOptions.length === 0 ? (
             <p className="sv-notice" role="status">
-              We don&apos;t ship to this address yet.
+              We don&apos;t currently ship to this address.
             </p>
           ) : (
             <form action={shippingAction}>

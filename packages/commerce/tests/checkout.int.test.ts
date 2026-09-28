@@ -340,6 +340,8 @@ describe("checkout foundation", () => {
       billing_lastName: "Team",
       billing_line1: "1 Office Road",
       billing_city: "Pune",
+      billing_region: "Maharashtra",
+      billing_postalCode: "411001",
       billing_countryCode: "IN",
     };
     const separate = await updateAddress(s.req, {
@@ -348,7 +350,12 @@ describe("checkout foundation", () => {
       billingSameAsShipping: "off",
     });
     expect(separate.shippingAddress).toMatchObject({ line1: "12 MG Road", city: "Bengaluru" });
-    expect(separate.billingAddress).toMatchObject({ line1: "1 Office Road", city: "Pune" });
+    expect(separate.billingAddress).toMatchObject({
+      line1: "1 Office Road",
+      city: "Pune",
+      region: "Maharashtra",
+      regionCode: "MH",
+    });
     // Ticked, the billing fields are ignored and billing equals shipping.
     const same = await updateAddress(s.req, {
       ...ADDRESS,
@@ -372,7 +379,12 @@ describe("checkout foundation", () => {
     const moved = await updateAddress(s.req, { ...ADDRESS, city: "Mysuru" });
     expect(moved.shipping?.name).toBe(view.shipping?.name);
     // Nowhere the store ships: no options, and the choice is cleared...
-    const abroad = await updateAddress(s.req, { ...ADDRESS, countryCode: "US", regionCode: "" });
+    const abroad = await updateAddress(s.req, {
+      ...ADDRESS,
+      countryCode: "US",
+      regionCode: "NY",
+      postalCode: "10001",
+    });
     expect(abroad.shippingOptions).toEqual([]);
     expect(abroad.shipping).toBeNull();
     expect(abroad.problems).toContain("SHIPPING_UNAVAILABLE");

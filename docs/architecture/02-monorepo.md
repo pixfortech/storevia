@@ -31,7 +31,7 @@ apps/
 packages/
   config/            shared tsconfig / eslint / tailwind presets
   types/             cross-cutting primitives: branded IDs, TypeID codec, Result, error codes
-  validation/        zod schemas shared by server and client (inputs, API contracts, env)
+  validation/        zod schemas shared by server and client (inputs, API contracts, env); country/region reference data (`/geo`)
   database/          Prisma schema + migrations + seeds, client factory, withTenant(), RLS helpers
   security/          token generation/hashing, envelope encryption, rate limiter, HTML sanitiser, CSP builder, SSRF-safe fetch
   observability/     logger, request context, tracing, error reporting interface

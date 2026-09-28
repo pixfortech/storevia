@@ -1,8 +1,13 @@
-import { getShippingSettings, type ShippingRateView } from "@storevia/commerce";
+import {
+  getShippingSettings,
+  type ShippingRateView,
+  type ShippingZoneView,
+} from "@storevia/commerce";
 import { fromJSON, toDecimalString, type MoneyJson } from "@storevia/commerce/money";
 import { getStore, hasPermission } from "@storevia/tenancy";
 import { Button } from "@storevia/ui/button";
 import { Alert, Badge, Card, CardBody, EmptyState } from "@storevia/ui/surfaces";
+import { countryByCode, regionByCode } from "@storevia/validation/geo";
 import { Lock } from "lucide-react";
 import type { Metadata } from "next";
 import { AccessNotice } from "@/components/areas/access-notice";
@@ -14,16 +19,27 @@ import {
   RateDialog,
   ZoneDialog,
   type RateValues,
+  type TakenCountries,
 } from "@/components/settings/shipping-forms";
 import { PageHeader } from "@/components/shell/app-shell";
 import { formatMoney } from "@/lib/catalogue";
-import { COUNTRY_OPTIONS } from "@/lib/options";
 import { settingsTabs } from "@/lib/settings-tabs";
 import { storeContextOr404 } from "@/lib/tenant";
 
 export const metadata: Metadata = { title: "Shipping settings" };
 
-const countryName = (code: string) => COUNTRY_OPTIONS.find((c) => c.value === code)?.label ?? code;
+const countryName = (code: string) => countryByCode(code)?.name ?? code;
+const regionName = (country: string, code: string) => regionByCode(country, code)?.name ?? code;
+
+/** Countries in each zone, by name, for the other zones' dialogs. */
+function takenBy(zones: readonly ShippingZoneView[], except: string | null): TakenCountries {
+  const taken: Record<string, string> = {};
+  for (const zone of zones) {
+    if (zone.id === except) continue;
+    for (const c of zone.countries) taken[c.countryCode] = zone.name;
+  }
+  return taken;
+}
 
 const decimal = (value: MoneyJson | null) => (value ? toDecimalString(fromJSON(value)) : "");
 
@@ -65,7 +81,11 @@ export default async function ShippingSettingsPage({
         eyebrow={ctx.storeName}
         title="Store settings"
         description="Where you ship and what shoppers pay for it, in your store's currency."
-        actions={canEdit && zones.length > 0 ? <ZoneDialog storeId={storeId} /> : undefined}
+        actions={
+          canEdit && zones.length > 0 ? (
+            <ZoneDialog storeId={storeId} taken={takenBy(zones, null)} />
+          ) : undefined
+        }
       />
       <LinkTabs
         label="Settings sections"
@@ -83,19 +103,24 @@ export default async function ShippingSettingsPage({
             titleAs="h2"
             title="No shipping zones yet"
             description="Add a zone for the countries you ship to, then give it at least one rate. Shoppers outside every zone can't be offered shipping."
-            action={canEdit ? <ZoneDialog storeId={storeId} /> : undefined}
+            action={
+              canEdit ? <ZoneDialog storeId={storeId} taken={takenBy(zones, null)} /> : undefined
+            }
           />
         </Card>
       ) : (
         <SettingsLayout sections={zones.map((z) => ({ id: `zone-${z.id}`, label: z.name }))}>
           {zones.map((zone) => {
-            const regions = zone.countries[0]?.regionCodes ?? [];
+            const first = zone.countries[0];
+            const regions = first?.regionCodes ?? [];
             const zoneValues = {
               id: zone.id,
               name: zone.name,
-              countries: zone.countries.map((c) => c.countryCode).join(", "),
-              regions: regions.join(", "),
+              countries: zone.countries.map((c) => c.countryCode),
+              regions,
             };
+            const regionsLabel =
+              (first && countryByCode(first.countryCode)?.regionsLabel) ?? "Regions";
             return (
               <SettingsSection
                 key={zone.id}
@@ -104,8 +129,13 @@ export default async function ShippingSettingsPage({
                 description={
                   <>
                     {zone.countries.map((c) => countryName(c.countryCode)).join(", ")}
-                    {regions.length > 0 ? (
-                      <span className="block">Regions: {regions.join(", ")}</span>
+                    {first && regions.length > 0 ? (
+                      <span className="block">
+                        {regionsLabel}:{" "}
+                        {regions.map((code) => regionName(first.countryCode, code)).join(", ")}
+                      </span>
+                    ) : zone.countries.length === 1 ? (
+                      <span className="block">Whole country</span>
                     ) : null}
                   </>
                 }
@@ -115,6 +145,7 @@ export default async function ShippingSettingsPage({
                       <ZoneDialog
                         storeId={storeId}
                         zone={zoneValues}
+                        taken={takenBy(zones, zone.id)}
                         trigger={
                           <Button size="sm" variant="secondary">
                             Edit zone<span className="sr-only"> {zone.name}</span>

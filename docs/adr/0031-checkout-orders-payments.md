@@ -93,7 +93,13 @@ OPEN / PAYMENT_PENDING ──expiry sweep──▶ EXPIRED
 - Guest checkout only: email, shipping address, billing address (same as
   shipping by default), shipping rate, one discount code. Steps are server
   forms that redirect; the address step opens once the email is saved, and
-  an address change clears a chosen rate that no longer applies. A failed
+  an address change clears a chosen rate that no longer applies. Countries
+  and regions come from one reference list (`@storevia/validation/geo`):
+  where a country has a region list (India, the US, Canada, Australia) the
+  state is chosen from it, required, and stored as its ISO 3166-2 code and
+  name; elsewhere it is optional free text. India's PIN code is required
+  (6 digits). A valid address that no zone covers is told "We don't
+  currently ship to this address." A failed
   step's errors and typed values travel in a 60-second host-only flash
   cookie that shows only on the redirect naming it (`?f=<id>`), so a later
   successful step can't show stale errors; clearing it repeats the cookie's
@@ -235,9 +241,11 @@ emails.
 
 ### 7. Shipping, tax, discounts
 
-- Shipping: zones by country (optionally regions), rates `FLAT` or
-  `PRICE_BASED` (subtotal range; 0 = free). Selected by id, re-validated for
-  the store, address and subtotal every time.
+- Shipping: zones by country (optionally one country's regions; a country
+  is in at most one zone per store), rates `FLAT` or `PRICE_BASED`
+  (subtotal range; 0 = free). Zone countries and regions are chosen by name
+  and must be in the reference list. Selected by id, re-validated for the
+  store, address and subtotal every time.
 - Tax: `TaxConfiguration` (inclusive/exclusive, tax shipping) and `TaxRate`
   (country, optional region, ppm). No compound rates in M6 (CHECK).
 - Discounts: `CODE` only, `PERCENTAGE` or `FIXED_AMOUNT` over the whole

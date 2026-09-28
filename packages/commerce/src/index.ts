@@ -103,7 +103,7 @@ export {
   updateShippingRate,
   updateShippingZone,
 } from "./settings/shipping";
-export type { ShippingRateView, ShippingZoneView } from "./settings/shipping";
+export type { ShippingRateView, ShippingZoneInput, ShippingZoneView } from "./settings/shipping";
 export {
   createTaxRate,
   deleteTaxRate,

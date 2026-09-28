@@ -11,3 +11,6 @@ export type { PaymentSweepResult } from "./sweep";
 export { checkoutCookieName, CHECKOUT_LIMITS } from "./tokens";
 export type { TestOutcome } from "@storevia/payments";
 export type { CheckoutAddress, CheckoutProblem, DiscountProblem, QuoteChange } from "./pricing";
+// The address form's country and region reference data (the same the parser checks against).
+export { countryByCode, findRegion, hasRegions } from "@storevia/validation/geo";
+export type { Country, Region } from "@storevia/validation/geo";
