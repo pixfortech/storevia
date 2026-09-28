@@ -253,6 +253,7 @@ jobs:
       MOCK_BILLING_WEBHOOK_SECRET: ci-only-mock-billing-secret-not-used-elsewhere-0000
       STOREFRONT_PREVIEW_SECRET: ci-only-storefront-preview-secret-not-used-elsewhere-0000
       STOREFRONT_REVALIDATE_SECRET: ci-only-storefront-revalidate-secret-not-used-elsewhere-0000
+      ORDER_ACCESS_SECRET: ci-only-order-access-secret-not-used-anywhere-else-000
       # Production builds must opt in to mock billing explicitly (ADR-0022).
       BILLING_MOCK_ENABLED: "true"
       # Production builds must opt in to test payments explicitly (ADR-0031 §4).
