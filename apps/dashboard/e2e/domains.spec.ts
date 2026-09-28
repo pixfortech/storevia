@@ -82,7 +82,10 @@ test("a custom domain from DNS records to primary, shopping on it, then removal"
 
   // 1. Settings → Domains: validation, then the records to add.
   await openDomains(page, tenant);
-  await expect(page.getByRole("link", { name: "Domains" })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("link", { name: "Domains", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
   await page.getByLabel("Domain", { exact: true }).fill(`https://${hostname}/shop`);
   await page.getByRole("button", { name: "Add domain" }).click();
   await expect(page.getByText(/without https:\/\/ or a path/).first()).toBeVisible();
@@ -95,7 +98,11 @@ test("a custom domain from DNS records to primary, shopping on it, then removal"
   await expect(records.getByRole("row").filter({ hasText: "TXT" })).toContainText(
     `_storevia-verification.${hostname}`,
   );
-  await expect(records.getByRole("row").filter({ hasText: "CNAME" })).toContainText(hostname);
+  // A root domain gets an A record (a subdomain would get a CNAME).
+  const routing = records.getByRole("row").nth(2).getByRole("cell");
+  await expect(routing.first()).toHaveText("A");
+  await expect(routing.nth(1)).toContainText(hostname);
+  await expect(routing.nth(2)).toContainText("192.0.2.10");
   const txt = await ownershipValue(page, hostname);
   expect(txt).toMatch(/^storevia-verification=[A-Za-z0-9_-]{43}$/);
   // Not served while unverified.
@@ -123,8 +130,10 @@ test("a custom domain from DNS records to primary, shopping on it, then removal"
 
   // 3. Primary: the platform address now redirects, keeping path and query.
   await card.getByRole("button", { name: `Make primary ${hostname}` }).click();
-  await expect(page.getByText("Primary domain changed.")).toBeVisible();
+  // The card itself is the confirmation: its Make primary button is gone.
   await expect(card.getByText("Primary", { exact: true })).toBeVisible();
+  await expect(card.getByText("Your store is served here.")).toBeVisible();
+  await expect(domainCard(page, platformHost)).toContainText(`Redirects to ${hostname}.`);
   await expect
     .poll(
       async () =>
@@ -134,8 +143,15 @@ test("a custom domain from DNS records to primary, shopping on it, then removal"
       { timeout: 60_000, intervals: [2_000] },
     )
     .toBe(`${origin}/products/stoneware-mug?ref=ad`);
+  // The custom host's cached entry goes when the worker dispatches the
+  // change (every 15 s here): poll rather than race it.
+  await expect
+    .poll(async () => (await fetchStore(page.request, origin, "/")).status, {
+      timeout: 60_000,
+      intervals: [2_000],
+    })
+    .toBe(200);
   const home = await fetchStore(page.request, origin, "/");
-  expect(home.status).toBe(200);
   expect(home.text).toContain(`<link rel="canonical" href="${origin}/"`);
   const sitemap = await fetchStore(page.request, origin, "/sitemap.xml");
   expect(sitemap.status).toBe(200);
