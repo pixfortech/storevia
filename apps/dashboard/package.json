@@ -11,7 +11,8 @@
     "test": "vitest run --passWithNoTests",
     "test:integration": "vitest run --config vitest.int.config.ts",
     "test:e2e": "playwright test",
-    "seed:dev": "tsx --conditions=react-server scripts/seed-dev.ts"
+    "seed:dev": "tsx --conditions=react-server scripts/seed-dev.ts",
+    "seed:load": "tsx --conditions=react-server scripts/seed-load.ts"
   },
   "dependencies": {
     "@storevia/auth": "workspace:*",

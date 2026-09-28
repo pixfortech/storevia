@@ -33,7 +33,8 @@
     "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm db:validate:draft && pnpm check:schema",
     "postinstall": "pnpm --filter @storevia/database generate",
     "db:seed:dev": "pnpm --filter @storevia/dashboard seed:dev",
-    "domains:simulate": "pnpm --filter @storevia/domains domains:simulate"
+    "domains:simulate": "pnpm --filter @storevia/domains domains:simulate",
+    "load": "node scripts/load/run.mjs"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

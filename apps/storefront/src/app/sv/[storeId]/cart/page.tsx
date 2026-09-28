@@ -1,9 +1,9 @@
-import { CART_LIMITS, readCart, type CartLineView } from "@storevia/commerce/storefront";
+import { CART_LIMITS, type CartLineView } from "@storevia/commerce/storefront";
 import { formatPrice } from "@storevia/commerce/blocks";
 import { Image } from "@storevia/editor/render";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { cartStore, cartToken } from "@/lib/cart";
+import { requestCart } from "@/lib/cart";
 import { isBrowsable, requestStore } from "@storevia/site-engine/request";
 import { startCheckoutAction } from "../checkout/actions";
 import { removeCartLineAction, updateCartLineAction } from "./actions";
@@ -59,7 +59,7 @@ export default async function CartPage({ params, searchParams }: Props) {
   const [{ storeId }, search] = await Promise.all([params, searchParams]);
   const store = await requestStore(storeId);
   if (!isBrowsable(store)) redirect("/");
-  const cart = await readCart(cartStore(store), await cartToken());
+  const cart = await requestCart(store);
   const code = typeof search["error"] === "string" ? search["error"] : null;
   const error = code === "stock" ? stockMessage(search) : code ? ERRORS[code] : undefined;
   // A refused quantity change is also shown on its own line.

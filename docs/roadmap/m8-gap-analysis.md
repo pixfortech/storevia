@@ -409,6 +409,16 @@ checkout, domain resolution, worker queue drain, order dashboard, database
 connection pressure. Budgets set from the measurements; query-count tests
 extended to the M8 read paths.
 
+**Status (M8-7):** built: a multi-store seed through the real services
+(`seed:load`), a dependency-free driver (`pnpm load`), budgets from two
+measured passes and a query-scaling test (10 reads, constant from a small
+store to a large one among populated siblings) in
+[load-testing.md](../operations/load-testing.md). The measurement found
+the cart page reading the cart twice per request; fixed (one read per
+request, cart p95 at concurrency 10 162.7 → 139.4 ms). Checkout, the
+dashboard, the worker's drain and multi-instance connection pressure under
+load are follow-ups.
+
 ## 12. Razorpay staging validation
 
 Payment Links with signed return and webhook, per-connection encrypted

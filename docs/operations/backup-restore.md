@@ -99,9 +99,10 @@ only if the drill reports it, which proves the drill can fail.
 
 ### Results
 
-| Date       | Source                                                                 | Size         | Tables / rows | Backup | Restore (create + pg_restore) | Verify | Result                                             |
-| ---------- | ---------------------------------------------------------------------- | ------------ | ------------- | ------ | ----------------------------- | ------ | -------------------------------------------------- |
-| 2026-09-28 | local dev database (41 organisations, 43 stores, 7 orders, 45 domains) | 0.83 MB dump | 80 / 2,277    | 0.27 s | 1.3 s                         | 0.2 s  | exact copy; `--self-test` caught the removed order |
+| Date       | Source                                                                                                                                                                                 | Size         | Tables / rows | Backup | Restore (create + pg_restore) | Verify | Result                                             |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ | ------------- | ------ | ----------------------------- | ------ | -------------------------------------------------- |
+| 2026-09-28 | local dev database (41 organisations, 43 stores, 7 orders, 45 domains)                                                                                                                 | 0.83 MB dump | 80 / 2,277    | 0.27 s | 1.3 s                         | 0.2 s  | exact copy; `--self-test` caught the removed order |
+| 2026-09-28 | multi-store load database (10 organisations, 20 stores, 800 products, 1,280 variants, 160 orders and payments, 120 customers, 30 themes, 24 domains, 40 messages, 2,837 audit entries) | 1.8 MB dump  | 80 / 27,820   | 0.31 s | 1.25 s                        | 0.28 s | exact copy; `--self-test` caught the removed order |
 
 Local PostgreSQL 16 on the build machine; a Neon restore adds network
 time proportional to the dump size. At these rates the restore itself is
