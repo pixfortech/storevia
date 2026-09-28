@@ -77,9 +77,9 @@ test("zones by country and state, from settings to checkout", async ({ page, bro
   await address.locator("#ship_lastName").fill("Lohia");
   await address.locator("#ship_line1").fill("7 Park Street");
   await address.locator("#ship_city").fill("Kolkata");
-  await expect(address.getByLabel("State", { exact: true })).toBeVisible();
-  await address.getByLabel("State", { exact: true }).selectOption({ label: "West Bengal" });
-  await address.getByLabel("PIN code").fill("700 016");
+  await expect(address.locator("#ship_region")).toBeVisible();
+  await address.locator("#ship_region").selectOption({ label: "West Bengal" });
+  await address.locator("#ship_postalCode").fill("700 016");
   await address.getByRole("button", { name: "Continue" }).click();
   await expect(shop.getByRole("button", { name: "Update address" })).toBeVisible();
   await expect(address.locator("#ship_postalCode")).toHaveValue("700016");
