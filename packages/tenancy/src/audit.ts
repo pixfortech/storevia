@@ -73,6 +73,9 @@ const ALLOWED_METADATA_KEYS = new Set([
   "versionNumber",
   "sections",
   "preset",
+  "theme",
+  "previousTheme",
+  "themeVersion",
   "menu",
   "items",
   // Orders, refunds and payment settings (ADR-0031): numbers, amounts and

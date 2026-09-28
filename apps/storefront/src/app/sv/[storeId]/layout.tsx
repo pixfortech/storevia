@@ -3,13 +3,16 @@ import { BASE_CSS } from "@storevia/editor/render";
 import { isIndexable } from "@storevia/site-engine/seo";
 import { requestNonce, requestStore } from "@storevia/site-engine/request";
 import { SiteMenu, SiteShell } from "@storevia/site-engine/shell";
+import { DEFAULT_THEME_DEFINITION, themeDefinition } from "@storevia/site-engine/theme";
 import type { Metadata, Viewport } from "next";
 import { COMMERCE_CSS, StoreActions } from "@/components/chrome";
 import { headerCartCount } from "@/lib/cart";
 import { storeChrome } from "@/lib/route-data";
 
 // The root layout for every store page: the Site Engine's branded shell with
-// the store's theme and menus (ADR-0030), and Storevia's search and cart links. The store comes from the
+// the store's theme (tokens, chrome variant and first-party stylesheet of the
+// live theme package, or in a preview the one being previewed) and menus
+// (ADR-0030), and Storevia's search and cart links. The store comes from the
 // proxy's signed header and must match the route's store segment.
 
 export async function generateMetadata({
@@ -39,10 +42,15 @@ export default async function StoreLayout({
     headerCartCount(store),
     requestNonce(),
   ]);
+  const base =
+    store.availability === "live"
+      ? "shoppers see this store."
+      : "this store isn't live yet; only you can see it.";
   return (
     <SiteShell
       site={store}
       nonce={nonce}
+      theme={themeDefinition(chrome.themeKey) ?? DEFAULT_THEME_DEFINITION}
       css={`
         ${BASE_CSS}${COMMERCE_BLOCK_CSS}${COMMERCE_CSS}
       `}
@@ -51,9 +59,9 @@ export default async function StoreLayout({
       footerNav={<SiteMenu label="Footer" links={chrome.footerMenu} />}
       actions={<StoreActions cartCount={cartCount} />}
       previewNote={
-        store.availability === "live"
-          ? "shoppers see this store."
-          : "this store isn't live yet; only you can see it."
+        chrome.previewingTheme
+          ? `the ${chrome.previewingTheme} theme with its draft settings. It isn't published: shoppers still see your live theme.`
+          : base
       }
     >
       {children}

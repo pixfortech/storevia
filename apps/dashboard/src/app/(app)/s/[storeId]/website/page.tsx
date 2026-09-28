@@ -1,5 +1,9 @@
 import { getStoreTheme, listPages } from "@storevia/site-admin";
-import { themePreset } from "@storevia/site-engine/theme";
+import {
+  DEFAULT_THEME_DEFINITION,
+  themeDefinition,
+  themePreset,
+} from "@storevia/site-engine/theme";
 import { hasPermission } from "@storevia/tenancy";
 import { Button, buttonClasses } from "@storevia/ui/button";
 import { Badge, Card } from "@storevia/ui/surfaces";
@@ -27,6 +31,7 @@ export default async function WebsitePage({ params }: { params: Promise<{ storeI
     );
   }
   const [pages, theme] = await Promise.all([listPages(ctx), getStoreTheme(ctx)]);
+  const liveTheme = themeDefinition(theme.themeKey) ?? DEFAULT_THEME_DEFINITION;
   const home = pages.find((p) => p.kind === "HOME");
   const others = pages.filter((p) => p.kind === "STANDARD");
   return (
@@ -79,14 +84,14 @@ export default async function WebsitePage({ params }: { params: Promise<{ storeI
         <Card className="grid content-start gap-3 p-5">
           <h2 className="text-body font-semibold text-ink">Theme</h2>
           <p className="text-body-sm text-ink-muted">
-            {themePreset(theme.published.preset).name} style
+            {theme.name} theme, {themePreset(liveTheme, theme.published.preset).name} style
             {theme.hasUnpublishedChanges ? ", with unpublished changes" : ""}.
           </p>
           <Link
             href={websitePath(storeId, "/theme")}
             className={buttonClasses("secondary", "md", "justify-self-start")}
           >
-            Customise theme
+            Themes and customising
           </Link>
         </Card>
         <Card className="grid content-start gap-3 p-5">

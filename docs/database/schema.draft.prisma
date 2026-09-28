@@ -2388,16 +2388,21 @@ enum StoreThemeRole {
   UNPUBLISHED
 }
 
-/// A store's theme and its customised settings (design-token inputs,
-/// ADR-0030 §7). M5 themes are first-party and code-defined (`themeKey`);
-/// packaged themes (M7) set `themeVersionId` too. SQL: partial unique
-/// (storeId) WHERE role = 'LIVE'; settings are JSON objects with a size
-/// bound; validated by the theme engine before every write.
+/// A store's installed theme and its customised settings (design-token
+/// inputs, ADR-0030 §7, 08-themes §10). M7 themes are first-party code
+/// packages (`themeKey`); `themeVersion` is the package version the settings
+/// were saved for (older ones are migrated on read). Each theme is installed
+/// at most once per store; `previewedAt` marks the installed theme an editor
+/// chose to preview. `themeVersionId` is for catalogue (marketplace) themes,
+/// deferred (08-themes §2–§5). SQL: partial unique (storeId) WHERE role =
+/// 'LIVE'; settings are JSON objects with a size bound; validated by the
+/// theme engine before every write.
 model StoreTheme {
   id                String         @id @default(uuid(7)) @db.Uuid
   organisationId    String         @db.Uuid
   storeId           String         @db.Uuid
   themeKey          String
+  themeVersion      Int            @default(1)
   themeVersionId    String?        @db.Uuid
   name              String
   role              StoreThemeRole @default(UNPUBLISHED)
@@ -2406,12 +2411,14 @@ model StoreTheme {
   settingsRevision  Int            @default(0)
   publishedAt       DateTime?      @db.Timestamptz(3)
   publishedById     String?        @db.Uuid
+  previewedAt       DateTime?      @db.Timestamptz(3)
   createdAt         DateTime       @default(now()) @db.Timestamptz(3)
   updatedAt         DateTime       @updatedAt @db.Timestamptz(3)
 
-  store        Store         @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
-  themeVersion ThemeVersion? @relation(fields: [themeVersionId], references: [id], onDelete: Restrict)
+  store            Store         @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  catalogueVersion ThemeVersion? @relation(fields: [themeVersionId], references: [id], onDelete: Restrict)
 
+  @@unique([storeId, themeKey])
   @@index([storeId])
   @@index([themeVersionId])
 }

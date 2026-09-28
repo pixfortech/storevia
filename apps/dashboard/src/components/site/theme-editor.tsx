@@ -1,26 +1,28 @@
 "use client";
 
 import {
+  DEFAULT_THEME_DEFINITION,
   FONT_STACKS,
-  STOREVIA_THEME,
   contrastRatio,
   resolveTheme,
-  themeSettingsSchema,
+  themeDefinition,
   type ThemeSettings,
 } from "@storevia/site-engine/theme";
 import { Button } from "@storevia/ui/button";
 import { cn } from "@storevia/ui/cn";
 import { Field, Input, Select } from "@storevia/ui/form";
 import { Alert, Badge, Card } from "@storevia/ui/surfaces";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { publishThemeAction, saveThemeDraftAction } from "@/app/(app)/s/[storeId]/website/actions";
 import { UnsavedChangesGuard } from "@/components/catalogue/unsaved-guard";
 import { StatusNotice, type Notice } from "./notice";
 
-// The theme customiser (ADR-0030 §7): a preset, four colours with live
-// contrast checks, fonts from an allow-list of system typefaces, and a few
-// named options. The same schema validates here and on the server; nothing
-// here produces CSS the theme engine didn't compute.
+// The theme customiser (ADR-0030 §7): one installed theme's preset, four
+// colours with live contrast checks, fonts from an allow-list of system
+// typefaces, and a few named options. The theme's own schema validates here
+// and on the server; nothing here produces CSS the theme engine didn't
+// compute. Publishing a theme that isn't live switches the store to it.
 
 const COLOURS = [
   ["background", "Background"],
@@ -31,6 +33,8 @@ const COLOURS = [
 
 export function ThemeEditor({
   storeId,
+  themeKey,
+  live,
   initial,
   revision: initialRevision,
   hasUnpublishedChanges,
@@ -38,12 +42,18 @@ export function ThemeEditor({
   canPublish,
 }: {
   storeId: string;
+  /** The installed theme being customised. */
+  themeKey: string;
+  /** Whether it is the store's live theme. */
+  live: boolean;
   initial: ThemeSettings;
   revision: number;
   hasUnpublishedChanges: boolean;
   canEdit: boolean;
   canPublish: boolean;
 }) {
+  const router = useRouter();
+  const theme = themeDefinition(themeKey) ?? DEFAULT_THEME_DEFINITION;
   const [notice, setNotice] = useState<Notice | null>(null);
   const [settings, setSettings] = useState<ThemeSettings>(initial);
   const [revision, setRevision] = useState(initialRevision);
@@ -52,7 +62,7 @@ export function ThemeEditor({
   const [pending, setPending] = useState<"save" | "publish" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const check = useMemo(() => themeSettingsSchema.safeParse(settings), [settings]);
+  const check = useMemo(() => theme.settingsSchema.safeParse(settings), [theme, settings]);
   const issues = check.success
     ? {}
     : Object.fromEntries(check.error.issues.map((i) => [i.path.join("."), i.message]));
@@ -70,7 +80,7 @@ export function ThemeEditor({
   /** Saves the draft; the new revision, or null when it didn't save. */
   async function save(): Promise<number | null> {
     setPending("save");
-    const result = await saveThemeDraftAction(storeId, { revision, settings });
+    const result = await saveThemeDraftAction(storeId, { themeKey, revision, settings });
     setPending(null);
     if (!result.ok) {
       setError(result.message ?? "The theme couldn't be saved.");
@@ -86,11 +96,13 @@ export function ThemeEditor({
     const current = dirty ? await save() : revision;
     if (current === null) return;
     setPending("publish");
-    const result = await publishThemeAction(storeId, { revision: current });
+    const result = await publishThemeAction(storeId, { themeKey, revision: current });
     setPending(null);
     if (result.ok) {
       setUnpublished(false);
       setNotice({ tone: "success", title: result.message ?? "Published." });
+      // A switch changes the library above (which theme is live).
+      if (!live) router.refresh();
     } else setError(result.message ?? "The theme couldn't be published.");
   }
 
@@ -108,7 +120,7 @@ export function ThemeEditor({
         <Card className="grid gap-4 p-5">
           <h2 className="text-body font-semibold text-ink">Style</h2>
           <div className="grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Preset">
-            {STOREVIA_THEME.presets.map((preset) => (
+            {theme.presets.map((preset) => (
               <button
                 key={preset.key}
                 type="button"
@@ -246,7 +258,9 @@ export function ThemeEditor({
         <Card className="grid gap-3 p-5">
           <div className="flex items-center justify-between gap-2">
             <h2 className="text-body font-semibold text-ink">Preview</h2>
-            {unpublished || dirty ? (
+            {!live ? (
+              <Badge tone="neutral">Not live</Badge>
+            ) : unpublished || dirty ? (
               <Badge tone="warning">Not published</Badge>
             ) : (
               <Badge tone="success">Live</Badge>
@@ -315,16 +329,18 @@ export function ThemeEditor({
           </Button>
           {canPublish ? (
             <Button
-              disabled={!canEdit || !check.success || (!dirty && !unpublished)}
+              disabled={!canEdit || !check.success || (live && !dirty && !unpublished)}
               pending={pending === "publish"}
               onClick={() => void publish()}
             >
-              Publish theme
+              {live ? "Publish theme" : `Publish and switch to ${theme.name}`}
             </Button>
           ) : null}
         </div>
         <p className="text-caption text-ink-muted">
-          Drafts show in the store preview. Visitors see the theme once it's published.
+          {live
+            ? "Drafts show in the store preview. Visitors see the theme once it's published."
+            : `Visitors don't see ${theme.name} until you publish it. Choose "Preview ${theme.name}" above to see it in the store preview first.`}
         </p>
       </div>
     </div>

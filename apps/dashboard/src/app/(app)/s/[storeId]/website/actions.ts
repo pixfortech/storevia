@@ -8,6 +8,8 @@ import { listMedia, type MediaView } from "@storevia/media";
 import {
   createPage,
   deletePage,
+  installTheme,
+  previewTheme,
   publishPage,
   publishTheme,
   saveMenu,
@@ -195,21 +197,47 @@ export async function mediaOptionsAction(
 
 export async function saveThemeDraftAction(
   storeId: string,
-  input: { revision: number; settings: unknown },
+  input: { themeKey?: string; revision: number; settings: unknown },
 ): Promise<DataActionResult<StoreThemeView>> {
   return runDataAction(async () => saveThemeDraft(await storeActionContext(storeId), input));
 }
 
+/** Publishes a theme's draft; for a theme that isn't live, the store switches to it. */
 export async function publishThemeAction(
   storeId: string,
-  input: { revision: number },
+  input: { themeKey?: string; revision: number },
 ): Promise<DataActionResult<StoreThemeView>> {
   return runDataAction(async () => {
     const ctx = await storeActionContext(storeId);
     const view = await publishTheme(ctx, input);
-    revalidatePath(websitePath(ctx.storeId));
+    revalidatePath(websitePath(ctx.storeId), "layout");
     return view;
   }, "Theme published. Your site uses it now.");
+}
+
+export async function installThemeAction(
+  storeId: string,
+  input: { themeKey: string },
+): Promise<DataActionResult<StoreThemeView>> {
+  return runDataAction(async () => {
+    const ctx = await storeActionContext(storeId);
+    const view = await installTheme(ctx, input);
+    revalidatePath(websitePath(ctx.storeId), "layout");
+    return view;
+  });
+}
+
+/** Makes an installed theme the one the store preview shows (visitors never see it). */
+export async function previewThemeAction(
+  storeId: string,
+  input: { themeKey: string },
+): Promise<DataActionResult<StoreThemeView>> {
+  return runDataAction(async () => {
+    const ctx = await storeActionContext(storeId);
+    const view = await previewTheme(ctx, input);
+    revalidatePath(websitePath(ctx.storeId), "layout");
+    return view;
+  });
 }
 
 export async function saveMenuAction(

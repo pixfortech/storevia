@@ -80,7 +80,11 @@ export interface SiteReaderOptions {
 
 export interface ThemeSettingsRow {
   readonly themeKey: string;
-  /** Unvalidated JSON: the caller validates it with the theme engine. */
+  /** The theme version the settings were saved for. */
+  readonly themeVersion: number;
+  /** False only in a preview of an installed theme that isn't live. */
+  readonly live: boolean;
+  /** Unvalidated JSON: the caller validates it with the theme engine (renderableTheme). */
   readonly settings: unknown;
 }
 
@@ -145,13 +149,23 @@ export class SiteReader {
     return out;
   }
 
-  /** The live theme's settings (published, or draft in a preview), or null when the store has none. */
+  /**
+   * The live theme's published settings, or null when the store has none.
+   * In a preview: the draft settings of the installed theme an editor chose
+   * to preview (the live theme's when none was chosen).
+   */
   async theme(): Promise<ThemeSettingsRow | null> {
-    const rows = await this.tx.$queryRaw<{ theme_key: string; settings: unknown }[]>`
-      SELECT theme_key, settings FROM app_storefront_theme_settings()`;
+    const rows = await this.tx.$queryRaw<
+      { theme_key: string; theme_version: number; live: boolean; settings: unknown }[]
+    >`SELECT theme_key, theme_version, live, settings FROM app_storefront_theme_settings()`;
     const row = rows[0];
     return row && row.settings !== null
-      ? { themeKey: row.theme_key, settings: row.settings }
+      ? {
+          themeKey: row.theme_key,
+          themeVersion: row.theme_version,
+          live: row.live,
+          settings: row.settings,
+        }
       : null;
   }
 

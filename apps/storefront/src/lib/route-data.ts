@@ -26,12 +26,7 @@ import { pageDataCache } from "@storevia/site-engine/cache";
 import { designTag, pagesTag, storeTag } from "@storevia/site-engine/cache-tags";
 import type { StoreRequestContext } from "@storevia/site-engine/context";
 import type { MenuLink } from "@storevia/site-engine/shell";
-import {
-  DEFAULT_THEME,
-  resolveTheme,
-  themeSettingsSchema,
-  type ThemeTokens,
-} from "@storevia/site-engine/theme";
+import { THEME_PLATFORM, renderableTheme, type ThemeTokens } from "@storevia/editor/theme";
 
 // Everything one storefront route needs, loaded in one read-only storefront
 // transaction (ADR-0028 §7) and cached by store and route, tagged so the
@@ -203,6 +198,10 @@ export function routeData(store: StoreRequestContext, route: StoreRoute): Promis
 
 export interface StoreChrome {
   readonly theme: ThemeTokens;
+  /** The theme package that renders the store (the default when the stored one can't be used). */
+  readonly themeKey: string;
+  /** In a preview of an installed theme that isn't live: its name (for the preview banner). */
+  readonly previewingTheme: string | null;
   readonly mainMenu: readonly MenuLink[];
   readonly footerMenu: readonly MenuLink[];
 }
@@ -215,11 +214,16 @@ async function loadChrome(store: StoreRequestContext): Promise<StoreChrome> {
         site.theme(),
         site.navigation(NAVIGATION_HANDLES),
       ]);
-      let theme = DEFAULT_THEME;
-      if (themeRow) {
-        const settings = themeSettingsSchema.safeParse(themeRow.settings);
-        if (settings.success) theme = resolveTheme(settings.data);
-        else log.warn("theme settings are invalid; using the default", { storeId: store.storeId });
+      // The theme package by the stored key, its settings migrated and
+      // validated; an unknown or incompatible theme, or invalid settings,
+      // render the default instead of a broken store.
+      const rendered = renderableTheme(themeRow, THEME_PLATFORM);
+      if (rendered.fallback) {
+        log.warn("store theme can't be used as stored; using a fallback", {
+          storeId: store.storeId,
+          themeKey: themeRow?.themeKey,
+          reason: rendered.fallback,
+        });
       }
       const main = usableNavigationItems(menus.get("main"), STOREVIA_REGISTRY.linkSchema);
       const footer = usableNavigationItems(menus.get("footer"), STOREVIA_REGISTRY.linkSchema);
@@ -241,7 +245,13 @@ async function loadChrome(store: StoreRequestContext): Promise<StoreChrome> {
             label: c.title,
             href: `/collections/${c.handle}`,
           }));
-      return { theme, mainMenu, footerMenu: links(footer) };
+      return {
+        theme: rendered.tokens,
+        themeKey: rendered.theme.key,
+        previewingTheme: store.preview && themeRow && !themeRow.live ? rendered.theme.name : null,
+        mainMenu,
+        footerMenu: links(footer),
+      };
     },
     { preview: store.preview },
   );

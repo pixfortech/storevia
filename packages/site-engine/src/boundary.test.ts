@@ -89,6 +89,10 @@ function sourceFiles(dir: string): string[] {
 
 const rel = (path: string) => relative(ROOT, path).split(sep).join("/");
 
+/** The theme engine and its first-party theme packages: pure, client-safe modules. */
+const isThemeModule = (path: string) =>
+  /^packages\/site-engine\/src\/(theme|theme-core|themes\/[a-z-]+)\.ts$/.test(path);
+
 function walk(entries: readonly string[]) {
   const packages = workspaces();
   const visited = new Set<string>();
@@ -175,7 +179,7 @@ describe("the page system (@storevia/editor) dependency boundary", () => {
     const outside = files.filter(
       (path) =>
         !path.startsWith("packages/editor/src/") &&
-        path !== "packages/site-engine/src/theme.ts" &&
+        !isThemeModule(path) &&
         !path.startsWith("packages/types/src/"),
     );
     expect(outside).toEqual([]);
@@ -205,8 +209,7 @@ describe("commerce blocks stay client-safe", () => {
         (path) =>
           /^packages\/(database|tenancy|auth|billing|entitlements|media|domains)\//.test(path) ||
           path.startsWith("packages/commerce/src/storefront/") ||
-          (path.startsWith("packages/site-engine/") &&
-            path !== "packages/site-engine/src/theme.ts"),
+          (path.startsWith("packages/site-engine/") && !isThemeModule(path)),
       ),
     ).toEqual([]);
     expect([...graph.externals].filter((name) => name === "server-only")).toEqual([]);

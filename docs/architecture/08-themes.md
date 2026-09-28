@@ -2,7 +2,11 @@
 
 > Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**. ADR-0012.
 > Milestone 5 builds the first-party theme engine (§9, ADR-0030 §7).
-> Packaged themes, versions and the gallery (§2–§6) arrive with Milestone 7.
+> Milestone 7 makes themes versioned **first-party packages** with an
+> install/preview/publish/switch lifecycle and a second theme (§10). The
+> file-based package format, catalogue and marketplace of §2–§6 and §8
+> remain the long-term design; they are not built, and no theme code is
+> ever uploaded by merchants (§10.6).
 
 ## 1. What a theme is (and is not)
 
@@ -129,7 +133,8 @@ below WCAG AA.
 ## 9. The theme engine (as built in Milestone 5)
 
 Code: `packages/site-engine/src/theme.ts` (pure, client-safe; tests in
-`theme.test.ts`).
+`theme.test.ts`). Since M7 the engine is `theme-core.ts`, the packages are
+in `themes/` and `theme.ts` is the registry (§10).
 
 - **One first-party theme** (`storevia`) with three presets: **Editorial**
   (the default, and the M4 look: serif headings, stone palette),
@@ -166,3 +171,131 @@ Code: `packages/site-engine/src/theme.ts` (pure, client-safe; tests in
   Preview (signed store preview) → Publish (`theme.publish`). A publish
   emits `theme.changed` through the outbox, which refreshes the store's
   `design:{storeId}` cache tag.
+
+## 10. Theme packages (as built in Milestone 7)
+
+Themes are **versioned first-party packages**: TypeScript modules in this
+repository, reviewed and tested like the rest of the code. A merchant
+installs, customises, previews, publishes and switches between them; a
+merchant never supplies theme code (§10.6).
+
+Code: engine `packages/site-engine/src/theme-core.ts`; packages
+`packages/site-engine/src/themes/{storevia,boutique}.ts`; registry and
+rendering `packages/site-engine/src/theme.ts` (`THEMES`,
+`renderableTheme`); services `packages/site-admin/src/theme.ts`; dashboard
+`/s/{store}/website/theme` (`components/site/theme-library.tsx`,
+`theme-editor.tsx`); migration `20270101000000_theme_packages`.
+
+### 10.1 The package contract (`ThemeDefinition`)
+
+| Field                           | Meaning                                                                                                                                                                                         |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `key`                           | Stable id stored in `StoreTheme.themeKey` (`^[a-z][a-z0-9-]{1,40}$`)                                                                                                                            |
+| `version`                       | Integer release of the package. Raised when its presets or settings change shape (with `migrateSettings`)                                                                                       |
+| `name`, `description`, `author` | Library metadata; `author` is always `"Storevia"`                                                                                                                                               |
+| `compatibility`                 | `engine`: the `THEME_ENGINE_VERSION`s it was built for (tokens, settings fields, chrome slots, block class names); `documentSchema`: the page-document `schemaVersion`s it renders              |
+| `presets`, `defaultPreset`      | Its own named styles; the default preset is its default settings                                                                                                                                |
+| `settingsSchema`                | Its allowed settings: its preset keys plus the shared bounded fields and contrast rules of §9 (`themeSettingsSchemaFor`)                                                                        |
+| `chrome`                        | Renderer capabilities: `header` (inline / centred), `navigation` (plain / uppercase), `footer` (inline / centred), `productCard` (square / portrait), `productPage` (split / gallery)           |
+| `stylesheet`                    | First-party CSS appended after the shared block styles, every selector scoped under `[data-sv-theme="<key>"]`, driven by the tokens; no `@import`, `url()` or markup (checked by `defineTheme`) |
+| `migrateSettings`               | Optional: upgrades settings saved for an older version before they are validated                                                                                                                |
+
+`defineTheme` refuses a definition that breaks the contract (bad key,
+presets failing their own schema or the contrast rules, unsafe CSS), so a
+broken theme fails at build and test time, not in a store.
+
+### 10.2 The themes
+
+- **Storevia** (v1, the default): name, menu and actions on one row, square
+  product cards, a two-column product page; presets Editorial (default),
+  Minimal, Modern. No stylesheet of its own: it is the shared block styles.
+- **Boutique** (v1): the store's name centred above an uppercase,
+  letter-spaced menu row; centred footer; tall 3:4 product cards with
+  centred serif titles; a wide product gallery beside a sticky details
+  column (one column on phones); square corners, uppercase buttons,
+  lighter headings. Presets Atelier (default), Linen, Gallery; every preset
+  meets the §9 contrast rules (unit-tested). It is chrome markup from the
+  Site Engine's shell plus its scoped stylesheet, so every registered
+  block, every page kind, the cart and checkout render with it unchanged;
+  page documents and commerce data never know which theme is on.
+
+### 10.3 Versions and compatibility
+
+- `StoreTheme.themeVersion` records the package version the settings were
+  saved for. A **column**, not a key inside the settings: settings are a
+  strict, merchant-shaped schema that the version must be read _before_
+  parsing, it gets a CHECK (`>= 1`), and it can be queried (which stores
+  still hold settings from an older version). Save and publish write the
+  current version.
+- Reading settings (`themeSettingsFor`): settings from an older version go
+  through the theme's `migrateSettings`, then everything is validated with
+  the theme's own schema; anything unusable becomes the theme's default
+  preset. It never throws, so a store never renders broken.
+- `THEME_PLATFORM` (`@storevia/editor/theme`) is this build's
+  `{ engine: THEME_ENGINE_VERSION, documentSchema: DOCUMENT_SCHEMA_VERSION }`.
+  Installing, previewing or publishing a theme whose `compatibility`
+  doesn't include it is refused (`CONFLICT` with a plain explanation), and
+  the library shows why. A test in `@storevia/editor` fails if the
+  document schema moves on without every theme declaring support.
+- Rendering (`renderableTheme`): an unknown or removed theme key, or a live
+  theme that is no longer compatible, renders the **default theme**
+  (keeping the stored settings only if they are valid for it) and is
+  logged; invalid settings render the theme's defaults.
+
+### 10.4 Lifecycle
+
+| Operation   | Behaviour                                                                                                                                                                                                                       | Permission      |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| Install     | An `UNPUBLISHED` row with the theme's default preset and version (installing again returns it). First records the store's implicit live default theme as a row, so switching back always works                                  | `design.edit`   |
+| Customise   | Draft settings of one installed theme, validated with that theme's schema, `UPDATE … WHERE settingsRevision = base`                                                                                                             | `design.edit`   |
+| Preview     | Sets that row's `previewedAt`; the signed store preview renders the most recently chosen installed theme with its draft settings, and its banner says the theme isn't published                                                 | `design.edit`   |
+| Publish     | Revision-checked; draft re-validated (migrated from its version) and made `publishedSettings`. For a theme that isn't live, one transaction demotes the LIVE row to `UNPUBLISHED` (its settings kept) and makes this one `LIVE` | `theme.publish` |
+| Switch back | Publishing the previous theme again (the library labels it "Switch back to …")                                                                                                                                                  | `theme.publish` |
+
+- **Concurrency.** Every theme write takes a per-store advisory lock
+  (`lockStoreKey(store, "theme")`); the partial unique index still allows
+  only one LIVE row, and `(storeId, themeKey)` is unique, so concurrent
+  installs create one row and concurrent publishes leave exactly one LIVE
+  theme (integration-tested).
+- **Preview isolation.** `app_storefront_theme_settings()` returns
+  `(theme_key, theme_version, live, settings)`: outside a verified preview
+  always the LIVE row's published settings; only with `app.preview = 'on'`
+  may it return an `UNPUBLISHED` row's draft. The storefront role still
+  sees only LIVE rows in the table itself. A switch clears every
+  `previewedAt`, so the preview follows the new live theme.
+- **Invalidation.** A switch changes `role` on two rows, a publish changes
+  `publishedSettings`, and a new version on the LIVE row changes
+  `themeVersion`: each emits `theme.changed` (the `design:{storeId}` tag).
+  Installs, draft edits and preview choices change nothing public and emit
+  nothing.
+- **Nothing else moves.** Pages, page versions, products, collections,
+  carts, orders, domains and URLs are untouched by every theme operation.
+- **Audit.** `theme.installed`, `theme.draft_saved`,
+  `theme.preview_chosen`, `theme.published`, `theme.switched` (with
+  `theme`, `previousTheme`, `themeVersion`, `preset`).
+
+### 10.5 Rendering
+
+The storefront layout reads the theme row in its chrome query
+(`storeChrome`, cached under `design:{storeId}`, uncached in a preview),
+resolves it with `renderableTheme(row, THEME_PLATFORM)` and passes the
+definition to `SiteShell`, which sets `data-sv-theme` on `<html>`, renders
+the definition's header and footer variant, and appends its stylesheet
+after the composition's CSS. The builder canvas uses the live theme's
+tokens but not its chrome stylesheet (the canvas has no header or footer);
+blocks there show the shared styles.
+
+### 10.6 Why no merchant-uploaded theme code
+
+- **Safety.** A theme's stylesheet and chrome run on every page of a store,
+  next to checkout. First-party code is reviewed, tested (contrast,
+  scoping, no `@import`/`url()`) and shipped with the platform; uploaded
+  CSS could exfiltrate data through selectors and `url()`, overlay
+  checkout, or break accessibility, and uploaded code could do far worse.
+- **Compatibility.** Versioning against the engine contract and the
+  document schema only works when the platform can test every theme
+  before release; a merchant theme would break silently on an upgrade.
+- **Scope.** Merchants get real choice through bounded settings and
+  first-party themes. A marketplace (§2–§5, §8) would need package
+  validation, review and revocation first; it stays deferred and would get
+  its own ADR.

@@ -7,17 +7,27 @@ import type { ReactNode } from "react";
 import type { StoreRequestContext } from "./context";
 import { jsonLdJson } from "./seo";
 import { SITE_BASE_CSS } from "./base-css";
-import { DEFAULT_THEME, themeCss, type ThemeTokens } from "./theme";
+import {
+  DEFAULT_THEME,
+  DEFAULT_THEME_DEFINITION,
+  themeCss,
+  type ThemeDefinition,
+  type ThemeTokens,
+} from "./theme";
 
 export { SITE_BASE_CSS };
 
 type ShellContext = Pick<StoreRequestContext, "name" | "locale" | "preview" | "availability">;
+
+/** The parts of a theme package the shell renders: its key, chrome variant and stylesheet. */
+export type ShellTheme = Pick<ThemeDefinition, "key" | "chrome" | "stylesheet">;
 
 export function SiteShell({
   site,
   nonce,
   css = "",
   tokens = DEFAULT_THEME,
+  theme = DEFAULT_THEME_DEFINITION,
   nav,
   footerNav,
   actions,
@@ -29,6 +39,8 @@ export function SiteShell({
   /** The composition's stylesheet, emitted after the theme and base rules. */
   css?: string;
   tokens?: ThemeTokens;
+  /** The theme package: chrome variant and first-party stylesheet (the default theme when omitted). */
+  theme?: ShellTheme;
   /** Header navigation (e.g. the site's main menu). */
   nav?: ReactNode;
   /** Footer navigation (e.g. the site's footer menu). */
@@ -39,10 +51,18 @@ export function SiteShell({
   previewNote?: string;
   children: ReactNode;
 }) {
+  const { chrome } = theme;
+  const brand = (
+    <a className="sv-brand" href="/">
+      {site.name}
+    </a>
+  );
   return (
-    <html lang={site.locale}>
+    <html lang={site.locale} data-sv-theme={theme.key}>
       <head>
-        <style nonce={nonce}>{`${themeCss(tokens)}${SITE_BASE_CSS}${css}`}</style>
+        <style
+          nonce={nonce}
+        >{`${themeCss(tokens)}${SITE_BASE_CSS}${css}${theme.stylesheet}`}</style>
       </head>
       <body>
         <a className="sv-skip" href="#main">
@@ -57,17 +77,27 @@ export function SiteShell({
                 : "this site isn't live yet; only you can see it.")}
           </p>
         ) : null}
-        <header className="sv-header">
-          <div className="sv-container sv-header-row">
-            <a className="sv-brand" href="/">
-              {site.name}
-            </a>
-            {nav}
-            {actions}
-          </div>
+        <header
+          className={`sv-header${chrome.navigation === "uppercase" ? " sv-nav-uppercase" : ""}`}
+        >
+          {chrome.header === "centred" ? (
+            <>
+              <div className="sv-container sv-header-top">
+                {brand}
+                <div className="sv-header-end">{actions}</div>
+              </div>
+              {nav ? <div className="sv-container sv-header-nav">{nav}</div> : null}
+            </>
+          ) : (
+            <div className="sv-container sv-header-row">
+              {brand}
+              {nav}
+              {actions}
+            </div>
+          )}
         </header>
         {children}
-        <footer className="sv-footer">
+        <footer className={`sv-footer${chrome.footer === "centred" ? " sv-footer-centred" : ""}`}>
           <div className="sv-container sv-footer-row">
             {footerNav}
             <p>

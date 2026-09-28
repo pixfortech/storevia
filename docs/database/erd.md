@@ -193,8 +193,8 @@ erDiagram
   Page |o--o| PageVersion : "publishedVersionId"
   Store ||--o{ Navigation : "main, footer (items as JSON links)"
   Theme ||--o{ ThemeVersion : "immutable releases"
-  ThemeVersion |o--o{ StoreTheme : "installed as (M7; M5 themes are code-defined)"
-  Store ||--o{ StoreTheme : "exactly one LIVE"
+  ThemeVersion |o--o{ StoreTheme : "catalogue install (deferred; M7 themes are code packages)"
+  Store ||--o{ StoreTheme : "installed themes, exactly one LIVE"
   Store ||--o{ ApiKey : ""
   Store ||--o{ WebhookEndpoint : ""
   Store ||--o{ OutboxEvent : "domain events"
@@ -338,10 +338,15 @@ There is no tag table.
   per-organisation themes are deferred (§7).
 - `ThemeVersion` rows are immutable once `RELEASED` (trigger), except for the
   `status` column moving to `DEPRECATED`/`REVOKED`.
-- `StoreTheme`: exactly one `LIVE` per store (partial unique). Customisation
-  edits `draftSettings`; publishing copies to `publishedSettings`. M5 themes
-  are code-defined (`themeKey`, ADR-0030 §7); `themeVersionId` is for the
-  packaged themes of M7.
+- `StoreTheme`: exactly one `LIVE` per store (partial unique) and one row
+  per theme per store (`(storeId, themeKey)` unique). Customisation edits
+  `draftSettings`; publishing copies to `publishedSettings`, and publishing
+  an `UNPUBLISHED` theme demotes the LIVE row in the same transaction. M7
+  themes are versioned first-party code packages (`themeKey`;
+  `themeVersion` ≥ 1 is the package version the settings were saved for;
+  08-themes §10); `previewedAt` marks the installed theme the signed
+  preview shows. `themeVersionId` (relation `catalogueVersion`) is kept
+  for a future catalogue/marketplace and is unused.
 - `Navigation.items` is a JSON array of `{ id, label, link }` with the page
   documents' typed link targets (ADR-0030 §8), validated on every write;
   a link that no longer resolves in the store renders as nothing. Flat in

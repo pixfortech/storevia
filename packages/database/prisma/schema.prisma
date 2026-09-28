@@ -1351,8 +1351,12 @@ enum StoreThemeRole {
   UNPUBLISHED
 }
 
-/// A store's theme and its customised settings (design-token inputs,
-/// ADR-0030 §7). M5 themes are first-party and code-defined (`themeKey`).
+/// A store's installed theme and its customised settings (design-token
+/// inputs, ADR-0030 §7, 08-themes §10). Themes are first-party code
+/// packages (`themeKey`); `themeVersion` is the package version the settings
+/// were saved for (older ones are migrated on read). Each theme is installed
+/// at most once per store; `previewedAt` marks the installed theme an editor
+/// chose to preview (the storefront preview shows the latest one).
 /// SQL: partial unique (storeId) WHERE role = 'LIVE'; settings are JSON
 /// objects with a size bound; validated by the theme engine before every write.
 model StoreTheme {
@@ -1360,6 +1364,7 @@ model StoreTheme {
   organisationId    String         @db.Uuid
   storeId           String         @db.Uuid
   themeKey          String
+  themeVersion      Int            @default(1)
   name              String
   role              StoreThemeRole @default(UNPUBLISHED)
   draftSettings     Json
@@ -1367,11 +1372,13 @@ model StoreTheme {
   settingsRevision  Int            @default(0)
   publishedAt       DateTime?      @db.Timestamptz(3)
   publishedById     String?        @db.Uuid
+  previewedAt       DateTime?      @db.Timestamptz(3)
   createdAt         DateTime       @default(now()) @db.Timestamptz(3)
   updatedAt         DateTime       @updatedAt @db.Timestamptz(3)
 
   store Store @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
 
+  @@unique([storeId, themeKey])
   @@index([storeId])
 }
 

@@ -13,6 +13,7 @@ import { signStoreHeader, verifyStoreHeader, type StoreRequestContext } from "./
 import { escapeHtml, simplePage, unknownHostPage } from "./html";
 import { canonicalUrl, jsonLdJson, robotsTxt, sitemapXml } from "./seo";
 import { JsonLd, SiteShell } from "./shell";
+import { BOUTIQUE_THEME } from "./theme";
 
 const KEY = Buffer.alloc(32, 7);
 const NOW = Date.UTC(2026, 8, 26, 12);
@@ -191,7 +192,8 @@ describe("shell", () => {
         <main id="main">body</main>
       </SiteShell>,
     );
-    expect(html).toContain('<html lang="en-IN">');
+    expect(html).toContain('<html lang="en-IN" data-sv-theme="storevia">');
+    expect(html).toContain('class="sv-container sv-header-row"');
     expect(html).toContain("--sv-color-primary");
     expect(html).toContain('nonce="abc"');
     expect(html).toContain("&lt;Clay &amp; Co&gt;");
@@ -206,6 +208,30 @@ describe("shell", () => {
         </SiteShell>,
       ),
     ).toContain("Preview:");
+  });
+
+  it("renders the theme package's chrome variant and scoped stylesheet", () => {
+    const html = renderToStaticMarkup(
+      <SiteShell
+        site={store}
+        nonce="abc"
+        theme={BOUTIQUE_THEME}
+        nav={<nav>menu</nav>}
+        footerNav={<nav>footer</nav>}
+        actions={<a href="/cart">Cart</a>}
+      >
+        <main id="main">body</main>
+      </SiteShell>,
+    );
+    expect(html).toContain('data-sv-theme="boutique"');
+    // Centred: the name above a separate menu row, uppercase menu, centred footer.
+    expect(html).toMatch(
+      /<header class="sv-header sv-nav-uppercase"><div class="sv-container sv-header-top"><a class="sv-brand" href="\/">[^<]*<\/a><div class="sv-header-end"><a href="\/cart">Cart<\/a><\/div><\/div><div class="sv-container sv-header-nav"><nav>menu<\/nav><\/div><\/header>/,
+    );
+    expect(html).toContain('<footer class="sv-footer sv-footer-centred">');
+    // Its stylesheet comes after the composition's CSS, so it can restyle blocks.
+    expect(html).toContain(`${BOUTIQUE_THEME.stylesheet}</style>`);
+    expect(html).not.toContain('class="sv-container sv-header-row"');
   });
 });
 

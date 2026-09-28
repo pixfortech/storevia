@@ -264,7 +264,10 @@ describe("store themes", () => {
         ],
       );
     expect(await insert(STORE_A, ORG_A, { role: "LIVE" })).toBe("23505");
-    expect(await insert(STORE_A, ORG_A, {})).toBeNull();
+    // Each theme is installed once per store (M7); other themes install beside the live one.
+    expect(await insert(STORE_A, ORG_A, {})).toBe("23505");
+    expect(await insert(STORE_A, ORG_A, { key: "boutique" })).toBeNull();
+    expect(await insert(STORE_A2, ORG_A, { key: "boutique" })).toBeNull();
     expect(await insert(STORE_A, ORG_A, { draft: [] })).toBe("23514");
     expect(await insert(STORE_A, ORG_A, { draft: { css: "x".repeat(17_000) } })).toBe("23514");
     expect(await insert(STORE_A, ORG_A, { key: "Bad Key" })).toBe("23514");
@@ -336,6 +339,120 @@ describe("store themes", () => {
       [STORE_B],
     );
     expect((await events()).slice(before)).toEqual(["theme.changed"]);
+  });
+});
+
+// Migration 20270101000000_theme_packages (08-themes.md §10).
+describe("installed theme packages", () => {
+  const BOUTIQUE = { preset: "atelier", draft: "boutique" };
+
+  beforeAll(async () => {
+    await admin.query(
+      `INSERT INTO "StoreTheme" (id, "organisationId", "storeId", "themeKey", name, role, "draftSettings", "updatedAt")
+       VALUES (gen_random_uuid(), $1, $2, 'boutique', 'Boutique', 'UNPUBLISHED', $3, now())`,
+      [ORG_A, STORE_A2, BOUTIQUE],
+    );
+  });
+
+  const storefrontTheme = (scope: { org: string; store: string; preview?: boolean }) =>
+    rows<{ theme_key: string; theme_version: number; live: boolean; settings: unknown }>(
+      storefront,
+      scope,
+      "SELECT theme_key, theme_version, live, settings FROM app_storefront_theme_settings()",
+    );
+
+  it("an installed theme that isn't live reaches the storefront only in a preview that chose it", async () => {
+    const publicView = [
+      {
+        theme_key: "storevia",
+        theme_version: 1,
+        live: true,
+        settings: { ...SETTINGS, published: STORE_A2 },
+      },
+    ];
+    // Installed but not chosen for preview: the preview shows the live theme's draft.
+    expect(await storefrontTheme({ org: ORG_A, store: STORE_A2, preview: true })).toEqual([
+      {
+        theme_key: "storevia",
+        theme_version: 1,
+        live: true,
+        settings: { ...SETTINGS, draft: STORE_A2 },
+      },
+    ]);
+    await admin.query(
+      `UPDATE "StoreTheme" SET "previewedAt" = now() WHERE "storeId" = $1 AND "themeKey" = 'boutique'`,
+      [STORE_A2],
+    );
+    expect(await storefrontTheme({ org: ORG_A, store: STORE_A2, preview: true })).toEqual([
+      { theme_key: "boutique", theme_version: 1, live: false, settings: BOUTIQUE },
+    ]);
+    // Visitors (no verified preview) always get the live theme's published settings.
+    expect(await storefrontTheme({ org: ORG_A, store: STORE_A2 })).toEqual(publicView);
+    // The table itself still shows the storefront role only LIVE rows, even in a preview.
+    expect(
+      await rows(
+        storefront,
+        { org: ORG_A, store: STORE_A2, preview: true },
+        `SELECT "themeKey" FROM "StoreTheme"`,
+      ),
+    ).toEqual([{ themeKey: "storevia" }]);
+    // Another store's preview never sees it.
+    expect(
+      (await storefrontTheme({ org: ORG_A, store: STORE_A, preview: true })).map(
+        (r) => r.theme_key,
+      ),
+    ).toEqual(["storevia"]);
+    // The live theme chosen again (a later choice) wins.
+    await admin.query(
+      `UPDATE "StoreTheme" SET "previewedAt" = now() + interval '1 second' WHERE "storeId" = $1 AND role = 'LIVE'`,
+      [STORE_A2],
+    );
+    expect(
+      (await storefrontTheme({ org: ORG_A, store: STORE_A2, preview: true }))[0]?.theme_key,
+    ).toBe("storevia");
+  });
+
+  it("records a positive theme version; the merchant role may set it and the preview choice", async () => {
+    expect(
+      await code(admin, {}, `UPDATE "StoreTheme" SET "themeVersion" = 0 WHERE "storeId" = $1`, [
+        STORE_A2,
+      ]),
+    ).toBe("23514");
+    const updated = await scoped(
+      app,
+      { org: ORG_A, store: STORE_A2 },
+      async (c) =>
+        (
+          await c.query(
+            `UPDATE "StoreTheme" SET "themeVersion" = 2, "previewedAt" = now() WHERE "themeKey" = 'boutique'`,
+          )
+        ).rowCount,
+    );
+    expect(updated).toBe(1);
+  });
+
+  it("a preview choice emits nothing; a new version of the live theme refreshes the site", async () => {
+    const events = async () =>
+      (
+        await admin.query<{ type: string }>(
+          `SELECT type FROM "OutboxEvent" WHERE "storeId" = $1 AND "entityType" = 'StoreTheme'`,
+          [STORE_A2],
+        )
+      ).rows.length;
+    const before = await events();
+    await admin.query(`UPDATE "StoreTheme" SET "previewedAt" = now() WHERE "storeId" = $1`, [
+      STORE_A2,
+    ]);
+    await admin.query(
+      `UPDATE "StoreTheme" SET "themeVersion" = 2 WHERE "storeId" = $1 AND role = 'UNPUBLISHED'`,
+      [STORE_A2],
+    );
+    expect(await events()).toBe(before);
+    await admin.query(
+      `UPDATE "StoreTheme" SET "themeVersion" = 2 WHERE "storeId" = $1 AND role = 'LIVE'`,
+      [STORE_A2],
+    );
+    expect(await events()).toBe(before + 1);
   });
 });
 

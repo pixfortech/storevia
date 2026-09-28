@@ -184,6 +184,21 @@ mechanism.
   `settingsRevision`, one LIVE per store). Until packaged themes arrive
   (M7), it has `themeKey` instead of `themeVersionId`. Publishing needs
   `theme.publish`.
+- **M7 amendment (2027-01, migration `20270101000000_theme_packages`).**
+  Themes became versioned first-party packages, still code in this
+  repository (`packages/site-engine/src/themes/`), never uploaded: each
+  `ThemeDefinition` carries `version`, `compatibility` (theme-engine
+  contract and page-document schema versions), metadata, presets, its own
+  settings schema, chrome metadata (header, menu, footer, product card and
+  product page variants) and a scoped first-party stylesheet. A second
+  theme, **Boutique**, ships beside Storevia. A store installs a theme as
+  an `UNPUBLISHED` row (`design.edit`), customises and previews it, and
+  publishing it (`theme.publish`) moves the one LIVE row atomically, the
+  previous theme keeping its settings. `StoreTheme` gains `themeVersion`
+  (settings migrate on read), `previewedAt` (which installed theme the
+  signed preview shows) and one row per theme per store. `themeVersionId`
+  and the `Theme`/`ThemeVersion` catalogue stay deferred to a marketplace.
+  Details: 08-themes.md §10.
 
 ### 8. Navigation
 
@@ -233,9 +248,11 @@ and documented in 07.
 ### 12. Permissions
 
 - `design.edit`: open the builder, save drafts, create pages, edit theme
-  drafts, preview.
+  drafts, preview; from M7 also install a theme and choose which installed
+  theme the preview shows.
 - `page.publish`: publish, unpublish and delete pages.
-- `theme.publish`: publish the theme.
+- `theme.publish`: publish the theme; from M7 also switch to another
+  installed theme.
 - `navigation.manage`: navigation.
 
 Every check is on the server. The UI only hides what the server would
@@ -251,7 +268,8 @@ refuse.
   unchanged.
 - Deferred: freeform canvas and layers, undo/redo, inline editing,
   per-breakpoint styling, CustomHTML/embeds, page history and restore,
-  nested menus, packaged themes and a theme gallery (M7), web fonts,
+  nested menus, packaged themes and a theme gallery (M7: first-party theme
+  packages and the theme library shipped; see §7), web fonts,
   handle-change redirects.
 
 ## Alternatives considered
