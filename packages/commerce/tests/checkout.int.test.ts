@@ -18,7 +18,7 @@ import {
 } from "@storevia/payments";
 import { parseTypeId, toTypeId, uuidv7 } from "@storevia/types";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createProduct, getProduct, updateVariants } from "../src";
+import { adjustInventory, createProduct, getProduct, updateVariants } from "../src";
 import {
   applyDiscountCode,
   beginPayment,
@@ -694,6 +694,61 @@ describe("idempotency and concurrency", () => {
     expect(await level("last")).toEqual({ available: 0, reserved: 1 });
     // The loser's attempt left nothing behind.
     expect(await migratorDb().payment.count()).toBe(payments + 1);
+  });
+
+  it("the cart doesn't reserve: two carts hold the last 2, the first to pay gets them", async () => {
+    await makeProduct(a, "pair", "400", 2);
+    // Both carts accept 2: the cart checks stock, it doesn't hold it.
+    const one = await shopper(storeA, [["pair", 2]]);
+    const two = await shopper(storeA, [["pair", 2]]);
+    await ready(one);
+    await ready(two);
+    // Both review; A pays first and reserves the stock.
+    const reviewed = await getCheckout(two.req);
+    const first = await pay(one);
+    expect(first.kind).toBe("redirect");
+    expect(await level("pair")).toEqual({ available: 0, reserved: 2 });
+    // B can't oversell: paying for what it reviewed is refused, and its line is sold out.
+    expect(
+      await beginPayment(two.req, { pricingHash: reviewed?.pricingHash, returnUrl: RETURN_URL }),
+    ).toEqual({ kind: "changed", change: "ITEM_UNAVAILABLE" });
+    const after = await getCheckout(two.req);
+    expect(after?.unavailable).toEqual([
+      expect.objectContaining({ quantity: 2, reason: "SOLD_OUT" }) as unknown,
+    ]);
+    expect(await level("pair")).toEqual({ available: 0, reserved: 2 });
+  });
+
+  it("a line above what stock can supply is LOW_STOCK and can't be paid", async () => {
+    await makeProduct(a, "trio", "300", 3);
+    const s = await shopper(storeA, [["trio", 3]]);
+    await ready(s);
+    await adjustInventory(storeOf(a), {
+      variantId: variant["trio"],
+      delta: -1,
+      reason: "CORRECTION",
+    });
+    const view = await getCheckout(s.req);
+    expect(view?.unavailable).toEqual([
+      expect.objectContaining({ quantity: 3, reason: "LOW_STOCK", available: 2 }) as unknown,
+    ]);
+    expect(view?.problems).toContain("UNAVAILABLE");
+    expect(await pay(s)).toMatchObject({ kind: "changed" });
+    // A cart in that state can't start a new checkout either: it is fixed in the cart first.
+    const clientIp = nextIp();
+    const { newToken } = await addToCart(
+      { store: storeA, token: null, clientIp },
+      { variantId: variant["trio"], quantity: 2 },
+    );
+    await adjustInventory(storeOf(a), {
+      variantId: variant["trio"],
+      delta: -1,
+      reason: "CORRECTION",
+    });
+    await expectCode(
+      startCheckout({ store: storeA, token: null, clientIp, cartToken: newToken }),
+      "CONFLICT",
+    );
   });
 
   it("two shoppers racing for a discount's final use: exactly one gets it", async () => {

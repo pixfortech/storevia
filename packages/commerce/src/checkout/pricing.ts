@@ -46,8 +46,13 @@ export interface PricingLine {
   readonly weightGrams: number | null;
   /** The product is active and the variant exists (checkout role policies). */
   readonly sellable: boolean;
-  /** Advisory: tracked DENY variants have the quantity somewhere. The reservation decides. */
+  /**
+   * Advisory: stock can supply the quantity (app_variant_stock, the rule the
+   * reservation uses). The reservation decides.
+   */
   readonly inStock: boolean;
+  /** How many stock can supply when it limits the variant (null or absent: no limit). */
+  readonly stockLimit?: number | null;
 }
 
 export interface PricingShippingRate {
@@ -149,7 +154,9 @@ export interface QuoteUnavailableLine {
   readonly productTitle: string;
   readonly variantTitle: string;
   readonly quantity: number;
-  readonly reason: "UNAVAILABLE" | "SOLD_OUT";
+  /** LOW_STOCK: fewer than `quantity` can be supplied (`available` of them). */
+  readonly reason: "UNAVAILABLE" | "SOLD_OUT" | "LOW_STOCK";
+  readonly available?: number;
 }
 
 export interface QuoteShippingOption {
@@ -294,7 +301,11 @@ export function priceCheckout(input: PricingInput): PriceQuote {
       productTitle: l.productTitle,
       variantTitle: l.variantTitle,
       quantity: l.quantity,
-      reason: l.sellable && l.currency === currency ? "SOLD_OUT" : "UNAVAILABLE",
+      ...(l.sellable && l.currency === currency
+        ? l.stockLimit
+          ? { reason: "LOW_STOCK" as const, available: l.stockLimit }
+          : { reason: "SOLD_OUT" as const }
+        : { reason: "UNAVAILABLE" as const }),
     }));
 
   const lineSubtotals = priced.map((l) => l.unitPrice * BigInt(l.quantity));

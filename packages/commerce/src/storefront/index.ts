@@ -10,12 +10,14 @@ export * from "./resolve";
 export { canvasDocument, loadCanvasData } from "./canvas";
 export {
   CART_LIMITS,
+  CartQuantityError,
   addToCart,
   cartCookieName,
   cartItemCount,
   readCart,
   removeCartLine,
   updateCartLine,
+  type CartLineStock,
   type CartLineView,
   type CartMutationContext,
   type CartResult,

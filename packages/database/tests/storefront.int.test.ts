@@ -566,6 +566,114 @@ describe("availability without counts", () => {
   });
 });
 
+describe("stock ceiling (app_variant_stock, migration 20261210010000)", () => {
+  const stock = (s: Store, variants: readonly string[], client = storefront) =>
+    scoped(client, { org: s.org, store: s.id }, async (c) => {
+      const { rows } = await c.query<{ variant_id: string; max_quantity: number | null }>(
+        "SELECT variant_id, max_quantity FROM app_variant_stock($1::uuid[])",
+        [variants],
+      );
+      return Object.fromEntries(rows.map((r) => [r.variant_id, r.max_quantity]));
+    });
+  const level = (available: number) =>
+    admin.query(
+      `UPDATE "InventoryLevel" SET available = $2
+       WHERE "inventoryItemId" = (SELECT id FROM "InventoryItem" WHERE "variantId" = $1)`,
+      [A().liveVariant, available],
+    );
+
+  it("is the most one online-fulfilling location holds, for sellable variants of this store only", async () => {
+    expect(
+      await stock(A(), [A().liveVariant, A().draftVariant, A1().liveVariant, B().liveVariant]),
+    ).toEqual({ [A().liveVariant]: 3 });
+  });
+
+  it("is the largest single location, not the sum (a line is reserved at one location)", async () => {
+    const second = await one(
+      `INSERT INTO "Location" (id, "organisationId", "storeId", name, code, "countryCode", "updatedAt")
+       VALUES (gen_random_uuid(), $1, $2, 'Second', 'SECOND', 'IN', now()) RETURNING id`,
+      [A().org, A().id],
+    );
+    const item = await one(`SELECT id FROM "InventoryItem" WHERE "variantId" = $1`, [
+      A().liveVariant,
+    ]);
+    await admin.query(
+      `INSERT INTO "InventoryLevel" (id, "organisationId", "storeId", "inventoryItemId", "locationId", available, "updatedAt")
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, 2, now())`,
+      [A().org, A().id, item, second],
+    );
+    try {
+      expect(await stock(A(), [A().liveVariant])).toEqual({ [A().liveVariant]: 3 });
+      // A location that doesn't fulfil online orders never counts, whatever it holds.
+      await admin.query(`UPDATE "InventoryLevel" SET available = 50 WHERE "locationId" = $1`, [
+        second,
+      ]);
+      expect(await stock(A(), [A().liveVariant])).toEqual({ [A().liveVariant]: 50 });
+      await admin.query(`UPDATE "Location" SET "fulfilsOnlineOrders" = false WHERE id = $1`, [
+        second,
+      ]);
+      expect(await stock(A(), [A().liveVariant])).toEqual({ [A().liveVariant]: 3 });
+    } finally {
+      await admin.query(`DELETE FROM "InventoryLevel" WHERE "locationId" = $1`, [second]);
+      await admin.query(`DELETE FROM "Location" WHERE id = $1`, [second]);
+    }
+  });
+
+  it("reports at most 100 (the cart never needs more), 0 when sold out, null when stock doesn't limit", async () => {
+    try {
+      await level(5000);
+      expect(await stock(A(), [A().liveVariant])).toEqual({ [A().liveVariant]: 100 });
+      await level(-4);
+      expect(await stock(A(), [A().liveVariant])).toEqual({ [A().liveVariant]: 0 });
+      await admin.query(
+        `UPDATE "ProductVariant" SET "inventoryPolicy" = 'CONTINUE' WHERE id = $1`,
+        [A().liveVariant],
+      );
+      expect(await stock(A(), [A().liveVariant])).toEqual({ [A().liveVariant]: null });
+    } finally {
+      await admin.query(`UPDATE "ProductVariant" SET "inventoryPolicy" = 'DENY' WHERE id = $1`, [
+        A().liveVariant,
+      ]);
+      await level(3);
+    }
+  });
+
+  it("changing whether a location fulfils online orders emits an invalidation event", async () => {
+    const before = await admin.query<{ n: string }>(
+      `SELECT count(*) AS n FROM "OutboxEvent" WHERE type = 'store.inventory_changed' AND "storeId" = $1`,
+      [A().id],
+    );
+    await admin.query(`UPDATE "Location" SET "fulfilsOnlineOrders" = false WHERE "storeId" = $1`, [
+      A().id,
+    ]);
+    await admin.query(`UPDATE "Location" SET "fulfilsOnlineOrders" = true WHERE "storeId" = $1`, [
+      A().id,
+    ]);
+    const after = await admin.query<{ n: string }>(
+      `SELECT count(*) AS n FROM "OutboxEvent" WHERE type = 'store.inventory_changed' AND "storeId" = $1`,
+      [A().id],
+    );
+    expect(Number(after.rows[0]?.n) - Number(before.rows[0]?.n)).toBe(2);
+  });
+
+  it("the merchant and worker roles can't call it (only the storefront and checkout roles)", async () => {
+    expect(
+      await errorCode(
+        app,
+        { org: A().org, store: A().id },
+        `SELECT * FROM app_variant_stock(ARRAY['${A().liveVariant}']::uuid[])`,
+      ),
+    ).toBe("42501");
+    expect(
+      await errorCode(
+        worker,
+        { org: A().org, store: A().id },
+        `SELECT * FROM app_variant_stock(ARRAY['${A().liveVariant}']::uuid[])`,
+      ),
+    ).toBe("42501");
+  });
+});
+
 describe("carts", () => {
   const insertCart = (s: Store, token: number, currency = "INR", store = s.id) =>
     `INSERT INTO "Cart" (id, "organisationId", "storeId", "tokenHash", currency, "expiresAt", "updatedAt")

@@ -113,7 +113,11 @@ export function CheckoutSummary({
           {view.unavailable.map((u, i) => (
             <li key={`${u.productTitle}-${String(i)}`} className="sv-muted">
               {u.productTitle} × {u.quantity} —{" "}
-              {u.reason === "SOLD_OUT" ? "sold out" : "no longer available"}
+              {u.reason === "SOLD_OUT"
+                ? "sold out"
+                : u.reason === "LOW_STOCK"
+                  ? `only ${String(u.available ?? 0)} available`
+                  : "no longer available"}
             </li>
           ))}
         </ul>

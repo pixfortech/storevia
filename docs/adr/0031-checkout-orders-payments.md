@@ -22,6 +22,16 @@ and the decisions that refine or narrow the baseline.
    `CartLine` to `app_current_store()`. `Cart.customerId` is forced NULL by a
    CHECK. Carts live 30 days; availability is a boolean from a definer
    function, never a count. Checkout can start from this cart unchanged.
+   *Correction (migration `20261210010000_cart_stock`):* the cart, the product
+   page and checkout share one stock rule, `app_variant_stock()` — a tracked
+   DENY variant can be bought up to the largest `available` at one active,
+   online-fulfilling location, which is what §3 reserves (a line is reserved
+   whole at one location). The cart refuses (never clamps) a quantity above
+   that or above 99, marks a line stock can no longer supply
+   (`insufficient`/`sold_out`, left out of the subtotal), and a checkout
+   can't start while such a line remains; checkout lists it as `LOW_STOCK` or
+   `SOLD_OUT`. The cart still reserves nothing: the reservation at payment
+   decides.
 2. **Money.** `packages/commerce/src/money.ts`: bigint minor units, ISO-4217
    exponents, explicit rounding modes, `applyBasisPoints`, `applyPpm`,
    largest-remainder `allocate`, mismatched currencies throw. Property

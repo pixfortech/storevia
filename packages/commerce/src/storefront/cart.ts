@@ -3,7 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { TenantTx } from "@storevia/database";
 import { storefrontDb, withStorefront } from "@storevia/database/storefront";
 import { consumeRateLimitsWith, type RateLimitRule } from "@storevia/security/rate-limit";
-import { DomainError, notFound, parseTypeId, toTypeId } from "@storevia/types";
+import { DomainError, notFound, parseTypeId, toTypeId, validationFailed } from "@storevia/types";
 import { money, multiply, sum, toJSON } from "../money";
 import { imageDto, type ImageDto, type PriceDto } from "./read";
 
@@ -13,6 +13,12 @@ import { imageDto, type ImageDto, type PriceDto } from "./read";
 // is priced on the server from current variant prices. Every mutation
 // re-validates the variant against the resolved store, so an id from another
 // store, a draft product or a deleted variant is simply "not found".
+//
+// Quantities are never clamped: more than a line may hold (99), or more than
+// can be supplied, is refused with the reason and the line keeps its
+// previous quantity. What can be supplied is app_variant_stock(), the same
+// rule checkout reserves by (one online-fulfilling location holds the whole
+// line); it is a guard, not a reservation, so checkout still has the last word.
 
 export const CART_LIMITS = { maxLines: 50, maxQuantity: 99, ttlDays: 30 } as const;
 
@@ -37,6 +43,16 @@ export interface CartStore {
   readonly currency: string;
 }
 
+/**
+ * How a line stands against stock:
+ * - `in_stock`: stock doesn't limit it (untracked, oversellable, or 100+);
+ * - `limited`: tracked stock allows `maxQuantity` in all (shown as "Only N available");
+ * - `insufficient`: more is in the cart than can be supplied;
+ * - `sold_out`: none can be supplied.
+ * Only `in_stock` and `limited` lines can be bought.
+ */
+export type CartLineStock = "in_stock" | "limited" | "insufficient" | "sold_out";
+
 export interface CartLineView {
   readonly variantId: string;
   readonly productHandle: string;
@@ -46,7 +62,11 @@ export interface CartLineView {
   readonly unitPrice: PriceDto;
   readonly lineTotal: PriceDto;
   readonly image: ImageDto | null;
+  /** Whether the line can be bought at its quantity. */
   readonly available: boolean;
+  readonly stock: CartLineStock;
+  /** The most this line may hold (stock-limited, and never above the cart's 99). */
+  readonly maxQuantity: number;
 }
 
 export interface CartView {
@@ -54,8 +74,36 @@ export interface CartView {
   readonly itemCount: number;
   /** Available lines only; checkout (M6) re-prices everything again. */
   readonly subtotal: PriceDto;
+  /** Some line can't be bought as it is: it must be changed or removed before checkout. */
   readonly hasUnavailableLines: boolean;
 }
+
+/**
+ * A quantity the cart refuses: over the cart's per-line limit, more than can
+ * be supplied, or a sold-out item. `available` is how many can be had in all
+ * (for "Only 2 are available."), when stock is the reason.
+ */
+export class CartQuantityError extends DomainError {
+  constructor(
+    readonly reason: "limit" | "stock" | "sold_out",
+    message: string,
+    readonly available: number | null = null,
+  ) {
+    super("CONFLICT", message);
+  }
+}
+
+const onlyAvailable = (n: number) => `Only ${String(n)} ${n === 1 ? "is" : "are"} available.`;
+
+/** The stock ceiling from app_variant_stock (null: stock doesn't limit the variant). */
+function lineStock(stockMax: number | null, quantity: number): CartLineStock {
+  if (stockMax === null || stockMax > CART_LIMITS.maxQuantity) return "in_stock";
+  if (stockMax === 0) return "sold_out";
+  return quantity > stockMax ? "insufficient" : "limited";
+}
+
+const maxQuantityOf = (stockMax: number | null) =>
+  stockMax === null ? CART_LIMITS.maxQuantity : Math.min(stockMax, CART_LIMITS.maxQuantity);
 
 export interface CartResult {
   readonly cart: CartView;
@@ -117,7 +165,7 @@ async function viewCart(tx: TenantTx, cartId: string | null, currency: string): 
       product_handle: string;
       product_title: string;
       image: { renditions: unknown; alt: string | null } | null;
-      available: boolean | null;
+      max_quantity: number | null;
     }[]
   >`
     SELECT l."variantId" AS variant_id, l.quantity, v."priceAmount" AS price, v.currency,
@@ -126,16 +174,17 @@ async function viewCart(tx: TenantTx, cartId: string | null, currency: string): 
         WHERE m.id = coalesce(v."imageMediaId", (SELECT pm."mediaAssetId" FROM "ProductMedia" pm
           WHERE pm."productId" = p.id ORDER BY pm.position LIMIT 1))
           AND m.status = 'READY' AND m."deletedAt" IS NULL) AS image,
-      av.available
+      st.max_quantity
     FROM "CartLine" l
     JOIN "ProductVariant" v ON v.id = l."variantId" AND v."deletedAt" IS NULL
     JOIN "Product" p ON p.id = v."productId" AND p.status = 'ACTIVE' AND p."deletedAt" IS NULL
-    LEFT JOIN app_storefront_availability(ARRAY(SELECT "variantId" FROM "CartLine" WHERE "cartId" = ${cartId}::uuid)) av
-      ON av.variant_id = l."variantId"
+    JOIN app_variant_stock(ARRAY(SELECT "variantId" FROM "CartLine" WHERE "cartId" = ${cartId}::uuid)) st
+      ON st.variant_id = l."variantId"
     WHERE l."cartId" = ${cartId}::uuid
     ORDER BY l."createdAt", l.id`;
   const lines = rows.map((row) => {
     const unit = money(row.price, row.currency.trim());
+    const stock = lineStock(row.max_quantity, row.quantity);
     return {
       variantId: toTypeId("variant", row.variant_id),
       productHandle: row.product_handle,
@@ -145,7 +194,9 @@ async function viewCart(tx: TenantTx, cartId: string | null, currency: string): 
       unitPrice: toJSON(unit),
       lineTotal: toJSON(multiply(unit, row.quantity)),
       image: imageDto(row.image, row.product_title),
-      available: row.available === true,
+      available: stock === "in_stock" || stock === "limited",
+      stock,
+      maxQuantity: maxQuantityOf(row.max_quantity),
     };
   });
   const purchasable = lines.filter((l) => l.available);
@@ -171,28 +222,49 @@ export async function readCart(store: CartStore, token: string | null): Promise<
   );
 }
 
-const clampQuantity = (value: unknown, min: number): number => {
-  const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
-  if (!Number.isFinite(n)) return min;
-  return Math.min(Math.max(Math.trunc(n), min), CART_LIMITS.maxQuantity);
-};
+/**
+ * A requested quantity: a whole number from `min`, never clamped. Above the
+ * cart's per-line limit it is refused, not reduced.
+ */
+function parseQuantity(value: unknown, min: 0 | 1): number {
+  const text = typeof value === "number" ? String(value) : typeof value === "string" ? value : "";
+  if (!/^\s*\d{1,6}\s*$/.test(text) || Number(text) < min) {
+    throw validationFailed({
+      quantity: min === 1 ? "Enter a quantity of 1 or more." : "Enter a quantity of 0 or more.",
+    });
+  }
+  const n = Number(text);
+  if (n > CART_LIMITS.maxQuantity) throw overLimit();
+  return n;
+}
 
-/** The internal id of a variant that is sellable in this store right now, or NOT_FOUND. */
+const overLimit = () =>
+  new CartQuantityError(
+    "limit",
+    `You can have at most ${String(CART_LIMITS.maxQuantity)} of an item in your cart.`,
+  );
+
+/** Refuses `total` of a variant unless stock (app_variant_stock) can supply it. */
+function assertSuppliable(stockMax: number | null, total: number, inCart = 0): void {
+  if (total > CART_LIMITS.maxQuantity) throw overLimit();
+  if (stockMax === null || total <= stockMax) return;
+  if (stockMax === 0) throw new CartQuantityError("sold_out", "This item is sold out.", 0);
+  const already = inCart > 0 ? ` You already have ${String(inCart)} in your cart.` : "";
+  throw new CartQuantityError("stock", `${onlyAvailable(stockMax)}${already}`, stockMax);
+}
+
+/** A variant that is sellable in this store right now, with its stock ceiling; else NOT_FOUND. */
 async function sellableVariant(
   tx: TenantTx,
   variantPublicId: unknown,
-): Promise<{ id: string; available: boolean }> {
+): Promise<{ id: string; stockMax: number | null }> {
   const id = typeof variantPublicId === "string" ? parseTypeId("variant", variantPublicId) : null;
   if (!id) throw notFound();
-  const rows = await tx.$queryRaw<{ id: string; available: boolean }[]>`
-    SELECT v.id, coalesce(av.available, false) AS available
-    FROM "ProductVariant" v
-    JOIN "Product" p ON p.id = v."productId" AND p.status = 'ACTIVE' AND p."deletedAt" IS NULL
-    LEFT JOIN app_storefront_availability(ARRAY[${id}::uuid]) av ON av.variant_id = v.id
-    WHERE v.id = ${id}::uuid AND v."deletedAt" IS NULL`;
+  const rows = await tx.$queryRaw<{ id: string; max_quantity: number | null }[]>`
+    SELECT variant_id AS id, max_quantity FROM app_variant_stock(ARRAY[${id}::uuid])`;
   const row = rows[0];
   if (!row) throw notFound();
-  return row;
+  return { id: row.id, stockMax: row.max_quantity };
 }
 
 async function touch(tx: TenantTx, cartId: string): Promise<void> {
@@ -209,16 +281,21 @@ export interface CartMutationContext {
   readonly clientIp: string | null;
 }
 
-/** Adds a variant (quantity is added to an existing line, capped at 99). */
+/**
+ * Adds a variant; the quantity is added to an existing line. The line's new
+ * total must fit the cart's limit and what stock can supply, or nothing changes.
+ */
 export async function addToCart(
   ctx: CartMutationContext,
   input: { readonly variantId: unknown; readonly quantity?: unknown },
 ): Promise<CartResult> {
   await rateLimit(ctx.store, ctx.clientIp, ctx.token);
-  const quantity = clampQuantity(input.quantity ?? 1, 1);
+  const quantity = parseQuantity(input.quantity ?? 1, 1);
   return withStorefront(ctx.store, async (tx) => {
     const variant = await sellableVariant(tx, input.variantId);
-    if (!variant.available) throw new DomainError("CONFLICT", "This item is sold out.");
+    if (variant.stockMax === 0) {
+      throw new CartQuantityError("sold_out", "This item is sold out.", 0);
+    }
     let cartId = await findCart(tx, ctx.token, true);
     let newToken: string | null = null;
     if (!cartId) {
@@ -232,10 +309,13 @@ export async function addToCart(
       cartId = rows[0]?.id ?? null;
       if (!cartId) throw new Error("cart insert returned no row");
     }
-    const existing = await tx.$queryRaw<{ n: bigint; has: boolean }[]>`
-      SELECT count(*) AS n, bool_or("variantId" = ${variant.id}::uuid) AS has
+    const existing = await tx.$queryRaw<{ n: bigint; has: boolean; in_cart: number | null }[]>`
+      SELECT count(*) AS n, bool_or("variantId" = ${variant.id}::uuid) AS has,
+        max(quantity) FILTER (WHERE "variantId" = ${variant.id}::uuid) AS in_cart
       FROM "CartLine" WHERE "cartId" = ${cartId}::uuid`;
     const has = existing[0]?.has === true;
+    const inCart = existing[0]?.in_cart ?? 0;
+    assertSuppliable(variant.stockMax, inCart + quantity, inCart);
     if (!has && Number(existing[0]?.n ?? 0) >= CART_LIMITS.maxLines) {
       throw new DomainError(
         "CONFLICT",
@@ -247,24 +327,33 @@ export async function addToCart(
       VALUES (gen_random_uuid(), ${ctx.store.organisationId}::uuid, ${ctx.store.storeId}::uuid,
               ${cartId}::uuid, ${variant.id}::uuid, ${quantity}, now())
       ON CONFLICT ("cartId", "variantId") DO UPDATE
-        SET quantity = LEAST("CartLine".quantity + EXCLUDED.quantity, ${CART_LIMITS.maxQuantity}), "updatedAt" = now()`;
+        SET quantity = "CartLine".quantity + EXCLUDED.quantity, "updatedAt" = now()`;
     await touch(tx, cartId);
     return { cart: await viewCart(tx, cartId, ctx.store.currency), newToken };
   });
 }
 
-/** Sets a line's quantity; 0 removes it. A line that isn't in the cart is "not found". */
+/**
+ * Sets a line's quantity; 0 removes it. A line that isn't in the cart is
+ * "not found"; a quantity stock can't supply is refused and the line keeps
+ * its quantity. Lowering a line is refused too while still above what can
+ * be supplied, so the message says how many can be had.
+ */
 export async function updateCartLine(
   ctx: CartMutationContext,
   input: { readonly variantId: unknown; readonly quantity: unknown },
 ): Promise<CartResult> {
   await rateLimit(ctx.store, ctx.clientIp, ctx.token);
-  const quantity = clampQuantity(input.quantity, 0);
+  const quantity = parseQuantity(input.quantity, 0);
   const variantId =
     typeof input.variantId === "string" ? parseTypeId("variant", input.variantId) : null;
   return withStorefront(ctx.store, async (tx) => {
     const cartId = await findCart(tx, ctx.token, true);
     if (!cartId || !variantId) throw notFound();
+    if (quantity > 0) {
+      const variant = await sellableVariant(tx, toTypeId("variant", variantId));
+      assertSuppliable(variant.stockMax, quantity);
+    }
     const changed =
       quantity === 0
         ? await tx.$executeRaw`DELETE FROM "CartLine" WHERE "cartId" = ${cartId}::uuid AND "variantId" = ${variantId}::uuid`

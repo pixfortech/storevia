@@ -13,10 +13,11 @@ import {
   updateContact,
   type TestOutcome,
 } from "@storevia/commerce/checkout";
+import { readCart } from "@storevia/commerce/storefront";
 import { isBrowsable, requestStore } from "@storevia/site-engine/request";
 import { isDomainError } from "@storevia/types";
 import { redirect } from "next/navigation";
-import { cartToken } from "@/lib/cart";
+import { cartStore, cartToken } from "@/lib/cart";
 import {
   checkoutRequest,
   clearFlash,
@@ -81,6 +82,10 @@ async function step(name: CheckoutStep, form: FormData, fn: () => Promise<unknow
 export async function startCheckoutAction(): Promise<void> {
   const s = await store();
   const req = await checkoutRequest(s);
+  // The checkout service refuses such a cart too; this only picks the message.
+  if ((await readCart(cartStore(s), await cartToken())).hasUnavailableLines) {
+    redirect("/cart?error=fix");
+  }
   let failed = false;
   try {
     const { token } = await startCheckout({ ...req, cartToken: await cartToken() });

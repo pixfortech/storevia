@@ -15,7 +15,10 @@ import { uuidv7 } from "@storevia/types";
 // transactions over the same items serialise instead of deadlocking. Each
 // cart line reserves at one location (the first active, online-fulfilling
 // one by priority that has the quantity), so an order line has at most one
-// reservation.
+// reservation. The cart and the product page apply the same rule through
+// app_variant_stock() (the largest `available` at such a location), so what
+// they accept is what can be reserved here; this function stays the
+// authority, under row locks.
 
 export interface StockScope {
   readonly organisationId: string;

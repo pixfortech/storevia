@@ -356,11 +356,12 @@ describe("carts", () => {
     const again = await addToCart(ctxA(first.newToken), { variantId: variant["mug"], quantity: 1 });
     expect(again.newToken).toBeNull();
     expect(again.cart.lines[0]?.quantity).toBe(3);
-    const clamped = await addToCart(ctxA(first.newToken), {
-      variantId: variant["mug"],
-      quantity: 500,
-    });
-    expect(clamped.cart.lines[0]?.quantity).toBe(CART_LIMITS.maxQuantity);
+    // Never clamped: more than a line may hold is refused and nothing changes.
+    await expect(
+      addToCart(ctxA(first.newToken), { variantId: variant["mug"], quantity: 500 }),
+    ).rejects.toMatchObject({ reason: "limit" });
+    expect((await readCart(storeA, first.newToken)).lines[0]?.quantity).toBe(3);
+    expect(CART_LIMITS.maxQuantity).toBe(99);
   });
 
   it("prices always come from current variant prices, never the cart", async () => {
@@ -404,9 +405,9 @@ describe("carts", () => {
     const { newToken } = await addToCart(ctxA(null), { variantId: variant["mug"], quantity: 1 });
     const updated = await updateCartLine(ctxA(newToken), {
       variantId: variant["mug"],
-      quantity: 4,
+      quantity: 3,
     });
-    expect(updated.cart.itemCount).toBe(4);
+    expect(updated.cart.itemCount).toBe(3);
     await expectCode(
       updateCartLine(ctxA(newToken), { variantId: variant["bowl"], quantity: 1 }),
       "NOT_FOUND",

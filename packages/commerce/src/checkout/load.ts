@@ -104,7 +104,8 @@ interface LineRow {
   taxable: boolean | null;
   requires_shipping: boolean | null;
   weight_grams: number | null;
-  in_stock: boolean;
+  stock_max: number | null;
+  stock_known: boolean;
 }
 
 async function loadLines(tx: TenantTx, cartId: string): Promise<PricingLine[]> {
@@ -112,20 +113,13 @@ async function loadLines(tx: TenantTx, cartId: string): Promise<PricingLine[]> {
     SELECT l."variantId" AS variant_id, l.quantity, (v.id IS NOT NULL) AS sellable,
       p.id AS product_id, p.title AS product_title, v.title AS variant_title, v.sku, v.currency,
       v."priceAmount" AS price, v.taxable, v."requiresShipping" AS requires_shipping,
-      v."weightGrams" AS weight_grams,
-      CASE
-        WHEN v.id IS NULL THEN false
-        WHEN ii.id IS NULL OR NOT ii.tracked OR v."inventoryPolicy" = 'CONTINUE' THEN true
-        ELSE EXISTS (
-          SELECT 1 FROM "InventoryLevel" lv
-          JOIN "Location" loc ON loc.id = lv."locationId" AND loc."isActive"
-            AND loc."fulfilsOnlineOrders" AND loc."deletedAt" IS NULL
-          WHERE lv."inventoryItemId" = ii.id AND lv.available >= l.quantity)
-      END AS in_stock
+      v."weightGrams" AS weight_grams, st.max_quantity AS stock_max,
+      (st.variant_id IS NOT NULL) AS stock_known
     FROM "CartLine" l
     LEFT JOIN "ProductVariant" v ON v.id = l."variantId"
     LEFT JOIN "Product" p ON p.id = v."productId"
-    LEFT JOIN "InventoryItem" ii ON ii."variantId" = v.id
+    LEFT JOIN app_variant_stock(ARRAY(SELECT "variantId" FROM "CartLine" WHERE "cartId" = ${cartId}::uuid)) st
+      ON st.variant_id = v.id
     WHERE l."cartId" = ${cartId}::uuid
     ORDER BY l."createdAt", l.id`;
   return rows.map((r) => ({
@@ -140,8 +134,10 @@ async function loadLines(tx: TenantTx, cartId: string): Promise<PricingLine[]> {
     taxable: r.taxable ?? false,
     requiresShipping: r.requires_shipping ?? true,
     weightGrams: r.weight_grams,
-    sellable: r.sellable && r.product_id !== null,
-    inStock: r.in_stock,
+    sellable: r.sellable && r.product_id !== null && r.stock_known,
+    // The cart's rule (app_variant_stock): stock can supply the whole line.
+    inStock: r.stock_max === null || r.quantity <= r.stock_max,
+    stockLimit: r.stock_max,
   }));
 }
 

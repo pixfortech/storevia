@@ -1,3 +1,4 @@
+import { CART_LIMITS } from "@storevia/commerce/storefront";
 import { toDecimalString } from "@storevia/commerce/money";
 import { richTextToPlainText } from "@storevia/commerce/rich-text";
 import { storefrontOrigin } from "@storevia/domains";
@@ -41,11 +42,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 const CART_MESSAGES: Record<string, string> = {
-  "sold-out": "Sorry, that option just sold out.",
+  "sold-out": "Sorry, that option is sold out.",
+  limit: `You can have at most ${String(CART_LIMITS.maxQuantity)} of an item in your cart.`,
+  quantity: "Enter a whole number of 1 or more for the quantity.",
   unavailable: "That item is no longer available.",
   busy: "Too many changes at once. Please wait a moment and try again.",
   full: "Your cart is full. Remove something before adding more.",
 };
+
+/** The add-to-cart outcome; for "stock" the count (0–100) comes from the redirect. */
+function cartMessage(search: Record<string, string | string[] | undefined>): string | undefined {
+  const code = typeof search["cart"] === "string" ? search["cart"] : null;
+  if (code !== "stock") return code ? CART_MESSAGES[code] : undefined;
+  const n = typeof search["n"] === "string" ? Number(search["n"]) : NaN;
+  if (!Number.isInteger(n) || n < 1 || n > 100) return undefined;
+  return `Only ${String(n)} ${n === 1 ? "is" : "are"} available, including any already in your cart.`;
+}
 
 export default async function ProductPage({ params, searchParams }: Props) {
   const [{ store, data, product }, search, nonce] = await Promise.all([
@@ -55,7 +67,7 @@ export default async function ProductPage({ params, searchParams }: Props) {
   ]);
   const requested = typeof search["variant"] === "string" ? search["variant"] : null;
   const selected = product.variants.some((v) => v.id === requested) ? requested : null;
-  const message = typeof search["cart"] === "string" ? CART_MESSAGES[search["cart"]] : undefined;
+  const message = cartMessage(search);
   const url = `${storefrontOrigin(store.canonicalHostname)}/products/${product.handle}`;
   const offers = product.variants.map((v) => ({
     "@type": "Offer",

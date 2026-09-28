@@ -126,7 +126,9 @@ export interface CheckoutView {
     readonly productTitle: string;
     readonly variantTitle: string;
     readonly quantity: number;
-    readonly reason: "UNAVAILABLE" | "SOLD_OUT";
+    readonly reason: "UNAVAILABLE" | "SOLD_OUT" | "LOW_STOCK";
+    /** For LOW_STOCK: how many can be had. */
+    readonly available: number | null;
   }[];
   readonly requiresShipping: boolean;
   readonly shippingOptions: readonly CheckoutShippingOptionView[];
@@ -201,6 +203,7 @@ function view(
       variantTitle: u.variantTitle,
       quantity: u.quantity,
       reason: u.reason,
+      available: u.available ?? null,
     })),
     requiresShipping: quote.requiresShipping,
     shippingOptions: quote.shippingOptions.map((o) => ({
@@ -382,7 +385,17 @@ export async function startCheckout(
           now() + make_interval(mins => ${CHECKOUT_LIMITS.ttlMinutes}), now())`;
       await setCheckout(id);
       const checkout = await loadCheckout(tx, { id }, false);
-      if (checkout) await repriceCheckout(tx, checkout, req.store.currency);
+      if (checkout) {
+        // A cart with a line that can't be bought as it is (sold out, more than
+        // stock can supply, no longer sold) is fixed in the cart first.
+        const { quote } = await repriceCheckout(tx, checkout, req.store.currency);
+        if (quote.unavailable.length > 0) {
+          throw new DomainError(
+            "CONFLICT",
+            "Some items in your cart can't be bought as they are. Update your cart to continue.",
+          );
+        }
+      }
       recordMetric("checkout.started");
       return { token };
     },
@@ -600,13 +613,15 @@ export async function beginPayment(
       }
       const previous = parseStoredQuote(checkout.quote);
       const { quote, hash } = await repriceCheckout(tx, checkout, req.store.currency);
-      if (quote.problems.length > 0) return { kind: "changed", change: "NOT_READY" } as const;
+      // What changed since the review says more than "not ready" (e.g. an item
+      // sold out under the shopper); either way nothing is charged.
       if (hash !== confirmed) {
         return {
           kind: "changed",
           change: describeQuoteChange(previous, quote) ?? "PRICE_CHANGED",
         } as const;
       }
+      if (quote.problems.length > 0) return { kind: "changed", change: "NOT_READY" } as const;
 
       const connection = await activeConnection(tx);
       const open = connection ? openConnection(connection) : null;

@@ -198,8 +198,11 @@ only `ACTIVE`, published, non-deleted records.
   cart page shows lines whose product stopped being sellable as
   unavailable and leaves them out of the subtotal.
 - Cart mutations are server actions on the storefront. They validate the
-  variant belongs to **this** store, is `ACTIVE` and purchasable, and clamp
-  quantities.
+  variant belongs to **this** store, is `ACTIVE` and purchasable, and refuse
+  (never clamp) a quantity above 99 or above what stock can supply, using
+  `app_variant_stock()`, the rule checkout reserves by (ADR-0031 §1). The cart
+  page shows "Only N available" for limited stock, marks lines stock can no
+  longer supply, and disables checkout until they are changed.
 - Cart prices shown to the shopper come from `calculateCart()` on the server.
   The cart table holds no prices.
 
