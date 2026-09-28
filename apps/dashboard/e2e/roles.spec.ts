@@ -75,6 +75,29 @@ test("a VIEWER gets permission-aware navigation and read-only settings", async (
   await expect(member.getByText("You don't have access to the member list")).toBeVisible();
   await member.goto(`${A.orgPath}/stores/new`);
   await expect(member.getByText("You can't create stores")).toBeVisible();
+  await member.goto(`${A.orgPath}/audit`);
+  await expect(member.getByText("You can't view the audit log")).toBeVisible();
+  await expect(member.getByTestId("audit-entry")).toHaveCount(0);
+});
+
+test("the owner reads the organisation's audit log, read-only (M8)", async () => {
+  await owner.goto(A.orgPath);
+  await owner
+    .getByRole("navigation", { name: "Primary" })
+    .first()
+    .getByRole("link", { name: "Audit log" })
+    .click();
+  await expect(owner.getByRole("heading", { name: "Audit log", level: 1 })).toBeVisible();
+  const joined = owner.getByTestId("audit-entry").filter({ hasText: "member.invitation_accepted" });
+  await expect(joined).toContainText("Vera Viewer joined the team as Viewer");
+  // Filtering by area keeps only that area's events; no entry offers a control.
+  await owner.getByRole("link", { name: "Team", exact: true }).click();
+  await expect(owner).toHaveURL(/area=team/);
+  for (const action of await owner.getByTestId("audit-entry").locator("code").allTextContents())
+    expect(action.startsWith("member.")).toBe(true);
+  await expect(owner.getByTestId("audit-entry").getByRole("button")).toHaveCount(0);
+  // Never an email address, even for the invitation.
+  await expect(owner.locator("main")).not.toContainText(memberEmail);
 });
 
 test("a VIEWER cannot bypass permissions with a crafted request", async () => {
@@ -107,6 +130,9 @@ test("a role change applies on the next request", async () => {
   // Still no owner-only powers.
   await member.goto(`${A.orgPath}/stores/new`);
   await expect(member.getByText("You can't create stores")).toBeVisible();
+  await member.goto(`${A.orgPath}/audit`);
+  await expect(member.getByText("You can't view the audit log")).toBeVisible();
+  await expect(member.getByTestId("audit-entry")).toHaveCount(0);
 });
 
 test("granting Admin requires a recent password confirmation", async () => {

@@ -128,7 +128,7 @@ function Section({
 }: {
   id: string;
   title: string;
-  description?: string;
+  description?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -621,7 +621,23 @@ export default async function OrganisationPage({ params }: { params: Promise<{ o
       <Section
         id="history"
         title="History"
-        description="Every subscription change and billing delivery, newest first. Staff changes are also written to the audit log, which can't be browsed here yet."
+        description={
+          <>
+            Every subscription change and billing delivery, newest first. Everything else this
+            organisation&apos;s members and staff changed is in{" "}
+            {hasPlatformPermission(ctx, "platform.audit.read") ? (
+              <Link
+                href={`/audit?org=${publicId}`}
+                className="font-medium text-brand-700 hover:underline"
+              >
+                its audit log
+              </Link>
+            ) : (
+              "its audit log"
+            )}
+            .
+          </>
+        }
       >
         <Card data-testid="history-card">
           <CardHeader

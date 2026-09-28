@@ -57,6 +57,8 @@ export { getOrganisationBillingDetail, listOrganisationsForAdmin } from "./admin
 export { getCatalogueDiagnostics } from "./catalogue-diagnostics";
 export type { CatalogueDiagnostics, StoreCatalogueCounts } from "./catalogue-diagnostics";
 export { getJobsOverview } from "./operations";
+export { listPlatformAuditLog } from "./audit-admin";
+export type { AuditActorFilter, PlatformAuditEntry, PlatformAuditPage } from "./audit-admin";
 export { getDomainsOverview } from "./domains-admin";
 export type { AdminDomainRow, DomainStatusFilter, DomainsOverview } from "./domains-admin";
 export type { JobHealth, JobRunSummary, JobsOverview, QueueSignal } from "./operations";

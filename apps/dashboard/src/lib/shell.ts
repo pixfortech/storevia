@@ -86,6 +86,14 @@ function organisationLinks(ctx: OrganisationContext, primary: boolean): ShellLin
       icon: "billing",
     });
   }
+  if (hasPermission(ctx, "audit.read")) {
+    links.push({
+      key: "audit",
+      label: "Audit log",
+      href: orgPath(ctx.organisationId, "/audit"),
+      icon: "security",
+    });
+  }
   if (primary) {
     links.push({
       key: "settings",

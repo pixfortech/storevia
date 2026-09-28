@@ -1,7 +1,7 @@
 // Staff navigation (presentation only). Pages still enforce their own
 // permissions; hiding a link is a courtesy, not access control.
 
-export type AdminNavId = "organisations" | "domains" | "jobs" | "account";
+export type AdminNavId = "organisations" | "domains" | "jobs" | "audit" | "account";
 
 export interface AdminNavItem {
   readonly id: AdminNavId;
@@ -16,6 +16,7 @@ export function adminNavItems(access: { readonly canViewJobs: boolean }): AdminN
       ? [
           { id: "domains" as const, href: "/domains", label: "Domains" },
           { id: "jobs" as const, href: "/jobs", label: "Jobs" },
+          { id: "audit" as const, href: "/audit", label: "Audit log" },
         ]
       : []),
     { id: "account", href: "/account", label: "Account" },

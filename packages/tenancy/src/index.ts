@@ -41,7 +41,7 @@ export type { OrganisationBilling } from "./billing";
 export { recordActorAudit, recordAudit, sanitiseMetadata } from "./audit";
 export { isUniqueViolation, parseInput } from "./errors";
 export type { ActorAuditEntry, AuditMetadata } from "./audit";
-export { listRecentActivity } from "./activity";
+export { AUDIT_AREAS, isAuditArea, listAuditLog, listRecentActivity } from "./activity";
 export {
   changeStoreSlug,
   getOnlineStore,
@@ -49,7 +49,7 @@ export {
   storefrontPreviewUrl,
 } from "./storefront";
 export type { OnlineStore } from "./storefront";
-export type { ActivityDetailKey, ActivityEntry } from "./activity";
+export type { ActivityDetailKey, ActivityEntry, AuditArea, AuditLogPage } from "./activity";
 // Custom domains (ADR-0032) are at @storevia/tenancy/domains: that module
 // reaches the hosting provider, so it stays out of this index, which the
 // storefront's graph reaches through commerce.

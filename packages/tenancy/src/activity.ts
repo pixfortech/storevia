@@ -1,5 +1,5 @@
 import "server-only";
-import { withTenant } from "@storevia/database";
+import { withTenant, type Prisma } from "@storevia/database";
 import { requirePermission, scopeOf, type TenantContext } from "./context";
 
 /**
@@ -64,23 +64,24 @@ function displayDetails(metadata: unknown): ActivityEntry["details"] {
   return details;
 }
 
-export async function listRecentActivity(
+/** Organisation-wide events always; store events only for this store, or
+ * for any store when a member with all-store access views the organisation. */
+function storeFilter(ctx: TenantContext) {
+  return ctx.kind === "store"
+    ? { OR: [{ storeId: null }, { storeId: ctx.storeId }] }
+    : ctx.allStores
+      ? {}
+      : { storeId: null };
+}
+
+async function readEntries(
   ctx: TenantContext,
-  options: { readonly limit?: number } = {},
+  where: Prisma.AuditLogWhereInput,
+  take: number,
 ): Promise<ActivityEntry[]> {
-  requirePermission(ctx, "audit.read");
-  const limit = Math.min(Math.max(Math.trunc(options.limit ?? 8), 1), MAX_LIMIT);
-  // Organisation-wide events always; store events only for this store, or
-  // for any store when a member with all-store access views the organisation.
-  const storeFilter =
-    ctx.kind === "store"
-      ? { OR: [{ storeId: null }, { storeId: ctx.storeId }] }
-      : ctx.allStores
-        ? {}
-        : { storeId: null };
   return withTenant(scopeOf(ctx), async (tx) => {
     const rows = await tx.auditLog.findMany({
-      where: { organisationId: ctx.organisationId, ...storeFilter },
+      where: { organisationId: ctx.organisationId, ...storeFilter(ctx), ...where },
       select: {
         id: true,
         action: true,
@@ -92,7 +93,7 @@ export async function listRecentActivity(
         metadata: true,
       },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      take: limit,
+      take,
     });
     const memberIds = [
       ...new Set(
@@ -133,4 +134,80 @@ export async function listRecentActivity(
       };
     });
   });
+}
+
+export async function listRecentActivity(
+  ctx: TenantContext,
+  options: { readonly limit?: number } = {},
+): Promise<ActivityEntry[]> {
+  requirePermission(ctx, "audit.read");
+  const limit = Math.min(Math.max(Math.trunc(options.limit ?? 8), 1), MAX_LIMIT);
+  return readEntries(ctx, {}, limit);
+}
+
+// ---------------------------------------------------------------------------
+// The organisation's audit log (M8): every recorded event, newest first,
+// paged and filterable by area. Read-only, with the same display-safe
+// fields as recent activity: no IP addresses, user agents, request IDs,
+// email addresses or free text.
+// ---------------------------------------------------------------------------
+
+/** Areas the log can be filtered by, as action prefixes. */
+export const AUDIT_AREAS = {
+  team: ["member."],
+  organisation: ["organisation."],
+  stores: ["store."],
+  catalogue: ["product.", "collection.", "inventory.", "location.", "media."],
+  orders: ["order.", "refund.", "payment.", "checkout.", "customer."],
+  website: ["page.", "theme.", "navigation.", "domain."],
+  settings: ["discount.", "shipping.", "tax.", "settings.", "payments."],
+  billing: ["billing."],
+  security: ["auth."],
+} as const satisfies Record<string, readonly string[]>;
+
+export type AuditArea = keyof typeof AUDIT_AREAS;
+
+export const isAuditArea = (value: string): value is AuditArea =>
+  Object.prototype.hasOwnProperty.call(AUDIT_AREAS, value);
+
+export interface AuditLogPage {
+  readonly entries: readonly ActivityEntry[];
+  /** Pass as `before` for the next (older) page; null on the last page. */
+  readonly nextCursor: string | null;
+}
+
+const AUDIT_PAGE = 50;
+
+/** "<epoch ms>.<uuid>": the last entry's position, opaque to callers. */
+const CURSOR = /^(\d{1,15})\.([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
+
+export async function listAuditLog(
+  ctx: TenantContext,
+  options: { readonly area?: AuditArea | undefined; readonly before?: string | null } = {},
+): Promise<AuditLogPage> {
+  requirePermission(ctx, "audit.read");
+  const where: Prisma.AuditLogWhereInput[] = [];
+  if (options.area) {
+    where.push({
+      OR: AUDIT_AREAS[options.area].map((prefix) => ({ action: { startsWith: prefix } })),
+    });
+  }
+  // A malformed cursor reads as the first page rather than an error.
+  const cursor = options.before ? CURSOR.exec(options.before) : null;
+  if (cursor?.[1] && cursor[2]) {
+    const at = new Date(Number(cursor[1]));
+    where.push({
+      OR: [{ createdAt: { lt: at } }, { createdAt: at, id: { lt: cursor[2] } }],
+    });
+  }
+  const entries = await readEntries(ctx, where.length > 0 ? { AND: where } : {}, AUDIT_PAGE + 1);
+  const page = entries.slice(0, AUDIT_PAGE);
+  const last = page.at(-1);
+  return {
+    entries: page,
+    nextCursor:
+      entries.length > AUDIT_PAGE && last
+        ? `${String(last.occurredAt.getTime())}.${last.id}`
+        : null,
+  };
 }

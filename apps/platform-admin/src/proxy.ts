@@ -20,7 +20,9 @@ function withSecurityHeaders(response: NextResponse, csp: string, requestId: str
   response.headers.set("x-request-id", requestId);
   response.headers.set("X-Robots-Tag", "noindex, nofollow");
   response.headers.set("Cache-Control", "private, no-store");
-  for (const [key, value] of Object.entries(baseSecurityHeaders(secure()))) {
+  for (const [key, value] of Object.entries(
+    baseSecurityHeaders(secure(), { resourcePolicy: "same-origin" }),
+  )) {
     response.headers.set(key, value);
   }
   return response;

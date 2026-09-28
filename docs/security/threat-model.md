@@ -101,7 +101,7 @@ verified.
 | Mock billing reachable in production           | Registry enables the mock only in development/test or staging with a flag; route, provider and simulator 404 elsewhere; unset stage fails closed                    | environment-safety tests                                               | 2    |
 | Staff changes a plan by mistake or maliciously | Platform permission per role, step-up, required reason, audit (before/after, request ID), SubscriptionEvent history, over-limit acknowledgement; never deletes data | platform permission matrix, audit and step-up tests                    | 2    |
 | Merchant reaches platform-admin                | Separate host, realm, cookie, `PlatformStaff` check, private access                                                                                                 | T11                                                                    | 1    |
-| Insider misuse of platform-admin               | Least-privilege platform roles, MFA/SSO, full audit, no silent impersonation, alerts on sensitive actions                                                           | audit coverage test                                                    | 1, 8 |
+| Insider misuse of platform-admin               | Least-privilege platform roles, TOTP MFA (M8; SSO later), full audit with a read-only viewer, no silent impersonation, alerts on sensitive actions                  | audit coverage test; MFA and audit viewer tests                        | 1, 8 |
 | API key over-privilege                         | Store-bound keys, scopes → permissions, entitlement check                                                                                                           | scope matrix tests                                                     | 3    |
 
 ### 4.4 Injection and content attacks
@@ -205,6 +205,29 @@ Milestone 5 (visual builder, themes, menus; ADR-0030) adds these rows:
 | Malicious/compromised dependency | Pinned versions + lockfile, `pnpm` strict, Dependabot/Renovate with review, `pnpm audit` in CI, minimal dependencies, provenance where available | 0    |
 | CI compromise                    | Least-privilege `GITHUB_TOKEN`, pinned action SHAs, no secrets for fork PRs, OIDC to cloud (no long-lived keys)                                  | 0, 8 |
 
+### 4.10 Milestone 8 hardening review
+
+The M8 review ([gap analysis §7](../roadmap/m8-gap-analysis.md)) found
+thirteen issues. Each fix has a test that fails if the fix is reverted.
+
+| #   | Threat                                                                | Mitigation (M8)                                                                                                                                                                                                                          | Test                                                                                                |
+| --- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| S1  | Checkout limits vanish without a client IP or with rotating addresses | Every checkout limit also counts per checkout token, and discount attempts per store too. A request with no IP shares one bucket. Boot-time validation that requires the trusted IP header comes with M8-7.                              | `commerce/checkout.int.test.ts` (no IP, one /64)                                                    |
+| S2  | Custom-domain squatting and provider registration before proof        | Registered with the provider only after the TXT record is found. FAILED domains leave the provider. `app_release_stale_domain()` frees a FAILED claim at once, or a non-ACTIVE one after 72 h. ACTIVE claims are never released.         | `tenancy/domains.int.test.ts`, `domains/provisioner/evaluate.test.ts`, `worker/domains.int.test.ts` |
+| S3  | Cross-realm and targeted sign-in lockout                              | Buckets per realm. Per email + client (10 / 15 min) under a larger per-email cap (50 / 15 min).                                                                                                                                          | `auth/auth.int.test.ts`                                                                             |
+| S4  | Order links can't be revoked                                          | Staff with `order.manage` reset one order's link (audited, token never logged). `ORDER_ACCESS_SECRET_PREVIOUS` keeps links working through a secret rotation.                                                                            | `commerce/order-operations.int.test.ts`                                                             |
+| S5  | Money or identity moved with a stolen session                         | Step-up (recent password) before refunds, cancel-with-refund, payment connection changes and domain removal.                                                                                                                             | `commerce/orders.int.test.ts`, `tenancy/domains.int.test.ts`; E2E checkout, domains                 |
+| S6  | Razorpay delivery replayed under a new event id                       | A delivery whose meaning (type, payment, status, amount) was already applied is a duplicate, whatever id it carries.                                                                                                                     | `commerce/checkout.int.test.ts`                                                                     |
+| S7  | Forged deliveries exhaust a connection's failed-signature budget      | Budget per connection and sender (IP bucket).                                                                                                                                                                                            | `commerce/checkout.int.test.ts`                                                                     |
+| S8  | Billing ledger keeps raw provider payloads                            | Stores the normalised event only.                                                                                                                                                                                                        | `billing/billing.int.test.ts`                                                                       |
+| S9  | One client mails many addresses; the wrong proxy hop; IPv6 rotation   | Resend-verification per client; `TRUSTED_PROXY_HOPS`; IPv6 bucketed by /64 wherever an IP keys a limit.                                                                                                                                  | `security/security.test.ts`, `auth/auth.int.test.ts`                                                |
+| S10 | Unlimited search and export                                           | Storefront search per client and per store; product export 30 / h per store.                                                                                                                                                             | `commerce/storefront.int.test.ts`, `commerce/catalogue.int.test.ts`                                 |
+| S11 | Deleted media stays reachable when the object delete fails            | Open: retried by the retention sweeper in M8-5.                                                                                                                                                                                          | —                                                                                                   |
+| S12 | Platform-admin with a password only                                   | Mandatory TOTP for staff ([ADR-0035](../adr/0035-platform-staff-mfa.md)): no page or action before the second factor; codes single-use; recovery codes hashed.                                                                           | `auth/totp.test.ts`, `auth/auth.int.test.ts`; E2E `admin-shell.spec.ts`                             |
+| S13 | Nobody can review what changed; resources embeddable by other sites   | Read-only audit logs: the organisation's (dashboard, `audit.read`) and the platform's (platform-admin, `platform.audit.read`). Display-safe fields only; emails masked. `Cross-Origin-Resource-Policy: same-origin` on the private apps. | `tenancy/activity.int.test.ts`, `billing/audit-admin.int.test.ts`; E2E roles, admin-shell, headers  |
+
+The manual test plan is [pen-test-checklist.md](pen-test-checklist.md).
+
 ## 5. Security headers (all web apps)
 
 `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` on
@@ -216,7 +239,10 @@ those would force HTTPS onto the merchant's other subdomains ·
 `frame-ancestors 'none'` (dashboard/admin), `object-src 'none'`,
 `base-uri 'none'` · `X-Content-Type-Options: nosniff` ·
 `Referrer-Policy: strict-origin-when-cross-origin` · `Permissions-Policy`
-restrictive defaults · `Cross-Origin-Opener-Policy: same-origin`.
+restrictive defaults · `Cross-Origin-Opener-Policy: same-origin` ·
+`Cross-Origin-Resource-Policy: same-origin` on the dashboard and
+platform-admin (M8). COEP isn't sent: it would block media-host images, and
+COOP already isolates the browsing context.
 The storefront CSP's `form-action` additionally allows the payment
 providers' hosted-page origins (the "Pay" form redirects there); no provider
 script runs on Storevia pages.
@@ -228,5 +254,6 @@ script runs on Storevia pages.
 - Q-S2: Data residency requirements for launch markets (India DPDP rules on
   cross-border transfer).
 - Q-S3: Platform staff IdP (Google Workspace vs Okta/Entra).
-- Q-S4: Penetration test before public launch (recommended: external test
-  at end of M8).
+- Q-S4: Penetration test before public launch. The external test is an
+  owner action; its scope and the internal pre-checks are in
+  [pen-test-checklist.md](pen-test-checklist.md).

@@ -12,6 +12,7 @@ import {
   createInvitation,
   createOrganisation,
   createStore,
+  listAuditLog,
   listRecentActivity,
   requireOrganisationAccess,
   requireStoreAccess,
@@ -199,5 +200,95 @@ describe("listRecentActivity", () => {
     expect(await listRecentActivity(A.orgCtx, { limit: 1 })).toHaveLength(1);
     expect((await listRecentActivity(A.orgCtx, { limit: 0 })).length).toBe(1);
     expect((await listRecentActivity(A.orgCtx, { limit: 10_000 })).length).toBeLessThanOrEqual(50);
+  });
+});
+
+describe("listAuditLog (M8)", () => {
+  // 120 product events in A, several sharing a timestamp, so paging must
+  // break ties by id; 5 in B that must never appear.
+  async function seedEvents() {
+    const base = Date.now() - 3_600_000;
+    const rows = Array.from({ length: 120 }, (_, i) => ({
+      id: uuidv7(),
+      organisationId: A.org,
+      storeId: A.store,
+      actorType: "SYSTEM" as const,
+      action: "product.updated",
+      entityType: "Product",
+      createdAt: new Date(base + Math.floor(i / 4) * 1000),
+      ipAddress: "203.0.113.9",
+      userAgent: "attack-browser",
+      requestId: "req-secret",
+      metadata: { title: `Product ${String(i)}`, email: "leak@example.test" },
+    }));
+    await migratorDb().auditLog.createMany({ data: rows });
+    await migratorDb().auditLog.createMany({
+      data: Array.from({ length: 5 }, () => ({
+        id: uuidv7(),
+        organisationId: B.org,
+        storeId: B.store,
+        actorType: "SYSTEM" as const,
+        action: "product.updated",
+        createdAt: new Date(base),
+      })),
+    });
+    return rows;
+  }
+
+  it("pages through every event exactly once, newest first, without other tenants'", async () => {
+    await seedEvents();
+    const expected = await allAuditIds(A.org);
+    const bIds = await allAuditIds(B.org);
+    const seen: string[] = [];
+    let before: string | null = null;
+    let pages = 0;
+    do {
+      const page = await listAuditLog(A.orgCtx, { before });
+      expect(page.entries.length).toBeLessThanOrEqual(50);
+      seen.push(...page.entries.map((e) => e.id));
+      before = page.nextCursor;
+      pages += 1;
+    } while (before && pages < 20);
+    expect(new Set(seen).size).toBe(seen.length);
+    expect(new Set(seen)).toEqual(expected);
+    for (const id of seen) expect(bIds.has(id)).toBe(false);
+    expect(pages).toBe(Math.ceil(expected.size / 50));
+  });
+
+  it("filters by area", async () => {
+    await seedEvents();
+    const catalogue = await listAuditLog(A.orgCtx, { area: "catalogue" });
+    expect(catalogue.entries.length).toBe(50);
+    expect(catalogue.entries.every((e) => e.action.startsWith("product."))).toBe(true);
+    const stores = await listAuditLog(A.orgCtx, { area: "stores" });
+    expect(stores.entries.length).toBeGreaterThan(0);
+    expect(stores.entries.every((e) => e.action.startsWith("store."))).toBe(true);
+    const security = await listAuditLog(A.orgCtx, { area: "security" });
+    expect(security.entries).toEqual([]);
+  });
+
+  it("never returns IPs, user agents, request ids or personal data", async () => {
+    await seedEvents();
+    const page = await listAuditLog(A.orgCtx, {});
+    const serialised = JSON.stringify(page);
+    for (const leaked of ["203.0.113.9", "attack-browser", "req-secret", "leak@example.test"])
+      expect(serialised).not.toContain(leaked);
+    const product = page.entries.find((e) => e.action === "product.updated");
+    expect(product?.details).toHaveProperty("title");
+  });
+
+  it("reads a malformed cursor as the first page", async () => {
+    const first = await listAuditLog(A.orgCtx, {});
+    for (const bad of ["x", "1.not-a-uuid", "' OR 1=1 --", `${"9".repeat(40)}.${uuidv7()}`]) {
+      const page = await listAuditLog(A.orgCtx, { before: bad });
+      expect(page.entries.map((e) => e.id)).toEqual(first.entries.map((e) => e.id));
+    }
+  });
+
+  it("scopes a limited member to organisation events and requires audit.read", async () => {
+    const manager = await requireStoreAccess(managerA, storeId(A.store));
+    await expect(listAuditLog(manager)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    const storeView = await listAuditLog(await requireStoreAccess(A.owner, storeId(A.store)));
+    expect(storeView.entries.some((e) => e.storeId === storeA2)).toBe(false);
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contentSecurityPolicy } from "./headers";
+import { baseSecurityHeaders, contentSecurityPolicy } from "./headers";
 import { safeRedirectPath } from "./redirect";
 import { clientIp, ipBucket } from "./request";
 import { maskIdentifier, parseKeyring, SecretCipher, SecretCipherError } from "./secrets";
@@ -177,5 +177,18 @@ describe("rate-limit buckets (M8)", () => {
     } finally {
       process.env = previous;
     }
+  });
+});
+
+describe("baseSecurityHeaders (M8)", () => {
+  it("adds CORP only when asked, HSTS only over HTTPS, never COEP", () => {
+    const open = baseSecurityHeaders(false);
+    expect(open["Cross-Origin-Resource-Policy"]).toBeUndefined();
+    expect(open["Strict-Transport-Security"]).toBeUndefined();
+    expect(open["Cross-Origin-Opener-Policy"]).toBe("same-origin");
+    const privateApp = baseSecurityHeaders(true, { resourcePolicy: "same-origin" });
+    expect(privateApp["Cross-Origin-Resource-Policy"]).toBe("same-origin");
+    expect(privateApp["Strict-Transport-Security"]).toContain("max-age=63072000");
+    expect(privateApp["Cross-Origin-Embedder-Policy"]).toBeUndefined();
   });
 });

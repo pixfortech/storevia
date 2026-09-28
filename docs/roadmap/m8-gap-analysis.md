@@ -277,6 +277,18 @@ derived from the drill and the provider's guarantees.
 - A targeted attack suite that proves each fix and would fail if the fix
   were reverted (mutation check).
 
+**Status (M8-4):** S1–S10, S12 and S13 are fixed, each with the tests
+listed in [threat-model §4.10](../security/threat-model.md#410-milestone-8-hardening-review).
+Two items remain:
+
+- S1's boot-time env validation lands with the other apps' validation
+  (M8-7).
+- S11 (retrying object deletion) lands with the retention sweeper (M8-5).
+
+The audit log viewers are at `/o/{org}/audit` (dashboard, `audit.read`)
+and `/audit` (platform-admin, `platform.audit.read`). The manual test plan
+is [pen-test-checklist.md](../security/pen-test-checklist.md).
+
 ## 8. Data lifecycle and privacy
 
 - Export: product CSV only.

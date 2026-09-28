@@ -60,13 +60,23 @@ export function contentSecurityPolicy({
     .join("; ");
 }
 
-/** Headers applied to every dashboard / platform-admin response. */
-export function baseSecurityHeaders(secure: boolean): Record<string, string> {
+/**
+ * Headers applied to every dashboard, platform-admin, marketing and
+ * storefront response. Private apps (dashboard, platform-admin) also pass
+ * `resourcePolicy: "same-origin"` so no other site can load their responses
+ * as subresources (M8). COEP isn't sent: it would block the media host's
+ * images, and COOP already isolates the browsing context.
+ */
+export function baseSecurityHeaders(
+  secure: boolean,
+  options: { readonly resourcePolicy?: "same-origin" | "same-site" } = {},
+): Record<string, string> {
   return {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "X-Frame-Options": "DENY",
     "Cross-Origin-Opener-Policy": "same-origin",
+    ...(options.resourcePolicy ? { "Cross-Origin-Resource-Policy": options.resourcePolicy } : {}),
     "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
     ...(secure
       ? { "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload" }

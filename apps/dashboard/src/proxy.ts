@@ -41,7 +41,9 @@ const secure = () => (process.env["DASHBOARD_URL"] ?? "").startsWith("https://")
 function withSecurityHeaders(response: NextResponse, csp: string, requestId: string): NextResponse {
   response.headers.set("Content-Security-Policy", csp);
   response.headers.set("x-request-id", requestId);
-  for (const [key, value] of Object.entries(baseSecurityHeaders(secure()))) {
+  for (const [key, value] of Object.entries(
+    baseSecurityHeaders(secure(), { resourcePolicy: "same-origin" }),
+  )) {
     response.headers.set(key, value);
   }
   return response;

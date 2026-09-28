@@ -10,6 +10,8 @@ test("responses carry a nonce-based CSP and hardening headers", async ({ page })
   expect(csp).toContain("object-src 'none'");
   expect(headers["x-frame-options"]).toBe("DENY");
   expect(headers["x-content-type-options"]).toBe("nosniff");
+  expect(headers["cross-origin-opener-policy"]).toBe("same-origin");
+  expect(headers["cross-origin-resource-policy"]).toBe("same-origin");
   expect(headers["x-request-id"]).toBeTruthy();
   const nonce = /'nonce-([^']+)'/.exec(csp)?.[1];
   // Browsers hide the nonce attribute from the DOM after parsing; the property keeps it.

@@ -25,6 +25,16 @@ test("internal chrome, job health and a readable risk summary", async ({ page, b
   await expect(staff.getByRole("heading", { name: "Background jobs" })).toBeVisible();
   await expect(staff.getByRole("button")).toHaveCount(1); // Sign out only: read-only page.
 
+  // The audit log (M8): this organisation's plan grant is there, read-only.
+  await staff.goto(`${ADMIN_URL}/organisations/${tenant.orgId}`);
+  await staff.getByRole("link", { name: "its audit log" }).click();
+  await expect(staff.getByRole("heading", { name: "Audit log" })).toBeVisible();
+  await expect(staff.getByTestId("audit-row").first()).toBeVisible();
+  await expect(
+    staff.getByTestId("audit-row").filter({ hasText: "billing." }).first(),
+  ).toBeVisible();
+  await expect(staff.getByTestId("audit-card")).not.toContainText(tenant.email);
+
   // Phones get cards, not a squeezed table.
   await staff.setViewportSize({ width: 390, height: 844 });
   await staff.goto(`${ADMIN_URL}/organisations/${tenant.orgId}`);
@@ -46,6 +56,9 @@ test("staff without audit access don't get the jobs view", async ({ browser }) =
   ).toHaveCount(0);
   await page.goto(`${ADMIN_URL}/jobs`);
   await expect(page.getByText("You can't view background jobs")).toBeVisible();
+  await page.goto(`${ADMIN_URL}/audit`);
+  await expect(page.getByText("You can't view the audit log")).toBeVisible();
+  await expect(page.getByTestId("audit-row")).toHaveCount(0);
   await context.close();
 });
 

@@ -2,7 +2,7 @@
 
 import { cn } from "@storevia/ui/cn";
 import { Icon } from "@storevia/ui/icons";
-import { Activity, Building2, Globe, UserRound, type LucideIcon } from "lucide-react";
+import { Activity, Building2, Globe, ScrollText, UserRound, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { isNavItemActive, type AdminNavId, type AdminNavItem } from "@/lib/navigation";
@@ -11,6 +11,7 @@ const ICONS: Record<AdminNavId, LucideIcon> = {
   organisations: Building2,
   domains: Globe,
   jobs: Activity,
+  audit: ScrollText,
   account: UserRound,
 };
 
