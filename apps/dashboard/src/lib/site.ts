@@ -1,15 +1,30 @@
 import "server-only";
 import { DEFAULT_THEME_SETTINGS } from "@storevia/site-engine/theme";
+import type { LinkTab } from "@/components/catalogue/link-tabs";
 import { env } from "./env";
 
-// The website area's paths and helpers (ADR-0030).
+// The website and theme areas' paths and helpers (ADR-0030).
 
 const inStore = (storeId: string, suffix: string) => `/s/${storeId}${suffix}`;
 
 export const websitePath = (storeId: string, suffix = "") => inStore(storeId, `/website${suffix}`);
 export const pagesPath = (storeId: string) => inStore(storeId, "/pages");
+/** The Themes area: library (""), "/customise" and "/demo/{theme}" (08-themes.md §10.7). */
+export const themesPath = (storeId: string, suffix = "") => inStore(storeId, `/themes${suffix}`);
 export const builderPath = (storeId: string, pageId: string) =>
   websitePath(storeId, `/pages/${pageId}`);
+/** The Themes area's tabs: the library (with the current theme) and the customiser. */
+export function themesTabs(storeId: string, current: "library" | "customise"): LinkTab[] {
+  return [
+    { href: themesPath(storeId), label: "Theme library", current: current === "library" },
+    {
+      href: themesPath(storeId, "/customise"),
+      label: "Customise",
+      current: current === "customise",
+    },
+  ];
+}
+
 export const previewPath = (storeId: string, path = "/") =>
   inStore(storeId, `/preview${path === "/" ? "" : `?path=${encodeURIComponent(path)}`}`);
 

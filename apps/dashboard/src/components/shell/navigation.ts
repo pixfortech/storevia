@@ -36,6 +36,7 @@ const AREA_GROUP: ReadonlyMap<string, NavGroupKey> = new Map([
   ["blog", "content"],
   ["media", "content"],
   ["website", "website"],
+  ["themes", "website"],
   ["pages", "website"],
   ["marketing", "grow"],
   ["analytics", "grow"],

@@ -4,6 +4,9 @@ import { defineConfig } from "vitest/config";
 // Unit tests for pure presentation logic (node environment). Playwright specs
 // live in e2e/ and are not run here.
 export default defineConfig({
+  // Next.js keeps JSX as written (tsconfig "preserve"); tests that render a
+  // component compile it with React's automatic runtime.
+  oxc: { jsx: { runtime: "automatic" } },
   resolve: {
     alias: {
       "@": resolve(import.meta.dirname, "src"),

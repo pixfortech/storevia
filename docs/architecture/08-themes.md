@@ -182,9 +182,10 @@ merchant never supplies theme code (§10.6).
 Code: engine `packages/site-engine/src/theme-core.ts`; packages
 `packages/site-engine/src/themes/{storevia,boutique}.ts`; registry and
 rendering `packages/site-engine/src/theme.ts` (`THEMES`,
-`renderableTheme`); services `packages/site-admin/src/theme.ts`; dashboard
-`/s/{store}/website/theme` (`components/site/theme-library.tsx`,
-`theme-editor.tsx`); migration `20270101000000_theme_packages`.
+`renderableTheme`); chrome `packages/site-engine/src/chrome.tsx`
+(`SiteChrome`); demo content `packages/site-engine/src/demo.ts`; services
+`packages/site-admin/src/theme.ts`; dashboard Themes area `/s/{store}/themes`
+(`components/themes/`, §10.7); migration `20270101000000_theme_packages`.
 
 ### 10.1 The package contract (`ThemeDefinition`)
 
@@ -250,7 +251,7 @@ broken theme fails at build and test time, not in a store.
 | Customise   | Draft settings of one installed theme, validated with that theme's schema, `UPDATE … WHERE settingsRevision = base`                                                                                                             | `design.edit`   |
 | Preview     | Sets that row's `previewedAt`; the signed store preview renders the most recently chosen installed theme with its draft settings, and its banner says the theme isn't published                                                 | `design.edit`   |
 | Publish     | Revision-checked; draft re-validated (migrated from its version) and made `publishedSettings`. For a theme that isn't live, one transaction demotes the LIVE row to `UNPUBLISHED` (its settings kept) and makes this one `LIVE` | `theme.publish` |
-| Switch back | Publishing the previous theme again (the library labels it "Switch back to …")                                                                                                                                                  | `theme.publish` |
+| Switch back | Publishing the previous theme again (**Make live** on its library card)                                                                                                                                                         | `theme.publish` |
 
 - **Concurrency.** Every theme write takes a per-store advisory lock
   (`lockStoreKey(store, "theme")`); the partial unique index still allows
@@ -280,7 +281,8 @@ The storefront layout reads the theme row in its chrome query
 (`storeChrome`, cached under `design:{storeId}`, uncached in a preview),
 resolves it with `renderableTheme(row, THEME_PLATFORM)` and passes the
 definition to `SiteShell`, which sets `data-sv-theme` on `<html>`, renders
-the definition's header and footer variant, and appends its stylesheet
+the definition's header and footer variant through `SiteChrome` (the header
+carries `data-sv-header="inline|centred"`), and appends its stylesheet
 after the composition's CSS. The builder canvas uses the live theme's
 tokens but not its chrome stylesheet (the canvas has no header or footer);
 blocks there show the shared styles.
@@ -299,3 +301,68 @@ blocks there show the shared styles.
   first-party themes. A marketplace (§2–§5, §8) would need package
   validation, review and revocation first; it stays deferred and would get
   its own ADR.
+
+### 10.7 Themes area and demo previews
+
+Themes are their own merchant area, next to Website (which keeps pages,
+menus and the builder). Only presentation and routes moved: the services,
+permissions and theme engine are the ones above.
+
+| Route                                     | What it shows                                                                                                         | Permission                                  |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| `/s/{store}/themes`                       | Current theme (name, style, state, actions), then the theme library with a live miniature of each theme               | `design.edit`                               |
+| `/s/{store}/themes/customise[?theme=key]` | The customiser for the live theme or another installed theme                                                          | `design.edit` (publishing: `theme.publish`) |
+| `/s/{store}/themes/demo/{theme}`          | The full demo: home or product page, Desktop · Tablet · Mobile, any of the theme's styles (`?page=&viewport=&style=`) | `design.edit`                               |
+| `/s/{store}/website/theme[?theme=key]`    | Redirects to `/themes` (or `/themes/customise?theme=key`), so old links keep working                                  | (checked by the target)                     |
+
+The navigation lists **Themes** right after **Website**, for exactly the
+members who see Website (same permission, same plan lock;
+`lib/areas/themes-area.ts`), grouped under the Website heading.
+
+**Library cards.** Each card has a miniature, name and version, state
+badges written out as text (**Live**, **Installed**, **Previewing**,
+**Unpublished changes**, **Not installed**), the layout in words, and five
+actions in a fixed order (`lib/theme-card.ts`): **View demo** · **Install**
+/ **Installed** · **Customise** · **Preview on my store** · **Publish**
+(live theme with changes) / **Make live**. An action that doesn't apply
+yet stays in its place, disabled, so the rows line up across cards; they
+are equal-width buttons in a two-column grid that stacks on phones.
+
+**Demo content.** `THEME_DEMO` (`@storevia/site-engine/demo`) is a fixed,
+frozen demo store owned by Storevia: brand, announcement, menus, hero, a
+collection title and four products with INR prices (one on sale), and a
+featured product with variants. It never contains a merchant's data, images
+or external URLs; product images are placeholder blocks tinted from the
+theme's tokens (`THEME_DEMO_CSS`, scoped under `.sv-demo`). The Site Engine
+knows no commerce, so the dashboard composes the content into two page
+documents (`lib/theme-demo.ts`): a home page (hero + featured products) and
+the storefront's own product template plus "You may also like", with the
+catalogue views the blocks read. Both documents validate against the
+Storevia registry (unit-tested).
+
+**Rendering.** A preview is the renderer's output, never a hand-drawn
+imitation or a stored screenshot: `ThemeDemoDocument`
+(`components/themes/theme-demo.tsx`) renders the theme package's chrome
+(`SiteChrome`), the page document with `STOREVIA_REGISTRY` and
+`RenderDocument`, and a stylesheet built by `themeDemo(theme, css, preset)`
+in the storefront's order: the preset's tokens, `SITE_BASE_CSS`, the
+composition's block CSS, the demo placeholders, then the theme's own
+stylesheet. The demo root carries the theme's identity as data
+(`data-sv-theme`, `data-sv-product-card`, `data-sv-product-page`,
+`data-sv-navigation`, `data-sv-footer`, `data-sv-preset`, `data-sv-demo`);
+the header carries `data-sv-header` from the renderer. Tests compare these
+and measured layout (card aspect ratio, product-page columns), not pixels.
+
+**Isolation.** Theme stylesheets are scoped under `[data-sv-theme]`, but
+the base rules (`:root` tokens, `body`, headings, links) are document-wide,
+so a preview can't be inlined into the dashboard. `ThemeDemoFrame` draws it
+in a same-origin `srcdoc` iframe, as the builder canvas does, and React
+renders into the frame's body through a portal. The dashboard's CSS never
+reaches the demo and the demo's never reaches the dashboard; the frame is
+laid out at the viewport's real width (1280, 768 or 390 px, so the theme's
+media queries apply) and scaled down with a CSS transform to fit.
+Navigation inside a frame is cancelled. No extra route serves demo HTML,
+so the dashboard's CSP (`frame-ancestors 'none'`, nonce scripts, no
+third-party origins) is unchanged: a `srcdoc` frame inherits it, runs no
+script of its own and loads nothing. Library miniatures are `inert`
+(neither focusable nor announced); the card's text describes the theme.

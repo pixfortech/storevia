@@ -13,6 +13,7 @@ import {
 import { BUSINESS_TYPE_DEFINITIONS, storeNavigation } from "@storevia/tenancy/business-types";
 import { atLimit, planIndicator } from "@/components/shell/plan";
 import type { ShellAction, ShellData, ShellLink } from "@/components/shell/types";
+import { withThemesArea } from "./areas/themes-area";
 import { BUSINESS_TYPE_GLYPH } from "./business-types";
 import { orgPath, storePath } from "./ids";
 
@@ -145,8 +146,10 @@ export async function storeShellData(ctx: StoreContext): Promise<ShellData> {
     grantedFeatures(ctx),
     mayCreateProduct ? getAllowance(ctx, "product_limit") : null,
   ]);
-  const areas: ShellLink[] = storeNavigation(ctx.storeBusinessType, ctx.permissions, (feature) =>
-    granted.has(feature),
+  const typeAreas: ShellLink[] = storeNavigation(
+    ctx.storeBusinessType,
+    ctx.permissions,
+    (feature) => granted.has(feature),
   ).map((area) => ({
     key: area.key,
     label: area.label,
@@ -157,6 +160,8 @@ export async function storeShellData(ctx: StoreContext): Promise<ShellData> {
     primaryOnMobile: area.primaryOnMobile,
     exact: area.segment === "",
   }));
+  // Themes sit right after Website, for the members who have Website.
+  const areas = withThemesArea(typeAreas, storePath(ctx.storeId, "/themes"));
   // Apps sit with Settings: an honest placeholder (no app catalogue exists).
   const apps: ShellLink = {
     key: "apps",

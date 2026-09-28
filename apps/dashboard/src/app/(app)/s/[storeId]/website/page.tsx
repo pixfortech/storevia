@@ -12,7 +12,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AccessNotice } from "@/components/areas/access-notice";
 import { PageHeader } from "@/components/shell/app-shell";
-import { builderPath, pagesPath, previewPath, websitePath } from "@/lib/site";
+import { builderPath, pagesPath, previewPath, themesPath, websitePath } from "@/lib/site";
 import { storeContextOr404 } from "@/lib/tenant";
 
 export const metadata: Metadata = { title: "Website" };
@@ -39,7 +39,7 @@ export default async function WebsitePage({ params }: { params: Promise<{ storeI
       <PageHeader
         eyebrow={ctx.storeName}
         title="Website"
-        description="Design your pages, choose your theme and set your menus. Preview your changes before you publish them."
+        description="Design your pages and set your menus, then preview your changes before you publish them. Choose and customise your theme in Themes."
         actions={
           <a
             href={previewPath(storeId)}
@@ -88,10 +88,10 @@ export default async function WebsitePage({ params }: { params: Promise<{ storeI
             {theme.hasUnpublishedChanges ? ", with unpublished changes" : ""}.
           </p>
           <Link
-            href={websitePath(storeId, "/theme")}
+            href={themesPath(storeId)}
             className={buttonClasses("secondary", "md", "justify-self-start")}
           >
-            Themes and customising
+            Go to Themes
           </Link>
         </Card>
         <Card className="grid content-start gap-3 p-5">

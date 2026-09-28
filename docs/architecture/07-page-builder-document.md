@@ -309,8 +309,9 @@ new document or throws `OperationError` (unknown section, limit reached).
 ### Builder
 
 - Route: `/s/{storeId}/website/pages/{pageId}`. The Website hub
-  (`/website`), pages list (`/pages`), theme (`/website/theme`) and menus
-  (`/website/navigation`) sit beside it.
+  (`/website`), pages list (`/pages`) and menus (`/website/navigation`) sit
+  beside it; themes have their own area (`/themes`, 08-themes.md §10.7;
+  the old `/website/theme` redirects there).
 - Three panels on desktop (sections, canvas, settings); tabs on phones and
   tablets.
 - Sections are added from a dialog, reordered with **Move up / Move down**

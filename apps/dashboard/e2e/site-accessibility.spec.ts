@@ -5,7 +5,7 @@ import { addProduct, fetchStore, storefrontOrigin } from "./storefront-helpers";
 
 // Automated accessibility audit (axe-core, WCAG 2.1 A and AA) of the
 // Milestone 5 surfaces: the website hub, pages list, builder (desktop and
-// phone), theme and menus in the dashboard, and the published home and
+// phone), themes (library, customiser, demo) and menus in the dashboard, and the published home and
 // content pages on the storefront. Serious and critical violations fail;
 // automated checks don't replace a manual keyboard and screen-reader pass.
 
@@ -63,8 +63,18 @@ test("the builder and the pages it publishes pass an automated accessibility aud
   await audit(page, "builder (phone)");
   await page.setViewportSize({ width: 1280, height: 800 });
 
-  await page.goto(`${tenant.storePath}/website/theme`);
-  await audit(page, "theme");
+  await page.goto(`${tenant.storePath}/themes`);
+  await expect(
+    page.frameLocator('iframe[title="Boutique demo store, home page"]').locator(".sv-demo"),
+  ).toBeAttached({ timeout: 20_000 });
+  await audit(page, "theme library");
+  await page.goto(`${tenant.storePath}/themes/customise`);
+  await audit(page, "theme customiser");
+  await page.goto(`${tenant.storePath}/themes/demo/boutique`);
+  await expect(
+    page.frameLocator('iframe[title="Boutique demo store, home page"]').locator(".sv-demo"),
+  ).toBeAttached({ timeout: 20_000 });
+  await audit(page, "theme demo");
   await page.goto(`${tenant.storePath}/website/navigation`);
   await audit(page, "menus");
 

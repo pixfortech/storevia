@@ -14,9 +14,9 @@ import { Field, Input, Select } from "@storevia/ui/form";
 import { Alert, Badge, Card } from "@storevia/ui/surfaces";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { publishThemeAction, saveThemeDraftAction } from "@/app/(app)/s/[storeId]/website/actions";
+import { publishThemeAction, saveThemeDraftAction } from "@/app/(app)/s/[storeId]/themes/actions";
 import { UnsavedChangesGuard } from "@/components/catalogue/unsaved-guard";
-import { StatusNotice, type Notice } from "./notice";
+import { StatusNotice, type Notice } from "@/components/site/notice";
 
 // The theme customiser (ADR-0030 §7): one installed theme's preset, four
 // colours with live contrast checks, fonts from an allow-list of system
@@ -101,7 +101,7 @@ export function ThemeEditor({
     if (result.ok) {
       setUnpublished(false);
       setNotice({ tone: "success", title: result.message ?? "Published." });
-      // A switch changes the library above (which theme is live).
+      // A switch changes which theme is live (the page header and library).
       if (!live) router.refresh();
     } else setError(result.message ?? "The theme couldn't be published.");
   }
@@ -340,7 +340,7 @@ export function ThemeEditor({
         <p className="text-caption text-ink-muted">
           {live
             ? "Drafts show in the store preview. Visitors see the theme once it's published."
-            : `Visitors don't see ${theme.name} until you publish it. Choose "Preview ${theme.name}" above to see it in the store preview first.`}
+            : `Visitors don't see ${theme.name} until you publish it. Choose "Preview on my store" in the theme library to see it in the store preview first.`}
         </p>
       </div>
     </div>

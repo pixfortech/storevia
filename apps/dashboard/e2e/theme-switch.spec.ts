@@ -7,8 +7,9 @@ import { addProduct, fetchStore, storefrontOrigin } from "./storefront-helpers";
 // first-party theme (Boutique), customises its draft, previews it (only the
 // signed preview shows it; shoppers keep the live theme), publishes it (the
 // public store switches), shops through product, cart and checkout in it,
-// and switches back to Storevia with its settings intact. The library is
-// used with the keyboard and fits phone, tablet and desktop widths.
+// and switches back to Storevia with its settings intact. The library (in
+// the Themes area, /themes) is used with the keyboard and fits phone, tablet
+// and desktop widths.
 
 const noHorizontalScroll = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
@@ -34,28 +35,32 @@ test("install, customise, preview, publish and switch back a theme", async ({
   expect(await publicHome()).toMatch(/<html[^>]* data-sv-theme="storevia"/);
 
   // --- The library: Storevia is current, Boutique isn't installed. ---
-  await page.goto(`${tenant.storePath}/website/theme`);
+  const themes = `${tenant.storePath}/themes`;
+  await page.goto(themes);
   const library = page.getByRole("region", { name: "Theme library" });
   const storevia = library.getByRole("group", { name: "Storevia" });
   const boutique = library.getByRole("group", { name: "Boutique" });
-  await expect(storevia.getByText("Current theme (live)")).toBeVisible();
-  await expect(boutique.getByText("Not installed")).toBeVisible();
+  const badge = (card: typeof storevia, label: string) =>
+    card.getByRole("list", { name: "Status" }).getByText(label, { exact: true });
+  await expect(badge(storevia, "Live")).toBeVisible();
+  await expect(badge(boutique, "Not installed")).toBeVisible();
   for (const width of [390, 768, 1280]) {
     await page.setViewportSize({ width, height: 900 });
-    await expect(boutique.getByRole("button", { name: "Install Boutique" })).toBeVisible();
+    await expect(boutique.getByRole("button", { name: "Install, Boutique" })).toBeVisible();
     expect(await noHorizontalScroll(page), `theme library at ${String(width)}px`).toBe(true);
   }
 
   // --- Install, with the keyboard. ---
-  await boutique.getByRole("button", { name: "Install Boutique" }).focus();
+  await boutique.getByRole("button", { name: "Install, Boutique" }).focus();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("status").getByText(/Boutique installed/)).toBeVisible();
-  await expect(boutique.getByText("Installed, not live")).toBeVisible();
+  await expect(badge(boutique, "Installed")).toBeVisible();
+  await expect(boutique.getByRole("button", { name: "Installed, Boutique" })).toBeDisabled();
   expect(await publicHome()).toMatch(/data-sv-theme="storevia"/);
 
   // --- Customise Boutique's draft: the Linen style. ---
-  await boutique.getByRole("link", { name: "Customise Boutique" }).click();
-  await page.waitForURL(/\/website\/theme\?theme=boutique$/);
+  await boutique.getByRole("link", { name: "Customise, Boutique" }).click();
+  await page.waitForURL(/\/themes\/customise\?theme=boutique$/);
   await expect(
     page.getByRole("heading", { name: "Customise Boutique (not live)", level: 2 }),
   ).toBeVisible();
@@ -65,14 +70,19 @@ test("install, customise, preview, publish and switch back a theme", async ({
   await expect(page.getByRole("button", { name: "Save draft" })).toBeDisabled();
 
   // --- Preview: the signed preview shows Boutique; shoppers still get Storevia. ---
-  await boutique.getByRole("button", { name: "Preview Boutique" }).click();
+  await page
+    .getByRole("navigation", { name: "Themes sections" })
+    .getByRole("link", { name: "Theme library" })
+    .click();
+  await page.waitForURL(new RegExp(`${themes}$`));
+  await boutique.getByRole("button", { name: "Preview on my store, Boutique" }).click();
   await expect(
     page.getByRole("status").getByText(/Your store preview now shows Boutique/),
   ).toBeVisible();
-  await expect(boutique.getByText("Shown in your store preview")).toBeVisible();
+  await expect(badge(boutique, "Previewing")).toBeVisible();
   const [preview] = await Promise.all([
     context.waitForEvent("page"),
-    boutique.getByRole("link", { name: /Open preview/ }).click(),
+    boutique.getByRole("link", { name: /^Preview on my store, Boutique/ }).click(),
   ]);
   await preview.waitForLoadState();
   await expect(preview.locator("html")).toHaveAttribute("data-sv-theme", "boutique");
@@ -85,11 +95,14 @@ test("install, customise, preview, publish and switch back a theme", async ({
   expect(stillPublic).toMatch(/data-sv-theme="storevia"/);
   expect(stillPublic).not.toContain("#6b2f3a");
 
-  // --- Publish: the store switches to Boutique. ---
-  await boutique.getByRole("button", { name: "Publish Boutique" }).click();
+  // --- Make live: the store switches to Boutique. ---
+  await boutique.getByRole("button", { name: "Make live, Boutique" }).click();
   await expect(page.getByRole("status").getByText(/Boutique is now your live theme/)).toBeVisible();
-  await expect(boutique.getByText("Current theme (live)")).toBeVisible();
-  await expect(storevia.getByText("Installed, not live")).toBeVisible();
+  await expect(badge(boutique, "Live")).toBeVisible();
+  await expect(badge(storevia, "Installed")).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Current theme" }).getByText("Boutique", { exact: true }),
+  ).toBeVisible();
   await expect
     .poll(publicHome, { timeout: 60_000, intervals: [1_000] })
     .toMatch(/data-sv-theme="boutique"/);
@@ -115,15 +128,15 @@ test("install, customise, preview, publish and switch back a theme", async ({
   await shopperContext.close();
 
   // --- Switch back: Storevia returns as it was; Boutique keeps its settings. ---
-  await storevia.getByRole("button", { name: "Switch back to Storevia" }).click();
+  await storevia.getByRole("button", { name: "Make live, Storevia" }).click();
   await expect(page.getByRole("status").getByText(/Storevia is now your live theme/)).toBeVisible();
-  await expect(storevia.getByText("Current theme (live)")).toBeVisible();
+  await expect(badge(storevia, "Live")).toBeVisible();
   await expect
     .poll(publicHome, { timeout: 60_000, intervals: [1_000] })
     .toMatch(/data-sv-theme="storevia"/);
   expect(await publicHome()).not.toContain("#6b2f3a");
-  await boutique.getByRole("link", { name: "Customise Boutique" }).click();
-  await page.waitForURL(/\?theme=boutique$/);
+  await boutique.getByRole("link", { name: "Customise, Boutique" }).click();
+  await page.waitForURL(/\/themes\/customise\?theme=boutique$/);
   await expect(page.getByRole("radio", { name: /Linen/ })).toHaveAttribute("aria-checked", "true");
   await visitor.close();
 });

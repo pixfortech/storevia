@@ -196,8 +196,8 @@ test("theme, menus, two tabs, and another tenant", async ({ page, browser }) => 
     })
     .toBe(200);
 
-  // Theme: the Modern style, published.
-  await page.goto(`${tenant.storePath}/website/theme`);
+  // Theme (its own area, Themes › Customise): the Modern style, published.
+  await page.goto(`${tenant.storePath}/themes/customise`);
   await page.getByRole("radio", { name: /Modern/ }).click();
   await page.getByRole("button", { name: "Publish theme" }).click();
   await expect(page.getByText(/Theme published/)).toBeVisible();

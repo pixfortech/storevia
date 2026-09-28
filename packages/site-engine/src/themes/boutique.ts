@@ -14,6 +14,7 @@ const S = '[data-sv-theme="boutique"]';
 
 const BOUTIQUE_CSS = `
 ${S} h1,${S} h2,${S} h3{font-weight:400;letter-spacing:.01em}
+${S} .sv-announcement{text-transform:uppercase;letter-spacing:.14em;font-size:var(--sv-fontSize-xs)}
 ${S} .sv-header{border-bottom:0}
 ${S} .sv-brand{font-size:var(--sv-fontSize-2xl);font-weight:400;letter-spacing:.14em;text-transform:uppercase}
 ${S} .sv-header-nav{border-block:1px solid var(--sv-color-border)}

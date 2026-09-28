@@ -79,10 +79,13 @@ reasons and last checks. Tokens and provider project ids are never shown.
 
 ## 7. Themes
 
-Dashboard → **Website → Theme**: install **Boutique**, customise it,
-**Open preview** (the public store keeps the current theme), **Publish**,
-then **Switch back to Storevia**. Pages, products, navigation and URLs
-don't change; each theme keeps its own settings.
+Dashboard → **Themes**: compare the Storevia and Boutique miniatures (the
+same demo store drawn by each theme), **View demo** for Boutique and try
+Desktop, Tablet and Mobile and the product page. Then **Install** Boutique,
+**Customise** it, **Preview on my store** (the public store keeps the
+current theme), **Make live**, then **Make live** on Storevia to switch
+back. Pages, products, navigation and URLs don't change; each theme keeps
+its own settings.
 
 ## 8. Tests
 
@@ -91,5 +94,5 @@ pnpm --filter @storevia/domains test                # policy, Vercel adapter (mo
 pnpm --filter @storevia/tenancy test:integration    # services, isolation, races
 pnpm --filter @storevia/worker test:integration     # domains.verify
 pnpm --filter @storevia/database test:integration   # constraints, grants, outbox
-cd apps/dashboard && npx playwright test e2e/domains.spec.ts e2e/theme-switch.spec.ts
+cd apps/dashboard && npx playwright test e2e/domains.spec.ts e2e/theme-switch.spec.ts e2e/theme-demo.spec.ts
 ```

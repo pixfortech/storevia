@@ -8,23 +8,18 @@ import { listMedia, type MediaView } from "@storevia/media";
 import {
   createPage,
   deletePage,
-  installTheme,
-  previewTheme,
   publishPage,
-  publishTheme,
   saveMenu,
   savePageDraft,
-  saveThemeDraft,
   unpublishPage,
   updatePageSettings,
   type MenuView,
   type PageStatus,
-  type StoreThemeView,
 } from "@storevia/site-admin";
 import { hasPermission } from "@storevia/tenancy";
 import { revalidatePath } from "next/cache";
 import { runDataAction, type DataActionResult } from "@/lib/action";
-import { dashboardMediaUrl, dashboardSrcSet, pagesPath, websitePath } from "@/lib/site";
+import { dashboardMediaUrl, dashboardSrcSet, pagesPath } from "@/lib/site";
 import { storeActionContext } from "@/lib/store-action";
 
 // Website actions (ADR-0030). Every call re-derives the store context from
@@ -192,51 +187,6 @@ export async function mediaOptionsAction(
           ]
         : [],
     );
-  });
-}
-
-export async function saveThemeDraftAction(
-  storeId: string,
-  input: { themeKey?: string; revision: number; settings: unknown },
-): Promise<DataActionResult<StoreThemeView>> {
-  return runDataAction(async () => saveThemeDraft(await storeActionContext(storeId), input));
-}
-
-/** Publishes a theme's draft; for a theme that isn't live, the store switches to it. */
-export async function publishThemeAction(
-  storeId: string,
-  input: { themeKey?: string; revision: number },
-): Promise<DataActionResult<StoreThemeView>> {
-  return runDataAction(async () => {
-    const ctx = await storeActionContext(storeId);
-    const view = await publishTheme(ctx, input);
-    revalidatePath(websitePath(ctx.storeId), "layout");
-    return view;
-  }, "Theme published. Your site uses it now.");
-}
-
-export async function installThemeAction(
-  storeId: string,
-  input: { themeKey: string },
-): Promise<DataActionResult<StoreThemeView>> {
-  return runDataAction(async () => {
-    const ctx = await storeActionContext(storeId);
-    const view = await installTheme(ctx, input);
-    revalidatePath(websitePath(ctx.storeId), "layout");
-    return view;
-  });
-}
-
-/** Makes an installed theme the one the store preview shows (visitors never see it). */
-export async function previewThemeAction(
-  storeId: string,
-  input: { themeKey: string },
-): Promise<DataActionResult<StoreThemeView>> {
-  return runDataAction(async () => {
-    const ctx = await storeActionContext(storeId);
-    const view = await previewTheme(ctx, input);
-    revalidatePath(websitePath(ctx.storeId), "layout");
-    return view;
   });
 }
 

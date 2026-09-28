@@ -194,6 +194,7 @@ describe("shell", () => {
     );
     expect(html).toContain('<html lang="en-IN" data-sv-theme="storevia">');
     expect(html).toContain('class="sv-container sv-header-row"');
+    expect(html).toContain('data-sv-header="inline"');
     expect(html).toContain("--sv-color-primary");
     expect(html).toContain('nonce="abc"');
     expect(html).toContain("&lt;Clay &amp; Co&gt;");
@@ -226,7 +227,7 @@ describe("shell", () => {
     expect(html).toContain('data-sv-theme="boutique"');
     // Centred: the name above a separate menu row, uppercase menu, centred footer.
     expect(html).toMatch(
-      /<header class="sv-header sv-nav-uppercase"><div class="sv-container sv-header-top"><a class="sv-brand" href="\/">[^<]*<\/a><div class="sv-header-end"><a href="\/cart">Cart<\/a><\/div><\/div><div class="sv-container sv-header-nav"><nav>menu<\/nav><\/div><\/header>/,
+      /<header class="sv-header sv-nav-uppercase" data-sv-header="centred"><div class="sv-container sv-header-top"><a class="sv-brand" href="\/">[^<]*<\/a><div class="sv-header-end"><a href="\/cart">Cart<\/a><\/div><\/div><div class="sv-container sv-header-nav"><nav>menu<\/nav><\/div><\/header>/,
     );
     expect(html).toContain('<footer class="sv-footer sv-footer-centred">');
     // Its stylesheet comes after the composition's CSS, so it can restyle blocks.

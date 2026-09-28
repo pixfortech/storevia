@@ -183,6 +183,25 @@ describe("Site Engine dependency boundary", () => {
   });
 });
 
+describe("theme previews stay client-safe (08-themes.md §10.7)", () => {
+  // The dashboard renders the chrome and the demo in the browser.
+  const graph = walk([join(ENGINE, "chrome.tsx"), join(ENGINE, "demo.ts")]);
+
+  it("reach only the theme modules, the base styles and the chrome", () => {
+    expect(graph.problems).toEqual([]);
+    const files = [...graph.visited].map(rel).sort();
+    expect(
+      files.filter(
+        (path) =>
+          !isThemeModule(path) &&
+          !/^packages\/site-engine\/src\/(chrome\.tsx|demo\.ts|base-css\.ts)$/.test(path),
+      ),
+    ).toEqual([]);
+    expect([...graph.externals].sort()).toEqual(["react", "zod"]);
+    expect([...graph.workspaceReached]).toEqual([]);
+  });
+});
+
 describe("the page system (@storevia/editor) dependency boundary", () => {
   const graph = walk(sourceFiles(join(ROOT, "packages/editor/src")));
 

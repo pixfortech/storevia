@@ -11,6 +11,7 @@ import {
   LayoutGrid,
   Megaphone,
   Package,
+  Palette,
   PenLine,
   Rss,
   Settings,
@@ -28,7 +29,7 @@ import type { AreaKey } from "@storevia/tenancy/business-types";
 // Customers are one person and members a group, so an online store's
 // Customers and its organisation's Members never share an icon.
 export const NAV_ICONS: Record<
-  AreaKey | "apps" | "stores" | "members" | "billing" | "security",
+  AreaKey | "themes" | "apps" | "stores" | "members" | "billing" | "security",
   LucideIcon
 > = {
   home: House,
@@ -37,6 +38,7 @@ export const NAV_ICONS: Record<
   inventory: Boxes,
   customers: UserRound,
   website: Globe,
+  themes: Palette,
   pages: FileText,
   posts: PenLine,
   categories: FolderTree,

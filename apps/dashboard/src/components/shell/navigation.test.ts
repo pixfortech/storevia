@@ -46,6 +46,7 @@ const ecommerce = [
   area("inventory"),
   area("customers"),
   area("website", { soon: "Milestone 5", locked: true }),
+  area("themes", { soon: "Milestone 5", locked: true }),
   area("pages"),
   area("marketing"),
   area("analytics", { locked: true }),
@@ -61,7 +62,7 @@ describe("navigationGroups", () => {
     expect(groups.map((g) => [g.key, g.label, keys(g.links)])).toEqual([
       ["overview", undefined, ["home"]],
       ["sell", "Sell", ["orders", "products", "inventory", "customers"]],
-      ["website", "Website", ["website", "pages"]],
+      ["website", "Website", ["website", "themes", "pages"]],
       ["grow", "Grow", ["marketing", "analytics"]],
       ["store", undefined, ["apps", "settings"]],
       ["organisation", "Organisation", ["stores", "members", "billing"]],
@@ -69,15 +70,38 @@ describe("navigationGroups", () => {
   });
 
   it("puts a publication's writing under Content, keeping the type's order", () => {
-    const links = ["home", "posts", "categories", "authors", "pages", "media", "website"].map(
-      (key) => area(key),
-    );
+    const links = [
+      "home",
+      "posts",
+      "categories",
+      "authors",
+      "pages",
+      "media",
+      "website",
+      "themes",
+    ].map((key) => area(key));
     const groups = navigationGroups({ store, links, organisationLinks: [] });
     expect(groups.map((g) => [g.key, keys(g.links)])).toEqual([
       ["overview", ["home"]],
       ["content", ["posts", "categories", "authors", "media"]],
-      ["website", ["pages", "website"]],
+      ["website", ["pages", "website", "themes"]],
     ]);
+  });
+
+  it("keeps Themes under Website, as its own destination beside it", () => {
+    const groups = navigationGroups({ store, links: ecommerce, organisationLinks: [] });
+    const website = groups.find((g) => g.key === "website");
+    expect(website?.links.map((l) => [l.key, l.href])).toEqual([
+      ["website", `${STORE}/website`],
+      ["themes", `${STORE}/themes`],
+      ["pages", `${STORE}/pages`],
+    ]);
+    // A theme page is Themes in the trail, not Website.
+    const trail = breadcrumbTrail(
+      { organisation, store, links: ecommerce, organisationLinks: orgLinks },
+      `${STORE}/themes/demo/boutique`,
+    );
+    expect(trail.at(-1)).toEqual({ label: "Themes" });
   });
 
   it("only arranges the links it is given (permission filtering happens on the server)", () => {
