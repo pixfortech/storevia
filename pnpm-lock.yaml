@@ -378,6 +378,9 @@ importers:
       '@storevia/tenancy':
         specifier: workspace:*
         version: link:../../packages/tenancy
+      '@storevia/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       server-only:
         specifier: 0.0.1
         version: 0.0.1

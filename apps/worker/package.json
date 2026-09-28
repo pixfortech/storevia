@@ -21,6 +21,7 @@
     "@storevia/observability": "workspace:*",
     "@storevia/site-engine": "workspace:*",
     "@storevia/tenancy": "workspace:*",
+    "@storevia/types": "workspace:*",
     "server-only": "0.0.1",
     "tsx": "4.23.15"
   },

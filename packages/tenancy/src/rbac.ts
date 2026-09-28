@@ -7,6 +7,8 @@ export const PERMISSIONS = [
   "organisation.read",
   "organisation.update",
   "organisation.delete",
+  // Every store's data including customers' personal data (M8).
+  "organisation.export",
   "ownership.transfer",
   "audit.read",
   "member.read",
@@ -80,6 +82,7 @@ const BASE_READ: readonly Permission[] = [
 
 const OWNER_ONLY: ReadonlySet<Permission> = new Set([
   "organisation.delete",
+  "organisation.export",
   "ownership.transfer",
   "billing.manage",
 ]);

@@ -1,6 +1,8 @@
 # Data lifecycle: migrations, seeds, deletion and retention
 
-> Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**.
+> Milestone 0 deliverable. Status: **approved baseline (Milestone 0, 2026-09-24)**;
+> §3.5 and §4–§8 updated for what Milestone 8 built (migration
+> `20270401000000_data_lifecycle`).
 
 ## 1. Migrations
 
@@ -66,50 +68,177 @@ Anonymised snapshots, if ever needed, are produced by a reviewed script.
    member stay; `createdById`-style columns are nullable plain references.
 4. **Deleting a user never deletes an organisation.** A user who is the sole
    owner must transfer ownership or delete the organisation first.
-5. **Hard deletes happen only in retention jobs**, which run in the worker
-   under the dedicated `storevia_retention` database role (the only role
-   allowed to delete from append-only tables), process in batches, write an
-   audit event, and are idempotent.
+5. **Hard deletes happen only in retention jobs.** These run in the worker,
+   process in batches and are idempotent.
+   - As built (M8), the worker doesn't get a `storevia_retention` role with
+     broad DELETE rights. It gets `EXECUTE` on SECURITY DEFINER functions,
+     and the windows are fixed inside them (`app_retention_sweep`,
+     `app_delete_organisation`). The worker can run them but can neither
+     shorten a window nor reach the tables.
+   - The same applies to merchants: erasure goes through
+     `app_erase_customer`. Order snapshots are immutable and addresses
+     append-only; those triggers step aside only for the personal fields,
+     only while an erasure function runs (`app.erasing_personal_data`).
+     No application role holds UPDATE on those columns, so the setting is
+     useless anywhere else.
 
-## 4. Retention schedule (initial proposal)
+## 4. Retention schedule
 
-Final periods must be confirmed with legal counsel per launch jurisdiction
-(India DPDP Act 2023, GDPR, tax-record rules). The architecture supports
-per-entity policies; the values below are defaults.
+Final periods must be confirmed with legal counsel for each launch
+jurisdiction: the India DPDP Act 2023, GDPR and tax-record rules. The
+defaults below are what the M8 retention sweep applies:
 
-| Data                                             | Retention                                                           | Mechanism                                                                                                     |
-| ------------------------------------------------ | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| Orders, order lines, payments, refunds, invoices | ≥ 8 years after the financial year (tax/accounting)                 | Kept even after store archival; customer PII within may be anonymised on erasure request while amounts remain |
-| Audit logs                                       | 2 years online, then archived to cold storage                       | Monthly partitions detached and exported                                                                      |
-| Soft-deleted products/collections/pages          | 30 days, then purgeable                                             | Purge job (restorable until then)                                                                             |
-| Soft-deleted media                               | 30 days, then object + row purged if unreferenced                   | Purge job                                                                                                     |
-| Sessions, verifications                          | Until expiry + 7 days                                               | Daily cleanup                                                                                                 |
-| Webhook delivery attempts                        | 30 days                                                             | Daily cleanup                                                                                                 |
-| Inbound webhook events (billing/payments)        | 90 days                                                             | Daily cleanup                                                                                                 |
-| Carts                                            | 90 days                                                             | Daily cleanup                                                                                                 |
-| Expired checkouts (email, addresses, quote)      | 30 days after expiry, then contact details and the quote are erased | `checkout.purge` worker job (M6); the row keeps ids, status and amounts                                       |
-| Order notification queue                         | With the order                                                      | Sent rows keep kind, recipient and timestamps only (no content)                                               |
-| Cancelled/expired organisations                  | 90 days after expiry → export offered → purge of non-financial data | Organisation deletion workflow                                                                                |
-| Backups                                          | 35 days PITR + monthly snapshots for 12 months                      | Managed database                                                                                              |
+- `retention.sweep` runs hourly.
+- It handles at most 5,000 rows per item per run.
+- The windows are fixed in `app_retention_sweep()`.
+
+| Item                               | Kept for                                                    | Then                                               |
+| ---------------------------------- | ----------------------------------------------------------- | -------------------------------------------------- |
+| Sessions                           | 7 days after expiry                                         | deleted                                            |
+| Verification tokens                | 1 day after expiry                                          | deleted                                            |
+| Rate-limit counters                | 2 days after the last request                               | deleted                                            |
+| Job runs                           | succeeded 30 days, failed 90 days                           | deleted                                            |
+| Carts with no checkout             | 90 days after the last change                               | deleted (with lines)                               |
+| Expired checkouts' contact details | 30 days (`checkout.purge`, M6)                              | email and addresses cleared                        |
+| Payment webhook events             | 90 days (settled ones; already normalised, no payload)      | deleted                                            |
+| Billing webhook events             | 90 days (settled ones; normalised, S8)                      | deleted                                            |
+| Staff notifications                | read: 90 days; unread: 180 days                             | deleted                                            |
+| Order email recipients             | 90 days after sending (or failing)                          | address replaced with `removed`; row kept          |
+| Order links (access tokens)        | 30 days after expiry                                        | deleted                                            |
+| Order messages                     | 3 years after the order was placed                          | deleted (with their notifications)                 |
+| Outbox events                      | dispatched ones, 7 days (M4)                                | deleted                                            |
+| Storefront invalidation log        | 1 day (ADR-0034)                                            | deleted                                            |
+| Audit log                          | 2 years                                                     | deleted                                            |
+| Deleted media objects              | removed at deletion; retried every 10 minutes if that fails | objects deleted, `objectsPurgedAt` set             |
+| Orders and financial records       | 8 years (statutory)                                         | hard purge job: **not built yet** (first due 2034) |
+
+Differences from the M0 proposal:
+
+- **Audit logs** are deleted after 2 years. The cold-storage archive of
+  detached monthly partitions isn't built. The first deletions can't
+  happen before 2028; the launch checklist decides whether the archive
+  comes first.
+- **Soft-deleted catalogue rows** aren't purged yet (the purge job is still
+  open, ADR-0027 §6).
+- **Media objects** are deleted at once rather than after 30 days.
+- **Backups:** 35 days PITR plus monthly snapshots for 12 months; see
+  `docs/operations/backup-restore.md`. Backups hold deleted data until
+  they expire.
+
+### Soft delete vs hard delete
+
+| Data                                                                                        | Deletion                                                                                                                                                                   | Why                                                                                  |
+| ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Orders, lines, tax, payments, refunds, fulfilments                                          | **Never deleted** (except test-mode demo orders in dev/test, ADR-0031 purge). Personal fields anonymised on erasure.                                                       | Statutory accounting records; refunds and disputes need them.                        |
+| Customers                                                                                   | **Soft**: `deletedAt` + `anonymisedAt`, personal fields cleared.                                                                                                           | Orders reference the row.                                                            |
+| Products, variants, collections                                                             | **Soft** (`deletedAt` / archive).                                                                                                                                          | Order lines keep their own snapshot; restores are possible.                          |
+| Media                                                                                       | **Soft row, hard objects**: the row becomes `DELETED`, the storage objects are deleted, and `objectsPurgedAt` confirms it. The worker retries failed object deletes (S11). | A deleted image must stop being reachable; the row keeps usage accounting honest.    |
+| Pages, themes, navigation                                                                   | Pages soft (`deletedAt`); versions kept.                                                                                                                                   | Revision history.                                                                    |
+| Organisation                                                                                | **Soft**: `PENDING_DELETION` (30-day cooling-off), then `DELETED` with personal data erased and members, domains, credentials and media removed.                           | The financial records above belong to it.                                            |
+| Store                                                                                       | **Soft**: `ARCHIVED`.                                                                                                                                                      | Same.                                                                                |
+| User                                                                                        | **Tombstone**: email and name replaced, `DISABLED`, `deletedAt`; credentials, sessions, MFA and memberships **hard-deleted**.                                              | Audit entries and order events keep a valid actor id without identifying the person. |
+| Sessions, verifications, rate-limit rows, carts, job runs, staff notifications, order links | **Hard**, by the retention sweep.                                                                                                                                          | Operational data with no value after its window.                                     |
+| Audit log                                                                                   | **Hard**, after 2 years.                                                                                                                                                   | Security investigation window; append-only until then.                               |
 
 ## 5. Erasure requests (storefront customers)
 
-> Milestone 6 stores guest customers (one per store and email) with name,
-> email and phone copied from their orders, plus a merchant note and tags.
-> The erasure workflow below is not built yet (M8); until then it is a
-> documented manual procedure run by staff.
+Customer page → Erase personal data (type `ERASE`). The customer's orders
+are found in that store by customer id, and by email for guest checkouts.
 
-A merchant (or Storevia on the merchant's behalf) can erase a customer:
-`Customer` PII fields are nulled and `anonymisedAt` set; addresses deleted;
-order snapshots keep amounts and product data but replace name/email/phone/
-address with anonymised placeholders unless a legal retention obligation
-applies to that field. The action is audited.
+**Erased:**
 
-## 6. Organisation / account deletion
+- The customer's name, email, phone, note and tags.
+- On their orders:
+  - email and phone;
+  - the merchant's note, which may name them;
+  - address lines, name, company, city, postcode and phone. The region and
+    country stay: they are the tax place of supply.
+- Message bodies, replaced with a notice.
+- Email recipients. Pending emails are cancelled.
+- Order links, revoked.
+- Checkout contact details and addresses.
+- Discount redemption emails.
 
-1. Owner requests deletion (step-up re-authentication required).
-2. Organisation → `PENDING_DELETION`; subscription cancelled; storefronts
-   taken offline; data export generated and emailed to the owner.
-3. After the grace period (default 30 days, cancellable), the purge job
-   removes non-financial data; financial records are retained per §4 in a
-   minimal form and the organisation row becomes `DELETED` (tombstone).
+**Kept:** every amount, line, payment, refund, fulfilment and tax record,
+plus the audit entry `customer.erased` (a count only).
+
+Erasure is idempotent. It's allowed whatever the store's state, because
+an erasure request must be honoured even for a suspended store.
+
+## 6. Organisation deletion
+
+1. **Request.** Settings → Danger zone → Delete organisation. This needs a
+   recent password and the name typed out.
+   - The organisation becomes `PENDING_DELETION` with
+     `deletionScheduledAt` set 30 days ahead.
+   - Every store goes offline at once. The `Organisation_outbox` trigger
+     invalidates every instance's cache.
+   - Nobody can open the organisation any more.
+2. **Cooling-off.** The owner sees it under Account → Organisations being
+   deleted, and can cancel until the date.
+3. **Deletion.** The hourly worker job `organisations.delete`:
+   1. removes the organisation's custom domains from the hosting provider.
+      If that fails, the organisation is retried next run: its rows must
+      not go while the provider still routes them.
+   2. calls `app_delete_organisation()`, which:
+      - erases all personal data, as in §5, for every customer and order;
+      - deletes memberships, store access and staff notifications;
+      - revokes pending invitations;
+      - deletes domains;
+      - wipes payment credentials;
+      - marks media `DELETED` (the media sweep then deletes the objects);
+      - archives stores;
+      - expires the subscription;
+      - renames the organisation "Deleted organisation" and marks it
+        `DELETED`.
+4. **Kept:** orders and financial records (anonymised), audit logs (for
+   their 2 years) and billing history.
+
+## 7. Organisation export
+
+- **Where:** Organisation settings → Your data → Export all data. The
+  export is a POST to `/o/{org}/export`, with an origin check.
+- **Checks:**
+  - a recent password;
+  - 3 exports per organisation per hour;
+  - audited as `organisation.exported`.
+- **Contents:** one JSON document, streamed page by page:
+  - the organisation and its members (name, email, role);
+  - for every store: the store, products, variants, collections, media
+    metadata, customers, orders, order lines, addresses and tax lines,
+    payments, refunds, fulfilments, messages, discounts, pages, published
+    page versions, themes, navigation and domains.
+- **Never included:**
+  - payment credentials;
+  - verification, checkout and order-link tokens;
+  - idempotency keys;
+  - storage keys;
+  - provider references.
+
+## 8. User account deletion
+
+Account → Delete account needs the password and the account's email typed
+out. It's refused while the user owns a live organisation (transfer or
+delete it first) or is platform staff.
+
+**Removed:**
+
+- memberships, with a `member.left` audit entry per organisation;
+- sessions, credentials, MFA and verification tokens;
+- staff notifications;
+- pending invitations to the address.
+
+The user row stays as a tombstone: `deleted-{id}@deleted.invalid`,
+"Deleted user", `DISABLED`. The email address is free to sign up again.
+A confirmation email goes to the old address.
+
+## 9. Still open
+
+- **Hard purge of financial records** after the statutory 8 years. Not
+  needed before 2034; tracked in the launch checklist.
+- **Emailed export.** The M0 plan emails an export to the owner when they
+  request deletion. As built, the deletion dialog points the owner to
+  Settings → Your data first.
+- **Billing during the cooling-off period.** The subscription stays as it
+  is and is expired when the deletion runs. Plans are staff-managed (no
+  payment gateway), so nothing is charged meanwhile.

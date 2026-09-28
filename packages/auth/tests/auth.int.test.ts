@@ -546,3 +546,106 @@ describe("platform staff MFA (M8, S12)", () => {
     await expect(dashboard.mfaStatus(session)).rejects.toThrow(/platform realm/);
   });
 });
+
+describe("account deletion (M8)", () => {
+  const sessionOf = async (headers: Headers) => {
+    const s = await dashboard.getSession(headers);
+    if (!s) throw new Error("no session");
+    return s;
+  };
+
+  it("needs the password and the email typed; then leaves an anonymous tombstone", async () => {
+    const email = "leaving@example.test";
+    await registerVerified(email, "Leaving User");
+    const headers = await signedIn(dashboard, email);
+    const other = await signedIn(dashboard, email);
+    const session = await sessionOf(headers);
+    const db = migratorDb();
+    const owner = await db.user.create({
+      data: { email: "the-owner@example.test", name: "Owner", emailVerified: true },
+    });
+    const org = await db.$transaction(async (tx) => {
+      const created = await tx.organisation.create({ data: { name: "Someone else's" } });
+      await tx.membership.createMany({
+        data: [
+          { organisationId: created.id, userId: owner.id, role: "OWNER", status: "ACTIVE" },
+          { organisationId: created.id, userId: session.userId, role: "VIEWER", status: "ACTIVE" },
+        ],
+      });
+      return created;
+    });
+
+    expect(
+      await dashboard.deleteAccount(
+        session,
+        { password: PASSWORD, confirmEmail: "nope@example.test" },
+        headers,
+      ),
+    ).toMatchObject({ ok: false, code: "INVALID_INPUT" });
+    expect(
+      await dashboard.deleteAccount(
+        session,
+        { password: "wrong password!", confirmEmail: email },
+        headers,
+      ),
+    ).toMatchObject({ ok: false, code: "INVALID_CREDENTIALS" });
+    expect(await dashboard.getSession(headers)).not.toBeNull();
+
+    expect(
+      await dashboard.deleteAccount(
+        session,
+        { password: PASSWORD, confirmEmail: email.toUpperCase() },
+        headers,
+      ),
+    ).toEqual({ ok: true, value: undefined });
+    const user = await db.user.findUniqueOrThrow({ where: { id: session.userId } });
+    expect(user).toMatchObject({ name: "Deleted user", status: "DISABLED", emailVerified: false });
+    expect(user.email).not.toContain("leaving");
+    expect(user.deletedAt).toBeInstanceOf(Date);
+    expect(await db.account.count({ where: { userId: session.userId } })).toBe(0);
+    expect(await db.session.count({ where: { userId: session.userId } })).toBe(0);
+    expect(await db.membership.count({ where: { userId: session.userId } })).toBe(0);
+    expect(
+      await db.auditLog.count({ where: { organisationId: org.id, action: "member.left" } }),
+    ).toBe(1);
+    // Every session is gone and the old credentials open nothing.
+    expect(await dashboard.getSession(other)).toBeNull();
+    expect((await dashboard.signIn({ email, password: PASSWORD }, noCookies())).ok).toBe(false);
+    expect(emailsTo(email).some((m) => m.template === "account-deleted")).toBe(true);
+    // The address is free to sign up again as a new account.
+    await registerVerified(email, "Returning User");
+  });
+
+  it("is refused while the user owns an organisation, and for platform staff", async () => {
+    const email = "owner-stays@example.test";
+    await registerVerified(email);
+    const headers = await signedIn(dashboard, email);
+    const session = await sessionOf(headers);
+    const db = migratorDb();
+    await db.$transaction(async (tx) => {
+      const org = await tx.organisation.create({ data: { name: "Mine" } });
+      await tx.membership.create({
+        data: { organisationId: org.id, userId: session.userId, role: "OWNER", status: "ACTIVE" },
+      });
+    });
+    expect(
+      await dashboard.deleteAccount(session, { password: PASSWORD, confirmEmail: email }, headers),
+    ).toMatchObject({ ok: false, code: "ACCOUNT_IN_USE" });
+    expect(
+      (await db.user.findUniqueOrThrow({ where: { id: session.userId } })).deletedAt,
+    ).toBeNull();
+
+    const staffEmail = "staff-stays@example.test";
+    await registerVerified(staffEmail);
+    const staffHeaders = await signedIn(dashboard, staffEmail);
+    const staffSession = await sessionOf(staffHeaders);
+    await db.platformStaff.create({ data: { userId: staffSession.userId, role: "SUPPORT" } });
+    expect(
+      await dashboard.deleteAccount(
+        staffSession,
+        { password: PASSWORD, confirmEmail: staffEmail },
+        staffHeaders,
+      ),
+    ).toMatchObject({ ok: false, code: "ACCOUNT_IN_USE" });
+  });
+});

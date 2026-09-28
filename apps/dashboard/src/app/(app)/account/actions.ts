@@ -3,8 +3,10 @@
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { cancelOrganisationDeletion } from "@storevia/tenancy";
 import { runAction, type ActionState } from "@/lib/action";
-import { dashboardAuth, getSession } from "@/lib/auth";
+import { dashboardAuth, getSession, requireActionPrincipal } from "@/lib/auth";
+import { requestInfo } from "@/lib/request";
 
 export async function signOutAction(): Promise<void> {
   await dashboardAuth().signOut(await headers());
@@ -83,4 +85,35 @@ export async function revokeOtherSessionsAction(_prev: ActionState): Promise<Act
         : "No other sessions.",
     };
   });
+}
+
+/** The owner changes their mind during the cooling-off period (M8). */
+export async function cancelDeletionAction(
+  orgId: string,
+  _prev: ActionState,
+): Promise<ActionState> {
+  const result = await runAction(async () => {
+    await cancelOrganisationDeletion(await requireActionPrincipal(), orgId, await requestInfo());
+    return { ok: true };
+  });
+  if (result.ok) redirect(`/o/${orgId}`);
+  return result;
+}
+
+/** Deletes the signed-in user's own account (M8): password and email typed. */
+export async function deleteAccountAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const result = await runAction(async () => {
+    const outcome = await dashboardAuth().deleteAccount(
+      await session(),
+      { password: formData.get("password"), confirmEmail: formData.get("confirmEmail") },
+      await headers(),
+    );
+    if (!outcome.ok) return { ok: false, message: outcome.message };
+    return { ok: true };
+  }, formData);
+  if (result.ok) redirect("/sign-in?deleted=1");
+  return result;
 }

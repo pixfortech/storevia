@@ -209,16 +209,18 @@ enum OrganisationStatus {
 
 /// The tenant. Owns stores, subscription and members.
 model Organisation {
-  id           String             @id @default(uuid(7)) @db.Uuid
-  name         String
-  status       OrganisationStatus @default(ACTIVE)
-  billingEmail String?
-  country      String?            @db.Char(2)
-  createdById  String?            @db.Uuid
-  createdAt    DateTime           @default(now()) @db.Timestamptz(3)
-  updatedAt    DateTime           @updatedAt @db.Timestamptz(3)
-  suspendedAt  DateTime?          @db.Timestamptz(3)
-  deletedAt    DateTime?          @db.Timestamptz(3)
+  id                  String             @id @default(uuid(7)) @db.Uuid
+  name                String
+  status              OrganisationStatus @default(ACTIVE)
+  billingEmail        String?
+  country             String?            @db.Char(2)
+  createdById         String?            @db.Uuid
+  createdAt           DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime           @updatedAt @db.Timestamptz(3)
+  suspendedAt         DateTime?          @db.Timestamptz(3)
+  deletedAt           DateTime?          @db.Timestamptz(3)
+  /// Set while PENDING_DELETION: when the worker deletes it (M8).
+  deletionScheduledAt DateTime?          @db.Timestamptz(3)
 
   createdBy        User?                         @relation("OrganisationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   memberships      Membership[]
@@ -866,6 +868,8 @@ model MediaAsset {
   createdAt        DateTime    @default(now()) @db.Timestamptz(3)
   updatedAt        DateTime    @updatedAt @db.Timestamptz(3)
   deletedAt        DateTime?   @db.Timestamptz(3)
+  /// Storage objects removed; a DELETED asset without it is retried (M8).
+  objectsPurgedAt  DateTime?   @db.Timestamptz(3)
 
   store        Store          @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
   productMedia ProductMedia[]

@@ -114,7 +114,7 @@ be under our control.
 
 | Area         | Permissions                                                                                                                                                                                          |
 | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Organisation | `organisation.read`, `organisation.update`, `organisation.delete`, `ownership.transfer`, `audit.read`                                                                                                |
+| Organisation | `organisation.read`, `organisation.update`, `organisation.delete`, `organisation.export`, `ownership.transfer`, `audit.read`                                                                         |
 | Members      | `member.read`, `member.manage`                                                                                                                                                                       |
 | Billing      | `billing.read`, `billing.manage`                                                                                                                                                                     |
 | Stores       | `store.create`, `store.read`, `store.update`, `store.archive`, `settings.manage`                                                                                                                     |
@@ -133,6 +133,7 @@ be under our control.
 | organisation.read                                            |   ✔   |   ✔   |       ✔       |    ✔     |         ✔         |       ✔       |     ✔     |    ✔    |   ✔    |         ✔         |      ✔       |        ✔        |   ✔    |   ✔    |
 | organisation.update                                          |   ✔   |   ✔   |               |          |                   |               |           |         |        |                   |              |                 |        |        |
 | organisation.delete                                          |   ✔   |       |               |          |                   |               |           |         |        |                   |              |                 |        |        |
+| organisation.export                                          |   ✔   |       |               |          |                   |               |           |         |        |                   |              |                 |        |        |
 | ownership.transfer                                           |   ✔   |       |               |          |                   |               |           |         |        |                   |              |                 |        |        |
 | audit.read                                                   |   ✔   |   ✔   |               |          |                   |               |           |         |        |                   |              |                 |        |        |
 | member.read                                                  |   ✔   |   ✔   |       ✔       |          |                   |               |           |         |        |                   |      ✔       |                 |        |        |

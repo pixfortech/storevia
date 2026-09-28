@@ -24,7 +24,9 @@ export type AuthErrorCode =
   | "RATE_LIMITED"
   | "WEAK_PASSWORD"
   | "INVALID_TOKEN"
-  | "INVALID_INPUT";
+  | "INVALID_INPUT"
+  /** The account can't be deleted yet (it owns an organisation, or is staff). */
+  | "ACCOUNT_IN_USE";
 
 export type AuthResult<T = undefined> =
   | { readonly ok: true; readonly value: T }

@@ -74,6 +74,22 @@ export function existingAccountMessage(to: string, name: string, signInUrl: stri
   };
 }
 
+export function accountDeletedMessage(to: string, name: string): EmailMessage {
+  const lines = [
+    `Hi ${name},`,
+    "Your Storevia account has been deleted. You've been signed out everywhere and removed from every team you were in.",
+    "Orders and records that belong to the businesses you worked with stay with them.",
+    "If this wasn't you, contact support straight away.",
+  ];
+  return {
+    to,
+    template: "account-deleted",
+    subject: "Your Storevia account was deleted",
+    text: lines.join("\n\n"),
+    html: layout("Account deleted", lines),
+  };
+}
+
 export function passwordChangedMessage(to: string, name: string): EmailMessage {
   const lines = [
     `Hi ${name},`,

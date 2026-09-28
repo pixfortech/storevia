@@ -3,17 +3,23 @@ import { disconnectTestClients, migratorDb, truncateAll } from "@storevia/databa
 import { setMediaStorageForTests } from "@storevia/media";
 import type { ObjectStorage } from "@storevia/media/storage";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
-import { sweepMedia } from "../src/media";
+import { purgeDeletedMedia, sweepMedia } from "../src/media";
 
 const ORG = "0190f2a4-0000-7000-8000-00000000d001";
 const STORE = "0190f2a4-0000-7000-8000-00000000d002";
 const deleted: string[] = [];
+let failNext = 0;
 
 beforeEach(async () => {
   await truncateAll();
   deleted.length = 0;
+  failNext = 0;
   setMediaStorageForTests({
     delete: (key: string) => {
+      if (failNext > 0) {
+        failNext -= 1;
+        return Promise.reject(new Error("storage unavailable"));
+      }
       deleted.push(key);
       return Promise.resolve();
     },
@@ -63,6 +69,54 @@ describe("media sweep", () => {
     );
     // Idempotent.
     expect(await sweepMedia()).toEqual({ stuck: 0, abandoned: 0 });
+  });
+});
+
+describe("deleted media objects (S11)", () => {
+  async function deletedAsset(ageMinutes: number, purged = false): Promise<string> {
+    const id = await asset("DELETED", ageMinutes);
+    const at = new Date(Date.now() - ageMinutes * 60_000);
+    await migratorDb().mediaAsset.update({
+      where: { id },
+      data: {
+        deletedAt: at,
+        objectsPurgedAt: purged ? at : null,
+        renditions: [
+          {
+            key: `media/${ORG}/${STORE}/${id}/w400.webp`,
+            width: 400,
+            height: 300,
+            format: "webp",
+            bytes: 10,
+          },
+        ],
+      },
+    });
+    return id;
+  }
+  const purgedAt = async (id: string) =>
+    (await migratorDb().mediaAsset.findUniqueOrThrow({ where: { id } })).objectsPurgedAt;
+
+  it("retries a failed object delete until it succeeds, then stops", async () => {
+    const failed = await deletedAsset(30);
+    const recent = await deletedAsset(1);
+    const done = await deletedAsset(60, true);
+
+    failNext = 1;
+    expect(await purgeDeletedMedia()).toEqual({ purged: 0, failed: 1 });
+    expect(await purgedAt(failed)).toBeNull();
+
+    expect(await purgeDeletedMedia()).toEqual({ purged: 1, failed: 0 });
+    expect(await purgedAt(failed)).toBeInstanceOf(Date);
+    expect(deleted).toEqual(
+      expect.arrayContaining([
+        `uploads/${ORG}/${STORE}/${failed}`,
+        `media/${ORG}/${STORE}/${failed}/w400.webp`,
+      ]),
+    );
+    // Too recent to retry, or already purged: untouched.
+    expect(deleted.some((k) => k.includes(recent) || k.includes(done))).toBe(false);
+    expect(await purgeDeletedMedia()).toEqual({ purged: 0, failed: 0 });
   });
 });
 

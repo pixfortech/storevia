@@ -1,6 +1,7 @@
 import "server-only";
 import { systemDb } from "@storevia/database/system";
 import {
+  accountDeletedMessage,
   existingAccountMessage,
   getEmailSender,
   passwordChangedMessage,
@@ -631,6 +632,52 @@ export class AuthService {
     });
     await audit("auth.reauthenticated", session.userId, headers);
     return authOk(undefined);
+  }
+
+  /**
+   * Deletes the caller's own dashboard account (M8, data-lifecycle.md): the
+   * password again and the account's email typed out. Refused while the
+   * user owns an organisation (transfer or delete it first). Memberships,
+   * sessions and credentials go; the user row stays as an anonymous
+   * tombstone so audit entries and order history keep a valid actor.
+   */
+  async deleteAccount(
+    session: AuthSession,
+    input: { readonly password: unknown; readonly confirmEmail: unknown },
+    headers: Headers,
+  ): Promise<AuthResult> {
+    if (this.realm !== "DASHBOARD") throw new Error("account deletion is for the dashboard realm");
+    const blocked = await this.limited([[RATE_LIMITS.confirmPasswordUser, session.userId]]);
+    if (blocked) return blocked;
+    const typed = typeof input.confirmEmail === "string" ? input.confirmEmail.trim() : "";
+    if (typed.toLowerCase() !== session.email.toLowerCase()) {
+      return authFail("INVALID_INPUT", "Type your account's email address exactly.");
+    }
+    const parsed = z.string().min(1).max(128).safeParse(input.password);
+    const account = await systemDb().account.findFirst({
+      where: { userId: session.userId, providerId: "credential" },
+      select: { passwordHash: true },
+    });
+    const ok =
+      parsed.success && account?.passwordHash
+        ? await verifyPassword(account.passwordHash, parsed.data)
+        : false;
+    if (!ok) return authFail("INVALID_CREDENTIALS", "That password is incorrect.");
+    const [row] = await systemDb().$queryRaw<{ outcome: string }[]>`
+      SELECT app_delete_user_account(${session.userId}::uuid) AS outcome`;
+    switch (row?.outcome) {
+      case "deleted":
+        await audit("auth.account_deleted", session.userId, headers);
+        await send(accountDeletedMessage(session.email, session.name));
+        return authOk(undefined);
+      case "owns_organisation":
+        return authFail(
+          "ACCOUNT_IN_USE",
+          "You own an organisation. Transfer its ownership or delete it before deleting your account.",
+        );
+      default:
+        return authFail("ACCOUNT_IN_USE", "This account can't be deleted here.");
+    }
   }
 
   // -------------------------------------------------------------------------

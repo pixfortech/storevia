@@ -8,15 +8,27 @@ import { SettingsLayout, SettingsSection } from "@/components/areas/settings";
 import { SignOutButton, StandaloneHeader } from "@/components/areas/standalone";
 import { describeUserAgent } from "@/lib/areas/user-agent";
 import { relativeTime } from "@/lib/dashboard/activity";
-import { dashboardAuth, getSession } from "@/lib/auth";
-import { ChangePasswordForm, ConfirmPasswordForm, SessionList } from "./security-forms";
+import { dashboardAuth, getSession, toPrincipal } from "@/lib/auth";
+import { formatLongDate } from "@/lib/areas/dates";
+import { listPendingDeletions } from "@storevia/tenancy";
+import { toTypeId } from "@storevia/types";
+import {
+  ChangePasswordForm,
+  ConfirmPasswordForm,
+  DeleteAccountForm,
+  PendingDeletionRow,
+  SessionList,
+} from "./security-forms";
 
 export const metadata: Metadata = { title: "Account security" };
 
 export default async function AccountSecurityPage() {
   const session = await getSession();
   if (!session) redirect("/sign-in?next=/account/security");
-  const sessions = await dashboardAuth().listSessions(session);
+  const [sessions, pending] = await Promise.all([
+    dashboardAuth().listSessions(session),
+    listPendingDeletions(toPrincipal(session)),
+  ]);
   const now = new Date();
   return (
     <div className="flex min-h-dvh flex-col">
@@ -49,11 +61,33 @@ export default async function AccountSecurityPage() {
         </header>
         <SettingsLayout
           sections={[
+            ...(pending.length > 0
+              ? [{ id: "deletions", label: "Organisations being deleted" }]
+              : []),
             { id: "sessions", label: "Signed-in devices" },
             { id: "password", label: "Password" },
             { id: "confirm", label: "Confirm it's you" },
+            { id: "delete-account", label: "Delete account", danger: true },
           ]}
         >
+          {pending.length > 0 ? (
+            <SettingsSection
+              id="deletions"
+              title="Organisations being deleted"
+              description="Their stores are closed. Cancel to bring an organisation back before its deletion date."
+            >
+              <ul className="divide-y divide-line">
+                {pending.map((p) => (
+                  <PendingDeletionRow
+                    key={p.id}
+                    orgId={toTypeId("organisation", p.id)}
+                    name={p.name}
+                    when={formatLongDate(p.scheduledAt, "UTC")}
+                  />
+                ))}
+              </ul>
+            </SettingsSection>
+          ) : null}
           <SettingsSection
             id="sessions"
             title="Signed-in devices"
@@ -90,6 +124,13 @@ export default async function AccountSecurityPage() {
             description="Some actions, such as granting the Admin role or transferring ownership, need a recent password confirmation."
           >
             <ConfirmPasswordForm />
+          </SettingsSection>
+          <SettingsSection
+            id="delete-account"
+            title="Delete account"
+            description="Removes your account for good. This can't be undone."
+          >
+            <DeleteAccountForm email={session.email} />
           </SettingsSection>
         </SettingsLayout>
       </main>

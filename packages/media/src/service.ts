@@ -532,12 +532,25 @@ export async function deleteMedia(ctx: TenantContext, mediaPublicId: string): Pr
   // After the commit: nothing references the asset any more (deletion is
   // refused while anything does, and references take a lock on the asset).
   const storage = mediaStorage();
+  let failures = 0;
   for (const key of keys) {
-    await storage.delete(key).catch((error: unknown) => {
+    try {
+      await storage.delete(key);
+    } catch (error) {
       // Error names only (a storage message can echo the request); the
-      // worker's media sweep retries the delete.
+      // worker's media sweep retries until objectsPurgedAt is set (S11).
+      failures += 1;
       recordMetric("media.object_delete_failed", 1, {});
       log.warn("media object not deleted", { key, error });
-    });
+    }
+  }
+  if (failures === 0) {
+    await withTenant(scopeOf(store), (tx) =>
+      tx.mediaAsset.update({
+        where: { id },
+        data: { objectsPurgedAt: new Date() },
+        select: { id: true },
+      }),
+    );
   }
 }

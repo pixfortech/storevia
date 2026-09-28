@@ -5,7 +5,11 @@ import { CardBody, CardFooter } from "@storevia/ui/surfaces";
 import { useActionState } from "react";
 import { ConfirmDialog } from "@/components/areas/confirm-dialog";
 import { FormMessage, SubmitButton, TextField } from "@/components/forms";
-import { leaveOrganisationAction, renameOrganisationAction } from "./actions";
+import {
+  leaveOrganisationAction,
+  renameOrganisationAction,
+  requestDeletionAction,
+} from "./actions";
 
 export function OrganisationNameForm({
   orgId,
@@ -57,5 +61,36 @@ export function LeaveOrganisationForm({ orgId }: { orgId: string }) {
       state={state}
       trigger={<Button variant="danger-outline">Leave organisation</Button>}
     />
+  );
+}
+
+/** Owner only: the name typed out; the service also needs a recent password (M8). */
+export function DeleteOrganisationForm({
+  orgId,
+  name,
+  coolingOffDays,
+}: {
+  orgId: string;
+  name: string;
+  coolingOffDays: number;
+}) {
+  const [state, action] = useActionState(requestDeletionAction.bind(null, orgId), { ok: false });
+  return (
+    <ConfirmDialog
+      title="Delete this organisation?"
+      description={`Every store closes now. After ${String(coolingOffDays)} days, customers' personal data is erased and your team, domains, media and payment connections are removed. Orders, payments and refunds are kept, without personal data, for your legal records. You can cancel from your account page until then. To keep a copy, export your data first (Your data, above).`}
+      confirmLabel="Delete organisation"
+      action={action}
+      state={state}
+      trigger={<Button variant="danger-outline">Delete organisation</Button>}
+    >
+      <TextField
+        label={`Type ${name} to confirm`}
+        name="confirmName"
+        autoComplete="off"
+        required
+        state={state}
+      />
+    </ConfirmDialog>
   );
 }

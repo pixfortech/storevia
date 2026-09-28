@@ -33,6 +33,11 @@ export default async function SignInPage({
           Your password was reset. Sign in with your new password.
         </Alert>
       ) : null}
+      {params["deleted"] ? (
+        <Alert tone="success" title="Account deleted" className="mb-6">
+          Your account has been deleted and you&apos;ve been signed out everywhere.
+        </Alert>
+      ) : null}
       {params["verified"] ? (
         <Alert tone="success" title="Email confirmed" className="mb-6">
           Your email is confirmed. You can sign in now.

@@ -3,6 +3,7 @@
 import {
   leaveOrganisation,
   renameOrganisation,
+  requestOrganisationDeletion,
   requireOrganisationAccess,
 } from "@storevia/tenancy";
 import { revalidatePath } from "next/cache";
@@ -41,4 +42,27 @@ export async function leaveOrganisationAction(
     await leaveOrganisation(ctx);
     redirect("/");
   });
+}
+
+/**
+ * Asks for the organisation to be deleted (M8): owner, recent password and
+ * the name typed out. The organisation closes at once; the owner can cancel
+ * from their account page during the cooling-off period.
+ */
+export async function requestDeletionAction(
+  orgId: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const result = await runAction(async () => {
+    const ctx = await requireOrganisationAccess(
+      await requireActionPrincipal(),
+      orgId,
+      await requestInfo(),
+    );
+    await requestOrganisationDeletion(ctx, { confirmName: formData.get("confirmName") });
+    return { ok: true };
+  }, formData);
+  if (result.ok) redirect("/account/security?deletion=requested#deletions");
+  return result;
 }

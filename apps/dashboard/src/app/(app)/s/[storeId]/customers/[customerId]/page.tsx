@@ -7,7 +7,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AccessNotice } from "@/components/areas/access-notice";
 import { OrderBadges } from "@/components/orders/badges";
-import { CustomerNotesForm } from "@/components/orders/customer-form";
+import { CustomerNotesForm, EraseCustomerForm } from "@/components/orders/customer-form";
 import { PageHeader } from "@/components/shell/app-shell";
 import { formatMoney } from "@/lib/catalogue";
 import { formatLongDate, formatShortDate } from "@/lib/areas/dates";
@@ -175,6 +175,17 @@ export default async function CustomerPage({
               )}
             </CardBody>
           </Card>
+          {hasPermission(ctx, "customer.manage") ? (
+            <Card data-testid="erase-customer">
+              <CardHeader
+                title="Erase personal data"
+                description="For a customer who asks to be forgotten."
+              />
+              <CardBody>
+                <EraseCustomerForm storeId={storeId} customerId={customer.id} />
+              </CardBody>
+            </Card>
+          ) : null}
         </div>
       </div>
     </>

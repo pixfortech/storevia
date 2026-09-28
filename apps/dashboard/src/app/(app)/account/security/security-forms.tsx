@@ -8,8 +8,10 @@ import { useActionState, useState } from "react";
 import { FormMessage, SubmitButton, TextField } from "@/components/forms";
 import type { DeviceKind } from "@/lib/areas/user-agent";
 import {
+  cancelDeletionAction,
   changePasswordAction,
   confirmPasswordAction,
+  deleteAccountAction,
   revokeOtherSessionsAction,
   revokeSessionAction,
 } from "../actions";
@@ -196,6 +198,76 @@ export function ConfirmPasswordForm() {
         <SubmitButton variant="secondary" className="ml-auto">
           Confirm password
         </SubmitButton>
+      </CardFooter>
+    </form>
+  );
+}
+
+/** One organisation waiting to be deleted, with the owner's way back (M8). */
+export function PendingDeletionRow({
+  orgId,
+  name,
+  when,
+}: {
+  orgId: string;
+  name: string;
+  when: string;
+}) {
+  const [state, action] = useActionState(cancelDeletionAction.bind(null, orgId), { ok: false });
+  return (
+    <li
+      className="flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-4 sm:px-6"
+      data-testid="pending-deletion"
+    >
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-body-sm font-semibold text-ink">{name}</p>
+        <p className="mt-0.5 text-caption text-ink-muted">Deleted on {when} unless you cancel.</p>
+      </div>
+      <form action={action} className="ml-auto">
+        <SubmitButton size="sm" variant="secondary">
+          Cancel deletion<span className="sr-only"> of {name}</span>
+        </SubmitButton>
+      </form>
+      {state.message ? (
+        <div className="basis-full">
+          <FormMessage state={state} variant="inline" />
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
+export function DeleteAccountForm({ email }: { email: string }) {
+  const [state, action] = useActionState(deleteAccountAction, { ok: false });
+  return (
+    <form action={action} noValidate>
+      <CardBody className="space-y-5 py-6">
+        <p className="text-body-sm text-ink-muted">
+          You&apos;ll be signed out everywhere and removed from every team. Orders and records that
+          belong to the businesses you worked with stay with them. If you own an organisation,
+          transfer its ownership or delete it first.
+        </p>
+        <FormMessage state={state} />
+        <div className="grid gap-5 sm:grid-cols-2">
+          <TextField
+            label={`Type ${email} to confirm`}
+            name="confirmEmail"
+            autoComplete="off"
+            required
+            state={state}
+          />
+          <TextField
+            label="Your password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            required
+            state={state}
+          />
+        </div>
+      </CardBody>
+      <CardFooter className="justify-end">
+        <SubmitButton variant="danger">Delete my account</SubmitButton>
       </CardFooter>
     </form>
   );

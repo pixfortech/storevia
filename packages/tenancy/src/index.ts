@@ -43,6 +43,13 @@ export { isUniqueViolation, parseInput } from "./errors";
 export type { ActorAuditEntry, AuditMetadata } from "./audit";
 export { AUDIT_AREAS, isAuditArea, listAuditLog, listRecentActivity } from "./activity";
 export {
+  DELETION_COOLING_OFF_DAYS,
+  cancelOrganisationDeletion,
+  listPendingDeletions,
+  requestOrganisationDeletion,
+} from "./lifecycle";
+export type { PendingDeletion } from "./lifecycle";
+export {
   changeStoreSlug,
   getOnlineStore,
   setStorefrontLive,

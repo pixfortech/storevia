@@ -47,7 +47,12 @@ describe("role matrix", () => {
 
   it("grants OWNER every permission and keeps owner-only permissions off ADMIN", () => {
     expect(ROLE_PERMISSIONS.OWNER.size).toBe(PERMISSIONS.length);
-    for (const p of ["billing.manage", "ownership.transfer", "organisation.delete"] as const) {
+    for (const p of [
+      "billing.manage",
+      "ownership.transfer",
+      "organisation.delete",
+      "organisation.export",
+    ] as const) {
       expect(ROLE_PERMISSIONS.ADMIN.has(p)).toBe(false);
     }
   });

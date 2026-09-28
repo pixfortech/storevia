@@ -2,7 +2,7 @@
 
 import { Field, Textarea } from "@storevia/ui/form";
 import { useActionState } from "react";
-import { saveCustomerAction } from "@/app/(app)/s/[storeId]/customers/actions";
+import { eraseCustomerAction, saveCustomerAction } from "@/app/(app)/s/[storeId]/customers/actions";
 import { FormMessage, SubmitButton, TextField } from "@/components/forms";
 
 /** The merchant's own note and tags for a customer (contact details come from orders). */
@@ -48,6 +48,42 @@ export function CustomerNotesForm({
           Save
         </SubmitButton>
       </div>
+    </form>
+  );
+}
+
+/**
+ * Erasing a customer's personal data (M8): a right-to-erasure request. The
+ * orders stay for the accounts, without the name, contact details,
+ * addresses or messages. Needs a recent password.
+ */
+export function EraseCustomerForm({
+  storeId,
+  customerId,
+}: {
+  storeId: string;
+  customerId: string;
+}) {
+  const [state, action] = useActionState(eraseCustomerAction.bind(null, storeId, customerId), {
+    ok: false,
+  });
+  return (
+    <form action={action} className="space-y-4">
+      <p className="text-body-sm text-ink-muted">
+        Removes this customer&apos;s name, email, phone, note and tags, and on their orders the
+        contact details, addresses (the state and country stay for tax) and messages. Their order
+        links stop working. Amounts, payments and refunds are kept for your accounts. This
+        can&apos;t be undone.
+      </p>
+      <FormMessage state={state} />
+      <TextField
+        label="Type ERASE to confirm"
+        name="confirm"
+        autoComplete="off"
+        required
+        state={state}
+      />
+      <SubmitButton variant="danger">Erase personal data</SubmitButton>
     </form>
   );
 }

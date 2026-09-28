@@ -277,13 +277,10 @@ derived from the drill and the provider's guarantees.
 - A targeted attack suite that proves each fix and would fail if the fix
   were reverted (mutation check).
 
-**Status (M8-4):** S1–S10, S12 and S13 are fixed, each with the tests
+**Status (M8-4, M8-5):** S1–S13 are fixed (S11 in M8-5), each with the tests
 listed in [threat-model §4.10](../security/threat-model.md#410-milestone-8-hardening-review).
-Two items remain:
-
-- S1's boot-time env validation lands with the other apps' validation
-  (M8-7).
-- S11 (retrying object deletion) lands with the retention sweeper (M8-5).
+One item remains: S1's boot-time env validation lands with the other
+apps' validation (M8-7).
 
 The audit log viewers are at `/o/{org}/audit` (dashboard, `audit.read`)
 and `/audit` (platform-admin, `platform.audit.read`). The manual test plan
@@ -313,6 +310,20 @@ anonymises personal data, detaches domains, deletes media, keeps order and
 payment financial records and audit) and user account deletion (blocked
 while sole owner); a retention job with per-table windows; the soft vs
 hard delete policy written into `data-lifecycle.md`.
+
+**Status (M8-5):** built as planned; details in
+[data-lifecycle.md](../database/data-lifecycle.md) §3.5 and §4–§9.
+
+- Export: the owner-only `organisation.export`, streamed JSON.
+- Customer erasure: `customer.manage` plus step-up.
+- Organisation deletion: 30-day cooling-off, then the worker job
+  `organisations.delete`.
+- User account deletion: tombstone, refused while the user owns an
+  organisation.
+- `retention.sweep`: fixed windows.
+- S11: deleted media objects are retried until they are purged.
+- Still open: the export isn't emailed on a deletion request, and there's
+  no statutory 8-year purge.
 
 ## 9. Billing recovery
 

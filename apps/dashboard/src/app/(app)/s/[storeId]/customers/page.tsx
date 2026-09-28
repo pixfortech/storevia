@@ -2,7 +2,7 @@ import { listCustomers } from "@storevia/commerce";
 import { getStore, hasPermission } from "@storevia/tenancy";
 import { Icon } from "@storevia/ui/icons";
 import { Illustration } from "@storevia/ui/illustrations";
-import { Card, EmptyState } from "@storevia/ui/surfaces";
+import { Alert, Card, EmptyState } from "@storevia/ui/surfaces";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -61,6 +61,11 @@ export default async function CustomersPage({
         title="Customers"
         description="Everyone who has ordered from your store, newest first. Contact details come from their orders."
       />
+      {param("erased") ? (
+        <Alert tone="success" className="mb-6" title="Personal data erased">
+          The customer&apos;s details were removed. Their orders stay for your accounts.
+        </Alert>
+      ) : null}
       <Card className="overflow-hidden">
         <ListSearch label="Search customers" placeholder="Name or email" defaultValue={q} />
         {page.items.length === 0 ? (

@@ -14,6 +14,7 @@ import type { JobDefinition } from "@storevia/jobs";
 import { recordMetric } from "@storevia/observability";
 import { MEMBER_ROLES, recordActorAudit } from "@storevia/tenancy";
 import { domainVerifyJob } from "./domains";
+import { organisationDeletionJob, retentionSweepJob } from "./lifecycle";
 import { mediaSweepJob } from "./media";
 import { operationsMetricsJob } from "./ops";
 import { outboxDispatchJob } from "./outbox";
@@ -163,4 +164,6 @@ export const JOBS: readonly JobDefinition[] = [
   domainVerifyJob,
   mediaSweepJob,
   operationsMetricsJob,
+  retentionSweepJob,
+  organisationDeletionJob,
 ];

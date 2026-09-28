@@ -1,6 +1,6 @@
 import "server-only";
 import { Prisma } from "@storevia/database";
-import { recordAudit, type TenantContext } from "@storevia/tenancy";
+import { recordAudit, requireRecentAuthentication, type TenantContext } from "@storevia/tenancy";
 import { notFound, validationFailed } from "@storevia/types";
 import { inStore, internalId, publicId } from "./internal";
 import type { MoneyJson } from "./money";
@@ -198,5 +198,55 @@ export async function updateCustomer(
       );
     },
     { write: true },
+  );
+}
+
+export interface CustomerErasure {
+  readonly orders: number;
+  readonly addresses: number;
+  readonly messages: number;
+  readonly checkouts: number;
+}
+
+/**
+ * Erases a customer's personal data (M8, data-lifecycle.md): their name,
+ * email, phone, note and tags, and on their orders (by customer, or by
+ * email for guest checkouts in this store) the email, phone, addresses
+ * (region and country stay for tax), messages, pending emails and order
+ * links. Amounts, lines, payments, refunds and tax records are kept.
+ * Irreversible: `customer.manage` and a recent password confirmation.
+ */
+export async function eraseCustomer(
+  ctx: TenantContext,
+  customerPublicId: unknown,
+): Promise<CustomerErasure> {
+  const id = internalId("customer", customerPublicId);
+  return inStore(
+    ctx,
+    "customer.manage",
+    async (tx, store) => {
+      requireRecentAuthentication(store, "erasing a customer's personal data");
+      const [row] = await tx.$queryRaw<{ result: Record<string, number> | null }[]>`
+        SELECT app_erase_customer(${id}::uuid) AS result`;
+      const result = row?.result;
+      if (!result) throw notFound();
+      const erased: CustomerErasure = {
+        orders: result["orders"] ?? 0,
+        addresses: result["addresses"] ?? 0,
+        messages: result["messages"] ?? 0,
+        checkouts: result["checkouts"] ?? 0,
+      };
+      await recordAudit(
+        tx,
+        store,
+        "customer.erased",
+        { type: "Customer", id },
+        {
+          count: erased.orders,
+        },
+      );
+      return erased;
+    },
+    // Not `write`: an erasure request is honoured whatever the store's state.
   );
 }

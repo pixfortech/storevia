@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./data-export": "./src/data-export.ts",
     "./money": "./src/money.ts",
     "./handles": "./src/handles.ts",
     "./rich-text": "./src/rich-text.ts",

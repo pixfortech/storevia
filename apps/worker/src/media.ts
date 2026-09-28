@@ -3,6 +3,7 @@ import { workerDb } from "@storevia/database/worker";
 import type { JobDefinition } from "@storevia/jobs";
 import { mediaStorage } from "@storevia/media";
 import { uploadKey } from "@storevia/media/keys";
+import { parseRenditions } from "@storevia/media/urls";
 import { logger, recordMetric } from "@storevia/observability";
 
 // Media sweep (M8). Processing runs inline in the upload request; if that
@@ -56,12 +57,63 @@ export async function sweepMedia(): Promise<{ stuck: number; abandoned: number }
   return { stuck, abandoned };
 }
 
+/** Deleted assets whose objects aren't confirmed gone after this long are retried. */
+export const PURGE_RETRY_MINUTES = 5;
+
+/**
+ * S11 (M8): a deleted asset's objects (original, raw upload, renditions)
+ * are deleted after the database commit. If that fails, the asset stays
+ * DELETED without `objectsPurgedAt` and is retried here until it succeeds,
+ * so a deleted image never stays reachable. Deleting an absent object
+ * succeeds, so a retry after a partial delete is safe.
+ */
+export async function purgeDeletedMedia(): Promise<{ purged: number; failed: number }> {
+  const db = workerDb();
+  const rows = await db.$queryRaw<
+    {
+      id: string;
+      organisationId: string;
+      storeId: string;
+      storageKey: string;
+      renditions: unknown;
+    }[]
+  >`
+    SELECT id, "organisationId", "storeId", "storageKey", renditions FROM "MediaAsset"
+    WHERE status = 'DELETED' AND "objectsPurgedAt" IS NULL
+      AND coalesce("deletedAt", "updatedAt") < now() - make_interval(mins => ${PURGE_RETRY_MINUTES})
+    ORDER BY "deletedAt" NULLS FIRST
+    LIMIT ${BATCH}`;
+  if (rows.length === 0) return { purged: 0, failed: 0 };
+  const storage = mediaStorage();
+  let purged = 0;
+  let failed = 0;
+  for (const row of rows) {
+    const keys = new Set([
+      row.storageKey,
+      uploadKey({ organisationId: row.organisationId, storeId: row.storeId, mediaId: row.id }),
+      ...parseRenditions(row.renditions).map((r) => r.key),
+    ]);
+    try {
+      for (const key of keys) await storage.delete(key);
+      await db.$executeRaw`
+        UPDATE "MediaAsset" SET "objectsPurgedAt" = now() WHERE id = ${row.id}::uuid`;
+      purged += 1;
+    } catch (error) {
+      failed += 1;
+      logger.warn("deleted media objects not purged yet", { mediaId: row.id, error });
+    }
+  }
+  if (purged > 0) recordMetric("media.objects_purged", purged, {});
+  if (failed > 0) recordMetric("media.object_delete_failed", failed, {});
+  return { purged, failed };
+}
+
 export const mediaSweepJob: JobDefinition = {
   name: "media.sweep",
   schedule: { everySeconds: 600 },
   maxAttempts: 3,
   timeoutMs: 5 * 60_000,
   async run() {
-    return { ...(await sweepMedia()) };
+    return { ...(await sweepMedia()), ...(await purgeDeletedMedia()) };
   },
 };

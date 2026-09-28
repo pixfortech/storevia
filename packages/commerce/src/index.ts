@@ -114,8 +114,8 @@ export {
   unreadStaffNotifications,
 } from "./orders/staff-notifications";
 export type { StaffNotificationList, StaffNotificationView } from "./orders/staff-notifications";
-export { getCustomer, listCustomers, updateCustomer } from "./customers";
-export type { CustomerDetail, CustomerListItem } from "./customers";
+export { eraseCustomer, getCustomer, listCustomers, updateCustomer } from "./customers";
+export type { CustomerDetail, CustomerErasure, CustomerListItem } from "./customers";
 export {
   createShippingRate,
   createShippingZone,

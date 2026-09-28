@@ -101,6 +101,8 @@ describe("scheduled through the worker", () => {
       ["ops.metrics", 60],
       ["orders.message-notifications", 15],
       ["orders.notifications", 30],
+      ["organisations.delete", 3600],
+      ["retention.sweep", 3600],
       ["storefront.outbox-dispatch", 5],
     ]);
     // Nightly slots are aligned to 03:00 UTC.
