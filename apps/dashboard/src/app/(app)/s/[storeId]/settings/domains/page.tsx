@@ -38,7 +38,11 @@ function statusBadge(domain: StoreDomainView): { label: string; tone: Tone } {
     case "FAILED":
       return { label: "Failed", tone: "danger" };
     case "PENDING":
-      return { label: "Adding", tone: "neutral" };
+      // Not registered with the hosting provider until the ownership record
+      // is found (M8): until then the merchant's next step is DNS.
+      return domain.records.some((r) => r.purpose === "ownership" && r.state === "waiting")
+        ? { label: "Waiting for DNS", tone: "warning" }
+        : { label: "Adding", tone: "neutral" };
     case "VERIFYING":
       return domain.https === "pending"
         ? { label: "Setting up HTTPS", tone: "info" }

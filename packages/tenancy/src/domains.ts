@@ -145,7 +145,14 @@ function recordState(
 ): DomainRecordView["state"] {
   if (reason === "dns_lost") return "check";
   if (status === "ACTIVE" || reason === "certificate_pending") return "found";
-  if (reason === "dns_routing_missing") return purpose === "ownership" ? "found" : "waiting";
+  // The provider is asked only after ownership is proven (M8).
+  if (
+    reason === "dns_routing_missing" ||
+    reason === "provider_error" ||
+    reason === "provider_conflict"
+  ) {
+    return purpose === "ownership" ? "found" : "waiting";
+  }
   return "waiting";
 }
 
@@ -295,6 +302,15 @@ export async function runDomainCheck(
     await audit(tx, "domain.verified", { hostname: row.hostname, status: "ACTIVE" });
   }
   if (failed && row.status !== "FAILED") {
+    // An unproven or lost domain leaves Storevia's hosting project (M8), so
+    // it can't block its owner's own hosting; checking again registers it
+    // anew once ownership is proven.
+    try {
+      await provisioner.removeDomain(row.hostname);
+      await tx.storeDomain.updateMany({ where: { id: row.id }, data: { providerRef: null } });
+    } catch {
+      recordMetric("domain.provider_error", 1, { ...tags, kind: "remove_failed" });
+    }
     recordMetric("domain.verification_failed", 1, {
       ...tags,
       reason: outcome.failureReason ?? "unknown",
@@ -419,9 +435,8 @@ export async function addCustomDomain(
   const { hostname } = parsed;
   await rateLimited(ADD_LIMIT, ctx);
 
-  let id: string;
-  try {
-    id = await withTenant(scopeOf(ctx), async (tx) => {
+  const claim = () =>
+    withTenant(scopeOf(ctx), async (tx) => {
       await assertFeature(tx, ctx.organisationId, "custom_domain");
       // Serialises adds for this store (the per-store limit).
       await tx.$queryRaw`SELECT id FROM "Store" WHERE id = ${ctx.storeId}::uuid FOR NO KEY UPDATE`;
@@ -465,14 +480,34 @@ export async function addCustomDomain(
       );
       return created.id;
     });
+
+  let id: string;
+  try {
+    id = await claim();
   } catch (error) {
-    // The hostname is unique across Storevia; which store holds it isn't said.
-    if (isUniqueViolation(error)) {
+    if (!isUniqueViolation(error)) throw error;
+    // Held by another store. An unproven claim that FAILED or is older than
+    // 72 hours is released (M8, S2); an ACTIVE or recent one is not. Which
+    // store holds it is never said.
+    const released = await withTenant(scopeOf(ctx), async (tx) => {
+      const rows = await tx.$queryRaw<{ released: boolean }[]>`
+        SELECT app_release_stale_domain(${hostname}) AS released`;
+      return rows[0]?.released === true;
+    });
+    if (!released) {
       throw conflict("This domain is already connected to another Storevia store.", {
         hostname: "This domain is already connected to another Storevia store.",
       });
     }
-    throw error;
+    recordMetric("domain.released", 1);
+    try {
+      id = await claim();
+    } catch (retryError) {
+      if (!isUniqueViolation(retryError)) throw retryError;
+      throw conflict("This domain is already connected to another Storevia store.", {
+        hostname: "This domain is already connected to another Storevia store.",
+      });
+    }
   }
   recordMetric("domain.added", 1);
   // First registration and check; a busy lock or provider failure is retried

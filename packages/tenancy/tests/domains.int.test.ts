@@ -154,12 +154,12 @@ beforeEach(async () => {
 afterAll(disconnectTestClients);
 
 describe("adding a domain", () => {
-  it("creates a PENDING domain, registers it, and shows the DNS records to add", async () => {
+  it("creates a PENDING domain and shows the DNS records to add, registering nothing yet", async () => {
     const domain = await addCustomDomain(store, { hostname: "  Shop.ABC.test. " }, opts());
     expect(domain).toMatchObject({
       hostname: "shop.abc.test",
       kind: "custom",
-      status: "VERIFYING",
+      status: "PENDING",
       isPrimary: false,
       https: "not_yet",
       message: "The verification record hasn't been found yet.",
@@ -185,7 +185,8 @@ describe("adding a domain", () => {
         state: "waiting",
       },
     ]);
-    expect((await provisioner.getDomainStatus("shop.abc.test")).registered).toBe(true);
+    // M8: the hosting provider hears of it only once ownership is proven.
+    expect((await provisioner.getDomainStatus("shop.abc.test")).registered).toBe(false);
     // Not ACTIVE, so not served.
     expect(await resolve("shop.abc.test")).toBeNull();
     const audit = await migratorDb().auditLog.findMany({ where: { action: "domain.added" } });
@@ -241,13 +242,15 @@ describe("adding a domain", () => {
   });
 
   it("a provider failure leaves the domain PENDING for the worker to retry", async () => {
-    const domain = await addCustomDomain(store, { hostname: "provider-error.abc.test" }, opts());
+    const added = await addCustomDomain(store, { hostname: "provider-error.abc.test" }, opts());
+    await pointDns(store, "provider-error.abc.test");
+    const domain = await checkCustomDomain(store, added.id, opts());
     expect(domain).toMatchObject({
       status: "PENDING",
       message: "The hosting provider couldn't add this domain. We'll keep trying.",
     });
-    // The ownership record is still shown while the provider is down.
-    expect(domain.records.map((r) => r.purpose)).toEqual(["ownership"]);
+    // The records are still shown while the provider is down.
+    expect(domain.records.map((r) => r.purpose)).toEqual(["ownership", "routing"]);
   });
 
   it("is rate limited per store", async () => {
@@ -266,7 +269,7 @@ describe("verification and primary", () => {
     // Routing without the ownership record isn't enough.
     simulateDns("abc.test", { routed: true }, statePath);
     expect(await checkCustomDomain(store, added.id, opts())).toMatchObject({
-      status: "VERIFYING",
+      status: "PENDING",
     });
     await pointDns(store, "abc.test");
     const active = await checkCustomDomain(store, added.id, opts());
@@ -373,9 +376,77 @@ describe("removal and reuse", () => {
     expect(row.verificationToken).not.toBe(oldToken);
     // The previous owner's DNS record is still there: it proves nothing now.
     expect(await checkCustomDomain(buyerStore, claimed.id, opts())).toMatchObject({
-      status: "VERIFYING",
+      status: "PENDING",
       message: "The verification record hasn't been found yet.",
     });
+  });
+
+  it("an unproven claim can't hold someone else's domain forever (M8, S2)", async () => {
+    // A squatter adds a domain it doesn't own and never proves it.
+    const squatter = await newOrganisation("Squatter");
+    const squatterStore = await newStore(squatter.owner, squatter.org, "squat");
+    await addCustomDomain(squatterStore, { hostname: "victim.test" }, opts());
+    // Nothing reached the hosting provider.
+    expect((await provisioner.getDomainStatus("victim.test")).registered).toBe(false);
+
+    // Recent: the real owner is told it's taken (by whom isn't said).
+    await expect(addCustomDomain(store, { hostname: "victim.test" }, opts())).rejects.toMatchObject(
+      { code: "CONFLICT", message: "This domain is already connected to another Storevia store." },
+    );
+    // After 72 hours unverified, the owner's add releases it.
+    await migratorDb().storeDomain.updateMany({
+      where: { hostname: "victim.test" },
+      data: { createdAt: new Date(Date.now() - 73 * 3600_000) },
+    });
+    const mine = await addCustomDomain(store, { hostname: "victim.test" }, opts());
+    expect(mine.hostname).toBe("victim.test");
+    const rows = await migratorDb().storeDomain.findMany({ where: { hostname: "victim.test" } });
+    expect(rows.map((r) => r.storeId)).toEqual([store.storeId]);
+    // The squatter's audit log says what happened; it never learns who.
+    const released = await migratorDb().auditLog.findFirstOrThrow({
+      where: { action: "domain.released", organisationId: squatter.org.organisationId },
+    });
+    expect(released).toMatchObject({ actorType: "SYSTEM", storeId: squatterStore.storeId });
+    expect(JSON.stringify(released.metadata)).not.toContain(store.storeId);
+  });
+
+  it("a FAILED claim is released at once; an ACTIVE domain never is (M8, S2)", async () => {
+    const other = await newOrganisation("Other");
+    const otherStore = await newStore(other.owner, other.org, "other");
+    await addCustomDomain(otherStore, { hostname: "failed.test" }, opts());
+    await migratorDb().storeDomain.updateMany({
+      where: { hostname: "failed.test" },
+      data: { status: "FAILED", failureReason: "verification_timeout" },
+    });
+    await expect(addCustomDomain(store, { hostname: "failed.test" }, opts())).resolves.toBeTruthy();
+
+    await activate(otherStore, "owned.test");
+    await migratorDb().storeDomain.updateMany({
+      where: { hostname: "owned.test" },
+      data: { createdAt: new Date(Date.now() - 400 * 24 * 3600_000) },
+    });
+    await expect(addCustomDomain(store, { hostname: "owned.test" }, opts())).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
+    expect(
+      (await migratorDb().storeDomain.findFirstOrThrow({ where: { hostname: "owned.test" } }))
+        .storeId,
+    ).toBe(otherStore.storeId);
+  });
+
+  it("the release function can't be pointed at anything but a stale claim", async () => {
+    // Called directly by the app role: an ACTIVE domain survives.
+    const other = await newOrganisation("Direct");
+    const otherStore = await newStore(other.owner, other.org, "direct");
+    await activate(otherStore, "direct.test");
+    const { withTenant } = await import("@storevia/database");
+    const rows = await withTenant(
+      { organisationId: store.organisationId, storeId: store.storeId, userId: store.userId },
+      (tx) => tx.$queryRaw<{ released: boolean }[]>`
+        SELECT app_release_stale_domain('direct.test') AS released`,
+    );
+    expect(rows[0]?.released).toBe(false);
+    expect(await migratorDb().storeDomain.count({ where: { hostname: "direct.test" } })).toBe(1);
   });
 
   it("Storevia addresses can't be removed", async () => {
@@ -444,6 +515,7 @@ describe("races", () => {
       removeDomain: (h) => provisioner.removeDomain(h),
       verifyDomain: (h) => provisioner.verifyDomain(h),
       lookupTxt: (n) => provisioner.lookupTxt(n),
+      defaultRoutingRecord: (h) => provisioner.defaultRoutingRecord(h),
       getDomainStatus: async (h) => {
         await new Promise((r) => setTimeout(r, 1500));
         return provisioner.getDomainStatus(h);
@@ -467,6 +539,7 @@ describe("races", () => {
       getDomainStatus: (h) => provisioner.getDomainStatus(h),
       verifyDomain: (h) => provisioner.verifyDomain(h),
       lookupTxt: (n) => provisioner.lookupTxt(n),
+      defaultRoutingRecord: (h) => provisioner.defaultRoutingRecord(h),
       removeDomain: async (h) => {
         await new Promise((r) => setTimeout(r, 5000));
         return provisioner.removeDomain(h);

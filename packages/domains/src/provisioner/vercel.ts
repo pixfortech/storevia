@@ -149,6 +149,10 @@ export class VercelProvisioner implements DomainProvisioner {
     return body;
   }
 
+  defaultRoutingRecord(hostname: string): DnsRecord {
+    return this.routing(hostname, {});
+  }
+
   private routing(hostname: string, config: ConfigBody): DnsRecord {
     const isApex = hostname.split(".").length === 2;
     if (isApex) {

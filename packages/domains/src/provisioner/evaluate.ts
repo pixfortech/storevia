@@ -17,7 +17,8 @@ import {
 // worker and the merchant's "Check again". It asks the provider and DNS and
 // returns the row's next state; the caller writes it under the row lock it
 // already holds. ACTIVE needs both Storevia's ownership record and provider
-// readiness (verified, routed, certificate). An ACTIVE domain that stops
+// readiness (verified, routed, certificate). A domain not yet registered is
+// registered only once its ownership record is found (M8). An ACTIVE domain that stops
 // checking out stays ACTIVE (still served) and is FAILED only after a
 // persistent problem.
 
@@ -91,6 +92,25 @@ export async function evaluateDomain(
       providerError: extra.providerError ?? null,
     };
   };
+
+  // 0. Ownership before anything reaches the provider (M8): a store that
+  //    merely claims someone else's hostname never attaches it to Storevia's
+  //    hosting project, where it could conflict with the owner's own
+  //    hosting. Until the TXT record is there, the records shown are the
+  //    ownership record and the provider's default routing record.
+  if (!wasActive && snapshot.providerRef === null) {
+    const provenFirst = await ownershipProven(
+      provisioner,
+      snapshot.hostname,
+      snapshot.verificationToken,
+    );
+    if (!provenFirst) {
+      return notYet("dns_txt_missing", { status: "PENDING" }, [
+        own,
+        provisioner.defaultRoutingRecord(snapshot.hostname),
+      ]);
+    }
+  }
 
   // 1. On the provider's project (registering again is idempotent: it also
   //    repairs a domain removed at the provider behind Storevia's back).

@@ -58,4 +58,10 @@ export interface DomainProvisioner {
   verifyDomain(hostname: string): Promise<ProviderDomainStatus>;
   /** TXT values published at `name` (Storevia's ownership proof). Empty when none. */
   lookupTxt(name: string): Promise<readonly string[]>;
+  /**
+   * The routing record to show before the domain is registered (M8: a
+   * hostname reaches the provider only once its ownership is proven). No
+   * provider call.
+   */
+  defaultRoutingRecord(hostname: string): DnsRecord;
 }

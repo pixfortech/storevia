@@ -4,7 +4,11 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { disconnectTestClients, migratorDb, truncateAll } from "@storevia/database/testing";
-import { MONITOR_FAILURE_LIMIT, ownershipRecordValue } from "@storevia/domains";
+import {
+  MAX_VERIFY_ATTEMPTS,
+  MONITOR_FAILURE_LIMIT,
+  ownershipRecordValue,
+} from "@storevia/domains";
 import { LocalProvisioner, simulateDns } from "@storevia/domains/provisioner";
 import { createLogger } from "@storevia/observability";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
@@ -109,17 +113,34 @@ describe("domains.verify", () => {
     });
     expect((await row("ready.test")).verifiedAt).not.toBeNull();
     expect(await row("waiting.test")).toMatchObject({
-      status: "VERIFYING",
+      status: "PENDING",
       checkAttempts: 1,
       failureReason: "dns_txt_missing",
     });
+    // Unproven: never registered with the hosting provider (M8).
     const provider = new LocalProvisioner(statePath);
-    expect((await provider.getDomainStatus("waiting.test")).registered).toBe(true);
+    expect((await provider.getDomainStatus("waiting.test")).registered).toBe(false);
     const audit = await migratorDb().auditLog.findMany({ where: { action: "domain.verified" } });
     expect(audit).toMatchObject([{ actorType: "SYSTEM", actorId: null, organisationId: orgId }]);
 
     // Nothing is due a second later: the backoff and the monitoring interval hold.
     expect(await domainVerifyJob.run(ctx)).toMatchObject({ checked: 0 });
+  });
+
+  it("a domain that fails verification leaves the hosting provider (M8, S2)", async () => {
+    const d = await domain("half.test");
+    // Ownership proven, routing never set up: registered, then gives up.
+    simulateDns("half.test", { txt: [ownershipRecordValue(d.verificationToken)] }, statePath);
+    await domainVerifyJob.run(ctx);
+    const provider = new LocalProvisioner(statePath);
+    expect((await provider.getDomainStatus("half.test")).registered).toBe(true);
+    await migratorDb().storeDomain.update({
+      where: { hostname: "half.test" },
+      data: { checkAttempts: MAX_VERIFY_ATTEMPTS - 1, lastCheckedAt: new Date(0) },
+    });
+    await domainVerifyJob.run(ctx);
+    expect(await row("half.test")).toMatchObject({ status: "FAILED", providerRef: null });
+    expect((await provider.getDomainStatus("half.test")).registered).toBe(false);
   });
 
   it("checks waiting domains on a backoff and active ones every few hours", async () => {

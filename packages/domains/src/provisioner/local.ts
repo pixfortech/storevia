@@ -103,6 +103,10 @@ export class LocalProvisioner implements DomainProvisioner {
 
   constructor(private readonly path: string = localStatePath()) {}
 
+  defaultRoutingRecord(hostname: string): DnsRecord {
+    return routingRecord(hostname);
+  }
+
   private status(hostname: string): ProviderDomainStatus {
     const state = read(this.path);
     const registered = state.registered.includes(hostname);

@@ -28,16 +28,18 @@ beforeEach(() => {
 });
 
 describe("evaluateDomain", () => {
-  it("registers, then waits for the ownership record with both records to show", async () => {
-    const outcome = await evaluateDomain(snapshot(), provider);
-    expect(outcome).toMatchObject({
-      status: "VERIFYING",
-      providerRef: "local:shop.abc.test",
+  it("never registers a hostname before its ownership record exists (M8)", async () => {
+    const waiting = await evaluateDomain(snapshot(), provider);
+    expect(waiting).toMatchObject({
+      status: "PENDING",
+      providerRef: null,
       failureReason: "dns_txt_missing",
       checkAttempts: 1,
       becameActive: false,
     });
-    expect(outcome.dnsRecords).toEqual([
+    // Both records are shown (routing from the provider's defaults), and
+    // nothing reached the provider.
+    expect(waiting.dnsRecords).toEqual([
       {
         type: "TXT",
         name: "_storevia-verification.shop.abc.test",
@@ -46,6 +48,23 @@ describe("evaluateDomain", () => {
       },
       { type: "CNAME", name: "shop.abc.test", value: LOCAL_ROUTING.cname, purpose: "routing" },
     ]);
+    expect((await provider.getDomainStatus("shop.abc.test")).registered).toBe(false);
+
+    // Proven: registered, and the routing record is shown next to it.
+    simulateDns("shop.abc.test", { txt: [ownershipRecordValue(TOKEN)] }, path);
+    const registered = await evaluateDomain(snapshot({ checkAttempts: 1 }), provider);
+    expect(registered).toMatchObject({
+      status: "VERIFYING",
+      providerRef: "local:shop.abc.test",
+      failureReason: "dns_routing_missing",
+    });
+    expect(registered.dnsRecords?.map((r) => r.purpose)).toEqual(["ownership", "routing"]);
+    expect(registered.dnsRecords?.[1]).toEqual({
+      type: "CNAME",
+      name: "shop.abc.test",
+      value: LOCAL_ROUTING.cname,
+      purpose: "routing",
+    });
   });
 
   it("needs the ownership record AND routing AND a certificate", async () => {
@@ -79,9 +98,10 @@ describe("evaluateDomain", () => {
       path,
     );
     expect(await evaluateDomain(snapshot(), provider)).toMatchObject({
-      status: "VERIFYING",
+      status: "PENDING",
       failureReason: "dns_txt_missing",
     });
+    expect((await provider.getDomainStatus("shop.abc.test")).registered).toBe(false);
   });
 
   it("gives up after the verification budget, and a retry (attempts reset) starts again", async () => {
@@ -94,10 +114,13 @@ describe("evaluateDomain", () => {
       snapshot({ status: "VERIFYING", checkAttempts: 0 }),
       provider,
     );
-    expect(retry.status).toBe("VERIFYING");
+    expect(retry.status).toBe("PENDING");
   });
 
   it("provider failures keep a new domain PENDING (retried) and never fail an ACTIVE one", async () => {
+    for (const host of ["provider-error.abc.test", "provider-conflict.abc.test"]) {
+      simulateDns(host, { txt: [ownershipRecordValue(TOKEN)] }, path);
+    }
     const error = await evaluateDomain(snapshot({ hostname: "provider-error.abc.test" }), provider);
     expect(error).toMatchObject({
       status: "PENDING",
