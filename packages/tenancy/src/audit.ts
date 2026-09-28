@@ -65,6 +65,9 @@ const ALLOWED_METADATA_KEYS = new Set([
   "filename",
   "bytes",
   "note",
+  // Product taxonomy: global category codes (reference data, not tenant text).
+  "category",
+  "previousCategory",
   // Site presentation (ADR-0030): identifiers and counts, never documents.
   "kind",
   "versionNumber",

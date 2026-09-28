@@ -1,11 +1,13 @@
 // Reference data seed (idempotent; safe in every environment). Loads the plan
-// catalogue from reference-data.ts as the schema owner. Feature rows come from
-// migrations; this script fails if a plan names a feature that doesn't exist
-// or leaves one out. Demo tenants for local development are created by
+// catalogue from reference-data.ts and the product taxonomy from
+// prisma/reference/product-categories.json as the schema owner. Feature rows
+// come from migrations; this script fails if a plan names a feature that
+// doesn't exist or leaves one out. Demo tenants for local development are created by
 // `pnpm db:seed:dev` (apps/dashboard) through the real services.
 import { createPrismaClient } from "../src/client";
 import { Prisma } from "../src/generated/prisma/client";
 import { applyTarget, loadRootEnv, requireEnv } from "./env";
+import { syncProductCategories } from "./product-categories";
 import { PLANS, type SeedValue } from "./reference-data";
 
 loadRootEnv();
@@ -94,6 +96,11 @@ try {
     });
     console.log(`seeded plan ${plan.key}`);
   }
+  const categories = await syncProductCategories(db);
+  console.log(
+    `seeded ${String(categories.active)} product categories` +
+      (categories.deactivated > 0 ? ` (${String(categories.deactivated)} deactivated)` : ""),
+  );
   console.log(`reference data loaded into ${database}`);
 } finally {
   await db.$disconnect();

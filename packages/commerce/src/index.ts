@@ -68,6 +68,8 @@ export type { CollectionDetails, CollectionSummary } from "./collections";
 export { listProducts, searchProducts, PostgresSearchIndex } from "./search";
 export type { ProductListItem, ProductListResult, ProductSearchQuery, SearchIndex } from "./search";
 export { bulkProductAction } from "./bulk";
+export { getCategoryPath, listProductCategories, listProductTags } from "./taxonomy";
+export type { CategoryRef, CategoryView, TagSuggestion } from "./taxonomy";
 export { getCatalogueOverview } from "./overview";
 export type { CatalogueOverview } from "./overview";
 export { csvExporter, exportProducts } from "./import-export";

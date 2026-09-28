@@ -15,6 +15,10 @@
 > **Milestone 6 status:** carts through refunds are implemented as decided in
 > [ADR-0031](../adr/0031-checkout-orders-payments.md). Where the baseline
 > below differs, the ADR and the summary in §11 win.
+>
+> **Product taxonomy and tags** (migration `20261210000000_product_taxonomy`,
+> after Milestone 6): the global category taxonomy deferred by ADR-0027 and
+> ADR-0031 §14, and the tag policy, are in §2.1.
 
 ## 1. Money
 
@@ -49,6 +53,103 @@
 - Product status `DRAFT | ACTIVE | ARCHIVED`. Only `ACTIVE`, non-deleted
   products are visible on the storefront (and `publishedAt ≤ now`).
 - Creating a product consumes `product_limit` usage in the same transaction.
+
+### 2.1 Categories, collections, product types and tags
+
+Four ways to group products, each with one job. They are never merged or
+derived from each other.
+
+| Concept          | Owner               | Where                                         | Shape                                                                   | Used for                                                                                                                        |
+| ---------------- | ------------------- | --------------------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **Category**     | Storevia (platform) | `Product.categoryCode` → `ProductCategory`    | One per product, from a shared hierarchical taxonomy; codes never shown | What the product _is_, the same way in every store: admin filters, the public breadcrumb; later tax rules and marketplace feeds |
+| **Collection**   | The merchant        | `Collection` + `CollectionProduct` (ADR-0027) | Many per product, curated and ordered, with a handle and a page         | Storefront merchandising and navigation ("Summer edit", "Kitchen")                                                              |
+| **Product type** | The merchant        | `Product.productType`                         | One free-text label per product                                         | The merchant's own classification; a list filter; shown on the product page if a theme wants                                    |
+| **Tags**         | The merchant        | `Product.tags` (`text[]`)                     | Many short labels per product                                           | Finding and bulk-editing products in the dashboard. **Not** storefront navigation: no tag pages, no tag URLs                    |
+
+**Tags.** One policy, `packages/validation/src/tags.ts`, applied by every
+write path (editor, create, bulk add/remove) through `tagsSchema`, and
+reused by the editor's chips to preview:
+
+- NFC-normalised; control characters become spaces, invisible formatting
+  characters (zero-width spaces, bidi overrides, BOM) are removed;
+  whitespace trimmed and collapsed. A comma always separates tags.
+- HTML-looking text is kept as plain text and only ever rendered as text
+  (React escapes it); nothing is stripped or interpreted.
+- De-duplicated ignoring case, keeping the first spelling
+  (`"Summer, summer"` → `["Summer"]`). Case is otherwise preserved.
+- At most **50 tags of at most 40 characters** (the same bounds as customer
+  tags). More, or longer, is a `tags` field error, never a silent cut.
+- The database enforces the resulting shape: `CHECK
+catalogue_tags_valid(tags)` (count, length, trimmed, no control
+  characters or commas), so no other writer can store anything else.
+
+Suggestions (`listProductTags`) are the distinct tags of the **same
+store's** live products (`unnest(tags)`, grouped ignoring case, most used
+spelling, most used first, case-insensitive prefix, at most 50), filtered by
+`storeId` inside the store's RLS scope. The admin list filters by
+`?tag=` ignoring case through a GIN index over
+`catalogue_tags_folded(tags)` (the lower-cased array); rows show up to three
+tags, and the filter offers the store's 100 most used.
+
+**Categories.** `ProductCategory` is platform reference data, like the plan
+catalogue: no tenant columns, no row-level security, `SELECT` for
+`storevia_app` and `storevia_storefront` only, no write privilege for any
+application role. Rows carry `code` (stable slug, primary key), `name`,
+`parentCode`, `level`, `path` (`"Home & Garden > Kitchen & Dining >
+Cookware"`), `position` and `active`. `Product.categoryCode` references it
+with `ON DELETE RESTRICT`: categories are deactivated, never deleted, so a
+delete only happens by mistake and should fail loudly rather than strip
+merchants' products (`SET NULL`). A product may have no category.
+
+- `listProductCategories(ctx, { q?, parentCode?, limit? })` searches active
+  categories by the words of their breadcrumb (trigram index on
+  `lower(path)`), or lists one level of the tree; `getCategoryPath(ctx, code)`
+  returns a breadcrumb. Both are bounded.
+- Product create/update accept `categoryCode`: an active code, or `""` to
+  clear. Unknown, retired or malformed codes are a `categoryCode` field
+  error. The category is only validated when it changes, so saving other
+  fields never fails on a category the taxonomy has since retired (the
+  editor says so and offers another). Changes are audited
+  (`fields: "category"`, `category`, `previousCategory`) and go through the
+  store-scoped `inStore` + RLS path like every product write.
+- The editor's picker (a dialog) browses the tree level by level or
+  searches it, and shows breadcrumbs (`Home & Garden › Kitchen & Dining ›
+Cookware`); merchants never see codes. The admin list filters by
+  `?category=` (the category and everything under it, via a recursive query
+  on `ProductCategory(parentCode)` and the `(categoryCode, storeId)` index),
+  offering the categories the store uses and their ancestors.
+- The public product DTO carries `category: { name, path }`, `tags` and
+  `productType`, never the code.
+
+**The reference data.** `packages/database/prisma/reference/product-categories.json`
+lists `{ code, name, parent? }` in taxonomy order. `pnpm db:seed` (also run
+by `pnpm db:reset` and `pnpm db:test:prepare`, so every development, test,
+CI and E2E database has it) loads it with
+`packages/database/scripts/product-categories.ts`: it checks the file
+(unique well-formed codes, known parents, no cycles, no `>` in names),
+derives `level` and `path`, upserts one tree level per statement and
+deactivates codes that left the file. Rerunning it is a no-op. The starter
+set covers a dozen top-level branches and the sample catalogue (cookware,
+drinkware, kitchen linens, planters, tote bags…).
+
+To change it: add codes rather than renaming them (a code is a stable
+identifier; a merchant's product keeps pointing at it); rename a category by
+changing its `name` (paths of its descendants follow); retire one by
+removing it from the file (it is deactivated; products keep it until the
+merchant picks another). Then run `pnpm db:seed` in each environment.
+
+To import a full taxonomy later (for example Shopify's MIT-licensed
+[Standard Product Taxonomy](https://github.com/Shopify/product-taxonomy),
+about 11 000 categories, or Google's product taxonomy): convert its
+distribution file to the same `{ code, name, parent }` list, keeping the
+starter codes (map them to the imported categories they correspond to, or
+keep them as they are) so existing products stay valid, and run the seed.
+The loader batches by level, so the full tree loads in a few statements;
+search stays indexed. If an external id must be kept alongside the code
+(for feeds), add a nullable `externalId` column with its own migration.
+Storefront pages cache a product's breadcrumb until the product next
+changes; a taxonomy rename shows there after the next change or cache
+expiry.
 
 ## 3. Inventory
 

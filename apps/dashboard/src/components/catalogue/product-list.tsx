@@ -25,6 +25,9 @@ export interface ProductListRow {
   readonly handle: string;
   readonly status: ProductStatus;
   readonly vendor: string | null;
+  /** The taxonomy category's own name. */
+  readonly category: string | null;
+  readonly tags: readonly string[];
   readonly price: string;
   readonly stock: { readonly text: string; readonly tone: "warning" | "danger" | null };
   readonly variants: number;
@@ -55,6 +58,28 @@ function Thumbnail({ image, title }: { image: ProductListRow["image"]; title: st
       ) : (
         <Icon icon={ImageOff} size="sm" className="text-ink-faint" label="No image" />
       )}
+    </span>
+  );
+}
+
+/** Up to three tags, plain text (never links: the row itself is one). */
+function TagList({ tags }: { tags: readonly string[] }) {
+  if (tags.length === 0) return null;
+  const shown = tags.slice(0, 3);
+  return (
+    <span className="mt-1 flex min-w-0 flex-wrap items-center gap-1">
+      <span className="sr-only">Tags: </span>
+      {shown.map((tag) => (
+        <span
+          key={tag}
+          className="max-w-40 truncate rounded-pill border border-line bg-subtle px-2 py-px text-caption text-ink-muted"
+        >
+          {tag}
+        </span>
+      ))}
+      {tags.length > shown.length ? (
+        <span className="text-caption text-ink-faint">+{tags.length - shown.length}</span>
+      ) : null}
     </span>
   );
 }
@@ -305,10 +330,15 @@ export function ProductList({
                         {row.title}
                       </span>
                       <span className="block truncate text-caption text-ink-faint">
-                        {[row.vendor, row.variants > 1 ? `${String(row.variants)} variants` : null]
+                        {[
+                          row.category,
+                          row.vendor,
+                          row.variants > 1 ? `${String(row.variants)} variants` : null,
+                        ]
                           .filter(Boolean)
                           .join(" · ") || `/${row.handle}`}
                       </span>
+                      <TagList tags={row.tags} />
                     </span>
                   </Link>
                 </td>

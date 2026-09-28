@@ -1,7 +1,7 @@
 import "server-only";
 import { parseInput, recordAudit, requirePermission, type TenantContext } from "@storevia/tenancy";
 import { notFound } from "@storevia/types";
-import { bulkProductActionSchema } from "@storevia/validation";
+import { bulkProductActionSchema, PRODUCT_TAG_LIMIT } from "@storevia/validation";
 import { addProductsToCollection } from "./collections";
 import {
   conflict,
@@ -94,7 +94,9 @@ export async function bulkProductAction(ctx: TenantContext, input: unknown): Pro
             } else {
               next = current.tags.filter((t) => !folded.has(t.toLocaleLowerCase("en")));
             }
-            if (next.length > 250) throw conflict("A product can have at most 250 tags.");
+            if (next.length > PRODUCT_TAG_LIMIT) {
+              throw conflict(`A product can have at most ${String(PRODUCT_TAG_LIMIT)} tags.`);
+            }
             if (next.length === current.tags.length && next.every((t, i) => t === current.tags[i]))
               return;
             await tx.product.update({

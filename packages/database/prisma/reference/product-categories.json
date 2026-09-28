@@ -1,0 +1,112 @@
+{
+  "$comment": "Global product taxonomy (erd.md §4.3, docs/architecture/09-commerce.md §2.1). Loaded by `pnpm db:seed` (scripts/product-categories.ts): rows are upserted by code, siblings are ordered as listed, and a code removed from this file is deactivated, never deleted. Codes are stable identifiers: never reuse or rename one; add a new code instead.",
+  "version": 1,
+  "categories": [
+    { "code": "aa", "name": "Apparel & Accessories" },
+    { "code": "aa-clothing", "name": "Clothing", "parent": "aa" },
+    { "code": "aa-clothing-tops", "name": "Shirts & Tops", "parent": "aa-clothing" },
+    { "code": "aa-clothing-dresses", "name": "Dresses", "parent": "aa-clothing" },
+    { "code": "aa-clothing-trousers", "name": "Trousers & Shorts", "parent": "aa-clothing" },
+    { "code": "aa-clothing-outerwear", "name": "Outerwear", "parent": "aa-clothing" },
+    { "code": "aa-shoes", "name": "Shoes", "parent": "aa" },
+    { "code": "aa-jewellery", "name": "Jewellery", "parent": "aa" },
+    { "code": "aa-accessories", "name": "Clothing Accessories", "parent": "aa" },
+    { "code": "aa-accessories-hats", "name": "Hats", "parent": "aa-accessories" },
+    { "code": "aa-accessories-scarves", "name": "Scarves & Shawls", "parent": "aa-accessories" },
+
+    { "code": "ap", "name": "Animals & Pet Supplies" },
+    { "code": "ap-dog", "name": "Dog Supplies", "parent": "ap" },
+    { "code": "ap-cat", "name": "Cat Supplies", "parent": "ap" },
+
+    { "code": "ae", "name": "Arts & Entertainment" },
+    { "code": "ae-crafts", "name": "Arts & Crafts", "parent": "ae" },
+    { "code": "ae-party", "name": "Party & Celebration", "parent": "ae" },
+
+    { "code": "bt", "name": "Baby & Toddler" },
+    { "code": "bt-feeding", "name": "Baby Feeding", "parent": "bt" },
+    { "code": "bt-toys", "name": "Baby Toys", "parent": "bt" },
+
+    { "code": "el", "name": "Electronics" },
+    { "code": "el-audio", "name": "Audio", "parent": "el" },
+    { "code": "el-audio-headphones", "name": "Headphones & Earbuds", "parent": "el-audio" },
+    { "code": "el-audio-speakers", "name": "Speakers", "parent": "el-audio" },
+    { "code": "el-computers", "name": "Computers", "parent": "el" },
+    { "code": "el-phone-accessories", "name": "Mobile Phone Accessories", "parent": "el" },
+
+    { "code": "fb", "name": "Food & Drink" },
+    { "code": "fb-beverages", "name": "Beverages", "parent": "fb" },
+    { "code": "fb-beverages-coffee", "name": "Coffee", "parent": "fb-beverages" },
+    { "code": "fb-beverages-tea", "name": "Tea & Infusions", "parent": "fb-beverages" },
+    { "code": "fb-food", "name": "Food Items", "parent": "fb" },
+    { "code": "fb-food-pantry", "name": "Pantry Staples", "parent": "fb-food" },
+    { "code": "fb-food-snacks", "name": "Snacks", "parent": "fb-food" },
+
+    { "code": "fu", "name": "Furniture" },
+    { "code": "fu-chairs", "name": "Chairs", "parent": "fu" },
+    { "code": "fu-tables", "name": "Tables", "parent": "fu" },
+    { "code": "fu-shelving", "name": "Shelving", "parent": "fu" },
+
+    { "code": "hb", "name": "Health & Beauty" },
+    { "code": "hb-personal-care", "name": "Personal Care", "parent": "hb" },
+    { "code": "hb-personal-care-cosmetics", "name": "Cosmetics", "parent": "hb-personal-care" },
+    { "code": "hb-personal-care-hair", "name": "Hair Care", "parent": "hb-personal-care" },
+    { "code": "hb-personal-care-skin", "name": "Skin Care", "parent": "hb-personal-care" },
+    { "code": "hb-health", "name": "Health Care", "parent": "hb" },
+
+    { "code": "hg", "name": "Home & Garden" },
+    { "code": "hg-kd", "name": "Kitchen & Dining", "parent": "hg" },
+    { "code": "hg-kd-cookware", "name": "Cookware", "parent": "hg-kd" },
+    { "code": "hg-kd-bakeware", "name": "Bakeware", "parent": "hg-kd" },
+    { "code": "hg-kd-drinkware", "name": "Drinkware", "parent": "hg-kd" },
+    { "code": "hg-kd-drinkware-mugs", "name": "Mugs", "parent": "hg-kd-drinkware" },
+    { "code": "hg-kd-drinkware-glasses", "name": "Glasses", "parent": "hg-kd-drinkware" },
+    {
+      "code": "hg-kd-drinkware-carafes",
+      "name": "Carafes & Pitchers",
+      "parent": "hg-kd-drinkware"
+    },
+    { "code": "hg-kd-tableware", "name": "Tableware", "parent": "hg-kd" },
+    { "code": "hg-kd-tableware-serveware", "name": "Serveware", "parent": "hg-kd-tableware" },
+    { "code": "hg-kd-tools", "name": "Kitchen Tools & Utensils", "parent": "hg-kd" },
+    { "code": "hg-kd-linens", "name": "Kitchen & Table Linens", "parent": "hg-kd" },
+    { "code": "hg-kd-linens-aprons", "name": "Aprons", "parent": "hg-kd-linens" },
+    { "code": "hg-kd-linens-tea-towels", "name": "Tea Towels", "parent": "hg-kd-linens" },
+    { "code": "hg-kd-linens-napkins", "name": "Napkins & Tablecloths", "parent": "hg-kd-linens" },
+    { "code": "hg-decor", "name": "Decor", "parent": "hg" },
+    { "code": "hg-decor-candles", "name": "Candles & Holders", "parent": "hg-decor" },
+    { "code": "hg-decor-vases", "name": "Vases", "parent": "hg-decor" },
+    { "code": "hg-decor-wall", "name": "Wall Decor", "parent": "hg-decor" },
+    { "code": "hg-textiles", "name": "Home Textiles", "parent": "hg" },
+    { "code": "hg-textiles-bedding", "name": "Bedding", "parent": "hg-textiles" },
+    { "code": "hg-textiles-towels", "name": "Bath Towels", "parent": "hg-textiles" },
+    { "code": "hg-textiles-cushions", "name": "Cushions", "parent": "hg-textiles" },
+    { "code": "hg-textiles-throws", "name": "Throws & Blankets", "parent": "hg-textiles" },
+    { "code": "hg-lg", "name": "Lawn & Garden", "parent": "hg" },
+    { "code": "hg-lg-planters", "name": "Planters", "parent": "hg-lg" },
+    { "code": "hg-lg-tools", "name": "Gardening Tools", "parent": "hg-lg" },
+    { "code": "hg-lg-outdoor", "name": "Outdoor Living", "parent": "hg-lg" },
+    { "code": "hg-storage", "name": "Storage & Organisation", "parent": "hg" },
+
+    { "code": "lb", "name": "Luggage & Bags" },
+    { "code": "lb-totes", "name": "Tote Bags", "parent": "lb" },
+    { "code": "lb-backpacks", "name": "Backpacks", "parent": "lb" },
+    { "code": "lb-travel", "name": "Suitcases & Travel Bags", "parent": "lb" },
+
+    { "code": "os", "name": "Office Supplies" },
+    { "code": "os-stationery", "name": "Stationery", "parent": "os" },
+    {
+      "code": "os-stationery-notebooks",
+      "name": "Notebooks & Journals",
+      "parent": "os-stationery"
+    },
+    { "code": "os-stationery-pens", "name": "Pens & Pencils", "parent": "os-stationery" },
+
+    { "code": "sg", "name": "Sporting Goods" },
+    { "code": "sg-fitness", "name": "Exercise & Fitness", "parent": "sg" },
+    { "code": "sg-outdoor", "name": "Outdoor Recreation", "parent": "sg" },
+
+    { "code": "tg", "name": "Toys & Games" },
+    { "code": "tg-games", "name": "Games & Puzzles", "parent": "tg" },
+    { "code": "tg-toys", "name": "Toys", "parent": "tg" }
+  ]
+}

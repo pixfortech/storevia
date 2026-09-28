@@ -1,4 +1,8 @@
 import { z } from "zod";
+import { normaliseTags, PRODUCT_TAG_LIMIT, PRODUCT_TAG_MAX_LENGTH } from "./tags";
+
+const TOO_MANY_TAGS = `Use at most ${String(PRODUCT_TAG_LIMIT)} tags.`;
+const TOO_LONG_TAG = `Tags can be at most ${String(PRODUCT_TAG_MAX_LENGTH)} characters.`;
 
 // Catalogue input shapes (ADR-0027). Shared by the dashboard forms and the
 // commerce services; the services re-validate everything, parse money with
@@ -52,28 +56,33 @@ const barcodeSchema = z
   .transform((value) => (value === "" ? null : value))
   .nullish();
 
-export const PRODUCT_TAG_LIMIT = 250;
-
-/** Tags from a list or a comma-separated string; trimmed, de-duplicated (case-insensitive). */
+/**
+ * Tags from a list or comma-separated text, normalised by the tag policy
+ * (tags.ts): cleaned, de-duplicated ignoring case, bounded. Problems are
+ * reported on the field itself ("tags"), never per element. The outer
+ * bounds only stop absurd input before the policy runs.
+ */
 export const tagsSchema = z
-  .union([z.array(z.string()), z.string()])
-  .transform((value) => (typeof value === "string" ? value.split(",") : value))
-  .transform((tags) => {
-    const seen = new Set<string>();
-    const out: string[] = [];
-    for (const raw of tags) {
-      const tag = cleanText(raw).slice(0, 255);
-      const key = tag.toLocaleLowerCase("en");
-      if (tag && !seen.has(key)) {
-        seen.add(key);
-        out.push(tag);
-      }
+  .union([
+    z.array(z.string().max(1_000, TOO_LONG_TAG)).max(500, TOO_MANY_TAGS),
+    z.string().max(20_000, TOO_MANY_TAGS),
+  ])
+  .transform((value, ctx) => {
+    const { tags, problem } = normaliseTags(value);
+    if (problem) {
+      ctx.addIssue({ code: "custom", message: problem });
+      return z.NEVER;
     }
-    return out;
-  })
-  .pipe(
-    z.array(z.string()).max(PRODUCT_TAG_LIMIT, `Use at most ${String(PRODUCT_TAG_LIMIT)} tags.`),
-  );
+    return tags;
+  });
+
+/** A taxonomy code from the category picker; "" clears. The service checks it against the table. */
+export const categoryCodeSchema = z
+  .string()
+  .trim()
+  .max(64, "Choose a category from the list.")
+  .transform((value) => (value === "" ? null : value))
+  .nullish();
 
 const handleInput = z
   .string()
@@ -132,6 +141,7 @@ const productFields = {
   vendor: optionalText(255),
   productType: optionalText(255),
   tags: tagsSchema.optional(),
+  categoryCode: categoryCodeSchema,
   seoTitle: optionalText(255),
   seoDescription: optionalText(1000),
   taxable: z.boolean().optional(),
@@ -201,6 +211,10 @@ export const productListQuerySchema = z.object({
   vendor: z.string().trim().max(255).optional().catch(undefined),
   productType: z.string().trim().max(255).optional().catch(undefined),
   collectionId: publicIdSchema.optional().catch(undefined),
+  /** A tag, matched ignoring case. */
+  tag: z.string().trim().max(200).optional().catch(undefined),
+  /** A taxonomy code; matches the category and everything under it. */
+  category: z.string().trim().max(64).optional().catch(undefined),
   stock: z.enum(STOCK_FILTERS).optional().catch(undefined),
   sort: z.enum(PRODUCT_SORTS).default("updated").catch("updated"),
   cursor: z.string().max(500).optional().catch(undefined),

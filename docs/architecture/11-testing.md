@@ -433,6 +433,23 @@ reverted (database mutants as SQL on the test database, rebuilt after each).
 
 Result: 28 mutants, 25 killed (4 after new tests), 3 equivalent.
 
+## Product taxonomy and tags: what is proven where
+
+Migration `20261210000000_product_taxonomy` ([09-commerce.md §2.1](./09-commerce.md#21-categories-collections-product-types-and-tags)).
+
+| Guarantee                                    | Where                                                                                                                                                                                                                     |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The tag policy                               | unit `packages/validation/src/tags.test.ts`: cleaning, commas, case-insensitive de-duplication keeping the first spelling, HTML as text, limits in characters, field errors                                               |
+| Tags on every write path                     | `packages/commerce/tests/taxonomy.int.test.ts`: create, update, text or list, bulk add at the limit; the database refuses badly shaped tags from any writer                                                               |
+| Suggestions are the store's own              | same file: another store of the organisation and another organisation never appear; LIKE wildcards are literal; bounded                                                                                                   |
+| Categories: valid, retired, cleared, audited | same file: unknown, retired and malformed codes are field errors; a retired category survives unrelated saves; audit metadata                                                                                             |
+| No cross-store writes                        | same file: a sister store and another organisation get NOT_FOUND and change nothing                                                                                                                                       |
+| List filters are indexed, no N+1             | same file: tag (ignoring case) and category (with descendants) filters; the same query count for 1 or many rows; `EXPLAIN` uses `Product_tags_folded` and `(categoryCode, storeId)`                                       |
+| Public DTO                                   | same file: breadcrumb names, tags and product type, never the code; `storefront.int.test.ts` pins the DTO's keys                                                                                                          |
+| Reference data and grants                    | `packages/database/tests/taxonomy.int.test.ts`: file checks, idempotent reload, deactivate and revive, renames flow to descendants, CHECKs, RESTRICT FKs, read by app and storefront only, written by no application role |
+| The development seed converges               | dashboard `scripts/seed-catalogue.int.test.ts`: categories and tags added to an older catalogue without creating products or overriding the merchant; a rerun is a no-op                                                  |
+| End to end                                   | E2E `product-taxonomy.spec.ts`: picker (browse and search), chips with Enter and comma, save and reload, list filters, clearing, public product page                                                                      |
+
 ## Runtime compatibility
 
 CI runs every suite on the required Node LTS line (`.nvmrc`, PostgreSQL 17)

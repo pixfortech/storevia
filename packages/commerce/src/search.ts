@@ -1,11 +1,12 @@
 import "server-only";
 import { Prisma } from "@storevia/database";
 import type { TenantContext } from "@storevia/tenancy";
-import { productListQuerySchema, type ProductListQuery } from "@storevia/validation";
+import { cleanTag, productListQuerySchema, type ProductListQuery } from "@storevia/validation";
 import { inStore, internalId, publicId, type TenantTx } from "./internal";
 import type { MoneyJson } from "./money";
 import { parseRenditions, type MediaRendition, type ProductStatus } from "./products";
 import { LOW_STOCK_THRESHOLD } from "./inventory";
+import { splitCategoryPath, storeTags } from "./taxonomy";
 
 // Catalogue search (ADR-0018, ADR-0027 §11). Callers depend on SearchIndex,
 // not on PostgreSQL; the implementation below uses the expression GIN index
@@ -24,6 +25,10 @@ export interface ProductSearchQuery {
   readonly productType?: string | undefined;
   /** Internal collection id. */
   readonly collectionId?: string | undefined;
+  /** A tag, matched ignoring case (GIN index over lower-cased tags). */
+  readonly tag?: string | undefined;
+  /** A taxonomy code: products in that category or any category under it. */
+  readonly categoryCode?: string | undefined;
   readonly stock?: StockFilter | undefined;
   readonly sort: ProductSort;
   readonly cursor?: string | undefined;
@@ -37,6 +42,9 @@ export interface ProductListItem {
   readonly status: ProductStatus;
   readonly vendor: string | null;
   readonly productType: string | null;
+  readonly tags: readonly string[];
+  /** The category's own name (the list has no room for the breadcrumb). */
+  readonly categoryName: string | null;
   readonly updatedAt: Date;
   readonly createdAt: Date;
   readonly variantCount: number;
@@ -147,6 +155,8 @@ interface Row {
   status: ProductStatus;
   vendor: string | null;
   productType: string | null;
+  tags: string[] | null;
+  categoryName: string | null;
   updatedAt: Date;
   createdAt: Date;
   variantCount: bigint;
@@ -179,6 +189,20 @@ export class PostgresSearchIndex implements SearchIndex {
     if (query.collectionId) {
       conditions.push(Prisma.sql`EXISTS (SELECT 1 FROM "CollectionProduct" cp
         WHERE cp."productId" = p.id AND cp."collectionId" = ${query.collectionId}::uuid)`);
+    }
+    const tag = cleanTag(query.tag ?? "");
+    if (tag) {
+      conditions.push(Prisma.sql`catalogue_tags_folded(p.tags) @> ARRAY[lower(${tag})]::text[]`);
+    }
+    if (query.categoryCode) {
+      // The category and its descendants: a handful of index look-ups on
+      // ProductCategory(parentCode), then Product(categoryCode, storeId).
+      conditions.push(Prisma.sql`p."categoryCode" IN (
+        WITH RECURSIVE sub(code) AS (
+          SELECT code FROM "ProductCategory" WHERE code = ${query.categoryCode}
+          UNION ALL
+          SELECT k.code FROM "ProductCategory" k JOIN sub ON k."parentCode" = sub.code)
+        SELECT code FROM sub)`);
     }
     const q = query.q?.trim() ?? "";
     if (q) {
@@ -217,12 +241,13 @@ export class PostgresSearchIndex implements SearchIndex {
     // query per row.
     const rows = await tx.$queryRaw<Row[]>`
       SELECT p.id, p.title, p.handle, p.status::text AS status, p.vendor, p."productType",
-             p."updatedAt", p."createdAt",
+             p.tags, cat.name AS "categoryName", p."updatedAt", p."createdAt",
              agg.variants AS "variantCount", agg.price_min AS "priceMin", agg.price_max AS "priceMax",
              agg.currency, agg.tracked AS "trackedVariants", agg.available,
              agg.out_variants AS "outOfStockVariants", agg.low_variants AS "lowStockVariants",
              img.id AS "mediaId", img.alt AS "mediaAlt", img."storageKey", img.renditions
       FROM "Product" p
+      LEFT JOIN "ProductCategory" cat ON cat.code = p."categoryCode"
       LEFT JOIN LATERAL (
         SELECT count(*) AS variants,
                min(v."priceAmount") AS price_min, max(v."priceAmount") AS price_max, min(v.currency) AS currency,
@@ -272,6 +297,8 @@ function toItem(row: Row): ProductListItem {
     status: row.status,
     vendor: row.vendor,
     productType: row.productType,
+    tags: row.tags ?? [],
+    categoryName: row.categoryName,
     updatedAt: row.updatedAt,
     createdAt: row.createdAt,
     variantCount: Number(row.variantCount),
@@ -307,6 +334,13 @@ export interface ProductListResult extends ProductPage {
   };
   readonly vendors: readonly string[];
   readonly productTypes: readonly string[];
+  /** The store's most used tags (bounded), for the tag filter. */
+  readonly tags: readonly string[];
+  /**
+   * Categories the store's products use, and their ancestors (filtering by
+   * one includes everything under it), as breadcrumbs. Bounded.
+   */
+  readonly categories: readonly { readonly code: string; readonly path: readonly string[] }[];
 }
 
 /** The merchant product list: search, filters, status tabs, keyset pages. */
@@ -324,13 +358,15 @@ export async function listProducts(
       collectionId = "00000000-0000-0000-0000-000000000000";
     }
   }
-  return inStore(ctx, "product.read", async (tx) => {
+  return inStore(ctx, "product.read", async (tx, store) => {
     const page = await index.searchProducts(tx, {
       q: parsed.q,
       status: parsed.status,
       vendor: parsed.vendor,
       productType: parsed.productType,
       collectionId,
+      tag: parsed.tag,
+      categoryCode: parsed.category,
       stock: parsed.stock,
       sort: parsed.sort,
       cursor: parsed.cursor,
@@ -349,6 +385,19 @@ export async function listProducts(
       UNION ALL
       (SELECT DISTINCT 'type' AS kind, "productType" AS value FROM "Product"
         WHERE "deletedAt" IS NULL AND "productType" IS NOT NULL ORDER BY value LIMIT 100)`;
+    const tags = await storeTags(tx, store.storeId, { limit: 100 });
+    const categories = await tx.$queryRaw<{ code: string; path: string }[]>`
+      WITH RECURSIVE used AS (
+        SELECT DISTINCT "categoryCode" AS code FROM "Product"
+        WHERE "storeId" = ${store.storeId}::uuid AND "deletedAt" IS NULL AND "categoryCode" IS NOT NULL
+      ), up(code) AS (
+        SELECT code FROM used
+        UNION
+        SELECT c."parentCode" FROM "ProductCategory" c JOIN up ON c.code = up.code
+        WHERE c."parentCode" IS NOT NULL
+      )
+      SELECT c.code, c.path FROM "ProductCategory" c JOIN up ON up.code = c.code
+      ORDER BY c.path LIMIT 200`;
     return {
       ...page,
       counts: {
@@ -359,6 +408,8 @@ export async function listProducts(
       },
       vendors: facets.filter((f) => f.kind === "vendor").map((f) => f.value),
       productTypes: facets.filter((f) => f.kind === "type").map((f) => f.value),
+      tags: tags.map((t) => t.tag).sort((a, b) => a.localeCompare(b, "en")),
+      categories: categories.map((c) => ({ code: c.code, path: splitCategoryPath(c.path) })),
     };
   });
 }

@@ -123,13 +123,16 @@ describe("public read models", () => {
     expect(mug).toMatchObject({ id: ids["mug"], title: "Stoneware Mug", images: [], options: [] });
     expect(Object.keys(mug ?? {}).sort()).toEqual(
       [
+        "category",
         "description",
         "handle",
         "id",
         "images",
         "options",
+        "productType",
         "seoDescription",
         "seoTitle",
+        "tags",
         "title",
         "updatedAt",
         "variants",

@@ -7,6 +7,8 @@ import {
   changeProductOptions,
   createProduct,
   detachProductMedia,
+  listProductCategories,
+  listProductTags,
   reorderProductMedia,
   restoreProduct,
   searchProducts,
@@ -15,6 +17,7 @@ import {
   updateProduct,
   updateVariants,
   type BulkResult,
+  type CategoryView,
   type OptionChangeResult,
 } from "@storevia/commerce";
 import { revalidatePath } from "next/cache";
@@ -33,6 +36,15 @@ const text = (formData: FormData, name: string): string | undefined => {
 };
 const bool = (formData: FormData, name: string): boolean | undefined =>
   formData.has(name) ? formData.get(name) === "on" || formData.get(name) === "true" : undefined;
+/**
+ * The tags input sends one hidden "tags" field per chip (plus any text still
+ * being typed) and a "tagsPresent" marker, so removing every chip clears the
+ * tags while a form without the input leaves them alone.
+ */
+const tagList = (formData: FormData): string[] | undefined =>
+  formData.has("tagsPresent")
+    ? formData.getAll("tags").filter((v): v is string => typeof v === "string")
+    : undefined;
 
 function refresh(storeId: string, productId?: string) {
   revalidatePath(productsPath(storeId), "layout");
@@ -83,7 +95,8 @@ export async function updateProductAction(
       description: text(formData, "description"),
       vendor: text(formData, "vendor"),
       productType: text(formData, "productType"),
-      tags: text(formData, "tags") ?? "",
+      tags: tagList(formData),
+      categoryCode: text(formData, "categoryCode"),
       seoTitle: text(formData, "seoTitle"),
       seoDescription: text(formData, "seoDescription"),
       expectedUpdatedAt: text(formData, "expectedUpdatedAt"),
@@ -238,5 +251,33 @@ export async function searchProductsAction(
     const ctx = await storeActionContext(storeId);
     const items = await searchProducts(ctx, q, { limit: 20 });
     return items.map((i) => ({ id: i.id, title: i.title, status: i.status }));
+  });
+}
+
+/** Tag suggestions for the tags input: this store's own tags only. */
+export async function suggestTagsAction(
+  storeId: string,
+  prefix: unknown,
+): Promise<DataActionResult<string[]>> {
+  return runDataAction(async () => {
+    const ctx = await storeActionContext(storeId);
+    const tags = await listProductTags(ctx, {
+      prefix: typeof prefix === "string" ? prefix.slice(0, 100) : "",
+      limit: 8,
+    });
+    return tags.map((t) => t.tag);
+  });
+}
+
+/** The category picker: a search across the taxonomy, or one level of it. */
+export async function listCategoriesAction(
+  storeId: string,
+  input: { readonly q?: unknown; readonly parentCode?: unknown },
+): Promise<DataActionResult<readonly CategoryView[]>> {
+  return runDataAction(async () => {
+    const ctx = await storeActionContext(storeId);
+    const q = typeof input.q === "string" ? input.q.slice(0, 100) : "";
+    const parentCode = typeof input.parentCode === "string" ? input.parentCode.slice(0, 64) : null;
+    return listProductCategories(ctx, { q, parentCode, limit: 60 });
   });
 }

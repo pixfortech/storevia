@@ -1,6 +1,7 @@
 // Serializable data the product editor page hands to its client components.
 import type { JSONContent } from "@tiptap/react";
 import type { ProductStatus } from "@/lib/catalogue";
+import type { EditorCategory } from "./category-picker";
 
 export interface EditorImage {
   readonly mediaId: string;
@@ -46,6 +47,7 @@ export interface EditorProduct {
   readonly vendor: string;
   readonly productType: string;
   readonly tags: readonly string[];
+  readonly category: EditorCategory | null;
   readonly seoTitle: string;
   readonly seoDescription: string;
   readonly currency: string;

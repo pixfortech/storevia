@@ -343,7 +343,7 @@ gateway in this milestone.
 - **M3-07** ✔ Locations, inventory levels, `adjustInventory` ledger, inventory UI with reasons — `area:catalogue`
 - **M3-08** ✔ `SearchIndex` interface + PostgreSQL FTS for dashboard search — `area:catalogue`
 - **M3-09** → M6 Admin API v1: API keys (hashed, scoped, step-up), products/variants/collections/inventory endpoints, OpenAPI — `area:api` `security`
-- **M3-10** → M6 Product taxonomy (Category) reference data — `area:catalogue`
+- **M3-10** ✔ (after M6) Product taxonomy (Category) reference data, category picker and tag chips — `area:catalogue`
 - **M3-11** ✔ Extend IDOR/isolation sweeps to catalogue and media (API with M3-09) — `type:test` `tenant-isolation`
 
 ## Milestone 4 — Storefront engine

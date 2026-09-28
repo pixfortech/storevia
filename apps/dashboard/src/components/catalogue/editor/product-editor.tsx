@@ -10,8 +10,10 @@ import { FormMessage, TextField } from "@/components/forms";
 import { collectionsPath, inventoryPath } from "@/lib/catalogue";
 import { LazyRichTextEditor } from "../lazy-rich-text";
 import { UnsavedChangesGuard } from "../unsaved-guard";
+import { CategoryPicker } from "./category-picker";
 import { MediaCard } from "./media-card";
 import { CollectionsCard, StatusCard, StockCard } from "./side-cards";
+import { TagsInput } from "./tags-input";
 import type { EditorContext } from "./types";
 import { VariantsCard } from "./variants-card";
 import { ProductVersionContext } from "./version";
@@ -254,13 +256,25 @@ export function ProductEditor({ context }: { context: EditorContext }) {
                 state={state}
                 defaultValue={product.productType}
               />
-              <TextField
-                label="Tags"
-                name="tags"
+              <CategoryPicker
+                storeId={storeId}
                 form={FORM_ID}
-                state={state}
-                defaultValue={product.tags.join(", ")}
-                hint="Separate tags with commas."
+                defaultCategory={product.category}
+                error={state.fieldErrors?.["categoryCode"]}
+                disabled={readOnly}
+                onChange={() => {
+                  setDirty(true);
+                }}
+              />
+              <TagsInput
+                storeId={storeId}
+                form={FORM_ID}
+                defaultTags={product.tags}
+                error={state.fieldErrors?.["tags"]}
+                disabled={readOnly}
+                onChange={() => {
+                  setDirty(true);
+                }}
               />
             </fieldset>
           </Card>
