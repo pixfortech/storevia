@@ -293,9 +293,6 @@ export async function addToCart(
   const quantity = parseQuantity(input.quantity ?? 1, 1);
   return withStorefront(ctx.store, async (tx) => {
     const variant = await sellableVariant(tx, input.variantId);
-    if (variant.stockMax === 0) {
-      throw new CartQuantityError("sold_out", "This item is sold out.", 0);
-    }
     let cartId = await findCart(tx, ctx.token, true);
     let newToken: string | null = null;
     if (!cartId) {
