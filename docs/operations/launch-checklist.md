@@ -39,8 +39,8 @@
       watch it become ACTIVE with HTTPS.
 - [ ] CAA records allowing only the CAs Vercel uses; DNSSEC where the
       registrar supports it.
-- [ ] HSTS is sent by the apps over HTTPS (two years, `includeSubDomains;
-  preload`). Submitting `storevia.com` to the browsers' preload list is
+- [ ] HSTS is sent by the apps over HTTPS for two years, with
+      `includeSubDomains` and `preload`. Submitting `storevia.com` to the browsers' preload list is
       a separate, slow-to-undo step: do it only after a week without
       problems, once every subdomain is known to be HTTPS-only.
 
