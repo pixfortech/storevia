@@ -5,6 +5,12 @@
 // (SITE_BASE_CSS); shared by the public site and the builder canvas. A
 // composition appends its own (Storevia commerce: product cards, product
 // page, listings).
+//
+// Contrast: the theme engine derives every text token to read (4.5:1) on
+// both the page background and the surface. A brand-colour section
+// (.sv-bg-accent) re-points the muted, status and accent tokens at the
+// on-primary colour, so every element styled through tokens stays readable
+// there without per-element overrides.
 export const BASE_CSS = `
 .sv-section{padding-block:var(--sv-space-section)}
 .sv-container-narrow{max-width:var(--sv-container-narrow)}
@@ -31,7 +37,7 @@ export const BASE_CSS = `
 .sv-block{padding-block:var(--sv-space-section)}
 .sv-pad-compact{padding-block:calc(var(--sv-space-section) * .5)}.sv-pad-spacious{padding-block:calc(var(--sv-space-section) * 1.5)}
 .sv-bg-surface{background:var(--sv-color-surface)}
-.sv-bg-accent{background:var(--sv-color-primary);color:var(--sv-color-on-primary)}.sv-bg-accent .sv-button{background:var(--sv-color-on-primary);color:var(--sv-color-primary);border-color:var(--sv-color-on-primary)}.sv-bg-accent .sv-button-secondary{background:transparent;color:inherit;border-color:currentColor}.sv-bg-accent .sv-block-intro,.sv-bg-accent figcaption,.sv-bg-accent .sv-testimonial-detail{color:inherit;opacity:.85}
+.sv-bg-accent{background:var(--sv-color-primary);color:var(--sv-color-on-primary);--sv-color-muted:var(--sv-color-on-primary);--sv-color-secondary:var(--sv-color-on-primary);--sv-color-success:var(--sv-color-on-primary);--sv-color-warning:var(--sv-color-on-primary);--sv-color-danger:var(--sv-color-on-primary);--sv-color-accent:var(--sv-color-on-primary)}.sv-bg-accent .sv-button{background:var(--sv-color-on-primary);color:var(--sv-color-primary);border-color:var(--sv-color-on-primary)}.sv-bg-accent .sv-button-secondary{background:transparent;color:inherit;border-color:currentColor}
 .sv-block-heading{margin-bottom:var(--sv-space-lg)}.sv-block-heading-small{font-size:var(--sv-fontSize-lg);text-align:center}
 .sv-block-intro{max-width:44rem;color:var(--sv-color-muted);font-size:var(--sv-fontSize-lg);margin-bottom:var(--sv-space-xl)}
 .sv-block-grid{list-style:none;margin:0;padding:0;display:grid;gap:var(--sv-space-lg);grid-template-columns:repeat(var(--sv-block-columns,3),minmax(0,1fr))}
@@ -39,7 +45,7 @@ export const BASE_CSS = `
 .sv-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--sv-space-2xl);align-items:center}
 .sv-split-reverse .sv-split-media{order:2}
 .sv-split-media img{width:100%;border-radius:var(--sv-radius-md)}
-.sv-feature img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:var(--sv-radius-md);margin-bottom:var(--sv-space-md)}.sv-feature h3{margin-bottom:var(--sv-space-sm)}.sv-feature p{margin:0;color:var(--sv-color-muted)}.sv-bg-accent .sv-feature p{color:inherit}
+.sv-feature img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:var(--sv-radius-md);margin-bottom:var(--sv-space-md)}.sv-feature h3{margin-bottom:var(--sv-space-sm)}.sv-feature p{margin:0;color:var(--sv-color-muted)}
 .sv-faq details{border-bottom:1px solid var(--sv-color-border);padding-block:var(--sv-space-md)}.sv-faq details:first-child{border-top:1px solid var(--sv-color-border)}
 .sv-faq summary{cursor:pointer;font-weight:600;min-height:2.75rem;display:flex;align-items:center}.sv-faq details p{margin:var(--sv-space-sm) 0 0}
 .sv-testimonial{margin:0;height:100%;padding:var(--sv-space-lg);border:1px solid var(--sv-color-border);border-radius:var(--sv-radius-md);display:flex;flex-direction:column;gap:var(--sv-space-md)}
@@ -48,7 +54,7 @@ export const BASE_CSS = `
 .sv-logos{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:var(--sv-space-xl)}
 .sv-logos img{max-height:3rem;width:auto;max-width:10rem;object-fit:contain}.sv-logos a{display:inline-flex;min-height:2.75rem;align-items:center}
 .sv-contact{margin:0;display:grid;gap:var(--sv-space-md)}.sv-contact dt{font-weight:600}.sv-contact dd{margin:0}.sv-line{display:block}
-.sv-input{flex:1;min-width:0;min-height:2.75rem;padding:0 var(--sv-space-md);border:1px solid var(--sv-color-border);border-radius:var(--sv-radius-md);font:inherit;background:var(--sv-color-background);color:inherit}
+.sv-input{flex:1;min-width:0;min-height:2.75rem;padding:0 var(--sv-space-md);border:1px solid var(--sv-color-border);border-radius:var(--sv-radius-md);font:inherit;background:var(--sv-color-background);color:var(--sv-color-text)}
 @media (max-width:1024px){.sv-block-grid{grid-template-columns:repeat(min(var(--sv-block-columns,3),3),minmax(0,1fr))}}
 @media (max-width:768px){.sv-split{grid-template-columns:minmax(0,1fr);gap:var(--sv-space-lg)}.sv-split-reverse .sv-split-media{order:0}}
 @media (max-width:640px){

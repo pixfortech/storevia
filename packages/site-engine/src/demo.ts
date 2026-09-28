@@ -151,15 +151,12 @@ export type ThemeDemoViewport = keyof typeof THEME_DEMO_VIEWPORTS;
 
 /**
  * The demo's own presentation: product images are placeholders tinted from
- * the theme's tokens (never an image or an external URL), and the hero's
- * line of text uses the text colour (the muted colour is only guaranteed
- * 4.5:1 on the page background, not on the hero's surface). Scoped under
+ * the theme's tokens (never an image or an external URL). Scoped under
  * `.sv-demo`; emitted before the theme's stylesheet so a theme can still
  * restyle everything.
  */
 export const THEME_DEMO_CSS = `
 .sv-demo{min-height:100vh}
-.sv-demo .sv-hero-sub{color:var(--sv-color-text)}
 .sv-demo .sv-card:nth-child(4n+1) .sv-card-placeholder{background:color-mix(in srgb,var(--sv-color-primary) 16%,var(--sv-color-surface))}
 .sv-demo .sv-card:nth-child(4n+2) .sv-card-placeholder{background:color-mix(in srgb,var(--sv-color-accent) 22%,var(--sv-color-surface))}
 .sv-demo .sv-card:nth-child(4n+3) .sv-card-placeholder{background:color-mix(in srgb,var(--sv-color-text) 10%,var(--sv-color-surface))}

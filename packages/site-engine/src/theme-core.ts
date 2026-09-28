@@ -341,20 +341,80 @@ function mix(a: string, b: string, amount: number): string {
   return hex([ar + (br - ar) * amount, ag + (bg - ag) * amount, ab + (bb - ab) * amount]);
 }
 
-/** White or near-black, whichever reads better on `background` (always ≥ 4.5:1). */
-function readableOn(background: string): string {
-  return contrastRatio("#ffffff", background) >= contrastRatio("#111111", background)
-    ? "#ffffff"
-    : "#111111";
+/** Every text colour the engine derives meets this against what it sits on (WCAG AA). */
+export const TEXT_CONTRAST_MINIMUM = 4.5;
+
+function readsOnAll(colour: string, backdrops: readonly string[]): boolean {
+  return backdrops.every((b) => contrastRatio(colour, b) >= TEXT_CONTRAST_MINIMUM);
 }
 
-/** The most muted mix of text into background that still keeps 4.5:1. */
-function mutedText(text: string, background: string): string {
-  for (const amount of [0.4, 0.3, 0.2, 0.1]) {
-    const candidate = mix(text, background, amount);
-    if (contrastRatio(candidate, background) >= 4.5) return candidate;
+/**
+ * White or near-black, whichever reads better on `background`. Near-black
+ * tops out at 4.35:1 against mid tones, so pure black takes over there:
+ * the result is always at least 4.5:1.
+ */
+function readableOn(background: string): string {
+  const best = (dark: string) =>
+    contrastRatio("#ffffff", background) >= contrastRatio(dark, background) ? "#ffffff" : dark;
+  const soft = best("#111111");
+  return contrastRatio(soft, background) >= TEXT_CONTRAST_MINIMUM ? soft : best("#000000");
+}
+
+/**
+ * The tinted surface (cards, the hero, "Subtle" sections): the background
+ * moved slightly towards the text, never so far that body text drops below
+ * 4.5:1 on it.
+ */
+function surfaceFor(background: string, text: string): string {
+  for (const amount of [0.04, 0.03, 0.02, 0.01]) {
+    const candidate = mix(background, text, amount);
+    if (readsOnAll(text, [candidate])) return candidate;
+  }
+  return background;
+}
+
+/**
+ * The most muted mix of text into background that keeps 4.5:1 against every
+ * backdrop muted text sits on (the page background and the surface). Falls
+ * back to the text colour, which reads on both by construction.
+ */
+function mutedText(text: string, backdrops: readonly string[]): string {
+  const background = backdrops[0] ?? text;
+  for (let step = 16; step >= 1; step--) {
+    const candidate = mix(text, background, step * 0.025);
+    if (readsOnAll(candidate, backdrops)) return candidate;
   }
   return text;
+}
+
+/**
+ * `base` moved towards the text colour until it reads (4.5:1) on every
+ * backdrop: keeps a brand or status hue where it's readable and gives way to
+ * the text colour where it isn't.
+ */
+function readableTone(base: string, text: string, backdrops: readonly string[]): string {
+  for (let step = 0; step <= 10; step++) {
+    const candidate = mix(base, text, step / 10);
+    if (readsOnAll(candidate, backdrops)) return candidate;
+  }
+  return text;
+}
+
+// Status hues: a deep tone for light backgrounds, a light one for dark.
+const STATUS_HUES = {
+  success: ["#166534", "#4ade80"],
+  warning: ["#92400e", "#fbbf24"],
+  danger: ["#b91c1c", "#f87171"],
+} as const;
+
+function statusColour(
+  status: keyof typeof STATUS_HUES,
+  text: string,
+  backdrops: readonly [string, ...string[]],
+): string {
+  const [onLight, onDark] = STATUS_HUES[status];
+  const base = readableOn(backdrops[0]) === "#ffffff" ? onDark : onLight;
+  return readableTone(base, text, backdrops);
 }
 
 // ---------------------------------------------------------------------------
@@ -374,24 +434,30 @@ const SPACING = { compact: "2.5rem", standard: "4rem", spacious: "6rem" } as con
 export function resolveTheme(settings: ThemeSettings): ThemeTokens {
   const { background, text, primary, accent } = settings.colors;
   const onPrimary = readableOn(primary);
+  const surface = surfaceFor(background, text);
+  // Text sits on both the page background and the surface.
+  const backdrops = [background, surface] as const;
+  const muted = mutedText(text, backdrops);
   const [sm, md, lg] = RADII[settings.radius];
+  // Outline buttons show their label in the brand colour, on either backdrop.
+  const outline = readableTone(primary, text, backdrops);
   const button =
     settings.buttonStyle === "outline"
-      ? { background: "transparent", text: primary, border: primary }
+      ? { background: "transparent", text: outline, border: outline }
       : { background: primary, text: onPrimary, border: primary };
   return {
     "color.primary": primary,
     "color.on-primary": onPrimary,
-    "color.secondary": mutedText(text, background),
+    "color.secondary": muted,
     "color.accent": accent,
     "color.background": background,
-    "color.surface": mix(background, text, 0.04),
+    "color.surface": surface,
     "color.text": text,
-    "color.muted": mutedText(text, background),
+    "color.muted": muted,
     "color.border": mix(background, text, 0.14),
-    "color.success": "#166534",
-    "color.warning": "#92400e",
-    "color.danger": "#b91c1c",
+    "color.success": statusColour("success", text, backdrops),
+    "color.warning": statusColour("warning", text, backdrops),
+    "color.danger": statusColour("danger", text, backdrops),
     "font.heading": FONT_STACKS[settings.headingFont].stack,
     "font.body": FONT_STACKS[settings.bodyFont].stack,
     "font.mono": FONT_STACKS.monospace.stack,
