@@ -155,7 +155,7 @@ LOCKED` and inserts a `StaffNotification` for every active member of
   - 180-day expiry and revocation;
   - `no-referrer`;
   - rate limits on messages.
-- Notifications are polled by the bell (on navigation and every minute), not
+- Notifications are polled by the bell through `GET /api/notifications` (on navigation and every minute; marking read is a server action), not
   pushed. There is no real-time chat.
 - Carrier APIs, customer accounts and a returns portal remain out of scope.
 
