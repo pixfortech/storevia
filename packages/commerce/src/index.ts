@@ -94,6 +94,16 @@ export {
   updateOrderNote,
 } from "./orders/manage";
 export type { CancelResult, FulfilInput, RefundInput, RefundOutcome } from "./orders/manage";
+export {
+  completeOrder,
+  deleteDemoOrder,
+  demoOrderDeletionEnabled,
+  markFulfilmentDelivered,
+  setOrderArchived,
+  updateFulfilment,
+} from "./orders/operations";
+export type { CompleteInput, FulfilmentUpdateInput } from "./orders/operations";
+export * from "./orders/lifecycle";
 export { getCustomer, listCustomers, updateCustomer } from "./customers";
 export type { CustomerDetail, CustomerListItem } from "./customers";
 export {

@@ -27,6 +27,7 @@ import {
   type PriceQuote,
   type QuoteChange,
 } from "./pricing";
+import { currentOrderAccessToken, orderAccessPath } from "../orders/access";
 import { assertCheckoutTransition } from "./state";
 import { reserveStock } from "./stock";
 import { CHECKOUT_LIMITS, hashCheckoutToken, isCheckoutToken, newCheckoutToken } from "./tokens";
@@ -156,7 +157,8 @@ export interface CheckoutView {
   readonly paymentRedirectUrl: string | null;
   /** Why the last attempt ended without payment, if it did. */
   readonly lastPaymentProblem: "DECLINED" | "CANCELLED" | "ERROR" | null;
-  readonly order: { readonly number: number } | null;
+  /** Once paid: the order number and the shopper's link to their order page. */
+  readonly order: { readonly number: number; readonly accessPath: string | null } | null;
   /** Countries the store ships to (ISO codes), for the address form. */
   readonly shippingCountries: readonly string[];
 }
@@ -172,6 +174,7 @@ function view(
     readonly redirectUrl: string | null;
     readonly lastProblem: CheckoutView["lastPaymentProblem"];
     readonly orderNumber: number | null;
+    readonly orderAccessPath: string | null;
     readonly shippingCountries: readonly string[];
   },
 ): CheckoutView {
@@ -236,7 +239,10 @@ function view(
     paymentsAvailable: extra.paymentsAvailable,
     paymentRedirectUrl: extra.redirectUrl,
     lastPaymentProblem: extra.lastProblem,
-    order: extra.orderNumber === null ? null : { number: extra.orderNumber },
+    order:
+      extra.orderNumber === null
+        ? null
+        : { number: extra.orderNumber, accessPath: extra.orderAccessPath },
     shippingCountries: extra.shippingCountries,
   };
 }
@@ -286,10 +292,13 @@ async function buildView(
           ? "ERROR"
           : "DECLINED";
   let orderNumber: number | null = null;
+  let orderAccess: string | null = null;
   if (checkout.completedOrderId) {
     const rows = await tx.$queryRaw<{ n: number }[]>`
       SELECT "orderNumber" AS n FROM "Order" WHERE id = ${checkout.completedOrderId}::uuid`;
     orderNumber = rows[0]?.n ?? null;
+    const token = await currentOrderAccessToken(tx, checkout.completedOrderId);
+    orderAccess = token ? orderAccessPath(token) : null;
   }
   const countries = await tx.$queryRaw<{ code: string }[]>`
     SELECT DISTINCT trim(c."countryCode") AS code FROM "ShippingZoneCountry" c
@@ -302,6 +311,7 @@ async function buildView(
     redirectUrl: checkout.status === "PAYMENT_PENDING" ? (last?.redirect ?? null) : null,
     lastProblem,
     orderNumber,
+    orderAccessPath: orderAccess,
   });
 }
 

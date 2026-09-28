@@ -2,8 +2,9 @@ import type { EmailMessage } from "./sender";
 
 // Shopper emails about an order (ADR-0031 §12). Values arrive already
 // formatted (money in the store's locale); everything shopper- or
-// merchant-entered is escaped. No links carry tokens: guests have no
-// account, and the order number alone opens nothing.
+// merchant-entered is escaped. Guests have no account: the one link that
+// opens the order is `orderUrl`, carrying the order's opaque access token
+// (never the order number or email).
 
 const escapeHtml = (value: string) =>
   value
@@ -25,6 +26,17 @@ export interface OrderEmail {
   readonly lines: readonly OrderEmailLine[];
   readonly totals: readonly (readonly [label: string, value: string])[];
   readonly shippingAddress: readonly string[] | null;
+  /** The shopper's order page (opaque access link), when the store has one. */
+  readonly orderUrl?: string | null;
+}
+
+function orderLink(order: OrderEmail): { html: string; text: string } {
+  if (!order.orderUrl) return { html: "", text: "" };
+  const url = escapeHtml(order.orderUrl);
+  return {
+    html: `<p style="margin:0 0 16px"><a href="${url}" style="display:inline-block;background:#111827;color:#ffffff;padding:10px 16px;border-radius:6px;text-decoration:none">View your order</a></p><p style="margin:0 0 16px;color:#6b7280;font-size:13px">Keep this link private: anyone with it can see your order and send us a message about it.</p>`,
+    text: `\n\nView your order: ${order.orderUrl}\n(Keep this link private: anyone with it can see your order.)`,
+  };
 }
 
 function layout(storeName: string, title: string, intro: string[], body = ""): string {
@@ -65,12 +77,27 @@ export function orderConfirmationMessage(to: string, order: OrderEmail): EmailMe
     `Thank you for your order #${String(order.orderNumber)}. We've received your payment and will let you know when it ships.`,
   ];
   const table = orderTable(order);
+  const link = orderLink(order);
   return {
     to,
     template: "order-confirmation",
     subject: `Order #${String(order.orderNumber)} confirmed – ${order.storeName}`,
-    text: `${intro.join("\n\n")}\n\n${table.text}`,
-    html: layout(order.storeName, "Thank you for your order", intro, table.html),
+    text: `${intro.join("\n\n")}\n\n${table.text}${link.text}`,
+    html: layout(order.storeName, "Thank you for your order", intro, table.html + link.html),
+  };
+}
+
+/** The store answered the shopper's message about their order. */
+export function orderMessageReplyMessage(to: string, order: OrderEmail, reply: string): EmailMessage {
+  const intro = [`${order.storeName} replied about your order #${String(order.orderNumber)}.`];
+  const link = orderLink(order);
+  const quoted = `<blockquote style="margin:0 0 16px;padding:8px 12px;border-left:3px solid #e5e7eb;white-space:pre-wrap">${escapeHtml(reply)}</blockquote>`;
+  return {
+    to,
+    template: "order-message-reply",
+    subject: `A reply about order #${String(order.orderNumber)} – ${order.storeName}`,
+    text: `${intro.join("\n\n")}\n\n${reply}${link.text}`,
+    html: layout(order.storeName, "A reply about your order", intro, quoted + link.html),
   };
 }
 

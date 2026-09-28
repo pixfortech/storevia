@@ -2,6 +2,7 @@ import type { TenantTx } from "@storevia/database";
 import { createLogger, recordMetric } from "@storevia/observability";
 import type { ProviderPaymentState } from "@storevia/payments";
 import { uuidv7 } from "@storevia/types";
+import { createOrderAccess } from "../orders/access";
 import { orderEvent, queueNotification } from "../orders/records";
 import { loadCheckout, type CheckoutRow } from "./load";
 import { parseStoredQuote, type PriceQuote } from "./pricing";
@@ -412,6 +413,8 @@ async function completeCheckout(
     UPDATE "Cart" SET status = 'CONVERTED', "updatedAt" = now()
     WHERE id = ${checkout.cartId}::uuid AND status = 'ACTIVE'`;
 
+  // The shopper's link to this order (thank-you page and confirmation email).
+  await createOrderAccess(tx, scope, orderId);
   await orderEvent(tx, scope, orderId, "order.placed", "Order placed from the online store.");
   await orderEvent(tx, scope, orderId, "payment.captured", "Payment captured.", {
     paymentId: payment.id,

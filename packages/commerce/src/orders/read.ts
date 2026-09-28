@@ -4,13 +4,23 @@ import type { TenantContext } from "@storevia/tenancy";
 import { notFound } from "@storevia/types";
 import { inStore, internalId, publicId, publicIdOrNull, type TenantTx } from "../internal";
 import type { MoneyJson } from "../money";
+import {
+  completionBlockers,
+  orderDeliveryStatus,
+  orderState,
+  type FulfilmentMethod,
+  type OrderDeliveryStatus,
+  type OrderState,
+  type ShipmentStatus,
+} from "./lifecycle";
 
 // The merchant's orders (ADR-0031 §5), under the merchant role and
 // `order.read`. Lists are keyset-paged and batched (a fixed number of
 // queries per page); the detail loads every part of one order in parallel
 // queries of its own. Amounts are the order's immutable snapshots.
 
-export type OrderStatusFilter = "all" | "open" | "unfulfilled" | "unpaid" | "cancelled";
+export type OrderStatusFilter =
+  "all" | "open" | "unfulfilled" | "unpaid" | "cancelled" | "completed" | "archived";
 
 export interface OrderListItem {
   readonly id: string;
@@ -24,6 +34,8 @@ export interface OrderListItem {
   readonly fulfilmentStatus: string;
   readonly itemCount: number;
   readonly stockShortage: boolean;
+  readonly archived: boolean;
+  readonly state: OrderState;
 }
 
 export interface OrderListResult {
@@ -33,6 +45,7 @@ export interface OrderListResult {
     readonly all: number;
     readonly unfulfilled: number;
     readonly cancelled: number;
+    readonly archived: number;
   };
 }
 
@@ -65,12 +78,15 @@ function searchCondition(q: string): Prisma.Sql | null {
       AND (a."firstName" || ' ' || a."lastName") ILIKE ${like}))`;
 }
 
+// Archived orders leave every list but their own (a search still finds them).
 const FILTERS: Readonly<Record<OrderStatusFilter, Prisma.Sql>> = {
-  all: Prisma.sql`true`,
-  open: Prisma.sql`o.status = 'OPEN'`,
-  unfulfilled: Prisma.sql`o.status = 'OPEN' AND o."fulfilmentStatus" <> 'FULFILLED'`,
-  unpaid: Prisma.sql`o."paymentStatus" NOT IN ('PAID', 'PARTIALLY_REFUNDED', 'REFUNDED')`,
-  cancelled: Prisma.sql`o.status = 'CANCELLED'`,
+  all: Prisma.sql`o."archivedAt" IS NULL`,
+  open: Prisma.sql`o."archivedAt" IS NULL AND o.status = 'OPEN' AND o."completedAt" IS NULL`,
+  unfulfilled: Prisma.sql`o."archivedAt" IS NULL AND o.status = 'OPEN' AND o."fulfilmentStatus" <> 'FULFILLED'`,
+  unpaid: Prisma.sql`o."archivedAt" IS NULL AND o."paymentStatus" NOT IN ('PAID', 'PARTIALLY_REFUNDED', 'REFUNDED')`,
+  cancelled: Prisma.sql`o."archivedAt" IS NULL AND o.status = 'CANCELLED'`,
+  completed: Prisma.sql`o."archivedAt" IS NULL AND o."completedAt" IS NOT NULL`,
+  archived: Prisma.sql`o."archivedAt" IS NOT NULL`,
 };
 
 export async function listOrders(
@@ -82,8 +98,11 @@ export async function listOrders(
     typeof query.status === "string" && query.status in FILTERS
       ? (query.status as OrderStatusFilter)
       : "all";
-  const conditions: Prisma.Sql[] = [FILTERS[status]];
   const search = typeof query.q === "string" ? searchCondition(query.q) : null;
+  // A search looks through archived orders too, unless a filter narrows it.
+  const conditions: Prisma.Sql[] = [
+    search && status === "all" ? Prisma.sql`true` : FILTERS[status],
+  ];
   if (search) conditions.push(search);
   const cursor = decodeCursor(query.cursor);
   if (cursor) {
@@ -105,6 +124,8 @@ export async function listOrders(
         fulfilment_status: string;
         items: number;
         shortage: boolean;
+        archived: boolean;
+        completed: boolean;
       }[]
     >`
       SELECT o.id, o."orderNumber" AS number, o."placedAt" AS placed_at, a."firstName" AS first_name,
@@ -112,16 +133,21 @@ export async function listOrders(
         o.status::text AS status, o."paymentStatus"::text AS payment_status,
         o."fulfilmentStatus"::text AS fulfilment_status,
         (SELECT coalesce(sum(l.quantity), 0)::int FROM "OrderLine" l WHERE l."orderId" = o.id) AS items,
-        o."stockShortage" AS shortage
+        o."stockShortage" AS shortage, o."archivedAt" IS NOT NULL AS archived,
+        o."completedAt" IS NOT NULL AS completed
       FROM "Order" o
       LEFT JOIN "OrderAddress" a ON a."orderId" = o.id AND a.type = 'SHIPPING'
       WHERE ${Prisma.join(conditions, " AND ")}
       ORDER BY o."placedAt" DESC, o.id DESC
       LIMIT ${limit + 1}`;
-    const counts = await tx.$queryRaw<{ all: number; unfulfilled: number; cancelled: number }[]>`
-      SELECT count(*)::int AS all,
-        count(*) FILTER (WHERE status = 'OPEN' AND "fulfilmentStatus" <> 'FULFILLED')::int AS unfulfilled,
-        count(*) FILTER (WHERE status = 'CANCELLED')::int AS cancelled
+    const counts = await tx.$queryRaw<
+      { all: number; unfulfilled: number; cancelled: number; archived: number }[]
+    >`
+      SELECT count(*) FILTER (WHERE "archivedAt" IS NULL)::int AS all,
+        count(*) FILTER (WHERE "archivedAt" IS NULL AND status = 'OPEN'
+          AND "fulfilmentStatus" <> 'FULFILLED')::int AS unfulfilled,
+        count(*) FILTER (WHERE "archivedAt" IS NULL AND status = 'CANCELLED')::int AS cancelled,
+        count(*) FILTER (WHERE "archivedAt" IS NOT NULL)::int AS archived
       FROM "Order"`;
     const page = rows.slice(0, limit);
     const last = page.at(-1);
@@ -141,9 +167,11 @@ export async function listOrders(
         fulfilmentStatus: r.fulfilment_status,
         itemCount: r.items,
         stockShortage: r.shortage,
+        archived: r.archived,
+        state: r.status === "CANCELLED" ? "CANCELLED" : r.completed ? "COMPLETED" : "OPEN",
       })),
       nextCursor: rows.length > limit && last ? encodeCursor(last.placed_at, last.id) : null,
-      counts: counts[0] ?? { all: 0, unfulfilled: 0, cancelled: 0 },
+      counts: counts[0] ?? { all: 0, unfulfilled: 0, cancelled: 0, archived: 0 },
     };
   });
 }
@@ -215,6 +243,10 @@ export interface OrderFulfilmentView {
   readonly id: string;
   readonly createdAt: Date;
   readonly locationName: string;
+  readonly method: FulfilmentMethod;
+  readonly shipmentStatus: ShipmentStatus;
+  readonly shippedAt: Date | null;
+  readonly deliveredAt: Date | null;
   readonly trackingCompany: string | null;
   readonly trackingNumber: string | null;
   readonly trackingUrl: string | null;
@@ -235,6 +267,13 @@ export interface OrderDetail {
   readonly status: "OPEN" | "CANCELLED";
   readonly paymentStatus: string;
   readonly fulfilmentStatus: string;
+  readonly deliveryStatus: OrderDeliveryStatus;
+  /** Open, complete or cancelled: separate from payment, fulfilment and delivery. */
+  readonly state: OrderState;
+  readonly archivedAt: Date | null;
+  readonly completedAt: Date | null;
+  /** Why the order can't be completed yet (empty: it can). */
+  readonly completionBlockers: readonly string[];
   readonly stockShortage: boolean;
   readonly cancelledAt: Date | null;
   readonly cancelReason: string | null;
@@ -353,6 +392,7 @@ export async function loadOrderDetail(tx: TenantTx, orderId: string): Promise<Or
   };
   const primaryId = payments.find((p) => p.status === "CAPTURED")?.id ?? null;
   const unfulfilled = lines.reduce((n, l) => n + l.quantity - l.fulfilledQuantity, 0);
+  const deliveryStatus = orderDeliveryStatus(order.fulfilmentStatus, fulfilments);
   return {
     id: publicId("order", order.id),
     number: order.orderNumber,
@@ -360,6 +400,11 @@ export async function loadOrderDetail(tx: TenantTx, orderId: string): Promise<Or
     status: order.status,
     paymentStatus: order.paymentStatus,
     fulfilmentStatus: order.fulfilmentStatus,
+    deliveryStatus,
+    state: orderState(order),
+    archivedAt: order.archivedAt,
+    completedAt: order.completedAt,
+    completionBlockers: completionBlockers({ ...order, deliveryStatus }),
     stockShortage: order.stockShortage,
     cancelledAt: order.cancelledAt,
     cancelReason: order.cancelReason,
@@ -424,6 +469,10 @@ export async function loadOrderDetail(tx: TenantTx, orderId: string): Promise<Or
       id: publicId("fulfilment", f.id),
       createdAt: f.createdAt,
       locationName: f.location.name,
+      method: f.method,
+      shipmentStatus: f.shipmentStatus,
+      shippedAt: f.shippedAt,
+      deliveredAt: f.deliveredAt,
       trackingCompany: f.trackingCompany,
       trackingNumber: f.trackingNumber,
       trackingUrl: f.trackingUrl,
@@ -438,8 +487,11 @@ export async function loadOrderDetail(tx: TenantTx, orderId: string): Promise<Or
     customer: order.customerId
       ? { id: publicId("customer", order.customerId), orderCount: customerOrders }
       : null,
-    canCancel: order.status === "OPEN" && lines.every((l) => l.fulfilledQuantity === 0),
-    unfulfilledQuantity: order.status === "OPEN" ? unfulfilled : 0,
+    canCancel:
+      order.status === "OPEN" &&
+      order.completedAt === null &&
+      lines.every((l) => l.fulfilledQuantity === 0),
+    unfulfilledQuantity: order.status === "OPEN" && order.completedAt === null ? unfulfilled : 0,
   };
 }
 

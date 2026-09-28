@@ -1,9 +1,11 @@
 import "server-only";
 import { workerDb } from "@storevia/database/worker";
+import { storefrontOrigin } from "@storevia/domains";
 import {
   orderCancelledMessage,
   orderConfirmationMessage,
   orderFulfilledMessage,
+  orderMessageReplyMessage,
   refundMessage,
   type EmailMessage,
   type EmailSender,
@@ -11,6 +13,7 @@ import {
 } from "@storevia/email";
 import { createLogger, errorFields, recordMetric } from "@storevia/observability";
 import { format, money } from "../money";
+import { orderAccessPath, orderAccessToken } from "./access";
 
 // Order emails (ADR-0031 §12), sent by the worker from the OrderNotification
 // queue that order changes write in their own transactions. An email that
@@ -26,7 +29,12 @@ const LEASE_MINUTES = 10;
 interface Claimed {
   id: string;
   orderId: string;
-  kind: "ORDER_CONFIRMATION" | "ORDER_CANCELLED" | "ORDER_FULFILLED" | "REFUND_CREATED";
+  kind:
+    | "ORDER_CONFIRMATION"
+    | "ORDER_CANCELLED"
+    | "ORDER_FULFILLED"
+    | "REFUND_CREATED"
+    | "ORDER_MESSAGE_REPLY";
   recipient: string;
   referenceId: string | null;
   attempts: number;
@@ -81,6 +89,18 @@ async function orderEmail(
       "postalCode" AS postal, trim("countryCode") AS country
     FROM "OrderAddress" WHERE "orderId" = ${orderId}::uuid AND type = 'SHIPPING'`;
   const a = address[0];
+  // The shopper's order page on the store's primary address, when both exist.
+  const access = await db.$queryRaw<{ id: string; host: string | null }[]>`
+    SELECT a.id, (SELECT d.hostname FROM "StoreDomain" d
+      WHERE d."storeId" = o."storeId" AND d."isPrimary" AND d.status = 'ACTIVE') AS host
+    FROM "OrderCustomerAccess" a JOIN "Order" o ON o.id = a."orderId"
+    WHERE a."orderId" = ${orderId}::uuid AND a."revokedAt" IS NULL AND a."expiresAt" > now()
+    ORDER BY a."createdAt" DESC LIMIT 1`;
+  const link = access[0];
+  const orderUrl =
+    link?.host != null
+      ? `${storefrontOrigin(link.host)}${orderAccessPath(orderAccessToken(link.id))}`
+      : null;
   const totals: [string, string][] = [["Subtotal", fmt(o.subtotal)]];
   if (o.discount > 0n) totals.push(["Discount", `−${fmt(o.discount)}`]);
   if (o.shipping > 0n) totals.push(["Shipping", fmt(o.shipping)]);
@@ -107,6 +127,7 @@ async function orderEmail(
             a.country,
           ].filter(Boolean)
         : null,
+      orderUrl,
     },
   };
 }
@@ -142,6 +163,12 @@ async function buildMessage(n: Claimed): Promise<EmailMessage | null> {
         trackingNumber: f[0]?.number ?? null,
         trackingUrl: f[0]?.url ?? null,
       });
+    }
+    case "ORDER_MESSAGE_REPLY": {
+      if (!n.referenceId) return null;
+      const m = await db.$queryRaw<{ body: string }[]>`
+        SELECT body FROM "OrderMessage" WHERE id = ${n.referenceId}::uuid AND "authorType" = 'STAFF'`;
+      return m[0] ? orderMessageReplyMessage(n.recipient, order, m[0].body) : null;
     }
     case "REFUND_CREATED": {
       if (!n.referenceId) return null;

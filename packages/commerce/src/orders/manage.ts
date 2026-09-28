@@ -23,6 +23,15 @@ import {
   type TenantTx,
 } from "../internal";
 import { allocate, format as formatMoney, money, toDecimalString } from "../money";
+import {
+  allowedStatus,
+  isDispatched,
+  isFulfilmentMethod,
+  isShipmentStatus,
+  SHIPMENT_LABELS,
+  type FulfilmentMethod,
+  type ShipmentStatus,
+} from "./lifecycle";
 import { orderEvent, queueNotification } from "./records";
 
 // What a merchant does to an order (ADR-0031 §8), under the merchant role:
@@ -47,6 +56,7 @@ interface OrderRow {
   id: string;
   number: number;
   status: "OPEN" | "CANCELLED";
+  completed: boolean;
   email: string | null;
   currency: string;
   total: bigint;
@@ -55,7 +65,8 @@ interface OrderRow {
 
 async function lockOrder(tx: TenantTx, orderId: string): Promise<OrderRow> {
   const rows = await tx.$queryRaw<OrderRow[]>`
-    SELECT id, "orderNumber" AS number, status::text AS status, email, trim(currency) AS currency,
+    SELECT id, "orderNumber" AS number, status::text AS status, "completedAt" IS NOT NULL AS completed,
+      email, trim(currency) AS currency,
       "totalAmount" AS total, "refundedAmount" AS refunded
     FROM "Order" WHERE id = ${orderId}::uuid
     FOR UPDATE`;
@@ -136,6 +147,10 @@ export interface FulfilInput {
   readonly trackingCompany?: unknown;
   readonly trackingNumber?: unknown;
   readonly trackingUrl?: unknown;
+  /** SHIPPING (default) or LOCAL_DELIVERY. */
+  readonly method?: unknown;
+  /** Where the new fulfilment starts (default SHIPPED: it left with this action). */
+  readonly status?: unknown;
 }
 
 export async function fulfilOrder(
@@ -150,12 +165,31 @@ export async function fulfilOrder(
   if (trackingUrl && !/^https?:\/\/[^\s]+$/i.test(trackingUrl)) {
     throw validationFailed({ trackingUrl: "Enter a full link starting with https://." });
   }
+  if (input.method !== undefined && input.method !== "" && !isFulfilmentMethod(input.method)) {
+    throw validationFailed({ method: "Choose shipping or local delivery." });
+  }
+  const method: FulfilmentMethod = isFulfilmentMethod(input.method) ? input.method : "SHIPPING";
+  if (input.status !== undefined && input.status !== "" && !isShipmentStatus(input.status)) {
+    throw validationFailed({ status: "Choose a status." });
+  }
+  const initial: ShipmentStatus = isShipmentStatus(input.status)
+    ? input.status
+    : method === "LOCAL_DELIVERY"
+      ? "READY"
+      : "SHIPPED";
+  if (!allowedStatus(method, initial)) {
+    throw validationFailed({
+      status: `${SHIPMENT_LABELS[initial]} isn't a step of local delivery.`,
+    });
+  }
+  const dispatched = isDispatched(initial);
   return inStore(
     ctx,
     "order.manage",
     async (tx, store) => {
       const order = await lockOrder(tx, orderId);
       if (order.status === "CANCELLED") throw conflict("A cancelled order can't be fulfilled.");
+      if (order.completed) throw conflict("This order is complete.");
       const lines = await lockLines(tx, orderId);
       let requested = lineQuantities(lines, input.lines, "lines");
       if (!input.lines || input.lines.length === 0) {
@@ -204,10 +238,13 @@ export async function fulfilOrder(
             orderId,
             locationId,
             state: "SUCCESS",
+            method,
+            shipmentStatus: initial,
             trackingCompany,
             trackingNumber,
             trackingUrl,
-            shippedAt: new Date(),
+            shippedAt: dispatched ? new Date() : null,
+            deliveredAt: initial === "DELIVERED" ? new Date() : null,
             createdById: store.userId,
           },
           select: { id: true },
@@ -253,11 +290,12 @@ export async function fulfilOrder(
         scope(store),
         orderId,
         "fulfilment.created",
-        `${String(units)} ${units === 1 ? "item" : "items"} fulfilled${trackingNumber ? ` (tracking ${trackingNumber})` : ""}.`,
-        { fulfilmentIds: ids },
+        `${String(units)} ${units === 1 ? "item" : "items"} fulfilled (${SHIPMENT_LABELS[initial].toLowerCase()}${method === "LOCAL_DELIVERY" ? ", local delivery" : ""})${trackingNumber ? `, tracking ${trackingNumber}` : ""}.`,
+        { fulfilmentIds: ids, status: initial, method },
         store.userId,
       );
-      for (const id of ids) {
+      // The shopper hears when the parcel leaves (now, or when it's marked so).
+      for (const id of dispatched ? ids : []) {
         await queueNotification(
           tx,
           scope(store),
@@ -311,6 +349,8 @@ export async function cancelOrder(
     async (tx) => {
       const order = await lockOrder(tx, orderId);
       if (order.status === "CANCELLED") return false;
+      if (order.completed)
+        throw conflict("A completed order can't be cancelled. Refund it instead.");
       const lines = await lockLines(tx, orderId);
       if (lines.some((l) => l.fulfilled > 0)) {
         throw conflict("Orders with fulfilled items can't be cancelled. Refund them instead.");

@@ -502,12 +502,13 @@ model User {
   accounts             Account[]
   sessions             Session[]
   memberships          Membership[]
-  invitationsSent      Invitation[]   @relation("InvitationInvitedBy")
-  invitationsAccepted  Invitation[]   @relation("InvitationAcceptedBy")
+  staffNotifications   StaffNotification[]
+  invitationsSent      Invitation[]        @relation("InvitationInvitedBy")
+  invitationsAccepted  Invitation[]        @relation("InvitationAcceptedBy")
   platformStaff        PlatformStaff?
-  organisationsCreated Organisation[] @relation("OrganisationCreatedBy")
-  productsCreated      Product[]      @relation("ProductCreatedBy")
-  productsUpdated      Product[]      @relation("ProductUpdatedBy")
+  organisationsCreated Organisation[]      @relation("OrganisationCreatedBy")
+  productsCreated      Product[]           @relation("ProductCreatedBy")
+  productsUpdated      Product[]           @relation("ProductUpdatedBy")
 }
 
 model Account {
@@ -802,6 +803,9 @@ model Store {
   fulfilments           Fulfilment[]
   fulfilmentLines       FulfilmentLine[]
   orderNotifications    OrderNotification[]
+  orderCustomerAccess   OrderCustomerAccess[]
+  orderMessages         OrderMessage[]
+  staffNotifications    StaffNotification[]
 
   @@unique([id, organisationId])
   @@index([organisationId])
@@ -1542,6 +1546,7 @@ enum NotificationKind {
   ORDER_CANCELLED
   ORDER_FULFILLED
   REFUND_CREATED
+  ORDER_MESSAGE_REPLY
 }
 
 enum NotificationStatus {
@@ -1849,26 +1854,34 @@ model Order {
   placedAt         DateTime              @db.Timestamptz(3)
   cancelledAt      DateTime?             @db.Timestamptz(3)
   cancelReason     String?
+  archivedAt       DateTime?             @db.Timestamptz(3)
+  archivedById     String?               @db.Uuid
+  completedAt      DateTime?             @db.Timestamptz(3)
+  completedById    String?               @db.Uuid
   createdAt        DateTime              @default(now()) @db.Timestamptz(3)
   updatedAt        DateTime              @updatedAt @db.Timestamptz(3)
 
-  store         Store                @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
-  customer      Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  lines         OrderLine[]
-  addresses     OrderAddress[]
-  discounts     OrderDiscount[]
-  shippingLines OrderShippingLine[]
-  taxLines      OrderTaxLine[]
-  events        OrderEvent[]
-  payments      Payment[]
-  refunds       Refund[]
-  fulfilments   Fulfilment[]
-  redemptions   DiscountRedemption[]
-  notifications OrderNotification[]
+  store              Store                 @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  customer           Customer?             @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  lines              OrderLine[]
+  addresses          OrderAddress[]
+  discounts          OrderDiscount[]
+  shippingLines      OrderShippingLine[]
+  taxLines           OrderTaxLine[]
+  events             OrderEvent[]
+  payments           Payment[]
+  refunds            Refund[]
+  fulfilments        Fulfilment[]
+  redemptions        DiscountRedemption[]
+  notifications      OrderNotification[]
+  customerAccess     OrderCustomerAccess[]
+  messages           OrderMessage[]
+  staffNotifications StaffNotification[]
 
   @@unique([storeId, orderNumber])
   @@unique([id, storeId])
   @@index([storeId, placedAt])
+  @@index([storeId, archivedAt, placedAt])
   @@index([storeId, status, placedAt])
   @@index([storeId, paymentStatus, fulfilmentStatus])
   @@index([customerId])
@@ -2157,19 +2170,22 @@ model RefundLine {
 }
 
 model Fulfilment {
-  id              String          @id @default(uuid(7)) @db.Uuid
-  organisationId  String          @db.Uuid
-  storeId         String          @db.Uuid
-  orderId         String          @db.Uuid
-  locationId      String          @db.Uuid
-  state           FulfilmentState @default(PENDING)
+  id              String           @id @default(uuid(7)) @db.Uuid
+  organisationId  String           @db.Uuid
+  storeId         String           @db.Uuid
+  orderId         String           @db.Uuid
+  locationId      String           @db.Uuid
+  state           FulfilmentState  @default(PENDING)
+  method          FulfilmentMethod @default(SHIPPING)
+  shipmentStatus  ShipmentStatus   @default(READY)
   trackingCompany String?
   trackingNumber  String?
   trackingUrl     String?
-  shippedAt       DateTime?       @db.Timestamptz(3)
-  createdById     String?         @db.Uuid
-  createdAt       DateTime        @default(now()) @db.Timestamptz(3)
-  updatedAt       DateTime        @updatedAt @db.Timestamptz(3)
+  shippedAt       DateTime?        @db.Timestamptz(3)
+  deliveredAt     DateTime?        @db.Timestamptz(3)
+  createdById     String?          @db.Uuid
+  createdAt       DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime         @updatedAt @db.Timestamptz(3)
 
   store    Store            @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
   order    Order            @relation(fields: [orderId, storeId], references: [id, storeId], onDelete: Restrict)
@@ -2225,4 +2241,98 @@ model OrderNotification {
   @@index([status, nextAttemptAt])
   @@index([orderId])
   @@index([storeId])
+}
+
+enum FulfilmentMethod {
+  SHIPPING
+  LOCAL_DELIVERY
+}
+
+/// Where a fulfilment is in its journey. Carrier shipping: READY → SHIPPED →
+/// IN_TRANSIT → (OUT_FOR_DELIVERY) → DELIVERED. Local delivery: READY →
+/// OUT_FOR_DELIVERY → DELIVERED.
+enum ShipmentStatus {
+  READY
+  SHIPPED
+  IN_TRANSIT
+  OUT_FOR_DELIVERY
+  DELIVERED
+}
+
+/// A guest shopper's link to their order. Only a SHA-256 hash of the token
+/// is stored; the token is derived from the (random) id with a server
+/// secret, so the confirmation email and thank-you page can show it.
+model OrderCustomerAccess {
+  id             String    @id @db.Uuid
+  organisationId String    @db.Uuid
+  storeId        String    @db.Uuid
+  orderId        String    @db.Uuid
+  tokenHash      String    @unique
+  expiresAt      DateTime  @db.Timestamptz(3)
+  revokedAt      DateTime? @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  order Order @relation(fields: [orderId, storeId], references: [id, storeId], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([storeId])
+}
+
+enum OrderMessageAuthor {
+  CUSTOMER
+  STAFF
+}
+
+/// The shopper–store conversation on an order (append-only). Separate from
+/// Order.note, which only the store's team sees.
+model OrderMessage {
+  id              String             @id @default(uuid(7)) @db.Uuid
+  organisationId  String             @db.Uuid
+  storeId         String             @db.Uuid
+  orderId         String             @db.Uuid
+  authorType      OrderMessageAuthor
+  authorUserId    String?            @db.Uuid
+  body            String
+  readAt          DateTime?          @db.Timestamptz(3)
+  /// Set by the worker once the staff allowed to answer were notified.
+  staffNotifiedAt DateTime?          @db.Timestamptz(3)
+  createdAt       DateTime           @default(now()) @db.Timestamptz(3)
+
+  store         Store               @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  order         Order               @relation(fields: [orderId, storeId], references: [id, storeId], onDelete: Restrict)
+  notifications StaffNotification[]
+
+  @@unique([id, storeId])
+  @@index([orderId, createdAt])
+  @@index([storeId])
+}
+
+enum StaffNotificationKind {
+  ORDER_MESSAGE
+}
+
+/// An in-app notification for one staff member (the dashboard's bell).
+model StaffNotification {
+  id             String                @id @default(uuid(7)) @db.Uuid
+  organisationId String                @db.Uuid
+  storeId        String                @db.Uuid
+  userId         String                @db.Uuid
+  kind           StaffNotificationKind
+  orderId        String                @db.Uuid
+  orderMessageId String?               @db.Uuid
+  title          String
+  readAt         DateTime?             @db.Timestamptz(3)
+  createdAt      DateTime              @default(now()) @db.Timestamptz(3)
+
+  store        Store         @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+  order        Order         @relation(fields: [orderId, storeId], references: [id, storeId], onDelete: Restrict)
+  orderMessage OrderMessage? @relation(fields: [orderMessageId, storeId], references: [id, storeId], onDelete: Restrict)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, orderMessageId])
+  @@index([userId, organisationId, createdAt])
+  @@index([storeId])
+  @@index([orderId])
+  @@index([orderMessageId])
 }

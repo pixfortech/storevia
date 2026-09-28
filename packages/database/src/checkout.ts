@@ -23,6 +23,8 @@ export interface CheckoutScope {
   readonly checkoutId?: string | null;
   readonly checkoutTokenHash?: string | null;
   readonly cartTokenHash?: string | null;
+  /** A shopper's order-access token hash: opens that one order (read-only, plus messages). */
+  readonly orderAccessHash?: string | null;
 }
 
 /**
@@ -43,7 +45,8 @@ export async function withCheckout<T>(
         set_config('app.store_id', ${scope.storeId}, true),
         set_config('app.checkout_id', ${scope.checkoutId ?? ""}, true),
         set_config('app.checkout_token', ${scope.checkoutTokenHash ?? ""}, true),
-        set_config('app.cart_token', ${scope.cartTokenHash ?? ""}, true)`;
+        set_config('app.cart_token', ${scope.cartTokenHash ?? ""}, true),
+        set_config('app.order_access', ${scope.orderAccessHash ?? ""}, true)`;
       const setCheckout = async (checkoutId: string) => {
         await tx.$executeRaw`SELECT set_config('app.checkout_id', ${checkoutId}, true)`;
       };

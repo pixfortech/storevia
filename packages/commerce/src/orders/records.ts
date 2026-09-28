@@ -31,7 +31,11 @@ export async function orderEvent(
 }
 
 export type NotificationKind =
-  "ORDER_CONFIRMATION" | "ORDER_CANCELLED" | "ORDER_FULFILLED" | "REFUND_CREATED";
+  | "ORDER_CONFIRMATION"
+  | "ORDER_CANCELLED"
+  | "ORDER_FULFILLED"
+  | "REFUND_CREATED"
+  | "ORDER_MESSAGE_REPLY";
 
 /**
  * Queues an email to the order's address. `dedupeKey` makes a repeated
