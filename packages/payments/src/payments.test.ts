@@ -284,9 +284,13 @@ describe("razorpay", () => {
     );
   });
 
-  it("maps refunds", async () => {
+  it("maps refunds and makes each one idempotent with Storevia's refund id", async () => {
+    const seen: Headers[] = [];
     const provider = new RazorpayProvider({
-      fetch: () => Promise.resolve(Response.json({ id: "rfnd_ABC12345", status: "processed" })),
+      fetch: (_url, init) => {
+        seen.push(new Headers(init.headers));
+        return Promise.resolve(Response.json({ id: "rfnd_ABC12345", status: "processed" }));
+      },
     });
     expect(
       await provider.refundPayment(credentials, {
@@ -296,6 +300,8 @@ describe("razorpay", () => {
         reference: "refund_01",
       }),
     ).toEqual({ providerRefundId: "rfnd_ABC12345", status: "succeeded" });
+    expect(seen[0]?.get("x-refund-idempotency")).toBe("refund_01");
+    expect(seen[0]?.get("authorization")).toMatch(/^Basic /);
   });
 });
 

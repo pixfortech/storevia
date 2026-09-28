@@ -9,7 +9,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "sandbox:razorpay": "tsx --conditions=react-server scripts/razorpay-sandbox.ts"
   },
   "dependencies": {
     "@storevia/security": "workspace:*",
@@ -17,6 +18,7 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
+    "tsx": "4.23.15",
     "vitest": "4.1.11"
   }
 }

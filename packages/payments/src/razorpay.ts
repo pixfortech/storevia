@@ -34,6 +34,7 @@ const TIMEOUT_MS = 10_000;
 
 export const RAZORPAY_SIGNATURE_HEADER = "x-razorpay-signature";
 export const RAZORPAY_EVENT_ID_HEADER = "x-razorpay-event-id";
+export const RAZORPAY_REFUND_IDEMPOTENCY_HEADER = "x-refund-idempotency";
 
 const credentialsSchema = z.strictObject({
   keyId: z
@@ -149,6 +150,7 @@ export class RazorpayProvider implements PaymentProvider {
     method: "GET" | "POST",
     path: string,
     body?: unknown,
+    extraHeaders: Readonly<Record<string, string>> = {},
   ): Promise<unknown> {
     const auth = Buffer.from(
       `${required(credentials, "keyId")}:${required(credentials, "keySecret")}`,
@@ -161,6 +163,7 @@ export class RazorpayProvider implements PaymentProvider {
         headers: {
           authorization: `Basic ${auth}`,
           ...(body ? { "content-type": "application/json" } : {}),
+          ...extraHeaders,
         },
         ...(body ? { body: JSON.stringify(body) } : {}),
         signal: AbortSignal.timeout(TIMEOUT_MS),
@@ -349,13 +352,22 @@ export class RazorpayProvider implements PaymentProvider {
     if (!/^pay_[A-Za-z0-9]{6,40}$/.test(input.chargeId)) {
       throw new PaymentProviderError("not a razorpay payment id", false);
     }
+    // Razorpay's refund idempotency key: a request retried after a timeout
+    // with the same key returns the first refund instead of creating a
+    // second (M8). The key is Storevia's refund id, one per refund row.
     const refund = refundSchema.safeParse(
-      await this.call(credentials, "POST", `/payments/${input.chargeId}/refund`, {
-        amount: Number(input.amount),
-        speed: "normal",
-        receipt: input.reference.slice(0, 40),
-        notes: { storevia_refund: input.reference },
-      }),
+      await this.call(
+        credentials,
+        "POST",
+        `/payments/${input.chargeId}/refund`,
+        {
+          amount: Number(input.amount),
+          speed: "normal",
+          receipt: input.reference.slice(0, 40),
+          notes: { storevia_refund: input.reference },
+        },
+        { [RAZORPAY_REFUND_IDEMPOTENCY_HEADER]: input.reference },
+      ),
     );
     if (!refund.success)
       throw new PaymentProviderError("razorpay refund response was malformed", true);
