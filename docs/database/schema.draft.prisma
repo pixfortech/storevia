@@ -2520,6 +2520,18 @@ model OutboxEvent {
   @@index([storeId])
 }
 
+/// Cache tags every storefront instance applies (M8, ADR-0034): appended by
+/// the worker when it dispatches outbox events, tailed by each instance,
+/// purged after a day. Global (tags carry ids and hostnames only); guarded by
+/// grants: worker writes, storefront reads.
+model StorefrontInvalidation {
+  id        BigInt   @id @default(autoincrement())
+  tags      String[]
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([createdAt])
+}
+
 enum WebhookDeliveryStatus {
   PENDING
   SUCCEEDED

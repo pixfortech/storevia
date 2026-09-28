@@ -606,18 +606,17 @@ describe("customer messages and staff notifications", () => {
       where: { orderId: internal(first.id) },
     });
     const db = migratorDb();
-    await db.$executeRaw`CREATE FUNCTION test_poison() RETURNS trigger LANGUAGE plpgsql AS $$
+    // The trigger runs as the worker role: SECURITY DEFINER lets it read the list.
+    await db.$executeRaw`CREATE TABLE test_poisoned (id uuid PRIMARY KEY)`;
+    await db.$executeRaw`INSERT INTO test_poisoned VALUES (${poisoned.id}::uuid)`;
+    await db.$executeRaw`CREATE FUNCTION test_poison() RETURNS trigger LANGUAGE plpgsql
+      SECURITY DEFINER SET search_path = public AS $$
       BEGIN
-        IF NEW."orderMessageId" = ${poisoned.id}::uuid THEN RAISE EXCEPTION 'poisoned'; END IF;
+        IF EXISTS (SELECT 1 FROM test_poisoned WHERE id = NEW."orderMessageId") THEN
+          RAISE EXCEPTION 'poisoned';
+        END IF;
         RETURN NEW;
-      END $$`.catch(async () => {
-      // Parameters aren't allowed in a function body: inline the id.
-      await db.$executeRawUnsafe(`CREATE OR REPLACE FUNCTION test_poison() RETURNS trigger LANGUAGE plpgsql AS $$
-        BEGIN
-          IF NEW."orderMessageId" = '${poisoned.id}'::uuid THEN RAISE EXCEPTION 'poisoned'; END IF;
-          RETURN NEW;
-        END $$`);
-    });
+      END $$`;
     await db.$executeRaw`CREATE TRIGGER test_poison BEFORE INSERT ON "StaffNotification"
       FOR EACH ROW EXECUTE FUNCTION test_poison()`;
     try {
@@ -632,6 +631,7 @@ describe("customer messages and staff notifications", () => {
     } finally {
       await db.$executeRaw`DROP TRIGGER test_poison ON "StaffNotification"`;
       await db.$executeRaw`DROP FUNCTION test_poison()`;
+      await db.$executeRaw`DROP TABLE test_poisoned`;
     }
     // The next run announces it.
     expect((await notifyStaffOfCustomerMessages(MEMBER_ROLES)).messages).toBe(1);

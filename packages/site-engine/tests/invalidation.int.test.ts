@@ -6,6 +6,7 @@ process.env["STOREFRONT_PREVIEW_SECRET"] ??= "site-engine-test-preview-secret-00
 process.env["STOREFRONT_REVALIDATE_SECRET"] ??= "site-engine-test-revalidate-secret-00000";
 process.env["STOREFRONT_PROTOCOL"] ??= "http";
 process.env["STOREFRONT_ROOT_DOMAIN"] ??= "site.test";
+process.env["MEDIA_UPLOAD_SECRET"] ??= "site-engine-test-media-secret-000000000000";
 import { storefrontDb } from "@storevia/database/storefront";
 import { disconnectTestClients, migratorDb, truncateAll } from "@storevia/database/testing";
 import { workerDb } from "@storevia/database/worker";
