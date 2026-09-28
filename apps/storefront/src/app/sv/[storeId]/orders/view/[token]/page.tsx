@@ -81,7 +81,7 @@ export default async function CustomerOrderPage({
 
   return (
     <main id="main" className="sv-container sv-checkout sv-order-view" data-order-view>
-      <h1>Order #{order.number}</h1>
+      <h1>{`Order #${String(order.number)}`}</h1>
       <p className="sv-order-meta">
         Placed {date(order.placedAt)} · <span data-order-state>{stateLabel}</span>
       </p>
