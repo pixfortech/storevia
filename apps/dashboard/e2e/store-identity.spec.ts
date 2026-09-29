@@ -85,12 +85,17 @@ test("seller details and policies: required to go live, shown on the store, esca
   await expect(page.getByText(/Write the policy before publishing it/)).toBeVisible();
   await expect(page.getByTestId("policy-status")).toHaveText("Draft");
 
-  // The merchant's own words under the headings: published.
+  // The merchant's own words under the headings: published. A fresh page
+  // first: the button's disabled attribute was removed by hand above, and
+  // React won't restore it while its prop stays the same.
+  await page.reload();
+  await expect(editor.getByRole("heading", { name: "Refunds", exact: true })).toBeVisible();
+  await expect(publish).toBeDisabled();
   await editor.click();
   await page.keyboard.press("ControlOrMeta+End");
   await page.keyboard.press("Enter");
   await editor.pressSequentially(OWN_TEXT);
-  await expect(editor.getByText(OWN_TEXT)).toBeVisible();
+  await expect(editor.locator("p", { hasText: OWN_TEXT })).toBeVisible();
   await expect(publish).toBeEnabled();
   await publish.click();
   // Whatever the form says, so a refusal shows up in the failure itself.
