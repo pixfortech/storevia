@@ -13,7 +13,7 @@ const LOOK: Record<Status, Pick<BadgeProps, "tone" | "variant">> = {
 export interface StatusPillProps {
   status: Status;
   size?: "sm" | "md";
-  /** Replaces the standard label, e.g. "Milestone 3" (keep it a status). */
+  /** Replaces the standard label, e.g. "Released" (keep it a status). */
   label?: string;
   className?: string;
 }

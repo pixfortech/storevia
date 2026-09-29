@@ -179,7 +179,8 @@ describe("pricing", () => {
 
   it("marks features that aren't live yet, and only those", () => {
     const [, starter, business] = result.columns;
-    expect(starter?.highlights.find((h) => h.key === "custom_domain")?.status).toBe("roadmap");
+    // Custom domains shipped: no status mark; store-limited access is planned.
+    expect(starter?.highlights.find((h) => h.key === "custom_domain")?.status).toBeUndefined();
     expect(business?.highlights.find((h) => h.key === "advanced_permissions")?.status).toBe(
       "roadmap",
     );

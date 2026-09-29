@@ -2,6 +2,11 @@
 // rewords what getOrganisationBilling() returned: no prices, no invented
 // dates, and nothing that suggests a merchant can change or pay for a plan
 // here (ADR-0022).
+import {
+  AVAILABILITY_LABELS,
+  FEATURE_AVAILABILITY,
+  type Availability,
+} from "@storevia/entitlements/availability";
 import { formatEntitlement } from "@storevia/entitlements/format";
 import type { EntitlementValue } from "@storevia/entitlements";
 import type { FeatureKey } from "@storevia/entitlements/features";
@@ -63,68 +68,58 @@ export interface EntitlementInput {
 }
 
 /**
- * When each plan feature can actually be used: null once it works in the
- * dashboard today, otherwise its scheduled milestone or "On the roadmap"
- * (docs/roadmap/implementation-roadmap.md). A plan can include a feature
- * before it's built, so the billing page shows both: "Included" is the
- * entitlement, this is whether it exists yet. The Record type forces an
- * entry for every feature key.
+ * Whether each plan feature exists today: the platform's one source of truth
+ * (@storevia/entitlements/availability), shared with the marketing site. A
+ * plan can include a feature before it's built, so the billing page shows a
+ * planned feature as "Planned", never as included or as something to upgrade
+ * for (AN-6).
  */
-export const FEATURE_AVAILABILITY: Readonly<Record<FeatureKey, string | null>> = {
-  store_count: null,
-  staff_accounts: null,
-  product_limit: null,
-  media_storage: null,
-  // The Admin API ships with outbound webhooks, deferred as a whole (ADR-0031 §13).
-  api_access: "On the roadmap",
-  visual_builder: null,
-  discounts: null,
-  custom_domain: null,
-  // Data export works on every plan (M8): the organisation export is a
-  // data-portability right, and product CSV export was never gated.
-  export: null,
-  advanced_builder: "On the roadmap",
-  premium_themes: "On the roadmap",
-  custom_code: "On the roadmap",
-  abandoned_cart: "On the roadmap",
-  webhooks: "On the roadmap",
-  analytics: "On the roadmap",
-  // Enforced by @storevia/tenancy, but no dashboard screen sets it yet.
-  advanced_permissions: "On the roadmap",
-  priority_support: "On the roadmap",
-};
+export { FEATURE_AVAILABILITY };
 
 export interface EntitlementRow {
   readonly key: FeatureKey;
   readonly name: string;
-  /** "Up to 3", "50 GB", "Included"… or "Not included". */
+  /** "Up to 3", "50 GB", "Included"… "Not included", or "Planned". */
   readonly label: string;
+  /** The plan grants it and it exists: the merchant can use it. */
   readonly included: boolean;
-  /** Null when the feature works today; otherwise when it's planned. */
-  readonly availability: string | null;
+  readonly availability: Availability;
 }
 
 /**
- * What the plan grants, as two lists: limits (counts and storage) and
- * features. Features the plan doesn't include stay listed, marked "Not
- * included", so the page answers "can I…?" either way.
+ * What the plan grants, as three lists: limits (counts and storage),
+ * features that exist (included or not, so the page answers "can I…?"
+ * either way), and planned features, which no plan can unlock yet.
  */
 export function entitlementGroups(entitlements: readonly EntitlementInput[]): {
   limits: EntitlementRow[];
   features: EntitlementRow[];
+  planned: EntitlementRow[];
 } {
   const limits: EntitlementRow[] = [];
   const features: EntitlementRow[] = [];
+  const planned: EntitlementRow[] = [];
   for (const e of entitlements) {
+    const availability = FEATURE_AVAILABILITY[e.key];
+    if (availability === "planned") {
+      planned.push({
+        key: e.key,
+        name: e.name,
+        label: AVAILABILITY_LABELS.planned,
+        included: false,
+        availability,
+      });
+      continue;
+    }
     const label = formatEntitlement(e.key, e.value);
     const row: EntitlementRow = {
       key: e.key,
       name: e.name,
       label: label ?? "Not included",
       included: label !== null,
-      availability: FEATURE_AVAILABILITY[e.key],
+      availability,
     };
     (e.type === "LIMIT" ? limits : features).push(row);
   }
-  return { limits, features };
+  return { limits, features, planned };
 }

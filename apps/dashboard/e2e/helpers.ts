@@ -1,6 +1,8 @@
 import { expect, type BrowserContext, type Page } from "@playwright/test";
+import { parseTypeId } from "@storevia/types";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import pg from "pg";
 
 export const PASSWORD = "a long enough password";
 const MAIL_DIR = process.env["EMAIL_FILE_DIR"] ?? "/tmp/storevia-mail";
@@ -65,11 +67,44 @@ export interface Tenant {
   orgId: string; // org_...
 }
 
-/** Full onboarding through the UI: sign up → verify → sign in → organisation → store. */
+/** Business types that exist but aren't offered for new stores at launch (DB-2). */
+export type PreLaunchBusinessType = "BUSINESS" | "PUBLISHING" | "PORTFOLIO";
+
+/**
+ * Gives a store a business type the dashboard no longer offers, as a store
+ * created before the online-store-only launch has (DB-2). The application
+ * roles can't do this, so it uses the schema owner, as operations would.
+ */
+export async function setStoreBusinessType(
+  storeId: string,
+  type: PreLaunchBusinessType,
+): Promise<void> {
+  const url = process.env["DATABASE_MIGRATOR_URL"];
+  if (!url) throw new Error("DATABASE_MIGRATOR_URL is not set");
+  const id = parseTypeId("store", storeId);
+  if (!id) throw new Error(`not a store id: ${storeId}`);
+  const client = new pg.Client({ connectionString: url });
+  await client.connect();
+  try {
+    const result = await client.query(
+      `UPDATE "Store" SET "businessType" = $2::"BusinessType" WHERE id = $1`,
+      [id, type],
+    );
+    if (result.rowCount !== 1) throw new Error(`no store ${storeId}`);
+  } finally {
+    await client.end();
+  }
+}
+
+/**
+ * Full onboarding through the UI: sign up → verify → sign in → organisation →
+ * store. New stores are online stores (the only type offered at launch); a
+ * `businessType` turns the store into an existing store of that type.
+ */
 export async function createTenant(
   page: Page,
   label: string,
-  options: { businessType?: string } = {},
+  options: { businessType?: PreLaunchBusinessType } = {},
 ): Promise<Tenant> {
   const email = uniqueEmail(label);
   await signUpAndVerify(page, `Owner ${label}`, email);
@@ -80,13 +115,14 @@ export async function createTenant(
   await page.getByRole("button", { name: "Continue" }).click();
   await page.waitForURL(/\/o\/org_[^/]+\/stores\/new/);
   const orgId = /\/o\/(org_[^/]+)/.exec(page.url())?.[1] ?? "";
-  if (options.businessType) {
-    await page.getByRole("radio", { name: new RegExp(options.businessType) }).check();
-  }
   await page.getByLabel("Store name").fill(`Store ${label} ${Date.now().toString(36)}`);
   await page.getByRole("button", { name: "Create store" }).click();
   await page.waitForURL(/\/s\/store_[^/?]+/);
   const storeId = /\/s\/(store_[^/?]+)/.exec(page.url())?.[1] ?? "";
+  if (options.businessType) {
+    await setStoreBusinessType(storeId, options.businessType);
+    await page.reload();
+  }
   return { email, orgId, storeId, orgPath: `/o/${orgId}`, storePath: `/s/${storeId}` };
 }
 

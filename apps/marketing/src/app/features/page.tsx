@@ -5,7 +5,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLink, CTASection, PageHero, StatusPill } from "@/components/marketing";
 import { StatusLegend } from "@/components/status-badge";
-import { comingLabel, STATUS_LABELS, STATUSES, type Status } from "@/content/capabilities";
+import { STATUS_LABELS, STATUSES, type Status } from "@/content/capabilities";
 import { ALL_FEATURES, FEATURE_AREAS, statusCounts, type FeatureArea } from "@/content/features";
 import { publicCatalogue } from "@/lib/catalogue";
 import { planAvailability } from "@/lib/pricing";
@@ -123,8 +123,12 @@ function Area({ area, catalogue }: { area: FeatureArea; catalogue: PublicCatalog
       </div>
       <ul className="mt-6 border-t border-line">
         {area.items.map((item) => {
+          // Which plans include it, only for what exists: a planned feature is
+          // never a reason to choose a plan.
           const plans =
-            item.planFeature && catalogue ? planAvailability(catalogue, item.planFeature) : null;
+            item.planFeature && item.status === "available" && catalogue
+              ? planAvailability(catalogue, item.planFeature)
+              : null;
           return (
             <li
               key={item.title}
@@ -139,9 +143,6 @@ function Area({ area, catalogue }: { area: FeatureArea; catalogue: PublicCatalog
               </div>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 sm:flex-col sm:items-end sm:text-right">
                 <StatusPill status={item.status} />
-                {item.milestone ? (
-                  <span className="text-caption text-ink-faint">{comingLabel(item.milestone)}</span>
-                ) : null}
                 {plans ? (
                   <Link
                     href="/pricing#compare"
@@ -167,7 +168,7 @@ export default async function FeaturesPage() {
       <PageHero
         eyebrow="Features"
         title="Every capability, with its real status"
-        lead="The full list of what Storevia does today and what it will do, area by area. Nothing here is live unless it says Available now, and plan names show which plans include each feature."
+        lead="The full list of what Storevia does today and what's planned, area by area. Nothing here is live unless it says Available now, and plan names show which plans include each available feature."
       >
         <StatusLegend counts={counts} noun={["feature", "features"]} />
       </PageHero>
@@ -185,7 +186,7 @@ export default async function FeaturesPage() {
             <Area key={area.id} area={area} catalogue={catalogue} />
           ))}
           <p className="mt-8 border-t border-line pt-8 text-body-sm text-ink-muted">
-            Order and timing may change, and no dates are promised.{" "}
+            What&apos;s planned may change, and no dates are promised.{" "}
             <Link
               href="/resources#roadmap"
               className="font-medium text-brand-700 underline-offset-4 hover:underline"
@@ -206,7 +207,7 @@ export default async function FeaturesPage() {
 
       <CTASection
         title="Use what’s ready today"
-        lead="Organisations, stores, teams, roles and the dashboard are available now, free to start."
+        lead="Your store, catalogue, checkout, orders, customers, domain and team are available now, free to start."
         secondary={{ label: "Compare plans", href: "/pricing" }}
       />
     </>

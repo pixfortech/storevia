@@ -1,8 +1,8 @@
-// The website builder as a concept: the inspector panel on its own (for the
-// hero collage) and the whole editor (page structure, canvas, inspector and
-// device switch). The builder is on the roadmap, so these show the direction,
-// not a shipped screen; every mockup that uses them says so. Numbered markers
-// tie parts of the editor to the captions beside it.
+// The website builder as an illustration: the inspector panel on its own
+// (for the hero collage) and the whole editor (page structure, canvas,
+// inspector and device switch), with a sample store. The builder is
+// available; every mockup that uses these says it's an illustration.
+// Numbered markers tie parts of the editor to the captions beside it.
 import { Button, ButtonGroup, buttonClasses } from "@storevia/ui/button";
 import { cn } from "@storevia/ui/cn";
 import { Glyph, Icon, LogoMark } from "@storevia/ui/icons";
@@ -212,7 +212,7 @@ export function BuilderPanel({
 }) {
   return (
     <Mockup
-      label="Illustration: the website builder's inspector, a concept for a feature on the roadmap."
+      label="Illustration: the website builder's inspector, with sample settings."
       className={className}
     >
       <div className="overflow-hidden rounded-card border border-line bg-surface shadow-popover">
@@ -381,7 +381,7 @@ export function EditorWindow({ markers = false, className }: EditorWindowProps) 
   ];
   return (
     <Mockup
-      label="Illustration: the Storevia website builder, a concept for a feature on the roadmap: page structure, a canvas with a selected heading, the inspector and a device switch."
+      label="Illustration: the Storevia website builder with a sample store: page structure, a canvas with a selected heading, the inspector and a device switch."
       className={className}
     >
       <WindowFrame className="h-full">

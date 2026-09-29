@@ -95,7 +95,9 @@ each variable.
 | `STOREVIA_ENV`                                                                       |     ✓     |     ✓      |     ✓     |       ✓        |   ✓    |
 | `TRUSTED_CLIENT_IP_HEADER`                                                           |     ✓     |     ✓      |     ✓     |       ✓        |        |
 | `DASHBOARD_URL`                                                                      |     ✓     |            |     ✓     |                |   ✓    |
-| `MARKETING_URL`, `CONTACT_INBOX`                                                     |           |            |     ✓     |                |        |
+| `MARKETING_URL`                                                                      |     ✓     |            |     ✓     |                |        |
+| `CONTACT_INBOX`                                                                      |           |            |     ✓     |                |        |
+| `SUPPORT_URL` (optional)                                                             |     ✓     |            |           |                |        |
 | `PLATFORM_ADMIN_URL`, `AUTH_PLATFORM_SECRET`, `STAFF_MFA_KEYS`                       |           |            |           |       ✓        |        |
 | `AUTH_SECRET`                                                                        |     ✓     |            |           |                |        |
 | `STOREFRONT_ROOT_DOMAIN`, `STOREFRONT_PROTOCOL`                                      |     ✓     |     ✓      |           |                |        |
@@ -111,6 +113,14 @@ each variable.
 | `DATABASE_POOL_MAX`, `DATABASE_CONNECT_TIMEOUT_MS`, `DATABASE_IDLE_TIMEOUT_MS`       |     ✓     |     ✓      |     ✓     |       ✓        |   ✓    |
 | `WORKER_POLL_INTERVAL_MS`, `WORKER_HEALTH_PORT`, `WORKER_HEALTH_HOST`                |           |            |           |                |   ✓    |
 | `LOG_LEVEL`                                                                          |     ✓     |     ✓      |     ✓     |       ✓        |   ✓    |
+
+Merchant support (DB-3): every "Help and support" link in the dashboard
+(the account menu, the billing page, store settings and the error page)
+goes to the dashboard's `/support` route, which redirects to `SUPPORT_URL`
+or, when that is unset, to `MARKETING_URL` + `/contact` (the marketing
+contact form, delivered to `CONTACT_INBOX`). The dashboard refuses to boot in
+staging and production without one of the two. Set `SUPPORT_URL` only when
+support moves to its own help desk; changing it needs no rebuild.
 
 Plus each app's database URLs from §2. Never set `TEST_PAYMENTS_ENABLED`,
 `DEMO_ORDER_DELETION_ENABLED`, `AUTH_BREACHED_PASSWORD_CHECK=off`,

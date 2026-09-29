@@ -1,3 +1,4 @@
+import { FEATURE_AVAILABILITY as CENTRAL_AVAILABILITY } from "@storevia/entitlements/availability";
 import { FEATURE_KEYS } from "@storevia/entitlements/features";
 import { STORE_AREAS, type AreaKey } from "@storevia/tenancy/business-types";
 import { ILLUSTRATION_NAMES } from "@storevia/ui/illustrations";
@@ -15,11 +16,11 @@ describe("store area placeholders", () => {
     }
   });
 
-  it("names the milestone when one is scheduled, and never promises one otherwise", () => {
-    expect(areaScheduleLabel("Milestone 7")).toBe("Milestone 7");
-    expect(STORE_AREAS.orders.availability).toBeUndefined();
-    expect(areaScheduleLabel(STORE_AREAS.posts.availability)).toBe("On the roadmap");
-    expect(areaScheduleLabel(undefined)).toBe("Available");
+  it("says Available or Planned, never a milestone or a date", () => {
+    expect(STORE_AREAS.orders.availability).toBe("available");
+    expect(areaScheduleLabel(STORE_AREAS.orders.availability)).toBe("Available");
+    expect(areaScheduleLabel(STORE_AREAS.posts.availability)).toBe("Planned");
+    expect(areaScheduleLabel(STORE_AREAS.analytics.availability)).toBe("Planned");
   });
 });
 
@@ -168,7 +169,7 @@ describe("billing presentation", () => {
     });
   });
 
-  it("splits entitlements into limits and features, keeping what isn't included", () => {
+  it("splits entitlements into limits, features and planned features", () => {
     const groups = entitlementGroups([
       { key: "store_count", name: "Stores", type: "LIMIT", value: { kind: "LIMIT", limit: 3n } },
       { key: "product_limit", name: "Products", type: "LIMIT", value: { kind: "UNLIMITED" } },
@@ -179,57 +180,65 @@ describe("billing presentation", () => {
         value: { kind: "BOOLEAN", enabled: true },
       },
       {
+        key: "discounts",
+        name: "Discounts",
+        type: "BOOLEAN",
+        value: { kind: "BOOLEAN", enabled: false },
+      },
+      {
         key: "api_access",
         name: "API access",
         type: "BOOLEAN",
         value: { kind: "BOOLEAN", enabled: false },
       },
+      {
+        key: "analytics",
+        name: "Analytics",
+        type: "CONFIGURATION",
+        value: { kind: "CONFIGURATION", enabled: true, config: { retentionDays: 365 } },
+      },
     ]);
+    const available = (key: string, name: string, label: string, included: boolean) => ({
+      key,
+      name,
+      label,
+      included,
+      availability: "available",
+    });
     expect(groups.limits).toEqual([
-      {
-        key: "store_count",
-        name: "Stores",
-        label: "Up to 3",
-        included: true,
-        availability: null,
-      },
-      {
-        key: "product_limit",
-        name: "Products",
-        label: "Unlimited",
-        included: true,
-        availability: null,
-      },
+      available("store_count", "Stores", "Up to 3", true),
+      available("product_limit", "Products", "Unlimited", true),
     ]);
     expect(groups.features).toEqual([
-      {
-        key: "custom_domain",
-        name: "Custom domains",
-        label: "Included",
-        included: true,
-        availability: null,
-      },
+      available("custom_domain", "Custom domains", "Included", true),
+      available("discounts", "Discounts", "Not included", false),
+    ]);
+    // Whatever the plan records, a feature that isn't built is "Planned":
+    // never "Included" (it can't be used) nor "Not included" (an upsell, AN-6).
+    expect(groups.planned).toEqual([
       {
         key: "api_access",
         name: "API access",
-        label: "Not included",
+        label: "Planned",
         included: false,
-        availability: "On the roadmap",
+        availability: "planned",
+      },
+      {
+        key: "analytics",
+        name: "Analytics",
+        label: "Planned",
+        included: false,
+        availability: "planned",
       },
     ]);
   });
 
-  it("labels every feature that isn't built yet, and only those", () => {
-    for (const key of FEATURE_KEYS) {
-      const availability = FEATURE_AVAILABILITY[key];
-      if (availability !== null) {
-        expect(availability).toMatch(/^(Coming in Milestone \d+|On the roadmap)$/);
-      }
-    }
-    // Stores, team members, products, media storage, the page builder,
-    // discount codes, custom domains (M7) and data export (M8) are the plan
-    // features merchants can use today.
-    expect(FEATURE_KEYS.filter((key) => FEATURE_AVAILABILITY[key] === null)).toEqual([
+  it("takes availability from the platform's one source of truth", () => {
+    expect(FEATURE_AVAILABILITY).toBe(CENTRAL_AVAILABILITY);
+    // Stores, team members, products, media storage, custom domains, the
+    // page builder, discount codes and data export are the plan features
+    // merchants can use today.
+    expect(FEATURE_KEYS.filter((key) => FEATURE_AVAILABILITY[key] === "available")).toEqual([
       "store_count",
       "staff_accounts",
       "product_limit",

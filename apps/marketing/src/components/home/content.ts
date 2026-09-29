@@ -1,7 +1,7 @@
 // The home page's words. Statuses come from content/capabilities.ts and
-// content/plan-features.ts, so the home page can't claim more than the
-// product delivers; where a part has no capability of its own it takes the
-// status of the capability it ships with.
+// content/plan-features.ts, so the home page can't claim more (or less) than
+// the product delivers; where a part has no capability of its own it takes
+// the status of the capability it belongs to.
 import type { GlyphName } from "@storevia/ui/icons";
 import { capability, type Status } from "@/content/capabilities";
 import { FEATURE_STATUS } from "@/content/plan-features";
@@ -16,6 +16,7 @@ export interface HomeItem {
 const commerce = capability("commerce");
 const builder = capability("builder");
 const content = capability("content");
+const customers = capability("customers");
 const analytics = capability("analytics");
 const teams = capability("teams");
 
@@ -28,9 +29,9 @@ export const PLATFORM: readonly HomeItem[] = [
     glyph: "website",
   },
   {
-    title: "Catalogue",
+    title: "Commerce",
     description:
-      "Products, variants, stock by location and a media library. Checkout and orders follow.",
+      "Products, variants and stock by location, a secure checkout, and the orders that follow.",
     status: commerce.status,
     glyph: "commerce",
   },
@@ -42,14 +43,14 @@ export const PLATFORM: readonly HomeItem[] = [
   },
   {
     title: "Customers",
-    description: "Customer records, addresses and order history, arriving with checkout.",
-    // Customers ship with orders, after the catalogue.
-    status: "roadmap",
+    description: "A record for every customer who orders, with order history, notes and tags.",
+    status: customers.status,
     glyph: "orders",
   },
   {
     title: "Analytics",
-    description: "Traffic, engagement and sales reports, with history set by your plan.",
+    description:
+      "Traffic and conversion reports are planned. Each store's home already shows its sales.",
     status: analytics.status,
     glyph: "analytics",
   },
@@ -67,10 +68,13 @@ export const COMMERCE_PARTS: readonly { title: string; status: Status }[] = [
   { title: "Options and variants", status: commerce.status },
   { title: "Inventory by location", status: commerce.status },
   { title: "Media library", status: FEATURE_STATUS.media_storage },
-  { title: "Checkout and orders", status: "roadmap" },
-  { title: "Customers", status: "roadmap" },
-  { title: "Discounts", status: FEATURE_STATUS.discounts },
-  { title: "Sales analytics", status: FEATURE_STATUS.analytics },
+  { title: "Checkout and payments", status: commerce.status },
+  { title: "Orders, fulfilment and refunds", status: commerce.status },
+  { title: "Customers", status: customers.status },
+  { title: "Discount codes", status: FEATURE_STATUS.discounts },
+  { title: "Shipping zones and tax rates", status: commerce.status },
+  { title: "Automatic discounts", status: "roadmap" },
+  { title: "Sales reports", status: FEATURE_STATUS.analytics },
 ];
 
 /** 06: what each numbered marker on the editor points at. */
@@ -120,8 +124,8 @@ export const CONTENT_PARTS: readonly { title: string; description: string; statu
     status: FEATURE_STATUS.media_storage,
   },
   {
-    title: "Search previews",
-    description: "Titles and descriptions for search, set per page and per post.",
-    status: content.status,
+    title: "Search titles and descriptions",
+    description: "Set how each product and page appears in search results.",
+    status: builder.status,
   },
 ];

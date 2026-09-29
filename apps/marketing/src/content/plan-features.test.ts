@@ -14,10 +14,7 @@ describe("pricing presentation", () => {
     expect(CAPABILITIES.find((c) => c.id === "retail")?.status).toBe("future");
   });
 
-  it("gives capabilities unique ids, and live ones no milestone", () => {
-    for (const item of CAPABILITIES) {
-      if (item.status === "available") expect(item.milestone, item.id).toBeUndefined();
-    }
+  it("gives capabilities unique ids", () => {
     const ids = CAPABILITIES.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
   });

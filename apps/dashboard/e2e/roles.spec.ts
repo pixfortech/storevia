@@ -60,8 +60,7 @@ test("a VIEWER gets permission-aware navigation and read-only settings", async (
   await member.goto(A.storePath);
   const nav = member.getByRole("navigation", { name: "Primary" }).first();
   await expect(nav.getByRole("link", { name: "Products" })).toBeVisible();
-  await expect(nav.getByRole("link", { name: "Analytics" })).toBeVisible();
-  for (const hidden of ["Orders", "Customers", "Website", "Pages"]) {
+  for (const hidden of ["Orders", "Customers", "Website", "Pages", "Analytics"]) {
     await expect(nav.getByRole("link", { name: hidden })).toHaveCount(0);
   }
   await member.goto(`${A.storePath}/settings`);

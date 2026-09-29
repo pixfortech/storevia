@@ -12,17 +12,20 @@ test("the store home is composed for the business type and shows only real data"
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
-  const tenant = await createTenant(page, "home", { businessType: "Blog or publication" });
+  const tenant = await createTenant(page, "home", { businessType: "PUBLISHING" });
   const main = page.getByRole("main");
   await expect(main.getByRole("heading", { level: 1 })).toHaveCount(1);
   await expect(main.getByRole("heading", { name: "Get set up" })).toBeVisible();
 
-  // Figures that aren't collected yet are listed once, in the publication's
-  // words, and analytics (not in the default plan) says so.
+  // Figures that aren't recorded are listed once, in the publication's
+  // words, as planned: never as something the plan could unlock (AN-6).
   const tracking = page.getByTestId("dashboard-tracking");
+  await expect(tracking).toContainText("Not recorded yet");
   await expect(tracking).toContainText("Readers");
+  await expect(tracking).toContainText("Planned");
   await expect(tracking).not.toContainText("Revenue");
-  await expect(tracking).toContainText("Not in your plan");
+  await expect(tracking).not.toContainText("Not in your plan");
+  await expect(tracking).not.toContainText(/Milestone|later release/);
 
   // Production builds never show example figures, even when asked.
   await expect(page.getByText("Example data")).toHaveCount(0);
@@ -47,8 +50,13 @@ test("at the store limit the shell offers no create action and billing says what
 
   await page.goto(`${tenant.orgPath}/billing`);
   await expect(page.getByRole("link", { name: "Create store" })).toHaveCount(0);
-  // Plan features that aren't built yet carry their availability.
-  await expect(page.getByText("On the roadmap").first()).toBeVisible();
+  // Plan features that aren't built are listed as planned, not as upgrades.
+  await expect(page.getByText("Planned", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/On the roadmap|Milestone/)).toHaveCount(0);
+  // The only way to change plan is a working support link (DB-3).
+  await expect(
+    page.getByTestId("payments-card").getByRole("link", { name: /contact support/ }),
+  ).toHaveAttribute("href", "/support");
   await expect(page.getByTestId("payments-card").getByRole("button")).toHaveCount(0);
 });
 

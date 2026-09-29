@@ -6,6 +6,7 @@
 // - plan entitlements decide commercial access (a widget outside the plan is
 //   shown locked, never with data).
 // Preferences (hide, reorder, density) are honoured here but not stored yet.
+import { isFeatureAvailable } from "@storevia/entitlements/availability";
 import type { FeatureKey } from "@storevia/entitlements/features";
 import {
   BUSINESS_TYPE_DEFINITIONS,
@@ -42,12 +43,11 @@ export type WidgetState =
       readonly period?: UpcomingVisual;
     }
   | {
+      /** Storevia doesn't collect this data: planned, with no dates. */
       readonly kind: "upcoming";
       readonly area: AreaKey;
-      /** The store area the data starts with, e.g. "Orders". */
+      /** The store area the figures belong with, e.g. "Analytics". */
       readonly areaLabel: string;
-      /** When that area ships, e.g. "Milestone 6" or "a later release". */
-      readonly availability: string;
       readonly visual: UpcomingVisual;
     }
   | { readonly kind: "locked"; readonly feature: FeatureKey };
@@ -73,22 +73,17 @@ export interface ComposeInput {
   readonly preferences?: DashboardPreferences | undefined;
 }
 
-const LATER = "a later release";
-
 function stateOf(definition: WidgetDefinition, granted: ReadonlySet<FeatureKey>): WidgetState {
-  if (definition.feature !== undefined && !granted.has(definition.feature)) {
-    return { kind: "locked", feature: definition.feature };
+  // A plan can only lock a feature that exists: a planned one (analytics)
+  // reads as planned, never as something to upgrade for (AN-6).
+  const { feature } = definition;
+  if (feature !== undefined && isFeatureAvailable(feature) && !granted.has(feature)) {
+    return { kind: "locked", feature };
   }
   const { source } = definition;
   if (source.kind === "upcoming") {
     const area = STORE_AREAS[source.area];
-    return {
-      kind: "upcoming",
-      area: area.key,
-      areaLabel: area.label,
-      availability: source.availability ?? area.availability ?? LATER,
-      visual: source.visual,
-    };
+    return { kind: "upcoming", area: area.key, areaLabel: area.label, visual: source.visual };
   }
   return source.period === undefined ? { kind: "live" } : { kind: "live", period: source.period };
 }

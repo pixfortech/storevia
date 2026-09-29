@@ -1,7 +1,6 @@
-// Commerce as it's being built: a product with variants, stock by location
-// and its media, in the dashboard's layout. Commerce is in development, so
-// this previews the direction with sample content (the section around it
-// shows each part's status). Responds to its own width.
+// The product editor: a product with variants, stock by location and its
+// media, in the dashboard's layout, with sample content (the section around
+// it shows each part's status). Responds to its own width.
 import { Button } from "@storevia/ui/button";
 import { cn } from "@storevia/ui/cn";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@storevia/ui/data";
@@ -42,7 +41,7 @@ function StockBadge({ stock }: { stock: number }) {
 export function ProductEditor({ className }: { className?: string }) {
   return (
     <Mockup
-      label="Illustration: a product in the Storevia dashboard with four variants, stock by location and media. Commerce is in development; the content is sample data."
+      label="Illustration: a product in the Storevia dashboard with four variants, stock by location and media. The content is sample data."
       className={className}
     >
       <WindowFrame className="h-full">

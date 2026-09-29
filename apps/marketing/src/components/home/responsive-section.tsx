@@ -45,22 +45,22 @@ export function ResponsiveSection() {
           phone alone, large enough to read. */}
       <div className="mt-12 flex flex-col items-center gap-8 lg:mt-16 xl:flex-row xl:items-end xl:gap-6">
         <Reveal className="hidden w-full min-w-0 md:block xl:flex-1">
-          <DashboardWindow type="PUBLISHING" className="h-[24rem] xl:h-[27rem]" />
+          <DashboardWindow type="ECOMMERCE" className="h-[24rem] xl:h-[27rem]" />
         </Reveal>
         <div className="flex w-full items-end justify-center xl:contents">
           <Reveal delay={80} className="hidden min-w-0 md:block md:w-[62%] xl:w-[36%] xl:shrink-0">
-            <TabletAdmin type="PUBLISHING" />
+            <TabletAdmin type="ECOMMERCE" />
           </Reveal>
           <Reveal
             delay={160}
             className="relative z-10 w-[64%] max-w-[16rem] md:-ml-[8%] md:w-[27%] md:max-w-none xl:-ml-[7%] xl:w-[17%] xl:shrink-0"
           >
-            <PhoneAdmin type="PUBLISHING" />
+            <PhoneAdmin type="ECOMMERCE" />
           </Reveal>
         </div>
       </div>
       <IllustrativeNote className="mt-6 justify-center">
-        Illustrative preview of a publication, with example figures.
+        Illustrative preview of an online store, with example figures.
       </IllustrativeNote>
       <Stagger
         as="ul"

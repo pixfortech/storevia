@@ -1,7 +1,8 @@
 // One business type on /solutions: what Storevia adapts for it, a product
-// visual, the store navigation it gets (each area with its real timing) and
-// the roles it suggests. Everything but the headline comes from the domain's
-// business-type definitions (@storevia/tenancy/business-types).
+// visual, the store navigation it gets (only areas that exist, as in the
+// dashboard) and the roles it suggests. Everything but the headline comes
+// from the domain's business-type definitions (@storevia/tenancy/business-types).
+// Rendered for the types merchants can choose today (the online store).
 import {
   BUSINESS_TYPE_DEFINITIONS,
   STORE_AREAS,
@@ -13,19 +14,14 @@ import { GlyphTile, Icon } from "@storevia/ui/icons";
 import { Reveal } from "@storevia/ui/motion";
 import { Check } from "lucide-react";
 import type { ReactNode } from "react";
-import { Section, SectionHeading, StatusPill } from "@/components/marketing";
+import { Section, SectionHeading } from "@/components/marketing";
 import { AREA_ICONS } from "@/components/product/area-icons";
 import { DashboardWindow } from "@/components/product/dashboard-window";
 import { IllustrativeNote } from "@/components/product/frame";
 import { PhoneAdmin } from "@/components/product/phone-admin";
 import { PostEditor } from "@/components/product/post-editor";
 import { TabletAdmin } from "@/components/product/tablet-admin";
-import {
-  areaTiming,
-  BUSINESS_TYPE_ANCHOR,
-  BUSINESS_TYPE_GLYPH,
-  SOLUTION_COPY,
-} from "@/content/business-types";
+import { BUSINESS_TYPE_ANCHOR, BUSINESS_TYPE_GLYPH, SOLUTION_COPY } from "@/content/business-types";
 
 // A different view of the product for each type, so the page doesn't show
 // the same window four times.
@@ -40,11 +36,11 @@ const VISUALS: Record<BusinessType, { visual: ReactNode; note: string }> = {
         <TabletAdmin type="BUSINESS" />
       </div>
     ),
-    note: "Illustrative preview of a business website's dashboard on a tablet, with example figures.",
+    note: "A concept of a planned business website dashboard, with example figures.",
   },
   PUBLISHING: {
     visual: <PostEditor className="h-[24rem] sm:h-[26rem]" />,
-    note: "A concept of publishing on the roadmap, with a sample post.",
+    note: "A concept of planned publishing tools, with a sample post.",
   },
   PORTFOLIO: {
     visual: (
@@ -52,19 +48,9 @@ const VISUALS: Record<BusinessType, { visual: ReactNode; note: string }> = {
         <PhoneAdmin type="PORTFOLIO" className="w-[15rem]" />
       </div>
     ),
-    note: "Illustrative preview of a portfolio's dashboard on a phone, with example figures.",
+    note: "A concept of a planned portfolio dashboard, with example figures.",
   },
 };
-
-/** An area's timing: live today, or when it's planned. */
-function AreaTiming({ availability }: { availability: string | undefined }) {
-  if (!availability) return <StatusPill status="available" label={areaTiming(availability)} />;
-  return (
-    <span className="text-caption whitespace-nowrap text-ink-faint">
-      {areaTiming(availability)}
-    </span>
-  );
-}
 
 export function TypeSection({ type, index }: { type: BusinessType; index: number }) {
   const definition = BUSINESS_TYPE_DEFINITIONS[type];
@@ -113,21 +99,22 @@ export function TypeSection({ type, index }: { type: BusinessType; index: number
             </p>
           </div>
           <ul className="px-2 py-2 sm:px-3">
-            {definition.navigation.map((key) => {
-              const area = STORE_AREAS[key];
-              return (
-                <li
-                  key={key}
-                  className="flex min-h-11 items-center gap-3 rounded-control px-3 py-2"
-                >
-                  <Icon icon={AREA_ICONS[key]} size="nav" className="text-ink-muted" />
-                  <span className="min-w-0 flex-1 text-body-sm font-medium text-ink">
-                    {area.label}
-                  </span>
-                  <AreaTiming availability={area.availability} />
-                </li>
-              );
-            })}
+            {definition.navigation
+              .filter((key) => STORE_AREAS[key].availability === "available")
+              .map((key) => {
+                const area = STORE_AREAS[key];
+                return (
+                  <li
+                    key={key}
+                    className="flex min-h-11 items-center gap-3 rounded-control px-3 py-2"
+                  >
+                    <Icon icon={AREA_ICONS[key]} size="nav" className="text-ink-muted" />
+                    <span className="min-w-0 flex-1 text-body-sm font-medium text-ink">
+                      {area.label}
+                    </span>
+                  </li>
+                );
+              })}
           </ul>
         </div>
         <div className="rounded-panel border border-line bg-surface">

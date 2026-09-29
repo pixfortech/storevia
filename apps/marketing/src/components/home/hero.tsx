@@ -35,8 +35,8 @@ export function Hero({ signUpHref }: { signUpHref: string }) {
             <span className="block text-ink-muted">Run it from one place</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-body-lg text-pretty text-ink-muted">
-            Storevia brings your website, commerce, content, customers, team and analytics into one
-            calm workspace, shaped around the kind of business you run.
+            Storevia brings your storefront, catalogue, checkout, orders, customers and team into
+            one calm workspace, built for running an online store.
           </p>
           <div className="mt-9 flex flex-col justify-center gap-3 sm:flex-row">
             <a href={signUpHref} className={buttonClasses("primary", "lg")}>

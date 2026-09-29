@@ -1,13 +1,11 @@
-// The public roadmap, milestone by milestone, in delivery order. It follows
-// docs/roadmap/implementation-roadmap.md and agrees with capabilities.ts:
-// update a stage's status in the same change that ships it. Order may change
-// and no dates are promised.
+// The public roadmap, stage by stage, in delivery order: what's built, then
+// what's planned. It agrees with capabilities.ts and features.ts: update a
+// stage's status in the same change that ships it. Order may change, and no
+// dates or internal milestone numbers are given.
 import type { Status } from "./capabilities";
 
 export interface RoadmapStage {
   readonly id: string;
-  /** "Milestones 0–2.5", "Milestone 3". */
-  readonly milestone: string;
   readonly title: string;
   readonly status: Status;
   readonly summary: string;
@@ -17,25 +15,23 @@ export interface RoadmapStage {
 export const ROADMAP: readonly RoadmapStage[] = [
   {
     id: "foundations",
-    milestone: "Milestones 0–2.5",
     title: "Foundations",
     status: "available",
     summary: "Everything a business needs before it sells: accounts, teams, stores and plans.",
     items: [
       "Accounts with email verification, signed-in devices and password confirmation",
-      "Organisations, stores and business types",
-      "Team members, invitations, roles and store-level access",
-      "Plans, usage limits and the responsive dashboard",
+      "Organisations with several online stores",
+      "Team members, invitations and roles",
+      "Plans, usage limits and a dashboard for desktop, tablet and phone",
     ],
   },
   {
     id: "catalogue",
-    milestone: "Milestone 3",
     title: "Catalogue",
     status: "available",
     summary: "Real product data, built for real stock.",
     items: [
-      "Products, options and variants",
+      "Products, options and variants, with tags and categories",
       "Collections and a media library",
       "Inventory by location, with a movement history",
       "Search, bulk editing and CSV export",
@@ -43,56 +39,68 @@ export const ROADMAP: readonly RoadmapStage[] = [
   },
   {
     id: "storefront",
-    milestone: "Milestone 4",
     title: "Storefront",
     status: "available",
     summary: "Stores become visible on the web.",
     items: [
-      "Your store at its Storevia address",
-      "A default theme, product pages, cart and search",
+      "Your store at its Storevia address, live when you choose",
+      "Product pages, collections, cart and search",
     ],
   },
   {
     id: "builder",
-    milestone: "Milestone 5",
-    title: "Visual builder",
+    title: "Visual builder and themes",
     status: "available",
     summary: "Design every page yourself.",
     items: [
       "Ready-made sections with desktop, tablet and phone previews",
       "Autosave, drafts, preview and publishing",
-      "Themes, menus and content pages",
+      "Two themes with presets and customisation, menus and content pages",
     ],
   },
   {
     id: "checkout",
-    milestone: "Milestone 6",
     title: "Checkout and orders",
     status: "available",
     summary: "Stores take orders.",
     items: [
-      "Checkout with server-side pricing, shipping and tax, paid through your own provider",
-      "Orders, customers, discount codes, refunds and fulfilment",
-      "Order emails for your customers",
+      "Checkout with server-side pricing, shipping and tax, paid through your own Razorpay account",
+      "Orders, customers, discount codes, fulfilment, shipment tracking, refunds and cancellation",
+      "Order emails and a private order page for your customers",
     ],
   },
   {
-    id: "domains-themes",
-    milestone: "Milestone 7",
-    title: "Domains and themes",
-    status: "roadmap",
-    summary: "Your own address and your own look.",
-    items: ["Custom domains with automatic HTTPS", "Theme customisation and a second theme"],
+    id: "domains",
+    title: "Custom domains",
+    status: "available",
+    summary: "Your own address.",
+    items: [
+      "Connect your own domain, with clear DNS instructions and verification",
+      "HTTPS certificates issued and renewed automatically",
+    ],
   },
   {
-    id: "launch",
-    milestone: "Milestone 8",
-    title: "Launch readiness",
-    status: "roadmap",
-    summary: "The last checks before a public launch.",
+    id: "hardening",
+    title: "Your data and security",
+    status: "available",
+    summary: "Control over your data, and the checks behind it.",
     items: [
-      "An external security review and performance budgets",
-      "Data export, account deletion and two-step sign-in",
+      "Data export, and account and organisation deletion",
+      "An audit log of changes to your organisation",
+      "Security hardening across sign-in, payments and public forms",
+    ],
+  },
+  {
+    id: "next",
+    title: "What we're planning",
+    status: "roadmap",
+    summary: "Not built yet. The order may change, and we don't give dates.",
+    items: [
+      "Storefront visitors, conversion and a reports area",
+      "Automatic discounts, abandoned-cart recovery and cash on delivery",
+      "Two-step sign-in and signing in with Google",
+      "Business websites, blogs and portfolios",
+      "An API and webhooks",
     ],
   },
 ];

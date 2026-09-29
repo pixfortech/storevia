@@ -133,7 +133,12 @@ const KPI_VISIBILITY = ["", "", "hidden @3xl/dash:block", "hidden @4xl/dash:bloc
 
 function Kpis({ sample }: { sample: SampleDashboard }) {
   return (
-    <div className="grid grid-cols-2 gap-3 @3xl/dash:grid-cols-3 @4xl/dash:grid-cols-4">
+    <div
+      className={cn(
+        "grid grid-cols-2 gap-3 @3xl/dash:grid-cols-3",
+        sample.kpis.length > 3 && "@4xl/dash:grid-cols-4",
+      )}
+    >
       {sample.kpis.map((kpi, index) => (
         <KpiCard
           key={kpi.label}

@@ -3,6 +3,7 @@
 // pages and the business type's focus areas. Real figures only; each renders nothing it
 // wasn't given, and the page gives each only what the member may read.
 import { cn } from "@storevia/ui/cn";
+import { AVAILABILITY_LABELS, type Availability } from "@storevia/entitlements/availability";
 import { formatBytes } from "@storevia/entitlements/format";
 import { UsageMeter } from "@storevia/ui/data";
 import { Progress } from "@storevia/ui/feedback";
@@ -340,11 +341,10 @@ export function ActivityCard({
  * Focus areas
  * ------------------------------------------------------------------------- */
 
-function availabilityBadge(availability: string | undefined): { label: string; tone: BadgeTone } {
-  if (!availability) return { label: "Available", tone: "success" };
+function availabilityBadge(availability: Availability): { label: string; tone: BadgeTone } {
   return {
-    label: availability === "a later release" ? "Later release" : availability,
-    tone: "neutral",
+    label: AVAILABILITY_LABELS[availability],
+    tone: availability === "available" ? "success" : "neutral",
   };
 }
 
@@ -367,7 +367,7 @@ export function FocusBand({ widget, areas }: { widget: ComposedWidget; areas: Li
           const id = `focus-${area.key}`;
           return (
             <li key={area.key} className="flex">
-              {/* Named by the area first ("Media, Milestone 3"), then described. */}
+              {/* Named by the area first ("Products, Available"), then described. */}
               <Link
                 href={href}
                 aria-labelledby={`${id}-label ${id}-status`}
@@ -408,7 +408,7 @@ export function FocusBand({ widget, areas }: { widget: ComposedWidget; areas: Li
 }
 
 /* ---------------------------------------------------------------------------
- * Catalogue (Milestone 3): real product and stock numbers
+ * Catalogue: real product and stock numbers
  * ------------------------------------------------------------------------- */
 
 const STATUS_TONE: Record<"DRAFT" | "ACTIVE" | "ARCHIVED", BadgeTone> = {
@@ -566,7 +566,7 @@ export function StockAlertsCard({
 }
 
 /* ---------------------------------------------------------------------------
- * Content updates (Milestone 5): the site's pages, edited most recently
+ * Content updates: the site's pages, edited most recently
  * ------------------------------------------------------------------------- */
 
 const PAGE_STATUS: Record<

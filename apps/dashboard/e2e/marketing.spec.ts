@@ -92,6 +92,23 @@ test("pricing shows exactly the public plans and prices from the catalogue", asy
   await expect(page.getByRole("button", { name: /buy|checkout|subscribe|pay/i })).toHaveCount(0);
 });
 
+test("the site sells what's built: online stores today, other types and analytics planned", async ({
+  page,
+}) => {
+  await page.goto(`${SITE}/solutions`);
+  for (const anchor of ["business-websites", "publications", "portfolios"]) {
+    await expect(page.locator(`#${anchor}`)).toContainText("On the roadmap");
+  }
+  await expect(page.locator("#online-stores-heading")).toBeVisible();
+  // Shipped work reads as available, with no internal milestones or dates anywhere.
+  await page.goto(`${SITE}/features`);
+  await expect(page.locator("#domains-themes")).toContainText("Available now");
+  for (const path of ["/", "/features", "/products", "/resources", "/changelog", "/about"]) {
+    await page.goto(`${SITE}${path}`);
+    await expect(page.getByText(/Milestones? \d|later release|Coming in /)).toHaveCount(0);
+  }
+});
+
 test("the contact form delivers a message to the Storevia inbox", async ({ page }) => {
   const email = uniqueEmail("contact");
   await page.goto(`${SITE}/contact?topic=plans&plan=Business`);

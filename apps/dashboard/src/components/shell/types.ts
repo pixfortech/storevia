@@ -8,7 +8,11 @@ export interface ShellLink {
   readonly label: string;
   readonly href: string;
   readonly icon: ShellIcon;
-  /** When the area ships (e.g. "Milestone 5"); undefined = available now. Shown as "Soon". */
+  /**
+   * Set for an area that isn't built yet (shown as "Planned", with no dates).
+   * Planned areas are normally kept out of navigation (DB-5); this stays so
+   * one can be listed honestly if ever needed.
+   */
   readonly soon?: string | undefined;
   /** The plan doesn't include this area. Presentation only; servers enforce. */
   readonly locked?: boolean | undefined;

@@ -123,12 +123,6 @@ export const SAMPLE_DASHBOARDS: Readonly<Record<BusinessType, SampleDashboard>> 
         trend: exampleSeries(14, { base: 21, growth: 0.18, jitter: 0.1, seed: 5 }),
       },
       {
-        label: "Visitors",
-        value: "8,940",
-        delta: 9.1,
-        trend: exampleSeries(14, { base: 560, growth: 0.22, jitter: 0.09, seed: 8 }),
-      },
-      {
         label: "New customers",
         value: "126",
         delta: 8.6,

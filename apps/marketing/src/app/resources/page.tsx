@@ -49,7 +49,7 @@ const ENTRIES: readonly Entry[] = [
   {
     icon: MapIcon,
     title: "Roadmap",
-    description: "What's ready today, what's up next and what comes after, in order.",
+    description: "What's ready today and what we're planning, in order.",
     href: "#roadmap",
   },
   {
@@ -73,16 +73,14 @@ const ENTRIES: readonly Entry[] = [
   {
     icon: BookOpen,
     title: "Guides and help centre",
-    description: "Step-by-step guides for running your store, arriving with the storefront.",
+    description: "Step-by-step guides for running your store. Until then, ask us anything.",
     status: "roadmap",
-    statusLabel: "Coming with the storefront",
   },
   {
     icon: FileCode2,
     title: "API documentation",
     description: "Reference for the Storevia API, published alongside the API itself.",
     status: "roadmap",
-    statusLabel: "Coming with the API",
   },
 ];
 
@@ -100,7 +98,7 @@ const SECURITY: readonly { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: ListChecks,
     title: "Confirmation for sensitive changes",
-    body: "Granting admin rights and other sensitive actions ask you to confirm your password first.",
+    body: "Granting admin rights, refunding an order and other sensitive actions ask you to confirm your password first.",
   },
   {
     icon: ScrollText,
@@ -165,7 +163,7 @@ export default function ResourcesPage() {
       <PageHero
         eyebrow="Resources"
         title="Roadmap, security and release notes"
-        lead="Everything we can tell you about how Storevia is built and where it's going. Guides and documentation arrive as the product grows, and they're marked until then."
+        lead="Everything we can tell you about how Storevia is built and where it's going. Guides and documentation aren't written yet, and they're marked until they are."
       >
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {ENTRIES.map((entry) => (
@@ -182,7 +180,7 @@ export default function ResourcesPage() {
             <SectionHeading
               id="roadmap-heading"
               eyebrow="Roadmap"
-              title="Built in order, one milestone at a time"
+              title="Built in order, one stage at a time"
               lead="The order reflects our plan today and may change. We don't promise dates."
             />
             <ArrowLink href="/features" className="mt-6">
@@ -220,10 +218,9 @@ export default function ResourcesPage() {
                       )}
                     >
                       <div className="flex flex-wrap items-center justify-between gap-3">
-                        <p className="text-caption font-medium text-ink-faint">{stage.milestone}</p>
+                        <h3 className="font-display text-h4 text-ink">{stage.title}</h3>
                         <StatusPill status={stage.status} />
                       </div>
-                      <h3 className="mt-2 font-display text-h4 text-ink">{stage.title}</h3>
                       <p className="mt-1 text-body-sm text-ink-muted">{stage.summary}</p>
                       <ul className="mt-4 space-y-1.5 border-t border-line pt-4 text-body-sm text-ink-muted">
                         {stage.items.map((item) => (

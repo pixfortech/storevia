@@ -1,3 +1,4 @@
+import { AVAILABILITY_LABELS } from "@storevia/entitlements/availability";
 import { Glyph } from "@storevia/ui/icons";
 import { Badge, Card, EmptyState } from "@storevia/ui/surfaces";
 import type { Metadata } from "next";
@@ -6,8 +7,10 @@ import { storeContextOr404 } from "@/lib/tenant";
 
 export const metadata: Metadata = { title: "Apps" };
 
-// An honest placeholder: Storevia has no apps or integrations yet, so this
-// page lists none and has no controls. It reads nothing beyond store access.
+// Storevia has no apps or integrations (API, webhooks) yet, so navigation
+// doesn't link here (DB-5). The route stays for anyone with an old link, and
+// says so plainly, with no controls and no dates. It reads nothing beyond
+// store access.
 export default async function AppsPage({ params }: { params: Promise<{ storeId: string }> }) {
   const { storeId } = await params;
   const ctx = await storeContextOr404(storeId, `/s/${storeId}/apps`);
@@ -17,16 +20,16 @@ export default async function AppsPage({ params }: { params: Promise<{ storeId: 
         title="Apps"
         meta={
           <Badge variant="outline" tone="neutral">
-            On the roadmap
+            {AVAILABILITY_LABELS.planned}
           </Badge>
         }
-        description={`Apps will add features to ${ctx.storeName} and connect it to services you already use.`}
+        description={`Apps and integrations aren't available for ${ctx.storeName}.`}
       />
       <Card className="max-w-3xl">
         <EmptyState
           icon={<Glyph name="integrations" className="size-6" />}
-          title="Apps and integrations are on the roadmap"
-          description="There's nothing to install yet. When apps and integrations arrive, you'll add and manage them for this store here."
+          title="Apps and integrations aren't available"
+          description="Storevia doesn't offer apps, an API or webhooks. There's nothing to install or connect here."
         />
       </Card>
     </>

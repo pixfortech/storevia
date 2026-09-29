@@ -1,24 +1,22 @@
 // How the composed widgets are laid out on the store home. Pure, so the
 // arrangement is unit-tested. Only widgets with something to show get a
-// card: every widget that has no data (a domain Storevia doesn't collect
-// yet, or a plan feature the organisation lacks) is summarised in one
-// "What you'll track" strip instead of drawing an empty frame each, so the
-// page never opens with a wall of placeholders (brief §10: don't show every
-// chart at once). Orders and customers are live (Milestone 6): their
-// figures always get a card, with honest zeros before the first order.
+// card: every widget that has no data (a domain Storevia doesn't collect,
+// or a plan feature the organisation lacks) is summarised in one "Not
+// recorded yet" strip instead of drawing an empty frame each, so the page
+// never opens with a wall of placeholders (brief §10: don't show every
+// chart at once). Orders and customers are live: their figures always get
+// a card, with honest zeros before the first order.
 import type { FeatureKey } from "@storevia/entitlements/features";
 import { STORE_AREAS, type AreaKey } from "@storevia/tenancy/business-types";
 import { widgetDisplay, type ComposedWidget } from "./compose";
 import { DASHBOARD_WIDGETS } from "./widgets";
 
-/** One store area in the strip: the figures that start when it ships. */
+/** One store area in the strip: figures Storevia doesn't record (planned), or the plan lacks. */
 export interface TrackingGroup {
   readonly area: AreaKey;
-  /** The store area, e.g. "Orders". */
+  /** The store area, e.g. "Analytics". */
   readonly label: string;
-  /** "Milestone 6" or "a later release"; unset once the area is available. */
-  readonly availability: string | undefined;
-  /** Widget titles, in layout order, without repeats ("Revenue", "Orders", "Sales"). */
+  /** Widget titles, in layout order, without repeats ("Visitors", "Page views"). */
   readonly metrics: readonly string[];
   /** The plan doesn't include this; the strip says so and shows no data. */
   readonly lockedBy: FeatureKey | null;
@@ -42,23 +40,15 @@ export interface DashboardArrangement {
   readonly bands: readonly ComposedWidget[];
 }
 
-/** Milestone number for ordering; later releases after every milestone. */
-function milestone(availability: string | undefined): number {
-  if (availability === undefined) return 0;
-  const match = /(\d+)/.exec(availability);
-  return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
-}
-
 /**
- * Groups data-less widgets by the store area their data arrives with,
- * soonest first; plan-locked areas come last.
+ * Groups data-less widgets by the store area their figures belong with, in
+ * layout order; plan-locked areas come last.
  */
 export function trackingGroups(widgets: readonly ComposedWidget[]): TrackingGroup[] {
   const groups = new Map<
     string,
     {
       area: AreaKey;
-      availability: string | undefined;
       lockedBy: FeatureKey | null;
       metrics: string[];
     }
@@ -67,20 +57,14 @@ export function trackingGroups(widgets: readonly ComposedWidget[]): TrackingGrou
     const source = DASHBOARD_WIDGETS[widget.key].source;
     if (source.kind !== "upcoming") continue;
     const lockedBy = widget.state.kind === "locked" ? widget.state.feature : null;
-    // A widget whose data comes after its area ships (enquiries) says when.
-    const availability = source.availability ?? STORE_AREAS[source.area].availability;
-    const id = `${source.area}:${lockedBy ?? ""}:${availability ?? ""}`;
-    const group = groups.get(id) ?? { area: source.area, availability, lockedBy, metrics: [] };
+    const id = `${source.area}:${lockedBy ?? ""}`;
+    const group = groups.get(id) ?? { area: source.area, lockedBy, metrics: [] };
     if (!group.metrics.includes(widget.title)) group.metrics.push(widget.title);
     groups.set(id, group);
   }
   return [...groups.values()]
     .map((group) => ({ ...group, label: STORE_AREAS[group.area].label }))
-    .sort(
-      (a, b) =>
-        Number(a.lockedBy !== null) - Number(b.lockedBy !== null) ||
-        milestone(a.availability) - milestone(b.availability),
-    );
+    .sort((a, b) => Number(a.lockedBy !== null) - Number(b.lockedBy !== null));
 }
 
 export function arrangeDashboard(

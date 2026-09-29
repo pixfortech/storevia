@@ -1,5 +1,4 @@
 import { CTASection } from "@/components/marketing";
-import { AnalyticsSection } from "@/components/home/analytics-section";
 import { BuilderSection } from "@/components/home/builder-section";
 import { BusinessTypes } from "@/components/home/business-types";
 import { CommerceSection } from "@/components/home/commerce-section";
@@ -34,13 +33,12 @@ export default async function HomePage() {
       <ContentSection />
       <TeamsSection catalogue={catalogue} />
       <ResponsiveSection />
-      <AnalyticsSection />
       <PricingPreview catalogue={catalogue} signUpHref={signUp} />
       <Omnichannel />
       <FaqSection />
       <CTASection
         title="Set up your first store in minutes"
-        lead="Create your organisation, choose what you're building and invite your team. Free to start, no card needed."
+        lead="Create your organisation and your store, and invite your team. Free to start, no card needed."
       />
     </>
   );

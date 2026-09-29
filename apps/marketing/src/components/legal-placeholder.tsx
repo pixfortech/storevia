@@ -5,7 +5,8 @@ import { ArrowLink, Container, SectionHeading } from "./marketing";
 
 /**
  * Placeholder for a legal document. Deliberately not a draft agreement: the
- * real text is written and approved by counsel before launch.
+ * real text is written and approved by counsel, and publishing it is a
+ * launch blocker (MK-1). Engineering never writes legal terms here.
  */
 export function LegalPlaceholder({ title, covers }: { title: string; covers: readonly string[] }) {
   return (
@@ -17,8 +18,9 @@ export function LegalPlaceholder({ title, covers }: { title: string; covers: rea
         <div className="mx-auto max-w-(--container-prose)">
           <SectionHeading as="h1" id="legal-title" eyebrow="Legal" title={title} />
           <Alert tone="info" title="Not yet published" className="mt-10">
-            Storevia&apos;s {title.toLowerCase()} will be published here before public launch. This
-            page is a placeholder and is not a legal agreement.
+            Storevia&apos;s {title.toLowerCase()} is being prepared by legal counsel. It will be
+            published here, and it is required before Storevia launches publicly. This page is a
+            placeholder and is not a legal agreement.
           </Alert>
           <div className="mt-10 rounded-panel border border-line">
             <h2 className="border-b border-line px-6 py-4 font-display text-h4 text-ink">

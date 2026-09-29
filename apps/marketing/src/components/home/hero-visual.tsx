@@ -1,7 +1,9 @@
 // The hero's product composition, built from the product mockups (real
 // design-system components with example content): the dashboard in front of
 // a storefront, the builder's inspector attached to the storefront it edits,
-// a channels card over the chart and the phone app beside the dashboard.
+// an orders figure over the chart and the phone app beside the dashboard.
+// Only figures the product really shows (no visitor or traffic cards:
+// storefront analytics is planned).
 // Overlaps are placed on chrome and padding, never on the figures. Below
 // 1280 px the dashboard and the phone remain; phones get the phone alone,
 // large enough to read (with a figure card beside it once there's room).
@@ -9,7 +11,7 @@
 import { cn } from "@storevia/ui/cn";
 import { Float } from "@storevia/ui/motion";
 import { Container } from "@/components/marketing";
-import { AnalyticsCard, ChannelsCard } from "@/components/product/analytics";
+import { AnalyticsCard } from "@/components/product/analytics";
 import { BuilderPanel } from "@/components/product/builder";
 import { DashboardWindow } from "@/components/product/dashboard-window";
 import { IllustrativeNote } from "@/components/product/frame";
@@ -27,7 +29,7 @@ export function HeroVisual({ className }: { className?: string }) {
           <BuilderPanel compact />
         </Float>
         <Float delay={-1800} className="absolute top-[68%] left-[51%] z-20 w-[19%]">
-          <ChannelsCard />
+          <AnalyticsCard kpi={1} />
         </Float>
         <Float delay={-3000} className="absolute top-[17%] right-[-2%] z-20 w-[17.5%]">
           <PhoneAdmin />

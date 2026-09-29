@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { runAction, type ActionState } from "@/lib/action";
 import { requireActionPrincipal } from "@/lib/auth";
 import { storePath } from "@/lib/ids";
+import { launchBusinessType } from "@/lib/launch-scope";
 import { requestInfo } from "@/lib/request";
 
 /**
@@ -20,7 +21,8 @@ export async function createStoreAction(
     const principal = await requireActionPrincipal();
     const ctx = await requireOrganisationAccess(principal, orgId, await requestInfo());
     const { storeId } = await createStore(ctx, {
-      businessType: formData.get("businessType") ?? undefined,
+      // Only the launch types for new stores (DB-2).
+      businessType: launchBusinessType(formData.get("businessType")),
       name: formData.get("name"),
       slug: formData.get("slug"),
       currency: formData.get("currency"),

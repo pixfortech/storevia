@@ -33,12 +33,12 @@ function PlanLock() {
   );
 }
 
-/** A quiet "Soon" for unbuilt areas and a lock for areas outside the plan. */
+/** A quiet "Planned" for unbuilt areas and a lock for areas outside the plan. */
 function LinkStatus({ link }: { link: ShellLink }) {
   if (!link.soon && !link.locked) return null;
   return (
     <span className="ml-auto flex shrink-0 items-center gap-1.5 pl-2 text-ink-faint">
-      {link.soon ? <span className="text-caption">Soon</span> : null}
+      {link.soon ? <span className="text-caption">Planned</span> : null}
       {link.locked ? <PlanLock /> : null}
     </span>
   );
@@ -182,16 +182,16 @@ function RailItem({ link, active }: { link: ShellLink; active: boolean }) {
         <Icon
           icon={NAV_ICONS[link.icon]}
           size="md"
-          // Unbuilt areas sit back a step, so a touch user sees "Soon" without the tooltip.
+          // Unbuilt areas sit back a step, so a touch user sees "Planned" without the tooltip.
           className={cn(link.soon && !active && "opacity-55 group-hover:opacity-100")}
         />
         <span className="sr-only">
           {link.label}
-          {link.soon ? " Soon" : ""}
+          {link.soon ? " Planned" : ""}
           {link.locked ? " (not included in your plan)" : ""}
         </span>
         {link.soon ? (
-          // A hollow dot: a shape cue alongside the dimmed icon (the name says "Soon").
+          // A hollow dot: a shape cue alongside the dimmed icon (the name says "Planned").
           <span
             aria-hidden="true"
             className="absolute top-1.5 right-1.5 size-1.5 rounded-full ring-1 ring-ink-faint"

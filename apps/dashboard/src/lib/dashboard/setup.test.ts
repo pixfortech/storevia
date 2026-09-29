@@ -128,7 +128,7 @@ describe("greeting", () => {
 
 describe("websiteLaunchNote", () => {
   it("says when the address works and where the site is designed", () => {
-    expect(STORE_AREAS.website.availability).toBeUndefined();
+    expect(STORE_AREAS.website.availability).toBe("available");
     expect(websiteLaunchNote()).toBe(
       "Visitors can reach this address once your store is live. Design your site in the visual builder.",
     );

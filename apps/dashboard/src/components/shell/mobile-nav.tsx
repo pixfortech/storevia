@@ -78,7 +78,7 @@ function Tab({ link, active }: { link: ShellLink; active: boolean }) {
       />
       <span className="max-w-full truncate px-1">
         {link.label}
-        {link.soon ? <span className="sr-only"> Soon</span> : null}
+        {link.soon ? <span className="sr-only"> Planned</span> : null}
         {link.locked ? <span className="sr-only"> (not included in your plan)</span> : null}
       </span>
     </Link>

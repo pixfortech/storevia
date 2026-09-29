@@ -5,12 +5,13 @@
 //
 // - DashboardWindow: the merchant dashboard for a business type (hero | full).
 // - PhoneAdmin, TabletAdmin: the dashboard's phone and tablet layouts.
-// - StorefrontPreview: a storefront in a browser window (a concept).
-// - EditorWindow, BuilderPanel: the website builder (roadmap concept).
-// - ProductEditor: a product with variants and stock (commerce in development).
+// - StorefrontPreview: a storefront in a browser window (sample store).
+// - EditorWindow, BuilderPanel: the website builder (sample store).
+// - ProductEditor: a product with variants and stock (sample product).
 // - PostEditor: a post being written (publishing on the roadmap).
-// - AnalyticsCard, ChannelsCard: floating figure cards; AnalyticsPreview: the
-//   report as live charts on example data, each marked "Example data".
+// - AnalyticsCard: a floating figure card (figures the store home shows);
+//   ChannelsCard and AnalyticsPreview: planned storefront analytics, only
+//   ever shown as a labelled concept with example data.
 // - Mockup, WindowFrame, PhoneFrame, TabletFrame, IllustrativeNote: frames
 //   for new compositions.
 //

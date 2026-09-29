@@ -8,7 +8,7 @@ import { CommandMenuPreview } from "@storevia/ui/command-preview";
 import { Glyph, Icon } from "@storevia/ui/icons";
 import { Reveal } from "@storevia/ui/motion";
 import { Avatar, Badge } from "@storevia/ui/surfaces";
-import { Database, FileText, Lock, Package, Settings } from "lucide-react";
+import { Database, Lock, Package, Settings } from "lucide-react";
 import type { ReactNode } from "react";
 import { Section, SectionHeading, StatusPill } from "@/components/marketing";
 import { BUSINESS_TYPE_GLYPH } from "@/content/business-types";
@@ -54,12 +54,11 @@ function Tile({
   );
 }
 
-/** An organisation holding three stores of different types, one plan. */
+/** An organisation holding three online stores, one plan. */
 function OrganisationTree() {
-  const stores = (["ECOMMERCE", "BUSINESS", "PUBLISHING"] as const).map((type) => ({
-    type,
-    name: SAMPLE_DASHBOARDS[type].store,
-  }));
+  const stores = [SAMPLE_DASHBOARDS.ECOMMERCE.store, "Northwind Home", "Northwind Outlet"].map(
+    (name) => ({ type: "ECOMMERCE" as const, name }),
+  );
   return (
     <div className="flex w-full max-w-md flex-col items-center">
       <div className="flex items-center gap-2.5 rounded-card border border-line bg-surface py-2 pr-3 pl-2 shadow-card">
@@ -80,7 +79,7 @@ function OrganisationTree() {
       <ul className="grid w-full grid-cols-3 gap-2">
         {stores.map((store) => (
           <li
-            key={store.type}
+            key={store.name}
             className="flex min-w-0 flex-col items-center gap-1.5 rounded-control border border-line bg-surface px-2 py-2.5 text-center shadow-xs"
           >
             <Glyph name={BUSINESS_TYPE_GLYPH[store.type]} className="size-5 text-ink" />
@@ -95,7 +94,7 @@ function OrganisationTree() {
   );
 }
 
-/** The four business types, one chosen. */
+/** The four business types: the online store chosen, the others planned. */
 function TypeChoices() {
   return (
     <ul className="grid w-full max-w-xs gap-1.5">
@@ -108,13 +107,14 @@ function TypeChoices() {
           )}
         >
           <Glyph name={BUSINESS_TYPE_GLYPH[type]} className="size-4.5" />
-          <span className="flex-1 font-medium">{BUSINESS_TYPE_DEFINITIONS[type].label}</span>
-          <span
-            className={cn(
-              "size-3.5 rounded-full border",
-              index === 0 ? "border-4 border-brand-600" : "border-line-control",
-            )}
-          />
+          <span className={cn("flex-1 font-medium", index > 0 && "text-ink-faint")}>
+            {BUSINESS_TYPE_DEFINITIONS[type].label}
+          </span>
+          {index === 0 ? (
+            <span className="size-3.5 rounded-full border-4 border-brand-600" />
+          ) : (
+            <span className="text-[10.5px] text-ink-faint">Planned</span>
+          )}
         </li>
       ))}
     </ul>
@@ -141,13 +141,6 @@ function Command() {
           group: "Go to",
           hint: "Account",
           icon: <Icon icon={Settings} size="sm" />,
-        },
-        {
-          id: "projects",
-          label: "Projects",
-          group: "Go to",
-          hint: "Northwind Design",
-          icon: <Icon icon={FileText} size="sm" />,
         },
       ]}
     />
@@ -213,7 +206,7 @@ function People() {
   const people = [
     { name: "Amara Okafor", role: ROLE_LABELS.OWNER },
     { name: "Jonas Weber", role: ROLE_LABELS.STORE_MANAGER },
-    { name: "Mei Tanaka", role: ROLE_LABELS.AUTHOR },
+    { name: "Mei Tanaka", role: ROLE_LABELS.ORDER_MANAGER },
   ];
   return (
     <ul className="w-full max-w-xs divide-y divide-line rounded-card border border-line bg-surface shadow-card">
@@ -301,18 +294,18 @@ export function WhyStorevia() {
           className="lg:col-span-7"
           footer={<StatusPill status="available" />}
         >
-          An organisation holds every store and site you run, of any type, on one plan. Switch
-          between them in a click.
+          An organisation holds every online store you run, on one plan. Switch between them in a
+          click.
         </Tile>
         <Tile
-          title="Flexible business types"
+          title="Built for selling online"
           visual={<TypeChoices />}
           className="lg:col-span-5"
           delay={80}
           footer={<StatusPill status="available" />}
         >
-          Tell Storevia what you&apos;re building. Navigation, your store&apos;s home and suggested
-          roles adapt, and you can change it at any time.
+          Navigation, your store&apos;s home and suggested roles are built around orders, products
+          and customers. Business websites, publications and portfolios are planned.
         </Tile>
         <Tile
           title="Powerful administration"

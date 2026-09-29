@@ -72,6 +72,38 @@ export const localeSchema = z
     }
   }, "Choose a valid locale.");
 
+/**
+ * The languages a store may choose (SF-3). Storevia launches in English
+ * only: the storefront and emails aren't translated, so a non-English locale
+ * would give shoppers English words with the wrong `lang`, direction and
+ * number formats. Regional English variants keep local number, date and
+ * currency formatting. The database keeps any valid BCP 47 tag (the locale
+ * architecture stays for future translation), and stores that already have
+ * another locale keep it (see @storevia/tenancy updateStore); only new values
+ * must come from this list.
+ */
+export const SUPPORTED_LOCALES = [
+  "en-IN",
+  "en-US",
+  "en-GB",
+  "en-AU",
+  "en-CA",
+  "en-NZ",
+  "en-SG",
+  "en-AE",
+  "en-ZA",
+] as const;
+export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
+
+export function isSupportedLocale(tag: string): tag is SupportedLocale {
+  return (SUPPORTED_LOCALES as readonly string[]).includes(tag);
+}
+
+export const SUPPORTED_LOCALE_MESSAGE = "Choose one of the supported languages.";
+
+/** A locale a store may newly choose (SF-3). */
+export const supportedLocaleSchema = z.enum(SUPPORTED_LOCALES, SUPPORTED_LOCALE_MESSAGE);
+
 export const timezoneSchema = z
   .string()
   .trim()

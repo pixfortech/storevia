@@ -5,7 +5,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: { default: "Storevia", template: "%s · Storevia" },
-  description: "Run your online store, website, publication or portfolio with Storevia.",
+  description: "Run your online store with Storevia.",
   robots: { index: false, follow: false },
 };
 

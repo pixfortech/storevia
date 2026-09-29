@@ -2,7 +2,7 @@ import { FEATURE_KEYS } from "@storevia/entitlements/features";
 import { MEMBER_ROLES, ROLE_LABELS } from "@storevia/tenancy/rbac";
 import { describe, expect, it } from "vitest";
 import { CAPABILITIES, STATUSES } from "./capabilities";
-import { RELEASES, releasesByDay, taggedMilestones, type Release } from "./changelog";
+import { RELEASES, releasesByDay, type Release } from "./changelog";
 import { ALL_FEATURES, FEATURE_AREAS, statusCounts } from "./features";
 import { FEATURE_STATUS } from "./plan-features";
 import { ROADMAP } from "./roadmap";
@@ -37,10 +37,7 @@ describe("feature matrix", () => {
     }
   });
 
-  it("never gives a live feature a milestone, and never calls point of sale more than future", () => {
-    for (const item of ALL_FEATURES) {
-      if (item.status === "available") expect(item.milestone, item.title).toBeUndefined();
-    }
+  it("never calls point of sale more than future", () => {
     const retail = FEATURE_AREAS.find((area) => area.id === "retail");
     expect(retail?.items.every((item) => item.status === "future")).toBe(true);
   });
@@ -68,9 +65,10 @@ describe("roadmap and changelog", () => {
     expect([...dates].sort().reverse()).toEqual(dates);
     const ids = RELEASES.map((release) => release.id);
     expect(new Set(ids).size).toBe(ids.length);
-    // Tagged releases are the milestones; work in progress is never tagged.
+    // Work in progress is never tagged, and no label is an internal milestone.
     for (const release of RELEASES) {
       if (release.status === "in-progress") expect(release.tag).toBeUndefined();
+      expect(release.label, release.id).not.toMatch(/milestone/i);
     }
   });
 });
@@ -102,13 +100,19 @@ describe("releasesByDay", () => {
     expect(releasesByDay().flatMap((day) => day.releases)).toEqual(RELEASES);
   });
 
-  it("names the tagged milestones, oldest first", () => {
-    expect(taggedMilestones()).toEqual([
-      "Milestone 0",
-      "Milestone 1",
-      "Milestone 2",
-      "Milestone 3",
-    ]);
+  it("lists the shipped work since the catalogue: storefront to data and security", () => {
+    const ids = RELEASES.map((release) => release.id);
+    for (const id of [
+      "storefront",
+      "builder",
+      "checkout-and-orders",
+      "custom-domains",
+      "themes",
+      "order-operations",
+      "data-and-security",
+    ]) {
+      expect(ids, id).toContain(id);
+    }
   });
 });
 

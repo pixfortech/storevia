@@ -3,6 +3,7 @@
 import {
   BUSINESS_TYPE_DEFINITIONS,
   isBusinessType,
+  isLaunchBusinessType,
   type BusinessType,
 } from "@storevia/tenancy/business-types";
 import { Glyph, Icon } from "@storevia/ui/icons";
@@ -89,7 +90,9 @@ export function CreateStoreForm({
 }) {
   const [state, action] = useActionState(createStoreAction.bind(null, orgId), { ok: false });
   const chosen = state.values?.["businessType"] ?? "";
-  const [type, setType] = useState<BusinessType>(isBusinessType(chosen) ? chosen : "ECOMMERCE");
+  const [type, setType] = useState<BusinessType>(
+    isBusinessType(chosen) && isLaunchBusinessType(chosen) ? chosen : "ECOMMERCE",
+  );
   const [name, setName] = useState(state.values?.["name"] ?? "");
   const [slug, setSlug] = useState(state.values?.["slug"] ?? "");
   const [slugTouched, setSlugTouched] = useState(false);
@@ -104,7 +107,7 @@ export function CreateStoreForm({
         <Card>
           <CardHeader
             title={<Step n={1}>What are you building?</Step>}
-            description="It shapes the navigation, the home and suggested team roles."
+            description="Storevia sets up the navigation, the home and suggested team roles for it."
           />
           <CardBody className="py-6">
             <BusinessTypePicker
@@ -176,6 +179,7 @@ export function CreateStoreForm({
               state={state}
               options={LOCALE_OPTIONS}
               defaultValue={defaults.locale}
+              hint="Your storefront and emails are in English. This sets how dates and numbers look."
             />
             <SelectField
               label="Time zone"

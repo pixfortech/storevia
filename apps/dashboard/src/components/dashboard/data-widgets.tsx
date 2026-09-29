@@ -3,7 +3,7 @@
 // order and customer figures too (their real versions are in
 // sales-widgets.tsx). They get a card only when there is something to draw,
 // which here means a development preview's example data, always badged.
-// Without data they are summarised in the "What you'll track" strip
+// Without data they are summarised in the "Not recorded yet" strip
 // (TrackingCard), plan-locked ones too, so the page never stacks empty
 // frames and a locked widget never shows data, not even example data.
 import {
@@ -14,6 +14,7 @@ import {
   LineChart,
   Sparkline,
 } from "@storevia/ui/charts";
+import { AVAILABILITY_LABELS } from "@storevia/entitlements/availability";
 import { cn } from "@storevia/ui/cn";
 import { KpiCard } from "@storevia/ui/data";
 import { Icon } from "@storevia/ui/icons";
@@ -82,7 +83,8 @@ export function MetricWidget({ widget, scope }: { widget: ComposedWidget; scope:
 }
 
 /* ---------------------------------------------------------------------------
- * What you'll track: every widget without data, in one strip
+ * Not recorded yet: every widget without data, in one strip. No dates and no
+ * promises (DB-5): a planned figure says "Planned", a plan-locked one says so.
  * ------------------------------------------------------------------------- */
 
 // Columns by group count, by the card's own width (it sits full width, or
@@ -94,12 +96,6 @@ const TRACKING_COLUMNS: Record<number, string> = {
   3: "@3xl:grid-cols-3",
   4: "@xl:grid-cols-2 @5xl:grid-cols-4",
 };
-
-/** "Milestone 6", "Later release" or "Available". */
-function availabilityText(availability: string | undefined) {
-  if (availability === undefined) return "Available";
-  return availability.replace(/^a later/, "Later");
-}
 
 export function TrackingCard({
   groups,
@@ -113,15 +109,15 @@ export function TrackingCard({
   return (
     <Card className="@container" data-testid="dashboard-tracking">
       <CardHeader
-        title="What you'll track"
-        description="Figures start recording as each area arrives. Until then, nothing is estimated."
+        title="Not recorded yet"
+        description="Storevia doesn't record these figures, so nothing is shown or estimated."
       />
       <ul className={cn("grid", TRACKING_COLUMNS[Math.min(groups.length, 4)])}>
         {groups.map((group) => (
           // Hairlines above and to the left of every cell: along the card's
           // edge they fall on its own border, so any column count works.
           <li
-            key={`${group.area}:${group.lockedBy ?? ""}:${group.availability ?? ""}`}
+            key={`${group.area}:${group.lockedBy ?? ""}`}
             className="flex gap-3.5 px-5 py-4.5 shadow-[-1px_-1px_0_var(--color-line)] sm:px-6"
           >
             <span className="flex size-8 shrink-0 items-center justify-center rounded-control bg-subtle text-ink-muted ring-1 ring-line ring-inset">
@@ -129,7 +125,7 @@ export function TrackingCard({
             </span>
             <div className="min-w-0">
               <p className="text-body-sm font-medium text-ink">{group.metrics.join(" · ")}</p>
-              {/* "Orders · Milestone 6": the area the figures start with, and when. */}
+              {/* "Analytics · Planned": the area the figures belong with, and their status. */}
               <p className="mt-1 flex flex-wrap items-center gap-x-1.5 text-caption text-ink-muted">
                 <span>{group.label}</span>
                 <span aria-hidden="true" className="text-ink-faint">
@@ -141,7 +137,7 @@ export function TrackingCard({
                     Not in your plan
                   </span>
                 ) : (
-                  <span>{availabilityText(group.availability)}</span>
+                  <span>{AVAILABILITY_LABELS.planned}</span>
                 )}
               </p>
             </div>

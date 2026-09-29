@@ -307,7 +307,7 @@ describe("T6 role permissions at the service layer", () => {
     const ctx = await requireStoreAccess(A.user, storeId(A.store));
     await updateStore(ctx, {
       name: "Owner edit",
-      locale: "en",
+      locale: "en-GB",
       timezone: "UTC",
       contactEmail: "",
       supportEmail: "",
@@ -328,7 +328,7 @@ describe("T6 role permissions at the service layer", () => {
     await expectCode(
       updateStore(ctx, {
         name: "x",
-        locale: "en",
+        locale: "en-GB",
         timezone: "UTC",
         contactEmail: "",
         supportEmail: "",
@@ -350,7 +350,7 @@ describe("T6 role permissions at the service layer", () => {
     const ctx = await requireStoreAccess(manager, storeId(A.store));
     await updateStore(ctx, {
       name: "Managed",
-      locale: "en",
+      locale: "en-GB",
       timezone: "UTC",
       contactEmail: "ops@example.test",
       supportEmail: "",
@@ -372,7 +372,7 @@ describe("T6 role permissions at the service layer", () => {
     await expectCode(
       updateStore(ctx, {
         name: "x",
-        locale: "en",
+        locale: "en-GB",
         timezone: "UTC",
         contactEmail: "",
         supportEmail: "",
@@ -521,7 +521,7 @@ describe("T9 membership changes take effect on the next request", () => {
     await expectCode(
       updateStore(after, {
         name: "x",
-        locale: "en",
+        locale: "en-GB",
         timezone: "UTC",
         contactEmail: "",
         supportEmail: "",

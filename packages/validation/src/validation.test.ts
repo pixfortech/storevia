@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   countrySchema,
+  createStoreSchema,
   emailSchema,
+  isSupportedLocale,
   normaliseSlug,
   passwordSchema,
   personNameSchema,
   storeSlugSchema,
+  SUPPORTED_LOCALE_MESSAGE,
+  SUPPORTED_LOCALES,
   timezoneSchema,
+  updateStoreSchema,
 } from "./index";
 
 describe("storeSlugSchema", () => {
@@ -60,5 +65,41 @@ describe("common schemas", () => {
     expect(countrySchema.safeParse("XX").success).toBe(false);
     expect(timezoneSchema.safeParse("Asia/Kolkata").success).toBe(true);
     expect(timezoneSchema.safeParse("Mars/Base").success).toBe(false);
+  });
+});
+
+describe("store languages (SF-3)", () => {
+  const store = {
+    name: "Acme",
+    slug: "acme",
+    currency: "INR",
+    country: "IN",
+    timezone: "Asia/Kolkata",
+  };
+
+  it("offers English locales only, each one Intl formats as itself", () => {
+    for (const tag of SUPPORTED_LOCALES) {
+      expect(tag).toMatch(/^en-[A-Z]{2}$/);
+      expect(Intl.getCanonicalLocales(tag)).toEqual([tag]);
+      expect(new Intl.NumberFormat(tag).resolvedOptions().locale).toBe(tag);
+    }
+    expect(new Set(SUPPORTED_LOCALES).size).toBe(SUPPORTED_LOCALES.length);
+  });
+
+  it("creates stores only in a supported language", () => {
+    expect(createStoreSchema.safeParse({ ...store, locale: "en-IN" }).success).toBe(true);
+    for (const locale of ["hi-IN", "ar-AE", "fr-FR", "ja-JP", "en", "not a locale"]) {
+      const result = createStoreSchema.safeParse({ ...store, locale });
+      expect(result.success, locale).toBe(false);
+      expect(result.error?.issues[0]?.message, locale).toBe(SUPPORTED_LOCALE_MESSAGE);
+    }
+  });
+
+  it("still accepts a valid stored locale on update (the store decides whether it may change)", () => {
+    const update = { name: "Acme", timezone: "UTC", contactEmail: "", supportEmail: "" };
+    expect(updateStoreSchema.safeParse({ ...update, locale: "hi-IN" }).success).toBe(true);
+    expect(updateStoreSchema.safeParse({ ...update, locale: "not a locale!" }).success).toBe(false);
+    expect(isSupportedLocale("en-GB")).toBe(true);
+    expect(isSupportedLocale("hi-IN")).toBe(false);
   });
 });
