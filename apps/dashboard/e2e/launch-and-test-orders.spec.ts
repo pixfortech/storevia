@@ -94,13 +94,8 @@ test("a test order is marked TEST, left out of revenue, and announced with a lin
   await page.getByRole("link", { name: /^Test orders/ }).click();
   await expect(page.getByTestId("order-row")).toHaveCount(1);
 
-  // The order and its payment say so.
-  await row.getByRole("link", { name: number }).click();
-  await page.waitForURL(/\/orders\/order_/);
-  await expect(page.getByText("Test order", { exact: true })).toBeVisible();
-  await expect(page.getByTestId("test-badge")).toHaveCount(2);
-
-  // The bell: a new-order notification that opens the order.
+  // The bell: a new-order notification that opens the order. Checked before
+  // anything opens the order, since opening it marks its notifications read.
   await page.goto(tenant.storePath);
   await expect
     .poll(
@@ -119,4 +114,8 @@ test("a test order is marked TEST, left out of revenue, and announced with a lin
   await page.getByRole("link", { name: new RegExp(`New test order ${number}`) }).click();
   await page.waitForURL(/\/orders\/order_[^#/]+$/);
   await expect(page.getByRole("heading", { name: `Order ${number}` })).toBeVisible();
+
+  // The order and its payment say so.
+  await expect(page.getByText("Test order", { exact: true })).toBeVisible();
+  await expect(page.getByTestId("test-badge")).toHaveCount(2);
 });

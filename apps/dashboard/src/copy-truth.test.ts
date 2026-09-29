@@ -49,8 +49,12 @@ describe("product copy", () => {
 
   it("mentions automatic discounts only as something that isn't available", () => {
     let mentions = 0;
-    for (const file of FILES) {
-      for (const [sentence] of file.text.matchAll(/[^.]*\bautomatic discounts?\b[^.]*\./gi)) {
+    // Only files that mention it, and sentences of bounded length: an
+    // unbounded [^.]* backtracks across every long stretch without a period.
+    for (const file of FILES.filter((f) => /\bautomatic discounts?\b/i.test(f.text))) {
+      for (const [sentence] of file.text.matchAll(
+        /[^.]{0,400}\bautomatic discounts?\b[^.]{0,400}\./gi,
+      )) {
         mentions += 1;
         expect(sentence, file.path).toMatch(/(aren|isn)(&apos;|')t available|not available/);
       }

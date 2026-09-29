@@ -4,6 +4,7 @@ import { Button } from "@storevia/ui/button";
 import { Alert, Card, CardBody, CardFooter } from "@storevia/ui/surfaces";
 import type { JSONContent } from "@tiptap/react";
 import { ListPlus, Scale } from "lucide-react";
+import { POLICY_MIN_OWN_TEXT } from "@storevia/commerce/policy-kinds";
 import { useActionState, useEffect, useId, useState } from "react";
 import { LazyRichTextEditor } from "@/components/catalogue/lazy-rich-text";
 import { UnsavedChangesGuard } from "@/components/catalogue/unsaved-guard";
@@ -54,7 +55,8 @@ export function PolicyEditor({
     if (state.revision !== undefined) setDirty(false);
   }, [state]);
   const revision = state.revision ?? loadedRevision;
-  const hasOwnText = policyOwnText(doc).length > 0;
+  // The server's rule: headings alone, or a few words, aren't a policy.
+  const hasOwnText = policyOwnText(doc).length >= POLICY_MIN_OWN_TEXT;
 
   const insertStarter = () => {
     const current = doc?.content ?? [];
@@ -125,7 +127,7 @@ export function PolicyEditor({
           <CardFooter className="justify-between">
             {!hasOwnText ? (
               <p id={hintId} className="text-body-sm text-ink-muted">
-                Write the policy under the headings to publish it.
+                Write the policy under the headings (at least a sentence) to publish it.
               </p>
             ) : null}
             <div className="ml-auto flex flex-wrap items-center gap-2">

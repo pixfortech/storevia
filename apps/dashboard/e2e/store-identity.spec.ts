@@ -90,9 +90,13 @@ test("seller details and policies: required to go live, shown on the store, esca
   await page.keyboard.press("ControlOrMeta+End");
   await page.keyboard.press("Enter");
   await editor.pressSequentially(OWN_TEXT);
+  await expect(editor.getByText(OWN_TEXT)).toBeVisible();
   await expect(publish).toBeEnabled();
   await publish.click();
-  await expect(page.getByText("Published. Shoppers can read it on your store.")).toBeVisible();
+  // Whatever the form says, so a refusal shows up in the failure itself.
+  await expect(
+    page.getByText(/^(Published\. Shoppers|Write the policy before|This policy was changed)/),
+  ).toHaveText("Published. Shoppers can read it on your store.");
   await expect(page.getByTestId("policy-status")).toHaveText("Published");
   await expect(page.getByRole("link", { name: /View on your store/ })).toHaveAttribute(
     "href",

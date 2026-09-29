@@ -7,6 +7,7 @@ import { conflict, inStore } from "../internal";
 import {
   isPolicyKind,
   POLICY_DEFINITIONS,
+  POLICY_MIN_OWN_TEXT,
   policyDefinition,
   type StorePolicyKind,
 } from "../policy-kinds";
@@ -139,8 +140,6 @@ export function policyBodyText(doc: RichTextDoc | null): string {
   });
 }
 
-const MIN_BODY_CHARACTERS = 20;
-
 function parseTitle(value: unknown, kind: StorePolicyKind): string {
   const title =
     (typeof value === "string" ? value.trim() : "") || policyDefinition(kind).defaultTitle;
@@ -239,7 +238,7 @@ export async function publishPolicy(
       const row = await tx.storePolicy.findFirst({ where: { kind: k } });
       if (row?.revision !== revision) throw staleDraft();
       const body = parseStored(row.bodyDoc);
-      if (policyBodyText(body).length < MIN_BODY_CHARACTERS) {
+      if (policyBodyText(body).length < POLICY_MIN_OWN_TEXT) {
         throw validationFailed({
           body: "Write the policy before publishing it: the starter headings aren't a policy on their own.",
         });

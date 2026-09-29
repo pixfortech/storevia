@@ -96,6 +96,13 @@ export const POLICY_DEFINITIONS: readonly PolicyDefinition[] = [
   },
 ];
 
+/**
+ * How much of the merchant's own text (outside the headings) a policy needs
+ * before it can be published: the editor's Publish button and the server
+ * use the same rule.
+ */
+export const POLICY_MIN_OWN_TEXT = 20;
+
 export const policyDefinition = (kind: StorePolicyKind): PolicyDefinition => {
   const found = POLICY_DEFINITIONS.find((d) => d.kind === kind);
   if (!found) throw new Error(`unknown policy kind ${kind}`);
