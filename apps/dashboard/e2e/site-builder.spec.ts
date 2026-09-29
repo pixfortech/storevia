@@ -177,6 +177,8 @@ test("a merchant builds, previews and publishes the home page", async ({
 test("theme, menus, two tabs, and another tenant", async ({ page, browser }) => {
   test.setTimeout(300_000);
   const tenant = await createTenant(page, "designer");
+  // Going live needs something to sell (launch readiness).
+  await addProduct(page, tenant, "Linen apron", "650", "5");
   const origin = await storefrontOrigin(page, tenant);
   await goLive(page, tenant);
   const shopper = await browser.newContext();

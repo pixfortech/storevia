@@ -179,6 +179,12 @@ export function BusinessTypeForm({
         <div className="min-w-0">
           <p className="text-body-sm font-semibold text-ink">{definition.label}</p>
           <p className="mt-0.5 text-body-sm text-ink-muted">{definition.tagline}</p>
+          {/* The change that just moved the store here, confirmed. */}
+          {state.ok && state.message ? (
+            <p role="status" className="mt-2 text-body-sm text-success-700">
+              {state.message}
+            </p>
+          ) : null}
         </div>
       </CardBody>
     );

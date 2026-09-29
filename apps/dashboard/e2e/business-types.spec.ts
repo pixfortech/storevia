@@ -103,7 +103,8 @@ test.describe("responsive shell", () => {
     const tenant = await createTenant(page, "mobile");
     await expect(page.getByRole("complementary")).toBeHidden();
     const bar = page.getByRole("navigation", { name: "Primary" }).last();
-    for (const label of ["Home", "Orders", "Products"]) {
+    // An online store: Home, Orders and its Website; the rest is under More.
+    for (const label of ["Home", "Orders", "Website"]) {
       await expect(bar.getByRole("link", { name: label })).toBeVisible();
     }
     await bar.getByRole("button", { name: "More" }).click();

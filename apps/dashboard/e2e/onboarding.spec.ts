@@ -47,7 +47,9 @@ test("a new user registers, creates an organisation as OWNER, creates the first 
   await expect(page.getByText("Posts isn't available")).toBeVisible();
   await expect(page.getByRole("main").getByRole("button")).toHaveCount(0);
   await page.goto(`${tenant.storePath}/apps`);
-  await expect(page.getByText("Apps and integrations aren't available")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Apps and integrations aren't available" }),
+  ).toBeVisible();
 
   // One support entry point (DB-3): the account menu, through /support.
   await page.goto(tenant.storePath);
@@ -57,7 +59,14 @@ test("a new user registers, creates an organisation as OWNER, creates the first 
     "/support",
   );
   await page.keyboard.press("Escape");
-  const support = await page.request.get("/support", { maxRedirects: 0 });
+  // Node doesn't resolve *.localhost names: ask localhost with the dashboard's Host.
+  const target = new URL("/support", page.url());
+  const host = target.host;
+  target.hostname = "localhost";
+  const support = await page.request.get(target.toString(), {
+    headers: { host },
+    maxRedirects: 0,
+  });
   expect(support.status()).toBe(307);
   expect(support.headers()["location"]).toMatch(/^https?:\/\/.+/);
 });

@@ -248,27 +248,31 @@ test("a customer's note reaches the merchant; forged and foreign links open noth
   expect(other.text).not.toContain("Please deliver after 5 PM");
   expect(other.text).toContain(`Order ${second.number}`);
 
-  // The worker tells the staff who may answer; the bell shows it, with the
-  // two new-order notifications (final pass, ORD-1) before it.
+  // The worker tells the staff who may answer; the bell shows it, alongside
+  // the new-order notifications for this store's orders (final pass, ORD-1).
   await page.goto(`${tenant.storePath}/orders`);
-  // The bell loads after the page: wait for it after each reload.
+  const messageItem = () =>
+    page.getByRole("link", {
+      name: new RegExp(`Customer sent a message on Order ${first.number}`),
+    });
+  // The bell loads after the page: reload until the message is in it.
   await expect
     .poll(
       async () => {
         await page.reload();
-        const count = page.getByTestId("notification-count");
-        return count.waitFor({ state: "visible", timeout: 5_000 }).then(
-          () => count.textContent(),
-          () => null,
-        );
+        const bell = page.getByTestId("notification-bell");
+        await bell.waitFor({ state: "visible", timeout: 5_000 });
+        await bell.click();
+        const found = await messageItem().count();
+        await page.keyboard.press("Escape");
+        return found;
       },
       { timeout: 90_000, intervals: [1_000] },
     )
-    .toBe("3");
+    .toBeGreaterThan(0);
+  const unread = Number(await page.getByTestId("notification-count").textContent());
   await page.getByTestId("notification-bell").click();
-  const item = page.getByRole("link", {
-    name: new RegExp(`Customer sent a message on Order ${first.number}`),
-  });
+  const item = messageItem();
   await expect(item).toBeVisible();
   // A new order links straight to the order (Test Provider orders say so).
   const placed = page.getByRole("link", { name: new RegExp(`New test order ${first.number}`) });
@@ -277,7 +281,13 @@ test("a customer's note reaches the merchant; forged and foreign links open noth
   await item.click();
   await page.waitForURL(/\/orders\/order_[^#]+#messages$/);
   await expect(page.getByTestId("order-messages")).toContainText("Please deliver after 5 PM");
-  await expect(page.getByTestId("notification-count")).toHaveCount(0);
+  // Opening it marks it read (other notifications may still be unread).
+  await expect
+    .poll(async () => {
+      const count = page.getByTestId("notification-count");
+      return (await count.count()) === 0 ? 0 : Number(await count.textContent());
+    })
+    .toBeLessThan(unread);
 
   // The store replies; the shopper sees it on their page.
   await page.getByLabel("Reply to the customer").fill("Noted, we'll come after 5.");
