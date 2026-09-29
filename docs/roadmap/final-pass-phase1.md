@@ -132,9 +132,26 @@ customer totals.
 
 ## 12. Tests and CI
 
-See the Phase 1 report in the conversation / commit history for the gate
-run: format, lint, typecheck, unit, integration, fresh-build E2E, gitleaks,
-and GitHub CI (LTS, canary, Windows).
+Gate on the merged branch (local, then GitHub CI run 152 on `e674b0c`: all
+jobs green, including E2E on Node LTS and canary, Windows, and the secret
+scan):
+
+| Check                           | Result                                                                             |
+| ------------------------------- | ---------------------------------------------------------------------------------- |
+| Format, lint, typecheck         | Clean (24/24 typecheck tasks)                                                      |
+| Unit                            | 1,312 passed (21 packages)                                                         |
+| Integration                     | 1,013 passed (13 packages)                                                         |
+| E2E (fresh build of the 4 apps) | 84 tests: 76 passed in the full run; the 8 that failed were fixed and re-run green |
+| gitleaks (full history)         | No leaks                                                                           |
+
+The eight E2E failures in the first full run: the email-change confirmation
+was replaced by "link can't be used" after a layout revalidation (product
+bug, fixed); two disk-full crashes on the build machine (passed once space
+was freed); and five specs whose expectations predated the merge (bell
+counts with new-order notifications, a store going live without a product,
+the online store's mobile bar, a Node request to a `*.localhost` host, a
+duplicate text match), plus the business-type confirmation, which now shows
+on the read-only card.
 
 New and changed coverage: `metrics.int.test.ts` (test-order exclusion, one
 definition), `order-operations.int.test.ts` (notification recipients,
