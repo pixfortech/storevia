@@ -92,6 +92,14 @@ const handleInput = z
   .transform((value) => (value === "" ? null : value))
   .nullish();
 
+/** The heaviest weight a variant can record: 1,000 kg, in grams. */
+export const MAX_WEIGHT_GRAMS = 1_000_000;
+
+export type WeightUnit = "g" | "kg";
+
+/** For a weight typed with its unit (weightToGrams said "invalid"). */
+export const WEIGHT_MESSAGE = "Enter a weight such as 250 g or 1.5 kg, up to 1,000 kg.";
+
 const weightSchema = z
   .union([z.number(), z.string()])
   .transform((value) => (value === "" ? null : Number(value)))
@@ -100,9 +108,58 @@ const weightSchema = z
       .number("Enter a weight in grams.")
       .int("Enter whole grams.")
       .min(0, "The weight can't be negative.")
-      .max(1_000_000, "Enter a smaller weight.")
+      .max(MAX_WEIGHT_GRAMS, "Enter a smaller weight.")
       .nullable(),
   )
+  .nullish();
+
+/**
+ * A weight as typed with its unit ("1.25" kg, "250" g) in whole grams: null
+ * when empty, "invalid" when it isn't a weight Storevia can store (negative,
+ * finer than a gram, or over the limit). Exact: no floating point.
+ */
+export function weightToGrams(text: string, unit: WeightUnit): number | null | "invalid" {
+  const value = text.trim().replace(/,/g, "");
+  if (value === "") return null;
+  const match = /^(\d{1,7})(?:\.(\d{1,3}))?$/.exec(value);
+  if (!match?.[1]) return "invalid";
+  const fraction = match[2] ?? "";
+  let grams: number;
+  if (unit === "kg") {
+    grams = Number(match[1]) * 1000 + Number(fraction.padEnd(3, "0"));
+  } else {
+    if (fraction.replace(/0+$/, "") !== "") return "invalid";
+    grams = Number(match[1]);
+  }
+  return grams > MAX_WEIGHT_GRAMS ? "invalid" : grams;
+}
+
+/** How a stored weight reads in the editor: kilograms from 1 kg up, grams below. */
+export function gramsToWeight(grams: number | null): { value: string; unit: WeightUnit } {
+  if (grams === null) return { value: "", unit: "g" };
+  if (grams >= 1000) {
+    const whole = Math.trunc(grams / 1000);
+    const fraction = String(grams % 1000)
+      .padStart(3, "0")
+      .replace(/0+$/, "");
+    return { value: fraction ? `${String(whole)}.${fraction}` : String(whole), unit: "kg" };
+  }
+  return { value: String(grams), unit: "g" };
+}
+
+/**
+ * HSN (Harmonised System of Nomenclature) code for GST classification: 4, 6
+ * or 8 digits. Spaces are ignored and "" clears it. The database enforces
+ * the same shape.
+ */
+export const HSN_CODE_RE = /^\d{4}(?:\d{2}){0,2}$/;
+export const HSN_CODE_MESSAGE = "Enter an HSN code of 4, 6 or 8 digits.";
+export const hsnCodeSchema = z
+  .string(HSN_CODE_MESSAGE)
+  .max(32, HSN_CODE_MESSAGE)
+  .transform((value) => value.replace(/\s+/g, ""))
+  .pipe(z.union([z.literal(""), z.string().regex(HSN_CODE_RE, HSN_CODE_MESSAGE)]))
+  .transform((value) => (value === "" ? null : value))
   .nullish();
 
 const quantitySchema = (min: number, max: number) =>
@@ -145,12 +202,15 @@ const productFields = {
   seoTitle: optionalText(255),
   seoDescription: optionalText(1000),
   taxable: z.boolean().optional(),
+  hsnCode: hsnCodeSchema,
 };
 
 export const createProductSchema = z.object({
   ...productFields,
   ...variantFields,
   status: z.enum(["DRAFT", "ACTIVE"]).default("DRAFT"),
+  /** The merchant confirmed publishing a product priced at 0. */
+  confirmFree: z.boolean().optional(),
   /** Stock at the store's default location for a simple product. */
   initialStock: quantitySchema(0, 1_000_000).optional(),
 });

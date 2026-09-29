@@ -32,6 +32,7 @@ export type { LocationView } from "./locations";
 export {
   archiveProduct,
   createProduct,
+  FREE_PRODUCT_CODE,
   getProduct,
   restoreProduct,
   setProductStatus,
@@ -67,7 +68,7 @@ export {
 export type { CollectionDetails, CollectionSummary } from "./collections";
 export { listProducts, searchProducts, PostgresSearchIndex } from "./search";
 export type { ProductListItem, ProductListResult, ProductSearchQuery, SearchIndex } from "./search";
-export { bulkProductAction } from "./bulk";
+export { bulkProductAction, FREE_BULK_MESSAGE } from "./bulk";
 export { getCategoryPath, listProductCategories, listProductTags } from "./taxonomy";
 export type { CategoryRef, CategoryView, TagSuggestion } from "./taxonomy";
 export { getCatalogueOverview } from "./overview";
@@ -79,6 +80,8 @@ export type { CatalogueProduct, CatalogueVariant } from "./catalogue";
 
 // Orders, customers and store settings (ADR-0031).
 export { getOrder, listOrders, loadOrderDetail } from "./orders/read";
+export { exportOrders, ORDER_EXPORT_BATCH, ORDER_EXPORT_COLUMNS } from "./orders/export";
+export type { OrderExportFile, OrderExportQuery } from "./orders/export";
 export type { OrderDetail, OrderListItem, OrderListResult, OrderStatusFilter } from "./orders/read";
 export {
   cancelOrder,

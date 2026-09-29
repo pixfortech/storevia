@@ -192,7 +192,7 @@ describe("updateProduct", () => {
 describe("status, archive and restore", () => {
   it("activates, drafts, archives and restores as a draft", async () => {
     const store = storeOf(tenant);
-    const { productId } = await createProduct(store, { title: "Shirt" });
+    const { productId } = await createProduct(store, { title: "Shirt", price: "499" });
     await setProductStatus(store, productId, "ACTIVE");
     expect((await getProduct(store, productId)).publishedAt).not.toBeNull();
     await archiveProduct(store, productId);
@@ -233,7 +233,7 @@ describe("status, archive and restore", () => {
   it("restoring a product that isn't archived changes nothing (security review)", async () => {
     // A stale list (or a replayed request) must never unpublish a live product.
     const store = storeOf(tenant);
-    const { productId: live } = await createProduct(store, { title: "Live" });
+    const { productId: live } = await createProduct(store, { title: "Live", price: "499" });
     const { productId: draft } = await createProduct(store, { title: "Draft" });
     await setProductStatus(store, live, "ACTIVE");
     const before = await getProduct(store, live);

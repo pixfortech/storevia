@@ -73,7 +73,7 @@ describe("product_limit", () => {
 
   it("activating a draft doesn't change usage", async () => {
     const store = storeOf(tenant);
-    const { productId } = await createProduct(store, { title: "Draft" });
+    const { productId } = await createProduct(store, { title: "Draft", price: "100" });
     await setProductStatus(store, productId, "ACTIVE");
     await setProductStatus(store, productId, "DRAFT");
     expect(await usage()).toBe(1n);
@@ -116,7 +116,7 @@ describe("product_limit", () => {
     await setProductLimit(tenant.org.organisationId, 1); // the plan shrank
     const first = ids[0] ?? "";
     await updateProduct(store, first, { title: "A edited" });
-    await setProductStatus(store, first, "ACTIVE");
+    await setProductStatus(store, first, "ACTIVE", { confirmFree: true });
     await expectCode(createProduct(store, { title: "New" }), "LIMIT_REACHED");
     await archiveProduct(store, ids[1] ?? "");
     await expectCode(restoreProduct(store, ids[1] ?? ""), "LIMIT_REACHED");

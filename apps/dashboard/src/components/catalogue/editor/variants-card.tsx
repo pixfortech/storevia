@@ -20,15 +20,23 @@ import {
   updateVariantsAction,
 } from "@/app/(app)/s/[storeId]/products/actions";
 import type { VariantRemoval } from "@storevia/commerce";
+import { WEIGHT_MESSAGE } from "@storevia/validation";
 import { formatMoney } from "@/lib/catalogue";
 import type { EditorOption, EditorVariant } from "./types";
 import { useNoteVersion } from "./version";
+import {
+  sameWeight,
+  WeightInput,
+  weightDraftOf,
+  weightGramsOf,
+  type WeightDraft,
+} from "./weight-input";
 
 // Pricing, options and variants. A product without options edits its one
-// variant inline; adding options (size, colour…) generates variants, and the
-// matrix edits prices, SKUs, barcodes, cost and tracking for all of them at
-// once. Option edits that would remove variants ask first, listing exactly
-// what each holds.
+// variant inline (price, SKU, stock tracking, weight, shipping and tax);
+// adding options (size, colour…) generates variants, and the matrix edits
+// the same fields for each of them at once. Option edits that would remove
+// variants ask first, listing exactly what each holds.
 
 interface VariantDraft {
   price: string;
@@ -38,6 +46,9 @@ interface VariantDraft {
   barcode: string;
   tracked: boolean;
   oversell: boolean;
+  weight: WeightDraft;
+  ships: boolean;
+  taxable: boolean;
 }
 
 const draftOf = (v: EditorVariant): VariantDraft => ({
@@ -48,6 +59,9 @@ const draftOf = (v: EditorVariant): VariantDraft => ({
   barcode: v.barcode,
   tracked: v.tracked,
   oversell: v.inventoryPolicy === "CONTINUE",
+  weight: weightDraftOf(v.weightGrams),
+  ships: v.requiresShipping,
+  taxable: v.taxable,
 });
 
 const same = (a: VariantDraft, b: VariantDraft) =>
@@ -57,7 +71,31 @@ const same = (a: VariantDraft, b: VariantDraft) =>
   a.sku === b.sku &&
   a.barcode === b.barcode &&
   a.tracked === b.tracked &&
-  a.oversell === b.oversell;
+  a.oversell === b.oversell &&
+  sameWeight(a.weight, b.weight) &&
+  a.ships === b.ships &&
+  a.taxable === b.taxable;
+
+/** The saved fields of a draft, or the weight problem when the weight can't be read. */
+function variantInput(variantId: string, d: VariantDraft) {
+  const grams = weightGramsOf(d.weight);
+  return {
+    input: {
+      variantId,
+      price: d.price,
+      compareAtPrice: d.compareAtPrice,
+      cost: d.cost,
+      sku: d.sku,
+      barcode: d.barcode,
+      trackInventory: d.tracked,
+      inventoryPolicy: d.oversell ? ("CONTINUE" as const) : ("DENY" as const),
+      requiresShipping: d.ships,
+      taxable: d.taxable,
+      ...(grams === "invalid" ? {} : { weightGrams: grams }),
+    },
+    weightInvalid: grams === "invalid",
+  };
+}
 
 function MoneyInput({
   label,
@@ -220,21 +258,14 @@ function SingleVariantForm({
     setMessage(null);
   };
   const save = () => {
+    const { input, weightInvalid } = variantInput(variant.id, draft);
+    if (weightInvalid) {
+      setErrors({ weightGrams: WEIGHT_MESSAGE });
+      setMessage({ ok: false, text: "Please correct the highlighted fields." });
+      return;
+    }
     startTransition(async () => {
-      const result = await updateVariantsAction(storeId, productId, {
-        variants: [
-          {
-            variantId: variant.id,
-            price: draft.price,
-            compareAtPrice: draft.compareAtPrice,
-            cost: draft.cost,
-            sku: draft.sku,
-            barcode: draft.barcode,
-            trackInventory: draft.tracked,
-            inventoryPolicy: draft.oversell ? "CONTINUE" : "DENY",
-          },
-        ],
-      });
+      const result = await updateVariantsAction(storeId, productId, { variants: [input] });
       if (!result.ok) {
         const fields = Object.fromEntries(
           Object.entries(result.fieldErrors ?? {}).map(([k, v]) => [
@@ -321,6 +352,38 @@ function SingleVariantForm({
           />
         ) : null}
       </div>
+      <div className="space-y-3 border-t border-line pt-5">
+        <h3 className="text-label text-ink">Shipping and tax</h3>
+        <Switch
+          label="Physical product that needs shipping"
+          description="Turn off for services and digital goods: checkout skips the shipping step when nothing in the cart needs it."
+          checked={draft.ships}
+          onCheckedChange={(ships) => {
+            set({ ships });
+          }}
+        />
+        {draft.ships ? (
+          <div className="sm:max-w-64">
+            <WeightInput
+              label="Weight"
+              value={draft.weight}
+              onChange={(weight) => {
+                set({ weight });
+              }}
+              error={errors["weightGrams"]}
+              description="Packed weight, saved with each order."
+            />
+          </div>
+        ) : null}
+        <Checkbox
+          label="Charge tax on this product"
+          description="Your store's tax rates apply to it at checkout."
+          checked={draft.taxable}
+          onCheckedChange={(value) => {
+            set({ taxable: value === true });
+          }}
+        />
+      </div>
       {canEdit ? (
         <div className="flex flex-wrap items-center justify-end gap-3 border-t border-line pt-4">
           {message ? (
@@ -345,7 +408,7 @@ function SingleVariantForm({
             </Button>
           ) : null}
           <Button onClick={save} pending={pending} disabled={!dirty}>
-            Save pricing
+            Save pricing and shipping
           </Button>
         </div>
       ) : null}
@@ -409,21 +472,19 @@ function VariantMatrix({
   };
   const save = () => {
     const rows = changed;
+    const inputs = rows.map((v) => ({
+      id: v.id,
+      ...variantInput(v.id, drafts[v.id] ?? draftOf(v)),
+    }));
+    const unreadable = inputs.filter((i) => i.weightInvalid);
+    if (unreadable.length > 0) {
+      setErrors(Object.fromEntries(unreadable.map((i) => [i.id, { weightGrams: WEIGHT_MESSAGE }])));
+      setMessage({ ok: false, text: "Please correct the highlighted fields." });
+      return;
+    }
     startTransition(async () => {
       const result = await updateVariantsAction(storeId, productId, {
-        variants: rows.map((v) => {
-          const d = drafts[v.id] ?? draftOf(v);
-          return {
-            variantId: v.id,
-            price: d.price,
-            compareAtPrice: d.compareAtPrice,
-            cost: d.cost,
-            sku: d.sku,
-            barcode: d.barcode,
-            trackInventory: d.tracked,
-            inventoryPolicy: d.oversell ? "CONTINUE" : "DENY",
-          };
-        }),
+        variants: inputs.map((i) => i.input),
       });
       if (!result.ok) {
         const byVariant: Record<string, Record<string, string>> = {};
@@ -476,7 +537,7 @@ function VariantMatrix({
 
       {/* Tablet and desktop: one row per variant. */}
       <div className="hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[42rem] table-fixed border-collapse text-left">
+        <table className="w-full min-w-[64rem] table-fixed border-collapse text-left">
           <caption className="sr-only">Variants</caption>
           <thead>
             <tr className="text-caption font-medium text-ink-faint shadow-[inset_0_-1px_0_var(--color-line)]">
@@ -495,8 +556,17 @@ function VariantMatrix({
               <th scope="col" className="h-10 w-[18%] pr-2 font-medium">
                 SKU
               </th>
-              <th scope="col" className="h-10 w-[15%] pr-2 font-medium">
+              <th scope="col" className="h-10 w-[13%] pr-2 font-medium">
                 Barcode
+              </th>
+              <th scope="col" className="h-10 w-44 pr-2 font-medium">
+                Weight
+              </th>
+              <th scope="col" className="h-10 w-20 pr-2 text-center font-medium">
+                Shipping
+              </th>
+              <th scope="col" className="h-10 w-14 pr-2 text-center font-medium">
+                Tax
               </th>
               <th scope="col" className="h-10 w-20 pr-6 text-right font-medium">
                 Stock
@@ -581,6 +651,39 @@ function VariantMatrix({
                         className={cn("w-full min-w-0", e["barcode"] && "border-danger-500")}
                       />
                     </td>
+                    <td className="py-2.5 pr-2">
+                      <WeightInput
+                        hideLabel
+                        size="sm"
+                        label={`Weight for ${v.title}`}
+                        disabled={!canEdit}
+                        value={d.weight}
+                        onChange={(weight) => {
+                          set(v.id, { weight });
+                        }}
+                        error={e["weightGrams"]}
+                      />
+                    </td>
+                    <td className="py-2.5 pr-2 text-center">
+                      <Checkbox
+                        aria-label={`${v.title} needs shipping`}
+                        checked={d.ships}
+                        disabled={!canEdit}
+                        onCheckedChange={(value) => {
+                          set(v.id, { ships: value === true });
+                        }}
+                      />
+                    </td>
+                    <td className="py-2.5 pr-2 text-center">
+                      <Checkbox
+                        aria-label={`Charge tax on ${v.title}`}
+                        checked={d.taxable}
+                        disabled={!canEdit}
+                        onCheckedChange={(value) => {
+                          set(v.id, { taxable: value === true });
+                        }}
+                      />
+                    </td>
                     <td className="py-2.5 pr-6 text-right text-body-sm tabular-nums text-ink-muted">
                       {v.tracked ? v.available.toLocaleString("en-IN") : "Not tracked"}
                     </td>
@@ -588,7 +691,7 @@ function VariantMatrix({
                   {messages.length > 0 ? (
                     <tr>
                       <td
-                        colSpan={7}
+                        colSpan={10}
                         className="pb-2.5 pl-6 text-body-sm text-danger-700"
                         role="alert"
                       >
@@ -651,6 +754,30 @@ function VariantMatrix({
                     }}
                   />
                 </Field>
+                <div className="col-span-2">
+                  <WeightInput
+                    label="Weight"
+                    value={d.weight}
+                    onChange={(weight) => {
+                      set(v.id, { weight });
+                    }}
+                    error={e["weightGrams"]}
+                  />
+                </div>
+                <Checkbox
+                  label="Needs shipping"
+                  checked={d.ships}
+                  onCheckedChange={(value) => {
+                    set(v.id, { ships: value === true });
+                  }}
+                />
+                <Checkbox
+                  label="Charge tax"
+                  checked={d.taxable}
+                  onCheckedChange={(value) => {
+                    set(v.id, { taxable: value === true });
+                  }}
+                />
               </fieldset>
             </li>
           );

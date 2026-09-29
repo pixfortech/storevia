@@ -19,6 +19,8 @@ export interface ExportedVariantRow {
   readonly vendor: string;
   readonly productType: string;
   readonly tags: string;
+  /** HSN code for GST classification; empty when not set. */
+  readonly hsnCode: string;
   readonly variantId: string;
   readonly variantTitle: string;
   readonly option1: string;
@@ -30,6 +32,10 @@ export interface ExportedVariantRow {
   readonly compareAtPrice: string;
   readonly cost: string;
   readonly currency: string;
+  /** Whole grams; empty when not set. */
+  readonly weightGrams: string;
+  readonly requiresShipping: string;
+  readonly taxable: string;
   readonly tracked: string;
   readonly available: string;
 }
@@ -46,6 +52,12 @@ export interface ImportProblem {
   readonly message: string;
 }
 
+/**
+ * A file can't carry the merchant's confirmation for publishing a product
+ * priced at 0, so an importer reports such an ACTIVE row as a problem (or
+ * imports it as a draft, saying so); it never publishes it silently. The
+ * services enforce this whatever the importer does (CONFIRMATION_REQUIRED).
+ */
 export interface ProductImporter {
   /** Parses and validates without writing; never partially applies. */
   dryRun(
@@ -66,6 +78,7 @@ const COLUMNS: readonly (keyof ExportedVariantRow)[] = [
   "vendor",
   "productType",
   "tags",
+  "hsnCode",
   "variantId",
   "variantTitle",
   "option1",
@@ -77,6 +90,9 @@ const COLUMNS: readonly (keyof ExportedVariantRow)[] = [
   "compareAtPrice",
   "cost",
   "currency",
+  "weightGrams",
+  "requiresShipping",
+  "taxable",
   "tracked",
   "available",
 ];
@@ -144,6 +160,7 @@ export async function exportProducts(
         vendor: true,
         productType: true,
         tags: true,
+        hsnCode: true,
         variants: {
           where: { deletedAt: null },
           orderBy: [{ position: "asc" }, { id: "asc" }],
@@ -156,6 +173,9 @@ export async function exportProducts(
             priceAmount: true,
             compareAtAmount: true,
             costAmount: true,
+            weightGrams: true,
+            requiresShipping: true,
+            taxable: true,
             optionValues: {
               select: {
                 option: { select: { position: true } },
@@ -191,6 +211,7 @@ export async function exportProducts(
           vendor: p.vendor ?? "",
           productType: p.productType ?? "",
           tags: p.tags.join(", "),
+          hsnCode: p.hsnCode ?? "",
           variantId: publicId("variant", v.id),
           variantTitle: v.title,
           option1: option(0),
@@ -202,6 +223,9 @@ export async function exportProducts(
           compareAtPrice: amount(v.compareAtAmount),
           cost: amount(v.costAmount),
           currency: v.currency,
+          weightGrams: v.weightGrams === null ? "" : String(v.weightGrams),
+          requiresShipping: v.requiresShipping ? "yes" : "no",
+          taxable: v.taxable ? "yes" : "no",
           tracked: v.inventoryItem?.tracked ? "yes" : "no",
           available: v.inventoryItem?.tracked
             ? String(v.inventoryItem.levels.reduce((n, l) => n + l.available, 0))

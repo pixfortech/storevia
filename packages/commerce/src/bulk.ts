@@ -1,6 +1,6 @@
 import "server-only";
 import { parseInput, recordAudit, requirePermission, type TenantContext } from "@storevia/tenancy";
-import { notFound } from "@storevia/types";
+import { DomainError, notFound } from "@storevia/types";
 import { bulkProductActionSchema, PRODUCT_TAG_LIMIT } from "@storevia/validation";
 import { addProductsToCollection } from "./collections";
 import {
@@ -13,10 +13,15 @@ import {
 import {
   archiveProduct,
   forEachProduct,
+  FREE_PRODUCT_CODE,
   restoreProduct,
   setProductStatus,
   type BulkResult,
 } from "./products";
+
+/** Why a product priced at 0 was left as it was by "Set as active" in bulk. */
+export const FREE_BULK_MESSAGE =
+  "It's priced at 0, so it wasn't published. Open the product to publish it as a free product.";
 
 // Bulk product actions (ADR-0027). Each product is processed on its own, so
 // one failure (plan limit, product gone) is reported without undoing the
@@ -46,10 +51,20 @@ export async function bulkProductAction(ctx: TenantContext, input: unknown): Pro
 
   switch (data.action) {
     case "activate":
-    case "draft": {
-      const status = data.action === "activate" ? "ACTIVE" : "DRAFT";
-      return forEachProduct(data.productIds, (id) => setProductStatus(store, id, status));
-    }
+      // A product priced at 0 is never published in bulk: it is reported
+      // back, to be confirmed on its own page.
+      return forEachProduct(data.productIds, async (id) => {
+        try {
+          await setProductStatus(store, id, "ACTIVE");
+        } catch (error) {
+          if (error instanceof DomainError && error.code === FREE_PRODUCT_CODE) {
+            throw conflict(FREE_BULK_MESSAGE);
+          }
+          throw error;
+        }
+      });
+    case "draft":
+      return forEachProduct(data.productIds, (id) => setProductStatus(store, id, "DRAFT"));
     case "archive":
       return forEachProduct(data.productIds, (id) => archiveProduct(store, id));
     case "restore":

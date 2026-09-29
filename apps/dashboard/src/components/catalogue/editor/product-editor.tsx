@@ -266,6 +266,17 @@ export function ProductEditor({ context }: { context: EditorContext }) {
                   setDirty(true);
                 }}
               />
+              <TextField
+                label="HSN code"
+                name="hsnCode"
+                form={FORM_ID}
+                state={state}
+                defaultValue={product.hsnCode}
+                inputMode="numeric"
+                maxLength={12}
+                autoComplete="off"
+                hint="4, 6 or 8 digits. Stored with the product for GST classification; it doesn't change prices or tax yet."
+              />
               <TagsInput
                 storeId={storeId}
                 form={FORM_ID}

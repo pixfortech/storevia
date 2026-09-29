@@ -23,6 +23,10 @@ export interface EditorVariant {
   readonly price: string;
   readonly compareAtPrice: string;
   readonly cost: string;
+  /** Whole grams; null when not set. */
+  readonly weightGrams: number | null;
+  readonly requiresShipping: boolean;
+  readonly taxable: boolean;
   readonly inventoryPolicy: "DENY" | "CONTINUE";
   readonly tracked: boolean;
   readonly available: number;
@@ -48,6 +52,8 @@ export interface EditorProduct {
   readonly productType: string;
   readonly tags: readonly string[];
   readonly category: EditorCategory | null;
+  /** "" when not set. */
+  readonly hsnCode: string;
   readonly seoTitle: string;
   readonly seoDescription: string;
   readonly currency: string;

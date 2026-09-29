@@ -68,6 +68,17 @@ const ALLOWED_METADATA_KEYS = new Set([
   // Product taxonomy: global category codes (reference data, not tenant text).
   "category",
   "previousCategory",
+  // Product classification and publishing: HSN codes are public reference
+  // codes; confirmedFree records that a product priced at 0 was published on purpose.
+  "hsnCode",
+  "previousHsnCode",
+  "confirmedFree",
+  // Exports: the filters used and the row count, never the search text
+  // (it can be a customer's email or name).
+  "filter",
+  "from",
+  "to",
+  "searched",
   // Site presentation (ADR-0030): identifiers and counts, never documents.
   "kind",
   "versionNumber",

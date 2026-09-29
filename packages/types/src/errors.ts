@@ -13,7 +13,12 @@ export type ErrorCode =
   /** The organisation's plan doesn't include this feature (ADR-0022). */
   | "ENTITLEMENT_REQUIRED"
   /** A plan limit (e.g. store_count) has been reached. */
-  | "LIMIT_REACHED";
+  | "LIMIT_REACHED"
+  /**
+   * Allowed, but only once the person confirms it (e.g. publishing a product
+   * priced at 0). The request is repeated with the confirmation flag set.
+   */
+  | "CONFIRMATION_REQUIRED";
 
 export class DomainError extends Error {
   readonly code: ErrorCode;

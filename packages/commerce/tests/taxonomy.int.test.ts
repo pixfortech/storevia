@@ -55,6 +55,7 @@ beforeAll(async () => {
   });
   await create("mug", a, 0, {
     title: "Stoneware mug",
+    price: "450",
     tags: "kitchen, Ceramics",
     categoryCode: "hg-kd-drinkware-mugs",
   });
