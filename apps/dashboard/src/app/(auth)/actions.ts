@@ -1,7 +1,6 @@
 "use server";
 
 import { safeRedirectPath } from "@storevia/security";
-import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { runAction, formValues, type ActionState } from "@/lib/action";
@@ -83,8 +82,10 @@ export async function confirmEmailChangeAction(
       await headers(),
     );
     if (!result.ok) return { ok: false, message: result.message };
-    // A signed-in shell elsewhere in this browser shows the new address.
-    revalidatePath("/", "layout");
+    // No revalidatePath here: it would re-render this page on the server,
+    // where the (now spent) token reads as an invalid link and replaces the
+    // confirmation. Dashboard pages are dynamic, so the shell shows the new
+    // address on the next navigation.
     return { ok: true, message: `Your email address is now ${result.value.email}.` };
   });
 }
