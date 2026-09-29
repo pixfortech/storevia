@@ -77,10 +77,61 @@ function byteLength(value: unknown): number | null {
   }
 }
 
+const plural = (n: number, one: string, many: string) => `${String(n)} ${n === 1 ? one : many}`;
+
+/**
+ * A message a merchant can act on, in place of zod's generic ones ("Too
+ * small: expected string to have >=1 characters"). Messages the schemas
+ * spell out themselves (refinements) are kept as they are.
+ */
+export function issueMessage(issue: z.core.$ZodIssue): string {
+  switch (issue.code) {
+    case "too_small": {
+      const min = Number(issue.minimum);
+      if (issue.origin === "string") {
+        return min <= 1
+          ? "Enter at least 1 character."
+          : `Enter at least ${plural(min, "character", "characters")}.`;
+      }
+      if (issue.origin === "array" || issue.origin === "set") {
+        return `Add at least ${plural(min, "item", "items")}.`;
+      }
+      return issue.inclusive ? `Enter ${String(min)} or more.` : `Enter more than ${String(min)}.`;
+    }
+    case "too_big": {
+      const max = Number(issue.maximum);
+      if (issue.origin === "string") {
+        return `Use ${plural(max, "character", "characters")} or fewer.`;
+      }
+      if (issue.origin === "array" || issue.origin === "set") {
+        return `Use at most ${plural(max, "item", "items")}.`;
+      }
+      return issue.inclusive ? `Enter ${String(max)} or less.` : `Enter less than ${String(max)}.`;
+    }
+    case "invalid_type":
+      if (issue.expected === "int") return "Enter a whole number.";
+      if (issue.expected === "number") return "Enter a number.";
+      if (issue.expected === "string") return "Enter some text.";
+      if (issue.expected === "boolean") return "Turn this on or off.";
+      return "This setting is missing or isn't valid.";
+    case "invalid_value":
+    case "invalid_union":
+      return "Choose one of the options.";
+    case "unrecognized_keys":
+      return `Unknown ${issue.keys.length === 1 ? "setting" : "settings"}: ${issue.keys.join(", ")}.`;
+    case "invalid_format":
+      return issue.message.startsWith("Invalid")
+        ? "This isn't in the right format."
+        : issue.message;
+    default:
+      return issue.message;
+  }
+}
+
 const zodIssues = (base: string, error: z.ZodError): ValidationIssue[] =>
   error.issues.map((issue) => ({
     path: [base, ...issue.path.map(String)].filter(Boolean).join("."),
-    message: issue.message,
+    message: issueMessage(issue),
   }));
 
 export interface ValidateOptions<C extends SiteRenderContext = SiteRenderContext> {

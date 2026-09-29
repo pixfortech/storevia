@@ -1,6 +1,9 @@
 import "server-only";
 import { Prisma } from "@storevia/database";
 import {
+  describeIssues,
+  problemText,
+  problemsSummary,
   upgradeDocument,
   validateDocument,
   type PageDocument,
@@ -31,10 +34,13 @@ import { documentReferences, missingReferences } from "./references";
 // trigger. Opening the builder copies the published document into a draft;
 // saving checks the draft's revision (optimistic concurrency) so two tabs
 // or two people never silently overwrite each other; publishing archives
-// the old version, publishes the draft and moves the page's pointer in one
-// transaction (the deferred pointer trigger refuses anything half-done).
-// Every document is validated against the composition's registry and every
-// id it names is checked against this store before it is stored.
+// the old version, publishes the draft, moves the page's pointer and starts
+// the next draft as a copy of what went live, in one transaction (the
+// deferred pointer trigger refuses anything half-done). A revision is never
+// issued twice for a page (nextRevision), so a stale tab can't match a
+// newer draft. Reverting copies the published document back into the
+// draft. Every document is validated against the composition's registry
+// and every id it names is checked against this store before it is stored.
 
 const log = createLogger({ component: "site-admin" });
 
@@ -132,10 +138,25 @@ function slugify(title: string): string {
   return slug || "page";
 }
 
-function issuesMessage(issues: readonly ValidationIssue[]): string {
-  const first = issues.slice(0, 3).map((i) => (i.path ? `${i.path}: ${i.message}` : i.message));
-  const more = issues.length > 3 ? ` (and ${String(issues.length - 3)} more)` : "";
-  return `This page can't be saved: ${first.join("; ")}${more}`;
+/** The most problems one refusal carries (the builder lists them). */
+const MAX_REPORTED_PROBLEMS = 50;
+
+/**
+ * A refused document: the message names each problem's section and field
+ * in words; `fieldErrors` carries the same problems keyed by their path in
+ * the document, so the builder can show each one at its field.
+ */
+function invalidDocument<C extends SiteRenderContext>(
+  document: unknown,
+  issues: readonly ValidationIssue[],
+  composition: SiteComposition<C>,
+): DomainError {
+  const problems = describeIssues(document, issues, composition.registry);
+  const fieldErrors: Record<string, string> = {};
+  for (const problem of problems.slice(0, MAX_REPORTED_PROBLEMS)) {
+    fieldErrors[problem.path.startsWith("root.") ? problem.path : "document"] ??= problem.message;
+  }
+  return invalid(`This page can't be saved. ${problemsSummary(problems)}`, fieldErrors);
 }
 
 /**
@@ -150,7 +171,8 @@ async function checkedDocument<C extends SiteRenderContext>(
   input: unknown,
   pageId: string,
 ): Promise<{ document: PageDocument; sections: number }> {
-  const result = validateDocument(upgradeDocument(input), {
+  const upgraded = upgradeDocument(input);
+  const result = validateDocument(upgraded, {
     registry: composition.registry,
     pageKind: kind,
   });
@@ -161,7 +183,7 @@ async function checkedDocument<C extends SiteRenderContext>(
       issues: result.issues.length,
     });
     recordMetric("site.page_validation_failed", 1, { kind });
-    throw invalid(issuesMessage(result.issues));
+    throw invalidDocument(upgraded, result.issues, composition);
   }
   for (const feature of result.requiredFeatures) {
     if (isFeatureKey(feature)) await assertFeature(tx, store.organisationId, feature);
@@ -377,6 +399,44 @@ async function draftOf(tx: TenantTx, pageId: string): Promise<VersionRow | null>
   return rows[0] ?? null;
 }
 
+async function publishedOf(
+  tx: TenantTx,
+  page: PageRow,
+): Promise<Omit<VersionRow, "id" | "revision"> | null> {
+  if (!page.publishedVersionId) return null;
+  const rows = await tx.$queryRaw<Omit<VersionRow, "id" | "revision">[]>`
+    SELECT "versionNumber", document, "documentHash" FROM "PageVersion"
+    WHERE id = ${page.publishedVersionId}::uuid`;
+  return rows[0] ?? null;
+}
+
+/**
+ * The revision a new draft starts at: past every revision any version of the
+ * page ever had. A revision is the builder's concurrency token, so it is
+ * never issued twice for one page: a tab still holding the old draft's
+ * revision can't save over a draft created later (after a publish), even
+ * though that draft is a different row.
+ */
+const nextRevision = (pageId: string) => Prisma.sql`(
+  SELECT coalesce(max(revision), -1) + 1 FROM "PageVersion" WHERE "pageId" = ${pageId}::uuid)`;
+
+/** The editor's copy of a stored document (the kind's starter when it can't be read). */
+function documentForEditor<C extends SiteRenderContext>(
+  composition: SiteComposition<C>,
+  kind: EditablePageKind,
+  stored: unknown,
+): { document: PageDocument; problems: string[] } {
+  const upgraded = upgradeDocument(stored);
+  const result = validateDocument(upgraded, { registry: composition.registry, pageKind: kind });
+  if (result.ok) return { document: result.document, problems: [] };
+  return {
+    document: (upgraded as PageDocument | null) ?? { schemaVersion: 1, root: [] },
+    problems: describeIssues(upgraded, result.issues, composition.registry)
+      .slice(0, 10)
+      .map(problemText),
+  };
+}
+
 /**
  * The page's draft for the builder, created from the published version (or
  * the kind's starter document) when there is none. Two tabs opening at once
@@ -407,27 +467,20 @@ export async function openPageDraft<C extends SiteRenderContext>(
         const json = JSON.stringify(source);
         await tx.$executeRaw`
           INSERT INTO "PageVersion" (id, "organisationId", "storeId", "pageId", "versionNumber", state,
-              "schemaVersion", document, "documentHash", "basedOnVersionId", "createdById", "updatedById", "updatedAt")
+              "schemaVersion", document, "documentHash", revision, "basedOnVersionId", "createdById",
+              "updatedById", "updatedAt")
           SELECT gen_random_uuid(), ${store.organisationId}::uuid, ${store.storeId}::uuid, ${pageId}::uuid,
                  coalesce(max("versionNumber"), 0) + 1, 'DRAFT', 1, ${json}::jsonb,
                  encode(sha256(convert_to(${json}::jsonb::text, 'UTF8')), 'hex'),
+                 coalesce(max(revision), -1) + 1,
                  ${page.publishedVersionId}::uuid, ${store.userId}::uuid, ${store.userId}::uuid, now()
           FROM "PageVersion" WHERE "pageId" = ${pageId}::uuid
           ON CONFLICT ("pageId") WHERE state = 'DRAFT' DO NOTHING`;
         draft = await draftOf(tx, pageId);
         if (!draft) throw new Error("draft missing after insert");
       }
-      const publishedHash = page.publishedVersionId
-        ? ((
-            await tx.$queryRaw<{ documentHash: string }[]>`
-              SELECT "documentHash" FROM "PageVersion" WHERE id = ${page.publishedVersionId}::uuid`
-          )[0]?.documentHash ?? null)
-        : null;
-      const upgraded = upgradeDocument(draft.document);
-      const result = validateDocument(upgraded, {
-        registry: composition.registry,
-        pageKind: page.kind,
-      });
+      const publishedHash = (await publishedOf(tx, page))?.documentHash ?? null;
+      const { document, problems } = documentForEditor(composition, page.kind, draft.document);
       return {
         id: toTypeId("page", page.id),
         kind: page.kind,
@@ -439,10 +492,8 @@ export async function openPageDraft<C extends SiteRenderContext>(
         status: statusOf(page.publishedVersionId, draft.documentHash, publishedHash),
         revision: draft.revision,
         versionNumber: draft.versionNumber,
-        document: result.ok
-          ? result.document
-          : ((upgraded as PageDocument | null) ?? { schemaVersion: 1, root: [] }),
-        problems: result.ok ? [] : result.issues.slice(0, 10).map((i) => `${i.path}: ${i.message}`),
+        document,
+        problems,
       };
     },
     { write: true },
@@ -521,21 +572,32 @@ export async function savePageDraft<C extends SiteRenderContext>(
 // Publish, unpublish, delete.
 // ---------------------------------------------------------------------------
 
-const publishSchema = z.strictObject({ revision: z.number().int().min(0) });
+const revisionSchema = z.strictObject({ revision: z.number().int().min(0) });
+
+export interface PublishResult {
+  /** The version that is live now. */
+  readonly versionNumber: number;
+  /** The draft's revision after publishing: the builder keeps editing with it. */
+  readonly revision: number;
+  /** False when the draft was already what's live (nothing was published). */
+  readonly changed: boolean;
+}
 
 /**
  * Publishes the draft the merchant is looking at (`revision`): one
- * transaction archives the live version, publishes the draft and moves the
- * page's pointer. A failure anywhere leaves the live page as it was.
+ * transaction archives the live version, publishes the draft, moves the
+ * page's pointer and starts a new draft from what was just published (so
+ * the builder keeps editing without a reload). A failure anywhere leaves
+ * the live page as it was. A draft that is already live publishes nothing.
  */
 export async function publishPage<C extends SiteRenderContext>(
   ctx: TenantContext,
   pageIdInput: unknown,
   input: unknown,
   composition: SiteComposition<C>,
-): Promise<{ versionNumber: number }> {
+): Promise<PublishResult> {
   const pageId = internalId("page", pageIdInput);
-  const data = parseInput(publishSchema, input);
+  const data = parseInput(revisionSchema, input);
   try {
     return await inSite(
       ctx,
@@ -543,8 +605,13 @@ export async function publishPage<C extends SiteRenderContext>(
       async (tx, store) => {
         const page = await loadPage(tx, pageId, true);
         const draft = await draftOf(tx, pageId);
-        if (!draft) throw conflict("There's nothing new to publish on this page.");
-        if (draft.revision !== data.revision) throw conflict(DRAFT_CONFLICT_MESSAGE);
+        // No draft: it was published from somewhere else (before drafts
+        // outlived a publish), so this tab's revision is stale.
+        if (draft?.revision !== data.revision) throw conflict(DRAFT_CONFLICT_MESSAGE);
+        const live = await publishedOf(tx, page);
+        if (live?.documentHash === draft.documentHash) {
+          return { versionNumber: live.versionNumber, revision: draft.revision, changed: false };
+        }
         const { sections } = await checkedDocument(
           tx,
           store,
@@ -565,6 +632,19 @@ export async function publishPage<C extends SiteRenderContext>(
         await tx.$executeRaw`
           UPDATE "Page" SET "publishedVersionId" = ${draft.id}::uuid, "updatedAt" = now()
           WHERE id = ${pageId}::uuid`;
+        // The next draft: a copy of what was just published, with a revision
+        // no version of this page has had (see nextRevision).
+        const [next] = await tx.$queryRaw<{ revision: number }[]>`
+          INSERT INTO "PageVersion" (id, "organisationId", "storeId", "pageId", "versionNumber", state,
+              "schemaVersion", document, "documentHash", revision, "basedOnVersionId", "createdById",
+              "updatedById", "updatedAt")
+          SELECT gen_random_uuid(), v."organisationId", v."storeId", v."pageId",
+                 (SELECT max("versionNumber") + 1 FROM "PageVersion" WHERE "pageId" = v."pageId"),
+                 'DRAFT', v."schemaVersion", v.document, v."documentHash",
+                 ${nextRevision(pageId)}, v.id, ${store.userId}::uuid, ${store.userId}::uuid, now()
+          FROM "PageVersion" v WHERE v.id = ${draft.id}::uuid
+          RETURNING revision`;
+        if (!next) throw new Error("next draft insert returned nothing");
         await recordAudit(
           tx,
           store,
@@ -576,7 +656,7 @@ export async function publishPage<C extends SiteRenderContext>(
             sections,
           },
         );
-        return { versionNumber: draft.versionNumber };
+        return { versionNumber: draft.versionNumber, revision: next.revision, changed: true };
       },
       { write: true },
     );
@@ -587,6 +667,68 @@ export async function publishPage<C extends SiteRenderContext>(
     }
     throw error;
   }
+}
+
+export interface RevertResult {
+  readonly revision: number;
+  readonly status: PageStatus;
+  readonly document: PageDocument;
+  readonly problems: readonly string[];
+}
+
+/**
+ * Throws away the draft's unpublished changes: the draft (at `revision`)
+ * becomes a copy of the published version again. The published version is
+ * never touched; a draft saved elsewhere since `revision` is refused like
+ * any other stale save.
+ */
+export async function revertPageDraft<C extends SiteRenderContext>(
+  ctx: TenantContext,
+  pageIdInput: unknown,
+  input: unknown,
+  composition: SiteComposition<C>,
+): Promise<RevertResult> {
+  const pageId = internalId("page", pageIdInput);
+  const data = parseInput(revisionSchema, input);
+  return inSite(
+    ctx,
+    "design.edit",
+    async (tx, store) => {
+      const page = await loadPage(tx, pageId);
+      const live = await publishedOf(tx, page);
+      if (!live)
+        throw conflict("This page hasn't been published yet, so there's nothing to go back to.");
+      const draft = await draftOf(tx, pageId);
+      if (draft?.revision !== data.revision) throw conflict(DRAFT_CONFLICT_MESSAGE);
+      let revision = draft.revision;
+      if (draft.documentHash !== live.documentHash) {
+        const [row] = await tx.$queryRaw<{ revision: number }[]>`
+          UPDATE "PageVersion" d
+          SET document = p.document, "documentHash" = p."documentHash", "schemaVersion" = p."schemaVersion",
+              revision = ${nextRevision(pageId)}, "basedOnVersionId" = p.id,
+              "updatedById" = ${store.userId}::uuid, "updatedAt" = now()
+          FROM "PageVersion" p
+          WHERE p.id = ${page.publishedVersionId}::uuid
+            AND d."pageId" = ${pageId}::uuid AND d.state = 'DRAFT' AND d.revision = ${data.revision}
+          RETURNING d.revision`;
+        if (!row) {
+          recordMetric("site.draft_conflict", 1, {});
+          throw conflict(DRAFT_CONFLICT_MESSAGE);
+        }
+        revision = row.revision;
+        await recordAudit(
+          tx,
+          store,
+          "page.draft_reverted",
+          { type: "Page", id: pageId },
+          { kind: page.kind, versionNumber: live.versionNumber },
+        );
+      }
+      const { document, problems } = documentForEditor(composition, page.kind, live.document);
+      return { revision, status: "published", document, problems };
+    },
+    { write: true },
+  );
 }
 
 async function takeDown(tx: TenantTx, page: PageRow): Promise<void> {
