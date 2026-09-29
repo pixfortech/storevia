@@ -114,10 +114,7 @@ export const orderNumber = (n: number) => `#${String(n)}`;
 export type OrderTab =
   "all" | "unfulfilled" | "unpaid" | "completed" | "cancelled" | "test" | "archived";
 
-/**
- * Every tab but Archived leaves archived orders out, and every tab but Test
- * and Archived leaves test orders out.
- */
+/** Every tab but Archived leaves archived orders out; Test shows only test orders. */
 export const ORDER_TABS: readonly { readonly value: OrderTab; readonly label: string }[] = [
   { value: "all", label: "All" },
   { value: "unfulfilled", label: "Unfulfilled" },

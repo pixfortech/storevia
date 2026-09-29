@@ -1,7 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
-import { createTenant } from "./helpers";
+import { createTenant, type Tenant } from "./helpers";
 import { images } from "./images";
 import { addProduct, fetchStore, storefrontOrigin } from "./storefront-helpers";
+import { goLiveReady } from "./launch-helpers";
 
 // The Visual Builder, end to end (ADR-0030): a merchant edits the home page
 // with generic and commerce sections, reorders them, picks an image from the
@@ -12,10 +13,8 @@ import { addProduct, fetchStore, storefrontOrigin } from "./storefront-helpers";
 
 const canvas = (page: Page) => page.frameLocator('iframe[title="Page preview"]');
 
-async function goLive(page: Page, storePath: string) {
-  await page.goto(`${storePath}/settings`);
-  await page.getByRole("button", { name: "Go live" }).click();
-  await expect(page.getByText("Your store is live.")).toBeVisible();
+async function goLive(page: Page, tenant: Tenant) {
+  await goLiveReady(page, tenant);
 }
 
 async function openHomeBuilder(page: Page, storePath: string) {
@@ -38,7 +37,7 @@ test("a merchant builds, previews and publishes the home page", async ({
   const tenant = await createTenant(page, "builder");
   await addProduct(page, tenant, "Stoneware mug", "999.50", "5");
   const origin = await storefrontOrigin(page, tenant);
-  await goLive(page, tenant.storePath);
+  await goLive(page, tenant);
   const shopper = await browser.newContext();
 
   await openHomeBuilder(page, tenant.storePath);
@@ -179,7 +178,7 @@ test("theme, menus, two tabs, and another tenant", async ({ page, browser }) => 
   test.setTimeout(300_000);
   const tenant = await createTenant(page, "designer");
   const origin = await storefrontOrigin(page, tenant);
-  await goLive(page, tenant.storePath);
+  await goLive(page, tenant);
   const shopper = await browser.newContext();
 
   // A content page, published.

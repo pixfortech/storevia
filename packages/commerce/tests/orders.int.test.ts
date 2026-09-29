@@ -128,7 +128,7 @@ async function placeOrder(
     where: { storeId: storeA.storeId },
     orderBy: { orderNumber: "desc" },
   });
-  // A live order: these tests read the default lists and the sales figures.
+  // A live order (the Test Provider's are test orders): these tests read the sales figures.
   await makeOrderLive(order.id);
   return toTypeId("order", order.id);
 }

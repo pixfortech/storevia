@@ -9,10 +9,13 @@ import {
   createOrganisation,
   createStore,
   getOnlineStore,
+  launchBlockers,
+  launchReadiness,
   requireOrganisationAccess,
   requireStoreAccess,
   setStorefrontLive,
   storefrontPreviewUrl,
+  type LaunchReadinessCheck,
   type MemberRole,
   type OrganisationContext,
   type Principal,
@@ -91,6 +94,9 @@ beforeEach(async () => {
 
 afterAll(disconnectTestClients);
 
+/** Launch checks that all pass (the real ones are composed by the dashboard). */
+const ready: LaunchReadinessCheck = () => Promise.resolve([]);
+
 describe("going live", () => {
   it("new stores start as coming soon; going live and back is audited and idempotent", async () => {
     expect(await getOnlineStore(store)).toEqual({
@@ -99,8 +105,8 @@ describe("going live", () => {
       url: "https://clay.storevia.site/",
       redirectingHosts: [],
     });
-    await setStorefrontLive(store, true);
-    await setStorefrontLive(store, true);
+    await setStorefrontLive(store, true, ready);
+    await setStorefrontLive(store, true, ready);
     expect((await getOnlineStore(store)).status).toBe("ACTIVE");
     await setStorefrontLive(store, false);
     expect((await getOnlineStore(store)).status).toBe("DRAFT");
@@ -118,17 +124,70 @@ describe("going live", () => {
       where: { id: store.storeId },
       data: { status: "SUSPENDED", suspendedAt: new Date() },
     });
-    await expectCode(setStorefrontLive(store, true), "CONFLICT");
+    await expectCode(setStorefrontLive(store, true, ready), "CONFLICT");
     await migratorDb().store.update({
       where: { id: store.storeId },
       data: { status: "ARCHIVED", suspendedAt: null, archivedAt: new Date() },
     });
-    await expectCode(setStorefrontLive(store, true), "CONFLICT");
+    await expectCode(setStorefrontLive(store, true, ready), "CONFLICT");
+    await migratorDb().store.update({
+      where: { id: store.storeId },
+      data: { status: "DRAFT", archivedAt: null },
+    });
+  });
+
+  it("refuses to go live while a blocking launch check fails, naming what is missing (DB-1)", async () => {
+    const seen: string[] = [];
+    const missingPayments = async (tx: Parameters<LaunchReadinessCheck>[0]) => {
+      // The check runs in the same transaction, with the store row locked.
+      const rows = await tx.$queryRaw<{ status: string }[]>`
+        SELECT status::text AS status FROM "Store" WHERE id = ${store.storeId}::uuid`;
+      seen.push(rows[0]?.status ?? "");
+      return [
+        {
+          key: "payments",
+          label: "Payments",
+          ok: false,
+          blocking: true,
+          detail: "Connect a payment provider so shoppers can pay.",
+        },
+        {
+          key: "products",
+          label: "Products",
+          ok: true,
+          blocking: true,
+          detail: "1 active product.",
+        },
+      ];
+    };
+    const refused = await setStorefrontLive(store, true, missingPayments).catch((e: unknown) => e);
+    expect(refused).toMatchObject({ code: "CONFLICT" });
+    expect((refused as Error).message).toContain("Connect a payment provider");
+    expect(seen).toEqual(["DRAFT"]);
+    expect((await getOnlineStore(store)).status).toBe("DRAFT");
+    // A warning (not blocking) doesn't stop it.
+    await setStorefrontLive(store, true, () =>
+      Promise.resolve([
+        { key: "payments", label: "Payments", ok: false, blocking: false, detail: "Test mode." },
+      ]),
+    );
+    expect((await getOnlineStore(store)).status).toBe("ACTIVE");
+    expect(launchBlockers(await launchReadiness(store, missingPayments))).toHaveLength(1);
+    await setStorefrontLive(store, false);
+  });
+
+  it("going live without the checks is a programming error, never a silent pass", async () => {
+    const unchecked = setStorefrontLive as unknown as (
+      ctx: typeof store,
+      live: boolean,
+    ) => Promise<void>;
+    await expect(unchecked(store, true)).rejects.toThrow(/launch checks/);
+    expect((await getOnlineStore(store)).status).toBe("DRAFT");
   });
 
   it("needs store.update", async () => {
-    await expectCode(setStorefrontLive(await as("VIEWER"), true), "FORBIDDEN");
-    await expectCode(setStorefrontLive(await as("CATALOGUE_MANAGER"), true), "FORBIDDEN");
+    await expectCode(setStorefrontLive(await as("VIEWER"), true, ready), "FORBIDDEN");
+    await expectCode(setStorefrontLive(await as("CATALOGUE_MANAGER"), true, ready), "FORBIDDEN");
   });
 });
 

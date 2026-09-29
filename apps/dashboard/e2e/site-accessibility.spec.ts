@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { createTenant } from "./helpers";
 import { addProduct, fetchStore, storefrontOrigin } from "./storefront-helpers";
+import { goLiveReady } from "./launch-helpers";
 
 // Automated accessibility audit (axe-core, WCAG 2.1 A and AA) of the
 // Milestone 5 surfaces: the website hub, pages list, builder (desktop and
@@ -33,9 +34,7 @@ test("the builder and the pages it publishes pass an automated accessibility aud
   const tenant = await createTenant(page, "a11y");
   await addProduct(page, tenant, "Stoneware mug", "999.50", "5");
   const origin = await storefrontOrigin(page, tenant);
-  await page.goto(`${tenant.storePath}/settings`);
-  await page.getByRole("button", { name: "Go live" }).click();
-  await expect(page.getByText("Your store is live.")).toBeVisible();
+  await goLiveReady(page, tenant);
 
   await page.goto(`${tenant.storePath}/website`);
   await audit(page, "website hub");

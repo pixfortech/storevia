@@ -99,7 +99,7 @@ async function newStore(
     timezone: "Asia/Kolkata",
   });
   const ctx = await requireStoreAccess(owner, toTypeId("store", storeId));
-  await setStorefrontLive(ctx, true);
+  await setStorefrontLive(ctx, true, () => Promise.resolve([]));
   return requireStoreAccess(owner, toTypeId("store", storeId));
 }
 

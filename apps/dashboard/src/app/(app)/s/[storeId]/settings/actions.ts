@@ -14,6 +14,7 @@ import { runAction, type ActionState } from "@/lib/action";
 import { requireActionPrincipal } from "@/lib/auth";
 import { orgPath } from "@/lib/ids";
 import { requestInfo } from "@/lib/request";
+import { storeLaunchChecks } from "@/lib/launch-readiness";
 
 /**
  * `storeId` is supplied by the client (bound argument). It is re-verified
@@ -89,7 +90,8 @@ export async function setStorefrontLiveAction(
       await requestInfo(),
     );
     const live = formData.get("live") === "true";
-    await setStorefrontLive(ctx, live);
+    if (live) await setStorefrontLive(ctx, true, storeLaunchChecks(ctx.storeId));
+    else await setStorefrontLive(ctx, false);
     revalidatePath(`/s/${storeId}`, "layout");
     return {
       ok: true,

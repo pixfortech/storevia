@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { createTenant } from "./helpers";
 import { images } from "./images";
 import { addProduct, fetchStore, storefrontOrigin } from "./storefront-helpers";
+import { goLiveReady } from "./launch-helpers";
 
 // Processed product images, as a shopper's browser loads them on the store's
 // own origin ({store}.store.localhost:3002) from the media origin (locally
@@ -92,9 +93,7 @@ test("storefront pages display processed product images from the media origin", 
   await expect(page.getByRole("button", { name: /Remove from Summer/ })).toBeVisible();
 
   const origin = await storefrontOrigin(page, tenant);
-  await page.goto(`${tenant.storePath}/settings`);
-  await page.getByRole("button", { name: "Go live" }).click();
-  await expect(page.getByText("Your store is live.")).toBeVisible();
+  await goLiveReady(page, tenant);
 
   const shopper = await browser.newContext();
   await expect

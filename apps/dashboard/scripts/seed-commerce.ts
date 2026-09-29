@@ -52,6 +52,7 @@ import {
 import { addToCart } from "@storevia/commerce/storefront";
 import { getStore, requireStoreAccess, type StoreContext } from "@storevia/tenancy";
 import { toTypeId } from "@storevia/types";
+import { ensureStoreLive } from "./seed-launch";
 
 const ADDRESSES = [
   {
@@ -284,6 +285,8 @@ export async function seedAcmeCommerce(ctx: StoreContext): Promise<CommerceSeedR
   if (payments) {
     problems.push(payments, "Seeded orders are skipped until payments are connected.");
   } else {
+    // The flagship is live, so local development shows a working store (M4).
+    await ensureStoreLive(ctx, "help@acme.example");
     await ensureOrders(ctx, created);
   }
   return { created, problems };

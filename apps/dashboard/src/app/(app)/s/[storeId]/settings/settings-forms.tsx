@@ -201,10 +201,13 @@ export function StorefrontStatusForm({
   storeId,
   live,
   canEdit,
+  blocked = false,
 }: {
   storeId: string;
   live: boolean;
   canEdit: boolean;
+  /** A launch check is missing: going live is refused (on the server too). */
+  blocked?: boolean;
 }) {
   const [state, action] = useActionState(setStorefrontLiveAction.bind(null, storeId), {
     ok: false,
@@ -215,7 +218,12 @@ export function StorefrontStatusForm({
       <CardFooter className="justify-between">
         <FormMessage state={state} variant="inline" />
         {canEdit ? (
-          <SubmitButton variant={live ? "secondary" : "primary"} className="ml-auto">
+          <SubmitButton
+            variant={live ? "secondary" : "primary"}
+            className="ml-auto"
+            disabled={blocked}
+            {...(blocked ? { "aria-describedby": "launch-readiness-title" } : {})}
+          >
             {live ? "Switch to coming soon" : "Go live"}
           </SubmitButton>
         ) : null}

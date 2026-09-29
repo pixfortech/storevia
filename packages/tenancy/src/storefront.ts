@@ -1,5 +1,5 @@
 import "server-only";
-import { withTenant } from "@storevia/database";
+import { withTenant, type TenantTx } from "@storevia/database";
 import {
   platformHostname,
   signPreviewToken,
@@ -53,17 +53,65 @@ export async function getOnlineStore(ctx: StoreContext): Promise<OnlineStore> {
 }
 
 /**
+ * One thing a store needs before it goes live (final pass, DB-1). The checks
+ * themselves live with what they check (commerce, the page system); the app
+ * composes them and this module enforces them.
+ */
+export interface LaunchCheck {
+  /** Stable key, e.g. "payments". */
+  readonly key: string;
+  /** What is checked, e.g. "Payments". */
+  readonly label: string;
+  readonly ok: boolean;
+  /** A blocking check keeps the store from going live; others are warnings. */
+  readonly blocking: boolean;
+  /** What is set up, or exactly what is missing. */
+  readonly detail: string;
+}
+
+/** Runs every launch check for the context's store, in the caller's transaction. */
+export type LaunchReadinessCheck = (tx: TenantTx) => Promise<readonly LaunchCheck[]>;
+
+/** The checks that keep a store from going live. */
+export const launchBlockers = (checks: readonly LaunchCheck[]): LaunchCheck[] =>
+  checks.filter((c) => c.blocking && !c.ok);
+
+/** Runs the launch checks for display (the same ones going live enforces). Needs `store.read`. */
+export async function launchReadiness(
+  ctx: StoreContext,
+  readiness: LaunchReadinessCheck,
+): Promise<readonly LaunchCheck[]> {
+  requirePermission(ctx, "store.read");
+  return withTenant(scopeOf(ctx), readiness);
+}
+
+/**
  * Takes the storefront live (ACTIVE) or back to "coming soon" (DRAFT). Only
  * between those two: suspension is the platform's, archiving has its own path.
+ * Going live runs the launch checks in the same transaction, with the store
+ * row locked, and refuses while any blocking check fails: an incomplete store
+ * never goes live to fail at checkout (final pass, DB-1).
  */
-export async function setStorefrontLive(ctx: StoreContext, live: boolean): Promise<void> {
+export async function setStorefrontLive(ctx: StoreContext, live: false): Promise<void>;
+export async function setStorefrontLive(
+  ctx: StoreContext,
+  live: true,
+  readiness: LaunchReadinessCheck,
+): Promise<void>;
+export async function setStorefrontLive(
+  ctx: StoreContext,
+  live: boolean,
+  readiness?: LaunchReadinessCheck,
+): Promise<void> {
   requirePermission(ctx, "store.update");
+  if (live && !readiness) throw new Error("setStorefrontLive: going live needs the launch checks");
   const [from, to] = live ? (["DRAFT", "ACTIVE"] as const) : (["ACTIVE", "DRAFT"] as const);
   await withTenant(scopeOf(ctx), async (tx) => {
-    const current = await tx.store.findFirst({
-      where: { id: ctx.storeId, organisationId: ctx.organisationId },
-      select: { status: true },
-    });
+    const rows = await tx.$queryRaw<{ status: string }[]>`
+      SELECT status::text AS status FROM "Store"
+      WHERE id = ${ctx.storeId}::uuid AND "organisationId" = ${ctx.organisationId}::uuid
+      FOR UPDATE`;
+    const current = rows[0];
     if (!current) throw notFound();
     if (current.status === to) return;
     if (current.status !== from) {
@@ -72,6 +120,14 @@ export async function setStorefrontLive(ctx: StoreContext, live: boolean): Promi
           ? "This store is suspended. Contact Storevia support."
           : "Archived stores can't go live.",
       );
+    }
+    if (live && readiness) {
+      const blockers = launchBlockers(await readiness(tx));
+      if (blockers.length > 0) {
+        throw conflict(
+          `Your store isn't ready to go live yet: ${blockers.map((b) => b.detail).join(" ")}`,
+        );
+      }
     }
     const { count } = await tx.store.updateMany({
       where: { id: ctx.storeId, organisationId: ctx.organisationId, status: from },

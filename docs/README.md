@@ -26,6 +26,7 @@ Supporting documents:
 - [Architecture Decision Records](adr/README.md)
 - [Testing strategy and security test suites](architecture/11-testing.md) (Milestone 1)
 - [Design system](architecture/12-design-system.md) (Milestone 2.5)
+- [Revenue and sales definition](product/revenue-definition.md) and [launch readiness](product/launch-readiness.md) (final pass, Phase 1)
 - [Toolchain and dependency update policy](engineering/toolchain-policy.md) (ADR-0026)
 
 ## Status

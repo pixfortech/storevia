@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { createTenant } from "./helpers";
 import { addProduct, fetchStore, storefrontOrigin } from "./storefront-helpers";
+import { goLiveReady } from "./launch-helpers";
 
 // Product taxonomy and tags, end to end: a merchant chooses a category from
 // the shared taxonomy in the picker and adds tags as chips (Enter and
@@ -86,8 +87,7 @@ test("a merchant categorises and tags a product, then finds it by tag", async ({
 
   // The public product page still loads once the store is live.
   const origin = await storefrontOrigin(page, tenant);
-  await page.getByRole("button", { name: "Go live" }).click();
-  await expect(page.getByText("Your store is live.")).toBeVisible();
+  await goLiveReady(page, tenant);
   const shopper = await browser.newContext();
   await expect
     .poll(

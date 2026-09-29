@@ -36,7 +36,13 @@ export function greeting(name: string | null | undefined): string {
 }
 
 export interface SetupTask {
-  readonly key: "create-store" | "store-details" | "invite-team" | "business-type";
+  readonly key:
+    | "create-store"
+    | "store-details"
+    | "invite-team"
+    | "business-type"
+    | `launch-${string}`
+    | "go-live";
   readonly title: string;
   readonly description: string;
   /** Known to be done. Steps Storevia can't check stay open. */
@@ -53,6 +59,21 @@ export interface SetupInput {
   readonly permissions: ReadonlySet<Permission>;
   /** Active members of the organisation, when the member may read the team. */
   readonly memberCount: number | null;
+  /**
+   * The store's launch checks (final pass, DB-1), with where to fix each, and
+   * whether the store is live. Omitted: no launch steps.
+   */
+  readonly launch?: {
+    readonly live: boolean;
+    readonly checks: readonly {
+      readonly key: string;
+      readonly label: string;
+      readonly ok: boolean;
+      readonly blocking: boolean;
+      readonly detail: string;
+      readonly href: string | null;
+    }[];
+  } | null;
 }
 
 export function setupTasks({
@@ -62,6 +83,7 @@ export function setupTasks({
   businessType,
   permissions,
   memberCount,
+  launch = null,
 }: SetupInput): SetupTask[] {
   const definition = BUSINESS_TYPE_DEFINITIONS[businessType];
   const type = definition.label.toLowerCase();
@@ -83,6 +105,32 @@ export function setupTasks({
       action: canUpdate ? "Review" : "View",
     },
   ];
+  if (launch) {
+    // Before launch, every check; once live, only what still needs attention.
+    for (const check of launch.checks) {
+      if (launch.live && check.ok) continue;
+      tasks.push({
+        key: `launch-${check.key}`,
+        title: check.label,
+        description: check.detail,
+        done: check.ok,
+        ...(check.href && !check.ok ? { href: check.href, action: "Fix" } : {}),
+      });
+    }
+    const blocked = launch.checks.some((c) => c.blocking && !c.ok);
+    if (!launch.live && permissions.has("store.update")) {
+      tasks.push({
+        key: "go-live",
+        title: "Go live",
+        description: blocked
+          ? "Finish the steps above, then open your store to shoppers."
+          : "Everything needed is in place. Open your store to shoppers.",
+        done: false,
+        href: storePath(storeId, "/settings#storefront"),
+        action: blocked ? "Review" : "Go live",
+      });
+    }
+  }
   if (permissions.has("member.manage")) {
     tasks.push({
       key: "invite-team",

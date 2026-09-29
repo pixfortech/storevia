@@ -335,26 +335,22 @@ describe("test orders (final pass, CO-1) and the one revenue definition (N)", ()
     expect(metrics.revenue30d).toEqual(month.current.revenue);
     expect(metrics.orders30d).toBe(month.current.orders);
     expect(metrics.ordersToday).toBe(week.current.daily.at(-1)?.orders);
-    // o1, o2 (a partial refund), o4 and o5 are live and unfulfilled; the
-    // test orders need no shipping.
-    expect(metrics.unfulfilled).toBe(4);
+    // Unfulfilled is work, not sales: o1, o2 (a partial refund), o4, o5 and
+    // the two test orders, as the Unfulfilled tab counts them.
+    expect(metrics.unfulfilled).toBe(6);
+    expect(metrics.unfulfilled).toBe((await listOrders(storeOf(a), {})).counts.unfulfilled);
     expect(metrics.testOrders).toBe(2);
   });
 
-  it("lists hide test orders except under their own filter", async () => {
+  it("lists show test orders, marked, with a filter of their own", async () => {
     const s = storeOf(a);
     const all = await listOrders(s);
-    expect(all.items.some((o) => o.testMode)).toBe(false);
-    expect(all.items.some((o) => o.id === t1)).toBe(false);
+    expect(all.items.find((o) => o.id === t1)).toMatchObject({ testMode: true });
+    expect(all.items.filter((o) => !o.testMode).length).toBeGreaterThan(0);
     expect(all.counts.test).toBe(2);
-    for (const status of ["open", "unfulfilled", "unpaid", "cancelled", "completed"]) {
-      const list = await listOrders(s, { status });
-      expect(list.items.some((o) => o.testMode)).toBe(false);
-    }
     const test = await listOrders(s, { status: "test" });
     expect(test.items).toHaveLength(2);
     expect(test.items.every((o) => o.testMode)).toBe(true);
-    // A search still finds one, marked.
     const number = test.items.find((o) => o.id === t1)?.number ?? 0;
     const found = await listOrders(s, { q: `#${String(number)}` });
     expect(found.items).toEqual([expect.objectContaining({ id: t1, testMode: true })]);
@@ -365,7 +361,7 @@ describe("test orders (final pass, CO-1) and the one revenue definition (N)", ()
     const list = await listCustomers(s, { q: "one@example.test" });
     const one = list.items.find((c) => c.email === "one@example.test");
     expect(one?.totalSpent).toEqual({ amount: "104000", currency: "INR" });
-    expect(one?.orderCount).toBe(1);
+    expect(one?.orderCount).toBe(2);
     const detail = await getCustomer(s, one?.id);
     expect(detail.orders.map((o) => o.testMode).sort()).toEqual([false, true]);
   });

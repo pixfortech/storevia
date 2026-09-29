@@ -52,14 +52,7 @@ import { getCustomerOrder, sendCustomerOrderMessage } from "../src/orders/custom
 import { notifyStaffOfCustomerMessages, notifyStaffOfNewOrders } from "../src/orders/messages";
 import { sendOrderNotifications } from "../src/orders/notifications";
 import { addToCart } from "../src/storefront";
-import {
-  expectCode,
-  makeOrderLive,
-  makeTenant,
-  memberContext,
-  storeOf,
-  type Tenant,
-} from "./fixtures";
+import { expectCode, makeTenant, memberContext, storeOf, type Tenant } from "./fixtures";
 
 let a: Tenant;
 let b: Tenant;
@@ -89,7 +82,6 @@ async function placeOrder(
   store: CheckoutStore,
   key: string,
   quantity = 1,
-  options: { readonly test?: boolean } = {},
 ): Promise<{ id: string; token: string }> {
   ip += 1;
   const clientIp = `198.51.100.${String(ip % 250)}`;
@@ -125,8 +117,6 @@ async function placeOrder(
     where: { storeId: store.storeId },
     orderBy: { orderNumber: "desc" },
   });
-  // Live unless asked: these tests read the default order lists.
-  if (!options.test) await makeOrderLive(order.id);
   return { id: toTypeId("order", order.id), token: path.slice("/orders/view/".length) };
 }
 
@@ -896,7 +886,7 @@ describe("new order notifications (final pass, ORD-1)", () => {
     });
     const designer = await memberContext(a, "DESIGNER", s);
     const otherTenant = storeOf(b);
-    const { id } = await placeOrder(storeA, "lamp", 1, { test: true });
+    const { id } = await placeOrder(storeA, "lamp");
     expect(
       (await db.order.findUniqueOrThrow({ where: { id: internal(id) } })).staffNotifiedAt,
     ).toBeNull();

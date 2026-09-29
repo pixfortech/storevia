@@ -48,7 +48,7 @@ export interface OrderListResult {
     readonly unfulfilled: number;
     readonly cancelled: number;
     readonly archived: number;
-    /** Test orders (not archived), which the other lists leave out. */
+    /** Test orders (not archived); the other counts include them. */
     readonly test: number;
   };
 }
@@ -82,15 +82,16 @@ function searchCondition(q: string): Prisma.Sql | null {
       AND (a."firstName" || ' ' || a."lastName") ILIKE ${like}))`;
 }
 
-// Archived orders leave every list but their own, and test orders every list
-// but theirs (a search still finds both). The archive keeps both kinds.
+// Archived orders leave every list but their own (a search still finds them).
+// Test orders stay in the lists, marked, and have a filter of their own; only
+// the sales figures leave them out (metrics.ts).
 const FILTERS: Readonly<Record<OrderStatusFilter, Prisma.Sql>> = {
-  all: Prisma.sql`o."archivedAt" IS NULL AND NOT o."testMode"`,
-  open: Prisma.sql`o."archivedAt" IS NULL AND NOT o."testMode" AND o.status = 'OPEN' AND o."completedAt" IS NULL`,
-  unfulfilled: Prisma.sql`o."archivedAt" IS NULL AND NOT o."testMode" AND o.status = 'OPEN' AND o."fulfilmentStatus" <> 'FULFILLED'`,
-  unpaid: Prisma.sql`o."archivedAt" IS NULL AND NOT o."testMode" AND o."paymentStatus" NOT IN ('PAID', 'PARTIALLY_REFUNDED', 'REFUNDED')`,
-  cancelled: Prisma.sql`o."archivedAt" IS NULL AND NOT o."testMode" AND o.status = 'CANCELLED'`,
-  completed: Prisma.sql`o."archivedAt" IS NULL AND NOT o."testMode" AND o."completedAt" IS NOT NULL`,
+  all: Prisma.sql`o."archivedAt" IS NULL`,
+  open: Prisma.sql`o."archivedAt" IS NULL AND o.status = 'OPEN' AND o."completedAt" IS NULL`,
+  unfulfilled: Prisma.sql`o."archivedAt" IS NULL AND o.status = 'OPEN' AND o."fulfilmentStatus" <> 'FULFILLED'`,
+  unpaid: Prisma.sql`o."archivedAt" IS NULL AND o."paymentStatus" NOT IN ('PAID', 'PARTIALLY_REFUNDED', 'REFUNDED')`,
+  cancelled: Prisma.sql`o."archivedAt" IS NULL AND o.status = 'CANCELLED'`,
+  completed: Prisma.sql`o."archivedAt" IS NULL AND o."completedAt" IS NOT NULL`,
   archived: Prisma.sql`o."archivedAt" IS NOT NULL`,
   test: Prisma.sql`o."archivedAt" IS NULL AND o."testMode"`,
 };
@@ -150,11 +151,10 @@ export async function listOrders(
     const counts = await tx.$queryRaw<
       { all: number; unfulfilled: number; cancelled: number; archived: number; test: number }[]
     >`
-      SELECT count(*) FILTER (WHERE "archivedAt" IS NULL AND NOT "testMode")::int AS all,
-        count(*) FILTER (WHERE "archivedAt" IS NULL AND NOT "testMode" AND status = 'OPEN'
+      SELECT count(*) FILTER (WHERE "archivedAt" IS NULL)::int AS all,
+        count(*) FILTER (WHERE "archivedAt" IS NULL AND status = 'OPEN'
           AND "fulfilmentStatus" <> 'FULFILLED')::int AS unfulfilled,
-        count(*) FILTER (WHERE "archivedAt" IS NULL AND NOT "testMode"
-          AND status = 'CANCELLED')::int AS cancelled,
+        count(*) FILTER (WHERE "archivedAt" IS NULL AND status = 'CANCELLED')::int AS cancelled,
         count(*) FILTER (WHERE "archivedAt" IS NOT NULL)::int AS archived,
         count(*) FILTER (WHERE "archivedAt" IS NULL AND "testMode")::int AS test
       FROM "Order"`;

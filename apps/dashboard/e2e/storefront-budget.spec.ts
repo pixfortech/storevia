@@ -2,6 +2,7 @@ import { gzipSync } from "node:zlib";
 import { expect, test } from "@playwright/test";
 import { createTenant } from "./helpers";
 import { addProduct, fetchStore, storefrontOrigin } from "./storefront-helpers";
+import { goLiveReady } from "./launch-helpers";
 
 // Storefront JavaScript regression controls (ADR-0029 §4). The fixed 90 kB
 // budget is replaced by measurements per route: the framework baseline (the
@@ -53,9 +54,7 @@ test("store pages ship the framework runtime and no application code", async ({
   await expect(page.getByText("Published", { exact: true })).toBeVisible();
 
   const origin = await storefrontOrigin(page, tenant);
-  await page.goto(`${tenant.storePath}/settings`);
-  await page.getByRole("button", { name: "Go live" }).click();
-  await expect(page.getByText("Your store is live.")).toBeVisible();
+  await goLiveReady(page, tenant);
 
   const shopper = await browser.newContext();
   await expect

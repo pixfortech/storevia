@@ -52,6 +52,64 @@ describe("setupTasks", () => {
   });
 });
 
+describe("setupTasks with launch checks (final pass, DB-1)", () => {
+  const checks = [
+    {
+      key: "payments",
+      label: "Payments",
+      ok: false,
+      blocking: true,
+      detail: "Connect a payment provider so shoppers can pay.",
+      href: "/s/x/settings/payments",
+    },
+    {
+      key: "products",
+      label: "Products",
+      ok: true,
+      blocking: true,
+      detail: "3 active products.",
+      href: "/s/x/products",
+    },
+  ];
+  const launchTasks = (live: boolean, role: Parameters<typeof permissionsFor>[0] = "OWNER") =>
+    setupTasks({
+      storeId: STORE,
+      organisationId: ORG,
+      storeName: "Acme Flagship",
+      businessType: "ECOMMERCE",
+      permissions: permissionsFor(role),
+      memberCount: 1,
+      launch: { live, checks },
+    });
+
+  it("shows what is missing, with a link to fix it, then Go live", () => {
+    const steps = launchTasks(false);
+    const payments = steps.find((s) => s.key === "launch-payments");
+    expect(payments).toMatchObject({
+      done: false,
+      description: "Connect a payment provider so shoppers can pay.",
+      href: "/s/x/settings/payments",
+      action: "Fix",
+    });
+    expect(steps.find((s) => s.key === "launch-products")).toMatchObject({ done: true });
+    expect(steps.find((s) => s.key === "launch-products")?.href).toBeUndefined();
+    const goLive = steps.find((s) => s.key === "go-live");
+    expect(goLive?.action).toBe("Review");
+    expect(goLive?.href).toMatch(/\/settings#storefront$/);
+  });
+
+  it("once live, lists only what still needs attention; no Go live step", () => {
+    const keys = launchTasks(true).map((s) => s.key);
+    expect(keys).toContain("launch-payments");
+    expect(keys).not.toContain("launch-products");
+    expect(keys).not.toContain("go-live");
+  });
+
+  it("only members who can publish get the Go live step", () => {
+    expect(launchTasks(false, "DESIGNER").some((s) => s.key === "go-live")).toBe(false);
+  });
+});
+
 describe("storeStatusBadge", () => {
   it("never calls a draft store live", () => {
     expect(storeStatusBadge("DRAFT")).toEqual({ label: "Not launched", tone: "neutral" });

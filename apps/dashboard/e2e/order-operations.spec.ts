@@ -248,30 +248,32 @@ test("a customer's note reaches the merchant; forged and foreign links open noth
   expect(other.text).not.toContain("Please deliver after 5 PM");
   expect(other.text).toContain(`Order ${second.number}`);
 
-  // The worker tells the staff who may answer; the bell shows it.
+  // The worker tells the staff who may answer; the bell shows it, with the
+  // two new-order notifications (final pass, ORD-1) before it.
   await page.goto(`${tenant.storePath}/orders`);
   // The bell loads after the page: wait for it after each reload.
   await expect
     .poll(
       async () => {
         await page.reload();
-        return page
-          .getByTestId("notification-count")
-          .waitFor({ state: "visible", timeout: 5_000 })
-          .then(
-            () => true,
-            () => false,
-          );
+        const count = page.getByTestId("notification-count");
+        return count.waitFor({ state: "visible", timeout: 5_000 }).then(
+          () => count.textContent(),
+          () => null,
+        );
       },
       { timeout: 90_000, intervals: [1_000] },
     )
-    .toBe(true);
-  await expect(page.getByTestId("notification-count")).toHaveText("1");
+    .toBe("3");
   await page.getByTestId("notification-bell").click();
   const item = page.getByRole("link", {
     name: new RegExp(`Customer sent a message on Order ${first.number}`),
   });
   await expect(item).toBeVisible();
+  // A new order links straight to the order (Test Provider orders say so).
+  const placed = page.getByRole("link", { name: new RegExp(`New test order ${first.number}`) });
+  await expect(placed).toBeVisible();
+  expect(await placed.getAttribute("href")).toMatch(/\/orders\/order_[^#/]+$/);
   await item.click();
   await page.waitForURL(/\/orders\/order_[^#]+#messages$/);
   await expect(page.getByTestId("order-messages")).toContainText("Please deliver after 5 PM");

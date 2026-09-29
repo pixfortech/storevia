@@ -8,3 +8,4 @@ export type { SiteComposition } from "./composition";
 export * from "./pages";
 export * from "./theme";
 export * from "./navigation";
+export { siteLaunchChecks } from "./readiness";

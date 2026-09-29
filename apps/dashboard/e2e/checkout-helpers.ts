@@ -46,8 +46,13 @@ export async function addRate(page: Page, zoneName: string, rateName: string, pr
   await expect(page.getByRole("button", { name: `Edit ${rateName}` })).toBeVisible();
 }
 
-/** Test payments on, and the store live. */
+/** Test payments on, a support email (the launch checks need one), and the store live. */
 export async function goLive(page: Page, tenant: Tenant) {
+  await page.goto(`${tenant.storePath}/settings`);
+  await page.getByLabel("Support email").fill("help@shop.example");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByText("Settings saved.")).toBeVisible();
+
   await page.goto(`${tenant.storePath}/settings/payments`);
   await page.getByRole("button", { name: "Connect test payments" }).click();
   await expect(page.getByText(/Test mode/).first()).toBeVisible();

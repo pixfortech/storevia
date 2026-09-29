@@ -52,10 +52,12 @@ export type { PendingDeletion } from "./lifecycle";
 export {
   changeStoreSlug,
   getOnlineStore,
+  launchBlockers,
+  launchReadiness,
   setStorefrontLive,
   storefrontPreviewUrl,
 } from "./storefront";
-export type { OnlineStore } from "./storefront";
+export type { LaunchCheck, LaunchReadinessCheck, OnlineStore } from "./storefront";
 export type { ActivityDetailKey, ActivityEntry, AuditArea, AuditLogPage } from "./activity";
 // Custom domains (ADR-0032) are at @storevia/tenancy/domains: that module
 // reaches the hosting provider, so it stays out of this index, which the

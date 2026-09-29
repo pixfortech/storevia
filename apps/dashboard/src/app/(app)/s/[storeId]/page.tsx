@@ -6,6 +6,7 @@ import {
   getStore,
   grantedFeatures,
   hasPermission,
+  launchReadiness,
   listMembers,
   listRecentActivity,
   organisationOf,
@@ -46,6 +47,7 @@ import { roleSummary, trialNote } from "@/lib/dashboard/summaries";
 import type { WidgetKey } from "@/lib/dashboard/widgets";
 import { orgPath, storePath } from "@/lib/ids";
 import { builderPath, pagesPath } from "@/lib/site";
+import { launchCheckHref, storeLaunchChecks } from "@/lib/launch-readiness";
 import { storeContextOr404 } from "@/lib/tenant";
 
 export const metadata: Metadata = { title: "Home" };
@@ -90,16 +92,18 @@ export default async function StoreHomePage({
   // Load only what a visible widget needs; each read enforces its own permission.
   const needsMembers =
     hasPermission(ctx, "member.read") && (shows("team") || hasPermission(ctx, "member.manage"));
-  const [store, billing, members, activity, overview, pages, sales, customers] = await Promise.all([
-    getStore(ctx),
-    shows("plan-usage") ? getOrganisationBilling(ctx) : null,
-    needsMembers ? listMembers(organisationOf(ctx)) : null,
-    shows("activity") ? listRecentActivity(ctx, { limit: 5 }) : null,
-    shows("catalogue") || shows("stock-alerts") ? getCatalogueOverview(ctx) : null,
-    shows("content-updates") ? listPages(ctx) : null,
-    needsSales ? storeSalesSummary(ctx, { days }) : null,
-    showsLive("customers") ? storeCustomerSummary(ctx, { days }) : null,
-  ]);
+  const [store, billing, members, activity, overview, pages, sales, customers, launch] =
+    await Promise.all([
+      getStore(ctx),
+      shows("plan-usage") ? getOrganisationBilling(ctx) : null,
+      needsMembers ? listMembers(organisationOf(ctx)) : null,
+      shows("activity") ? listRecentActivity(ctx, { limit: 5 }) : null,
+      shows("catalogue") || shows("stock-alerts") ? getCatalogueOverview(ctx) : null,
+      shows("content-updates") ? listPages(ctx) : null,
+      needsSales ? storeSalesSummary(ctx, { days }) : null,
+      showsLive("customers") ? storeCustomerSummary(ctx, { days }) : null,
+      shows("setup") ? launchReadiness(ctx, storeLaunchChecks(ctx.storeId)) : null,
+    ]);
 
   const definition = BUSINESS_TYPE_DEFINITIONS[store.businessType];
   const now = new Date();
@@ -127,6 +131,13 @@ export default async function StoreHomePage({
       businessType: store.businessType,
       permissions: ctx.permissions,
       memberCount: active?.length ?? null,
+      launch:
+        launch && (store.status === "DRAFT" || store.status === "ACTIVE")
+          ? {
+              live: store.status === "ACTIVE",
+              checks: launch.map((c) => ({ ...c, href: launchCheckHref(ctx.storeId, c.key) })),
+            }
+          : null,
     }),
     website: {
       live: store.status === "ACTIVE",

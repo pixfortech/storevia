@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { createTenant } from "./helpers";
 import { addProduct, fetchStore, storefrontOrigin } from "./storefront-helpers";
+import { prepareToGoLive } from "./launch-helpers";
 
 // Milestone 4, end to end: a merchant's store is "coming soon" until it goes
 // live, can be previewed before that, and then serves its products to
@@ -39,7 +40,10 @@ test("a store goes from coming soon to live, and a shopper fills a cart", async 
   expect(preview.url()).not.toContain("preview=");
   await preview.close();
 
-  // Go live. The status change reaches the storefront through the outbox.
+  // Go live (once the launch checks pass). The status change reaches the
+  // storefront through the outbox.
+  await prepareToGoLive(page, tenant);
+  await page.goto(`${tenant.storePath}/settings`);
   await page.getByRole("button", { name: "Go live" }).click();
   await expect(page.getByText("Your store is live.")).toBeVisible();
   await expect

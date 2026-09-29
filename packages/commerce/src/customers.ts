@@ -15,7 +15,6 @@ export interface CustomerListItem {
   readonly id: string;
   readonly name: string | null;
   readonly email: string | null;
-  /** Orders that aren't test orders. */
   readonly orderCount: number;
   /** Revenue from this customer: order totals minus refunds, cancelled and test orders excluded. */
   readonly totalSpent: MoneyJson | null;
@@ -68,7 +67,7 @@ export async function listCustomers(
         c."createdAt" AS created_at
       FROM "Customer" c
       LEFT JOIN LATERAL (
-        SELECT count(*) FILTER (WHERE NOT "testMode") AS orders,
+        SELECT count(*) AS orders,
           sum("totalAmount" - "refundedAmount") FILTER (WHERE ${SALE_ORDER}) AS spent,
           max(currency) AS currency, max("placedAt") AS last_order
         FROM "Order" WHERE "customerId" = c.id

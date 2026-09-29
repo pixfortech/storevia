@@ -81,7 +81,6 @@ import {
   parsePublicId,
   requireOrganisationAccess,
   requireStoreAccess,
-  setStorefrontLive,
   type Principal,
   type StoreContext,
 } from "@storevia/tenancy";
@@ -94,6 +93,7 @@ import {
 import { requirePlatformStaff, type PlatformContext } from "@storevia/tenancy/platform";
 import { toTypeId, uuidv7 } from "@storevia/types";
 import pg from "pg";
+import { ensureStoreLive } from "./seed-launch";
 
 const repoRoot = resolve(import.meta.dirname, "../../..");
 const rootEnv = resolve(repoRoot, ".env");
@@ -458,7 +458,7 @@ async function ensureShippingTaxPayments(ctx: StoreContext) {
 }
 
 async function ensureLive(ctx: StoreContext) {
-  if ((await getOnlineStore(ctx)).status !== "ACTIVE") await setStorefrontLive(ctx, true);
+  await ensureStoreLive(ctx, "support@load.example");
 }
 
 // --- Orders, messages, carts --------------------------------------------------------

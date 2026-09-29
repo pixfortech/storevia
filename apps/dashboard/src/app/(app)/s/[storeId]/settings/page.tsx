@@ -1,5 +1,12 @@
 import { customerReplyTo } from "@storevia/email";
-import { getOnlineStore, getStore, hasPermission, storefrontRootDomain } from "@storevia/tenancy";
+import {
+  getOnlineStore,
+  getStore,
+  hasPermission,
+  launchBlockers,
+  launchReadiness,
+  storefrontRootDomain,
+} from "@storevia/tenancy";
 import { buttonClasses } from "@storevia/ui/button";
 import { CardBody } from "@storevia/ui/surfaces";
 import { Alert, Badge } from "@storevia/ui/surfaces";
@@ -13,8 +20,10 @@ import {
   type SettingsSectionLink,
 } from "@/components/areas/settings";
 import { LinkTabs } from "@/components/catalogue/link-tabs";
+import { LaunchReadinessList } from "@/components/settings/launch-readiness";
 import { PageHeader } from "@/components/shell/app-shell";
 import { formatLongDate } from "@/lib/areas/dates";
+import { launchCheckHref, storeLaunchChecks } from "@/lib/launch-readiness";
 import { storeStatusBadge } from "@/lib/dashboard/setup";
 import { COUNTRY_OPTIONS, CURRENCY_OPTIONS } from "@/lib/options";
 import { settingsTabs } from "@/lib/settings-tabs";
@@ -39,7 +48,13 @@ export default async function StoreSettingsPage({
 }) {
   const { storeId } = await params;
   const ctx = await storeContextOr404(storeId, `/s/${storeId}/settings`);
-  const [store, online] = await Promise.all([getStore(ctx), getOnlineStore(ctx)]);
+  const [store, online, checks] = await Promise.all([
+    getStore(ctx),
+    getOnlineStore(ctx),
+    launchReadiness(ctx, storeLaunchChecks(ctx.storeId)),
+  ]);
+  const readiness = checks.map((c) => ({ ...c, href: launchCheckHref(ctx.storeId, c.key) }));
+  const blocked = launchBlockers(checks).length > 0;
   const archived = store.status === "ARCHIVED";
   const canEdit = hasPermission(ctx, "store.update") && !archived;
   const canArchive = hasPermission(ctx, "store.archive") && !archived;
@@ -138,6 +153,9 @@ export default async function StoreSettingsPage({
                   ? "Shoppers see a coming-soon page. Preview your store, then go live when you're ready."
                   : "Your storefront is unavailable. Contact Storevia support for help."}
             </p>
+            {online.status === "DRAFT" || (live && readiness.some((c) => !c.ok)) ? (
+              <LaunchReadinessList checks={live ? readiness.filter((c) => !c.ok) : readiness} />
+            ) : null}
             {online.redirectingHosts.length > 0 ? (
               <p className="text-body-sm text-ink-muted">
                 Also redirects from: {online.redirectingHosts.join(", ")}
@@ -155,7 +173,12 @@ export default async function StoreSettingsPage({
               </a>
             ) : null}
           </CardBody>
-          <StorefrontStatusForm storeId={storeId} live={live} canEdit={canPublish} />
+          <StorefrontStatusForm
+            storeId={storeId}
+            live={live}
+            canEdit={canPublish}
+            blocked={!live && blocked}
+          />
         </SettingsSection>
 
         {canChangeAddress ? (

@@ -162,3 +162,6 @@ export type {
   StoreSalesSummary,
   TopProduct,
 } from "./orders/metrics";
+
+// Launch readiness (final pass, DB-1).
+export { commerceLaunchChecks } from "./readiness";

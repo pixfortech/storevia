@@ -29,7 +29,7 @@ import {
 } from "@storevia/commerce";
 import { completeMediaUpload, createMediaUpload, mediaStorage } from "@storevia/media";
 import { uploadKey } from "@storevia/media/keys";
-import { parsePublicId, setStorefrontLive, type StoreContext } from "@storevia/tenancy";
+import { parsePublicId, type StoreContext } from "@storevia/tenancy";
 import type { PlatformContext } from "@storevia/tenancy/platform";
 import { toTypeId } from "@storevia/types";
 
@@ -438,8 +438,8 @@ export async function seedAcmeCatalogue(ctx: StoreContext): Promise<boolean> {
       note: "Two chipped in transit",
     });
   }
-  // The flagship storefront is live, so local development shows a working store (M4).
-  await setStorefrontLive(ctx, true);
+  // The flagship goes live once its commerce set-up is seeded (seed-commerce.ts):
+  // going live needs payments and shipping (final pass, DB-1).
   return true;
 }
 

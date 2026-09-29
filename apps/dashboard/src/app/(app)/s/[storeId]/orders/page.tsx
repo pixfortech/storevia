@@ -91,7 +91,7 @@ export default async function OrdersPage({
         title="Orders"
         description="Orders placed on your storefront, newest first, with their payment and fulfilment status. Archived orders stay searchable under Archived orders."
       />
-      {page.counts.all > 0 || metrics.testOrders > 0 ? (
+      {page.counts.all > 0 ? (
         <Card className="mb-6 px-5 py-4 sm:px-6">
           <dl className="grid grid-cols-2 gap-x-6 gap-y-4 lg:grid-cols-4">
             <Stat label="Orders today" value={metrics.ordersToday.toLocaleString("en-IN")} />
@@ -125,17 +125,10 @@ export default async function OrdersPage({
           current: t.value === tab,
         }))}
       />
-      {tab !== "test" && tab !== "archived" && page.counts.test > 0 ? (
-        <p className="mb-4 text-body-sm text-ink-muted" data-testid="test-orders-hidden">
-          {page.counts.test.toLocaleString("en-IN")}{" "}
-          {page.counts.test === 1 ? "test order is" : "test orders are"} not shown here or counted
-          in sales.{" "}
-          <Link
-            href={href({ status: "test" })}
-            className="font-medium text-brand-700 hover:underline"
-          >
-            View test orders
-          </Link>
+      {page.counts.test > 0 ? (
+        <p className="mb-4 text-body-sm text-ink-muted" data-testid="test-orders-note">
+          Orders marked TEST were paid through a test connection: no money changed hands, and they
+          aren&apos;t counted in your revenue or sales.
         </p>
       ) : null}
       <Card className="overflow-hidden">

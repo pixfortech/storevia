@@ -251,10 +251,10 @@ export interface OrderMetrics {
   readonly orders30d: number;
   /** Revenue over the last 30 days, by the definition above. */
   readonly revenue30d: MoneyJson | null;
-  /** Open, not complete, not fully shipped, not a test order. */
+  /** The Unfulfilled tab's count (test orders too: this is work, not sales). */
   readonly unfulfilled: number;
   readonly awaitingRefund: number;
-  /** Test orders not archived (the orders page links to them). */
+  /** Test orders not archived (the orders page notes they aren't counted). */
   readonly testOrders: number;
 }
 
@@ -282,8 +282,8 @@ export async function orderMetrics(ctx: TenantContext): Promise<OrderMetrics> {
         coalesce(sum("totalAmount" - "refundedAmount") FILTER (WHERE ${SALE_ORDER}
           AND currency = ${clock.currency}
           AND "placedAt" >= (${from}::date::timestamp AT TIME ZONE ${tz})), 0)::bigint AS revenue,
-        count(*) FILTER (WHERE status = 'OPEN' AND NOT "testMode" AND "completedAt" IS NULL
-          AND "archivedAt" IS NULL AND "fulfilmentStatus" <> 'FULFILLED')::int AS unfulfilled,
+        count(*) FILTER (WHERE status = 'OPEN' AND "archivedAt" IS NULL
+          AND "fulfilmentStatus" <> 'FULFILLED')::int AS unfulfilled,
         (SELECT count(*)::int FROM "Refund" WHERE status = 'PENDING') AS pending_refunds,
         count(*) FILTER (WHERE "testMode" AND "archivedAt" IS NULL)::int AS test
       FROM "Order" WHERE "storeId" = ${store.storeId}::uuid`;
