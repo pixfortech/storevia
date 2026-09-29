@@ -2,13 +2,16 @@ import { expect, test, type Page } from "@playwright/test";
 import { captureServerAction, createTenant, replay } from "./helpers";
 import { images } from "./images";
 import { goLiveReady } from "./launch-helpers";
-import { fetchStore, storefrontOrigin } from "./storefront-helpers";
+import { addProduct, fetchStore, storefrontOrigin } from "./storefront-helpers";
 
 // The store's logo and favicon (final pass, Phase 2A), end to end: a logo
 // uploaded from Website → Logo and favicon, a favicon chosen from the media
 // library, both live on the (cached) storefront at once; removing the logo
 // brings the store's name back. The media id in the request is only a
 // request: another tenant's replay attaching this store's image is refused.
+
+// The header's logo link (the class alone also appears in the inlined base CSS).
+const LOGO_LINK = 'class="sv-brand sv-brand-logo"';
 
 /** The media folder of a rendition URL (…/{mediaId}/w320.webp → {mediaId}). */
 const mediaFolder = (url: string) => url.split("/").slice(-2)[0] ?? "";
@@ -26,6 +29,8 @@ test("logo and favicon: upload, choose from the library, storefront, remove, iso
 }) => {
   test.setTimeout(300_000);
   const tenant = await createTenant(page, "brand");
+  // Going live needs a product (launch readiness).
+  await addProduct(page, tenant, "Stoneware mug", "450", "5");
   const origin = await storefrontOrigin(page, tenant);
   await goLiveReady(page, tenant);
   const [logoFile, faviconFile] = await images(page, 800); // mug.jpg, bowl.png
@@ -34,7 +39,7 @@ test("logo and favicon: upload, choose from the library, storefront, remove, iso
   await page.goto(`${tenant.storePath}/media`);
   const [libraryChooser] = await Promise.all([
     page.waitForEvent("filechooser"),
-    page.getByRole("button", { name: "Upload images" }).click(),
+    page.getByRole("button", { name: "Upload images" }).first().click(),
   ]);
   await libraryChooser.setFiles(faviconFile ? [faviconFile] : []);
   await expect(page.getByText("bowl.png").first()).toBeVisible({ timeout: 60_000 });
@@ -90,7 +95,7 @@ test("logo and favicon: upload, choose from the library, storefront, remove, iso
     .poll(
       async () => {
         const html = (await fetchStore(shopper.request, origin, "/")).text;
-        return html.includes("sv-brand-logo") && html.includes(logoMedia);
+        return html.includes(LOGO_LINK) && html.includes(logoMedia);
       },
       { timeout: 60_000, intervals: [1_000] },
     )
@@ -142,7 +147,7 @@ test("logo and favicon: upload, choose from the library, storefront, remove, iso
     .poll(
       async () => {
         const html = (await fetchStore(shopper.request, origin, "/")).text;
-        return !html.includes("sv-brand-logo") && !html.includes('rel="icon"');
+        return !html.includes(LOGO_LINK) && !html.includes('rel="icon"');
       },
       { timeout: 60_000, intervals: [1_000] },
     )

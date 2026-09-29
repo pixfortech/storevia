@@ -229,7 +229,15 @@ export function ProductCreateForm({
         <Card>
           <CardHeader divider={false} title="Status" />
           <CardBody className="pt-4 pb-6">
-            <RadioGroup name="status" defaultValue={value("status") ?? "DRAFT"} aria-label="Status">
+            <RadioGroup
+              // React resets the form after each submit, and the radio group
+              // resets to the default it mounted with: remount it with the
+              // echoed choice so "Keep editing" doesn't turn Active into Draft.
+              key={value("status") ?? "DRAFT"}
+              name="status"
+              defaultValue={value("status") ?? "DRAFT"}
+              aria-label="Status"
+            >
               <RadioItem value="DRAFT" label="Draft" description="Only your team can see it." />
               <RadioItem
                 value="ACTIVE"

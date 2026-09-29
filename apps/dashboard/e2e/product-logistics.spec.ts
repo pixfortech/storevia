@@ -173,7 +173,7 @@ test("set as active in bulk leaves free products as drafts and says why", async 
 
   await page.goto(`${tenant.storePath}/products?q=Bulk`);
   await page.getByRole("checkbox", { name: "Select all products on this page" }).first().check();
-  await page.getByLabel("Bulk action").selectOption({ label: "Set as active" });
+  await page.getByLabel("Bulk action", { exact: true }).selectOption({ label: "Set as active" });
   await page.getByRole("button", { name: "Apply" }).click();
   await expect(page.getByText(/couldn't be changed/)).toBeVisible();
   await expect(page.getByText(/Bulk free: It's priced at 0, so it wasn't published/)).toBeVisible();

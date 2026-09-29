@@ -19,6 +19,23 @@ import { addProduct, storefrontOrigin } from "./storefront-helpers";
 
 test.describe.configure({ mode: "serial" });
 
+/**
+ * A signed-in GET from Node: *.localhost doesn't resolve there, so it goes to
+ * localhost with the original Host and the context's cookies for that host.
+ */
+async function getAsMember(context: BrowserContext, page: Page, path: string) {
+  const target = new URL(path, page.url());
+  const cookie = (await context.cookies(target.toString()))
+    .map((c) => `${c.name}=${c.value}`)
+    .join("; ");
+  const host = target.host;
+  target.hostname = "localhost";
+  return context.request.get(target.toString(), {
+    headers: { host, ...(cookie ? { cookie } : {}) },
+    maxRedirects: 0,
+  });
+}
+
 const COLUMNS = [
   "Order",
   "Placed at",
@@ -157,9 +174,7 @@ test("another tenant's export URL is a 404", async ({ browser }) => {
   const context = await browser.newContext();
   const page = await context.newPage();
   await createTenant(page, "orderexport-other");
-  const response = await context.request.get(`${tenant.storePath}/orders/export`, {
-    maxRedirects: 0,
-  });
+  const response = await getAsMember(context, page, `${tenant.storePath}/orders/export`);
   expect(response.status()).toBe(404);
   expect(await response.text()).not.toContain(orderNumber);
   await context.close();
@@ -190,9 +205,7 @@ test("a member without order.read is refused", async ({ browser }) => {
   await member.goto(`${tenant.storePath}/orders`);
   await expect(member.getByText("You don't have access to orders")).toBeVisible();
   await expect(member.getByRole("button", { name: "Export CSV" })).toHaveCount(0);
-  const response = await context.request.get(`${tenant.storePath}/orders/export`, {
-    maxRedirects: 0,
-  });
+  const response = await getAsMember(context, member, `${tenant.storePath}/orders/export`);
   expect(response.status()).toBe(403);
   expect(await response.text()).not.toContain(orderNumber);
   await context.close();

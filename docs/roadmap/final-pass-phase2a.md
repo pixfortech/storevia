@@ -139,9 +139,23 @@ Both are expand-only.
 
 ## 11. Tests and CI
 
-See the conversation report for the final gate numbers (format, lint,
-typecheck, unit, integration, fresh-build E2E, gitleaks, GitHub CI). New
-suites: `store-identity`, `store-branding`, `product-logistics`,
+| Gate                         | Result                                                                                                                    |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Format, lint, typecheck      | clean (24 packages)                                                                                                       |
+| Unit                         | 1369 passed                                                                                                               |
+| Integration (real Postgres)  | 1047 passed                                                                                                               |
+| E2E (fresh production build) | 94 tests: 88 passed in the full run; the 3 failures and the 3 tests after them were fixed and pass when rerun (see below) |
+| gitleaks                     | no leaks                                                                                                                  |
+| GitHub CI                    | see the branch's latest run                                                                                               |
+
+Fixed at the end of the pass: the product form's status choice reset to
+Draft after "Keep editing" in the ₹0 dialog (a real bug: the radio group is
+now remounted with the submitted choice); the branding integration suite
+needed a media signing secret in CI; and spec-only issues (Node requests
+to `*.localhost`, a missing product before going live, ambiguous locators,
+and a logo check that matched the inlined CSS).
+
+New suites: `store-identity`, `store-branding`, `product-logistics`,
 `order-export` (integration); `store-identity`, `store-branding`,
 `product-logistics`, `order-export` (E2E), plus updated readiness, theme-demo,
 marketing and redesign specs.

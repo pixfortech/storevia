@@ -12,6 +12,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readStorefront, type CartStore } from "../src/storefront";
 import { expectCode, makeTenant, memberContext, storeOf, type Tenant } from "./fixtures";
 
+// Reading the logo and favicon signs local media URLs; CI provides no secret for them.
+process.env["MEDIA_UPLOAD_SECRET"] ??= "commerce-branding-test-media-secret-000000";
+
 let a: Tenant;
 let A: StoreContext; // the store being branded
 let A2: StoreContext; // another store of the same organisation
