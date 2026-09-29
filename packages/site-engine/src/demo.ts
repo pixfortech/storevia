@@ -9,6 +9,13 @@
 // The Site Engine knows no commerce: the content is plain data here. The
 // dashboard composes it into page documents and catalogue views and renders
 // them with the storefront's own registry inside SiteChrome.
+//
+// A demo shows only what a store on the theme can really show (TH-1): the
+// theme's chrome with a main and footer menu, the storefront's own blocks and
+// product template, and catalogue data a merchant can enter. Nothing a
+// merchant can't turn on: no announcement bar (SiteChrome can draw one, but
+// no store setting feeds it), no related products, reviews, wishlists or
+// newsletter. THEME_DEMO_NOT_OFFERED lists what tests look for.
 import type { MenuLink } from "./chrome";
 import { SITE_BASE_CSS } from "./base-css";
 import {
@@ -43,7 +50,6 @@ export interface DemoProduct {
 export interface ThemeDemoContent {
   readonly brand: string;
   readonly locale: string;
-  readonly announcement: string;
   readonly menu: readonly MenuLink[];
   readonly footerMenu: readonly MenuLink[];
   readonly actions: { readonly search: string; readonly cart: string };
@@ -73,11 +79,10 @@ function deepFreeze<T>(value: T): T {
 export const THEME_DEMO: ThemeDemoContent = deepFreeze({
   brand: "Harbour & Loom",
   locale: "en-IN",
-  announcement: "Free delivery on orders over ₹2,000",
   menu: [
     { key: "demo-shop", label: "Shop", href: "/collections/all" },
     { key: "demo-new", label: "New in", href: "/collections/new" },
-    { key: "demo-journal", label: "Journal", href: "/pages/journal" },
+    { key: "demo-gifts", label: "Gifts", href: "/collections/gifts" },
     { key: "demo-about", label: "About", href: "/pages/about" },
   ],
   footerMenu: [
@@ -140,6 +145,37 @@ export const THEME_DEMO: ThemeDemoContent = deepFreeze({
   ],
   featuredProductId: "demo-product-runner",
 });
+
+/**
+ * Storefront features no store has today, which a demo must therefore never
+ * show (TH-1). Tests scan every rendered demo page (markup and text, without
+ * its stylesheets) for these. Remove an entry in the change that ships the
+ * feature as something a merchant controls.
+ */
+export const THEME_DEMO_NOT_OFFERED: readonly {
+  readonly feature: string;
+  readonly pattern: RegExp;
+}[] = [
+  { feature: "announcement bar", pattern: /sv-announcement|free (delivery|shipping) on/i },
+  {
+    feature: "related products",
+    pattern: /you may also like|related products|frequently bought|recently viewed/i,
+  },
+  { feature: "reviews and ratings", pattern: /\breviews?\b|\bratings?\b|\bstars?\b|[★☆]/i },
+  { feature: "wishlists", pattern: /wish ?list|save for later/i },
+  { feature: "newsletter sign-up", pattern: /newsletter|subscribe/i },
+  {
+    feature: "social links",
+    pattern: /instagram|facebook|twitter|pinterest|tiktok|youtube|follow us/i,
+  },
+  { feature: "blog", pattern: /\bjournal\b|\bblog\b/i },
+  { feature: "customer accounts", pattern: /\bsign in\b|\blog ?in\b|my account|\bsign up\b/i },
+  { feature: "product filters and sorting", pattern: /\bfilters?\b|sort by/i },
+  // "Sold out" is a real badge; merchandising labels are not.
+  { feature: "merchandising badges", pattern: /best ?seller|new arrival|limited edition/i },
+  { feature: "gift cards", pattern: /gift cards?/i },
+  { feature: "live chat", pattern: /live chat|chat with us/i },
+];
 
 /** The demo pages a full theme demo shows. */
 export const THEME_DEMO_PAGES = ["home", "product"] as const;

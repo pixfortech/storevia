@@ -33,7 +33,7 @@ import { ThemeDemoFrame } from "./theme-demo";
 
 type Run = NonNullable<ThemeCardAction["run"]>;
 
-/** Layout height of a card's miniature: the demo's announcement, header, hero and product row. */
+/** Layout height of a card's miniature: the demo's header, hero and product row. */
 const MINIATURE_HEIGHT = 900;
 
 export function ThemeLibrary({

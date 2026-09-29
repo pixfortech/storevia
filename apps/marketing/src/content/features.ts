@@ -172,7 +172,7 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
       {
         title: "Notifications",
         description:
-          "Messages from customers about their orders, for the people who handle orders.",
+          "An in-app notification for every new order, and for customers' messages about their orders, for the team members who handle orders. Each links straight to the order, and test orders are labelled as tests.",
         status: "available",
       },
     ],

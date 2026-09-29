@@ -2,13 +2,13 @@
 // (lib/pricing.ts). Each card carries its monthly and yearly price; the
 // IntervalSwitch around them decides which one shows. No card is singled out
 // as recommended (the catalogue has no such flag), and paid plans lead to a
-// conversation because there is no checkout.
+// conversation because there is no checkout. Cards list only features that
+// exist today (planned ones are on the page, in no plan).
 import { buttonClasses } from "@storevia/ui/button";
 import { cn } from "@storevia/ui/cn";
 import { Icon } from "@storevia/ui/icons";
 import { Check } from "lucide-react";
 import Link from "next/link";
-import { STATUS_LABELS } from "@/content/capabilities";
 import type { Interval, PlanFeatureValue, PriceView, PricingColumn } from "@/lib/pricing";
 
 // Literal class names (Tailwind reads them verbatim): which price view shows
@@ -60,15 +60,10 @@ function Highlight({ item }: { item: PlanFeatureValue }) {
   return (
     <li className="flex gap-2.5">
       <Icon icon={Check} size="sm" className="mt-0.5 text-brand-600" />
-      <span className="min-w-0">
-        <span className="text-ink">
-          {item.name}
-          {item.value && item.value !== "Included" ? (
-            <span className="text-ink-muted">: {item.value}</span>
-          ) : null}
-        </span>
-        {item.status ? (
-          <span className="block text-caption text-ink-faint">{STATUS_LABELS[item.status]}</span>
+      <span className="min-w-0 text-ink">
+        {item.name}
+        {item.value && item.value !== "Included" ? (
+          <span className="text-ink-muted">: {item.value}</span>
         ) : null}
       </span>
     </li>

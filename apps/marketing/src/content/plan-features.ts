@@ -51,6 +51,14 @@ export const FEATURE_GROUPS: readonly { title: string; keys: readonly FeatureKey
   },
 ];
 
+/** The home page's short plan comparison: features merchants can use today. */
+export const PREVIEW_FEATURES: readonly FeatureKey[] = [
+  "custom_domain",
+  "discounts",
+  "visual_builder",
+  "export",
+];
+
 /** The limits every plan card leads with. */
 export const HEADLINE_FEATURES: readonly FeatureKey[] = [
   "store_count",

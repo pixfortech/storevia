@@ -6,18 +6,21 @@ import { ArrowLink, Container, SectionHeading } from "./marketing";
 /**
  * Placeholder for a legal document. Deliberately not a draft agreement: the
  * real text is written and approved by counsel, and publishing it is a
- * launch blocker (MK-1). Engineering never writes legal terms here.
+ * launch blocker (MK-1). Engineering never writes legal terms here. It is
+ * marked as a placeholder on the page, and production refuses to start while
+ * any document is one (content/legal.ts).
  */
 export function LegalPlaceholder({ title, covers }: { title: string; covers: readonly string[] }) {
   return (
     <section
       aria-labelledby="legal-title"
+      data-legal-status="placeholder"
       className="pt-14 pb-18 md:pt-20 md:pb-24 lg:pt-24 lg:pb-28"
     >
       <Container>
         <div className="mx-auto max-w-(--container-prose)">
           <SectionHeading as="h1" id="legal-title" eyebrow="Legal" title={title} />
-          <Alert tone="info" title="Not yet published" className="mt-10">
+          <Alert tone="warning" title="Placeholder: not yet published" className="mt-10">
             Storevia&apos;s {title.toLowerCase()} is being prepared by legal counsel. It will be
             published here, and it is required before Storevia launches publicly. This page is a
             placeholder and is not a legal agreement.

@@ -29,6 +29,7 @@
     "db:seed": "pnpm --filter @storevia/database db:seed",
     "db:test:prepare": "pnpm --filter @storevia/database db:test:prepare",
     "db:validate:draft": "prisma validate --schema docs/database/schema.draft.prisma && node scripts/check-fk-indexes.mjs docs/database/schema.draft.prisma",
+    "check:launch": "tsx apps/marketing/scripts/check-launch.ts",
     "check:schema": "node scripts/check-schema-agreement.mjs packages/database/prisma/schema.prisma docs/database/schema.draft.prisma && node scripts/check-fk-indexes.mjs packages/database/prisma/schema.prisma",
     "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm db:validate:draft && pnpm check:schema",
     "postinstall": "pnpm --filter @storevia/database generate",

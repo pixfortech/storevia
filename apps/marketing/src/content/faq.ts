@@ -62,9 +62,9 @@ export const PRICING_FAQ: readonly { question: string; answer: string }[] = [
       "Our team sets up paid plans and trials. Choose Talk to us on a plan, tell us roughly how many stores and team members you need, and we'll reply by email.",
   },
   {
-    question: "What does On the roadmap mean on a plan?",
+    question: "What does On the roadmap mean?",
     answer:
-      "It marks a feature that isn't built yet, so you can't use it on any plan today, and we don't give dates. A plan lists it so you can see how plans differ once it exists.",
+      "It marks a feature that isn't built yet, and we don't give dates. Plans list only what you can use today, so a planned feature is never part of a plan or a reason to choose one.",
   },
   {
     question: "What happens if I reach a limit?",

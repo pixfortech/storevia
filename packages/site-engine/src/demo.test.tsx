@@ -4,6 +4,7 @@ import { SiteChrome, SiteMenu } from "./chrome";
 import {
   THEME_DEMO,
   THEME_DEMO_CSS,
+  THEME_DEMO_NOT_OFFERED,
   THEME_DEMO_VIEWPORTS,
   themeDemo,
   themeDemoAttributes,
@@ -22,7 +23,6 @@ function renderDemo(theme: ThemeDefinition): string {
       <SiteChrome
         name={THEME_DEMO.brand}
         theme={theme}
-        announcement={THEME_DEMO.announcement}
         nav={<SiteMenu label="Main" links={THEME_DEMO.menu} />}
         footerNav={<SiteMenu label="Footer" links={THEME_DEMO.footerMenu} />}
         actions={<a href="/cart">{THEME_DEMO.actions.cart}</a>}
@@ -40,9 +40,8 @@ const selectors = (css: string) =>
   );
 
 describe("theme demo content", () => {
-  it("is Storevia's own, fixed and complete: brand, announcement, hero, collection and four products", () => {
+  it("is Storevia's own, fixed and complete: brand, hero, collection and four products", () => {
     expect(THEME_DEMO.brand).toBe("Harbour & Loom");
-    expect(THEME_DEMO.announcement.length).toBeGreaterThan(10);
     expect(THEME_DEMO.hero.heading.length).toBeGreaterThan(0);
     expect(THEME_DEMO.collection.title).toBe("The autumn edit");
     expect(THEME_DEMO.menu.length).toBeGreaterThanOrEqual(3);
@@ -89,12 +88,66 @@ describe("theme demo content", () => {
   });
 });
 
+/** What a visitor could see or a tool could read: markup and text, without stylesheets. */
+const visible = (html: string) => html.replace(/<style>[\s\S]*?<\/style>/g, "");
+
+describe("the demo shows only what a store can (TH-1)", () => {
+  it("has no announcement, which no store setting feeds", () => {
+    expect(Object.keys(THEME_DEMO)).not.toContain("announcement");
+  });
+
+  it("links its menus only to pages, collections and products a merchant can create", () => {
+    for (const link of [...THEME_DEMO.menu, ...THEME_DEMO.footerMenu]) {
+      expect(link.href, link.label).toMatch(/^\/(collections|pages|products)\/[a-z0-9-]+$/);
+    }
+  });
+
+  it("names no storefront feature that doesn't exist", () => {
+    const content = JSON.stringify(THEME_DEMO);
+    for (const theme of Object.values(THEMES)) {
+      const html = visible(renderDemo(theme));
+      for (const { feature, pattern } of THEME_DEMO_NOT_OFFERED) {
+        expect(pattern.test(html), `${theme.key}: ${feature}`).toBe(false);
+        expect(pattern.test(content), `content: ${feature}`).toBe(false);
+      }
+    }
+  });
+
+  it("the scan catches each phantom feature", () => {
+    const phantoms: Record<string, string> = {
+      "announcement bar": '<p class="sv-announcement">Free delivery on orders over ₹2,000</p>',
+      "related products": "<h2>You may also like</h2>",
+      "reviews and ratings": "★★★★☆ 12 reviews",
+      wishlists: "Add to wishlist",
+      "newsletter sign-up": "Subscribe to our newsletter",
+      "social links": "Follow us on Instagram",
+      blog: '<a href="/blogs/journal">Journal</a>',
+      "customer accounts": "Sign in",
+      "product filters and sorting": "Sort by price",
+      "merchandising badges": "Bestseller",
+      "gift cards": "Gift cards",
+      "live chat": "Chat with us",
+    };
+    expect(Object.keys(phantoms).sort()).toEqual(
+      THEME_DEMO_NOT_OFFERED.map((p) => p.feature).sort(),
+    );
+    for (const { feature, pattern } of THEME_DEMO_NOT_OFFERED) {
+      expect(pattern.test(phantoms[feature] ?? ""), feature).toBe(true);
+    }
+    // Real storefront wording never trips it.
+    const real = "Add to cart Sold out Sale price Search Cart Shipping Returns Contact Stonewashed";
+    for (const { feature, pattern } of THEME_DEMO_NOT_OFFERED) {
+      expect(pattern.test(real), feature).toBe(false);
+    }
+  });
+});
+
 describe("rendering the demo with each theme", () => {
   it("every first-party theme renders it", () => {
     for (const theme of Object.values(THEMES)) {
       const html = renderDemo(theme);
       expect(html, theme.key).toContain(`data-sv-theme="${theme.key}"`);
-      expect(html).toContain('<p class="sv-announcement">Free delivery on orders over ₹2,000</p>');
+      expect(html).not.toContain('class="sv-announcement"');
       expect(html).toContain("Harbour &amp; Loom");
       expect(html).toContain('<nav aria-label="Main"><ul class="sv-menu">');
       expect(html).toContain('<nav aria-label="Footer">');

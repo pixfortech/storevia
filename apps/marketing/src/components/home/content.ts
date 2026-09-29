@@ -70,6 +70,7 @@ export const COMMERCE_PARTS: readonly { title: string; status: Status }[] = [
   { title: "Media library", status: FEATURE_STATUS.media_storage },
   { title: "Checkout and payments", status: commerce.status },
   { title: "Orders, fulfilment and refunds", status: commerce.status },
+  { title: "New-order notifications", status: commerce.status },
   { title: "Customers", status: customers.status },
   { title: "Discount codes", status: FEATURE_STATUS.discounts },
   { title: "Shipping zones and tax rates", status: commerce.status },

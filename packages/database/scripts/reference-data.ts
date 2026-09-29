@@ -64,7 +64,9 @@ export const PLANS: readonly SeedPlan[] = [
   {
     key: "business",
     name: "Business",
-    description: "Several stores, a larger team and the full builder.",
+    // Plans are described by what exists today (the builder is on every plan;
+    // the advanced builder is planned, see @storevia/entitlements/availability).
+    description: "Several stores and a larger team.",
     sortOrder: 20,
     trialDays: 14,
     isPublic: true,

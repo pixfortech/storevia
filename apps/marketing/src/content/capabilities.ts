@@ -96,6 +96,7 @@ export const CAPABILITIES: readonly Capability[] = [
       "Products with options, variants, collections and stock by location",
       "Checkout with shipping, tax and discount codes, paid on Razorpay's secure page",
       "Orders with fulfilment, shipment tracking, refunds and cancellation, and emails to your customers",
+      "A notification for your order team on every new order, linking straight to it",
       "Search, bulk editing and CSV export",
     ],
   },

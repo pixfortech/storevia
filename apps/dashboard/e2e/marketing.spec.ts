@@ -51,8 +51,12 @@ test("navigation, entry points into the product and security headers", async ({ 
   // The future point-of-sale section is labelled as such.
   await expect(page.getByRole("heading", { name: "Selling in person too?" })).toBeVisible();
   await expect(page.locator("#retail-heading").locator("..")).toContainText("Future");
+  // Storevia's own terms and privacy policy stay visibly marked placeholders
+  // outside production (production refuses to start with them).
   for (const path of ["/legal/privacy", "/legal/terms"]) {
     await page.goto(`${SITE}${path}`);
+    await expect(page.locator('[data-legal-status="placeholder"]')).toBeVisible();
+    await expect(page.getByText("Placeholder: not yet published")).toBeVisible();
     await expect(page.getByText("is not a legal agreement")).toBeVisible();
   }
 });
@@ -88,7 +92,13 @@ test("pricing shows exactly the public plans and prices from the catalogue", asy
     );
   }
   await expect(page.getByTestId("comparison-table")).toBeVisible();
-  await expect(page.getByTestId("comparison-table")).toContainText("On the roadmap");
+  // Plans list only what exists: planned features sit apart, in no plan.
+  await expect(page.getByTestId("plan-cards")).not.toContainText("On the roadmap");
+  await expect(page.getByTestId("comparison-table")).not.toContainText("On the roadmap");
+  const planned = page.getByTestId("planned-features");
+  await expect(planned).toContainText("On the roadmap");
+  await expect(planned).toContainText("Webhooks");
+  await expect(planned).not.toContainText("Included");
   await expect(page.getByRole("button", { name: /buy|checkout|subscribe|pay/i })).toHaveCount(0);
 });
 

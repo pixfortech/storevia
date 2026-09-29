@@ -33,7 +33,9 @@ import {
 // the theme's document-level CSS (body, headings, :root tokens) can never
 // reach the dashboard, the dashboard's CSS never reaches the demo, and media
 // queries follow the frame's layout width (desktop, tablet, phone). The
-// frame is scaled to fit. Nothing in it navigates or submits.
+// frame is scaled to fit. Nothing in it navigates or submits. Like a store,
+// it has no announcement bar: no store setting feeds SiteChrome's
+// `announcement` yet (TH-1).
 
 /** The cart form can't be used in a demo: it shows as an inert button. */
 function DemoAddToCart() {
@@ -96,7 +98,6 @@ export function ThemeDemoDocument({
         <SiteChrome
           name={THEME_DEMO.brand}
           theme={theme}
-          announcement={THEME_DEMO.announcement}
           nav={<SiteMenu label="Main" links={THEME_DEMO.menu} currentPath={definition.path} />}
           footerNav={<SiteMenu label="Footer" links={THEME_DEMO.footerMenu} />}
           actions={<DemoActions />}
