@@ -6,6 +6,7 @@ import { SiteMenu, SiteShell } from "@storevia/site-engine/shell";
 import { DEFAULT_THEME_DEFINITION, themeDefinition } from "@storevia/site-engine/theme";
 import type { Metadata, Viewport } from "next";
 import { COMMERCE_CSS, StoreActions } from "@/components/chrome";
+import { storeIcons } from "@/lib/brand-icons";
 import { headerCartCount } from "@/lib/cart";
 import { storeChrome } from "@/lib/route-data";
 
@@ -21,8 +22,11 @@ export async function generateMetadata({
   params: Promise<{ storeId: string }>;
 }): Promise<Metadata> {
   const store = await requestStore((await params).storeId);
+  // The favicon comes with the (cached) chrome, so a change reaches every page.
+  const icons = storeIcons((await storeChrome(store)).identity?.favicon);
   return {
     title: { default: store.name, template: `%s – ${store.name}` },
+    ...(icons ? { icons } : {}),
     ...(isIndexable(store) ? {} : { robots: { index: false, follow: false } }),
   };
 }
@@ -58,6 +62,7 @@ export default async function StoreLayout({
       nav={<SiteMenu label="Main" links={chrome.mainMenu} />}
       footerNav={<SiteMenu label="Footer" links={chrome.footerMenu} />}
       actions={<StoreActions cartCount={cartCount} />}
+      logo={chrome.identity?.logo ?? null}
       previewNote={
         chrome.previewingTheme
           ? `the ${chrome.previewingTheme} theme with its draft settings. It isn't published: shoppers still see your live theme.`

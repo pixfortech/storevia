@@ -89,6 +89,9 @@ const ALLOWED_METADATA_KEYS = new Set([
   // provider responses.
   "hostname",
   "previousHostname",
+  // Store logo and favicon: public media ids, never file names or URLs.
+  "mediaId",
+  "previousMediaId",
 ]);
 
 /** Longer free text allowed for these keys (staff-entered reasons). */
