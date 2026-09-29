@@ -6,10 +6,12 @@ import {
   type CheckoutView,
 } from "@storevia/commerce/checkout";
 import { formatPrice } from "@storevia/commerce/blocks";
+import type { PolicyLinkDto } from "@storevia/commerce/storefront";
 import { isBrowsable, requestStore } from "@storevia/site-engine/request";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { checkoutRequest, readFlash, type Flash } from "@/lib/checkout";
+import { storeChrome } from "@/lib/route-data";
 import {
   addressAction,
   cancelPaymentAction,
@@ -20,7 +22,7 @@ import {
   removeDiscountAction,
   shippingAction,
 } from "./actions";
-import { CheckoutSummary, controlProps, Field, FieldError, FieldShell } from "./parts";
+import { CheckoutSummary, controlProps, Field, FieldError, FieldShell, PolicyNote } from "./parts";
 
 // Checkout (ADR-0031 §1): dynamic, private, no-store, no client JavaScript.
 // Every step is its own small form; the server re-prices after each one and
@@ -66,7 +68,10 @@ export default async function CheckoutPage({ params, searchParams }: Props) {
   const [{ storeId }, search] = await Promise.all([params, searchParams]);
   const store = await requestStore(storeId);
   if (!isBrowsable(store)) redirect("/");
-  const view = await getCheckout(await checkoutRequest(store));
+  const [view, chrome] = await Promise.all([
+    getCheckout(await checkoutRequest(store)),
+    storeChrome(store),
+  ]);
   if (!view) redirect("/cart");
   if (view.stage === "completed") redirect("/checkout/complete");
   const flash = await readFlash(typeof search["f"] === "string" ? search["f"] : undefined);
@@ -106,6 +111,7 @@ export default async function CheckoutPage({ params, searchParams }: Props) {
               locale={store.locale}
               price={price}
               country={store.country}
+              policies={chrome.policies}
             />
           )}
         </div>
@@ -155,12 +161,15 @@ function OpenSteps({
   locale,
   price,
   country,
+  policies,
 }: {
   view: CheckoutView;
   flash: Flash | null;
   locale: string;
   price: (p: { amount: string; currency: string }) => string;
   country: string;
+  /** The store's published policies (linked by the Pay button). */
+  policies: readonly PolicyLinkDto[];
 }) {
   const errorsFor = (step: Flash["step"]) =>
     flash?.step === step ? (flash.fieldErrors ?? {}) : {};
@@ -476,6 +485,7 @@ function OpenSteps({
                 You&apos;ll pay <strong>{price(view.total)}</strong> on a secure payment page. Card
                 details are never shared with this store.
               </p>
+              <PolicyNote policies={policies} />
               <button className="sv-button" type="submit" disabled={!ready}>
                 Pay {price(view.total)}
               </button>

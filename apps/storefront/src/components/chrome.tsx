@@ -71,6 +71,25 @@ export const COMMERCE_CSS = `
 .sv-field textarea[aria-invalid=true]{border-color:currentColor;border-width:2px}
 .sv-test-badge{display:inline-block;border:2px dashed currentColor;border-radius:var(--sv-radius-sm);padding:var(--sv-space-xs) var(--sv-space-sm);font-weight:700}
 .sv-button[disabled]{opacity:.55;cursor:not-allowed}
+.sv-store-footer{display:grid;gap:var(--sv-space-lg)}
+.sv-footer-columns{display:grid;gap:var(--sv-space-lg) var(--sv-space-xl);grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr));align-items:start}
+.sv-footer-columns .sv-menu{flex-direction:column;gap:0}
+.sv-footer-brand{margin:0 0 var(--sv-space-sm);font-weight:700;font-size:var(--sv-fontSize-base);color:var(--sv-color-text)}
+.sv-footer-logo{display:block;width:auto;height:auto;max-width:12rem;max-height:3rem}
+.sv-footer-address,.sv-contact-address{font-style:normal;display:grid;justify-items:start;overflow-wrap:anywhere}
+.sv-footer-address a,.sv-contact-details a{display:inline-flex;align-items:center;min-height:2.75rem}
+.sv-footer-legal{border-top:1px solid var(--sv-color-border);padding-top:var(--sv-space-md)}
+.sv-footer-centred .sv-store-footer{text-align:center}
+.sv-footer-centred .sv-footer-columns .sv-menu,.sv-footer-centred .sv-footer-address{align-items:center;justify-items:center}
+.sv-footer-centred .sv-footer-logo{margin-inline:auto}
+.sv-policy{padding-block:var(--sv-space-xl);max-width:48rem}
+.sv-policy h1{overflow-wrap:anywhere}
+.sv-policy-updated{color:var(--sv-color-muted);font-size:var(--sv-fontSize-sm);margin-top:var(--sv-space-xl)}
+.sv-contact-details{display:grid;gap:var(--sv-space-md);margin:0 0 var(--sv-space-xl)}
+.sv-contact-details dt{font-weight:600;font-size:var(--sv-fontSize-sm)}
+.sv-contact-details dd{margin:0;overflow-wrap:anywhere}
+.sv-checkout-policies{color:var(--sv-color-muted);font-size:var(--sv-fontSize-sm)}
+.sv-checkout-policies a{color:inherit}
 @media (min-width:900px){.sv-checkout-grid{grid-template-columns:minmax(0,1fr) 22rem}}
 @media (max-width:480px){.sv-field-grid{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:640px){.sv-cart-line{grid-template-columns:4rem minmax(0,1fr)}.sv-cart-line>:last-child{grid-column:2}}

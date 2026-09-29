@@ -1,5 +1,6 @@
 "use server";
 
+import { updateSellerProfile } from "@storevia/commerce";
 import {
   archiveStore,
   changeStoreBusinessType,
@@ -42,6 +43,35 @@ export async function updateStoreAction(
     });
     revalidatePath(`/s/${storeId}`, "layout");
     return { ok: true, message: "Settings saved." };
+  }, formData);
+}
+
+/** The store's public seller identity (final pass, Phase 2A); validated on the server. */
+export async function updateSellerAction(
+  storeId: string,
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const ctx = await requireStoreAccess(
+      await requireActionPrincipal(),
+      storeId,
+      await requestInfo(),
+    );
+    const field = (name: string) => formData.get(name) ?? "";
+    await updateSellerProfile(ctx, {
+      legalName: field("legalName"),
+      phone: field("phone"),
+      addressLine1: field("addressLine1"),
+      addressLine2: field("addressLine2"),
+      city: field("city"),
+      region: field("region"),
+      postalCode: field("postalCode"),
+      countryCode: field("countryCode"),
+      gstin: field("gstin"),
+    });
+    revalidatePath(`/s/${storeId}`, "layout");
+    return { ok: true, message: "Seller details saved." };
   }, formData);
 }
 

@@ -16,10 +16,12 @@ import {
   resolveDocumentData,
   type CollectionDto,
   type PolicyLinkDto,
+  type PolicyPageDto,
   type ProductDto,
   type SearchDto,
   type StoreIdentityDto,
 } from "@storevia/commerce/storefront";
+import { policyByHandle } from "@storevia/commerce/policy-kinds";
 import { upgradeDocument, validateDocument, type PageDocument } from "@storevia/editor/document";
 import { NAVIGATION_HANDLES, usableNavigationItems } from "@storevia/editor/navigation";
 import { firstSectionHasHeading } from "@storevia/editor/render";
@@ -284,14 +286,62 @@ export async function storeChrome(store: StoreRequestContext): Promise<StoreChro
   }));
 }
 
+// ---------------------------------------------------------------------------
+// Policy pages and the contact page (final pass, Phase 2A).
+// ---------------------------------------------------------------------------
+
+export interface PolicyPageData {
+  /** The published policy, or null (a 404, except on the contact page). */
+  readonly policy: PolicyPageDto | null;
+  /** The contact page only: who the seller is and how to reach them. */
+  readonly identity: StoreIdentityDto | null;
+}
+
+/** The contact page's handle: always a page, with or without a published contact policy. */
+export const CONTACT_HANDLE = "contact";
+
+async function loadPolicyPage(store: StoreRequestContext, handle: string): Promise<PolicyPageData> {
+  return readStorefront(
+    store,
+    async (reader) => {
+      const [policy, identity] = await Promise.all([
+        reader.policy(handle),
+        handle === CONTACT_HANDLE ? reader.identity() : null,
+      ]);
+      return { policy, identity };
+    },
+    { preview: store.preview },
+  );
+}
+
+/**
+ * A policy page's data in one storefront transaction, cached like pages.
+ * Only a known policy handle is looked up (or becomes a cache key); an
+ * unknown one is null. Shoppers only ever see published policies.
+ */
+export async function storePolicyPage(
+  store: StoreRequestContext,
+  handle: string,
+): Promise<PolicyPageData | null> {
+  if (!policyByHandle(handle)) return null;
+  if (store.preview) return loadPolicyPage(store, handle);
+  await syncPublicCaches();
+  return pageDataCache().get(`policy:${store.storeId}:${handle}`, async () => ({
+    value: await loadPolicyPage(store, handle),
+    tags: [storeTag(store.storeId)],
+  }));
+}
+
 /** Sitemap paths for the store (cached like pages; never drafts). */
 export async function storeSitemap(store: StoreRequestContext) {
   await syncPublicCaches();
   return pageDataCache().get(`sitemap:${store.storeId}`, async () => ({
     value: await readStorefront(store, async (reader, site) =>
-      [...(await site.sitemapPages()), ...(await reader.sitemap())].sort((a, b) =>
-        a.path < b.path ? -1 : a.path > b.path ? 1 : 0,
-      ),
+      [
+        ...(await site.sitemapPages()),
+        ...(await reader.sitemap()),
+        ...(await reader.policySitemap()),
+      ].sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0)),
     ),
     tags: [storeTag(store.storeId), catalogueTag(store.storeId), pagesTag(store.storeId)],
   }));

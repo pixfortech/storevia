@@ -111,6 +111,17 @@ const TABLES: readonly (readonly [string, Fetch])[] = [
     "navigation",
     (tx, storeId, after) => tx.navigation.findMany({ where: { storeId }, ...byId(after) }),
   ],
+  // The store's public seller identity (one row per store, never paged)
+  // and its policies, drafts and published copies (final pass, Phase 2A).
+  [
+    "sellerProfile",
+    (tx, storeId) =>
+      tx.storeSellerProfile.findMany({ where: { storeId } }) as unknown as Promise<Row[]>,
+  ],
+  [
+    "policies",
+    (tx, storeId, after) => tx.storePolicy.findMany({ where: { storeId }, ...byId(after) }),
+  ],
   [
     "domains",
     (tx, storeId, after) =>

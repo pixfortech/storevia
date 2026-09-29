@@ -10,6 +10,7 @@ import {
 import { Button } from "@storevia/ui/button";
 import { DescriptionList } from "@storevia/ui/data";
 import { GlyphTile } from "@storevia/ui/icons";
+import { countryByCode } from "@storevia/validation/geo";
 import { CardBody, CardFooter } from "@storevia/ui/surfaces";
 import { useActionState, useState } from "react";
 import { ConfirmDialog } from "@/components/areas/confirm-dialog";
@@ -17,12 +18,13 @@ import { FieldGroup } from "@/components/areas/settings";
 import { BusinessTypePicker } from "@/components/business-type-picker";
 import { FormMessage, SelectField, SubmitButton, TextField } from "@/components/forms";
 import { BUSINESS_TYPE_GLYPH } from "@/lib/business-types";
-import { localeOptionsFor, TIMEZONE_OPTIONS } from "@/lib/options";
+import { COUNTRY_OPTIONS, localeOptionsFor, TIMEZONE_OPTIONS } from "@/lib/options";
 import {
   archiveStoreAction,
   changeBusinessTypeAction,
   changeStoreSlugAction,
   setStorefrontLiveAction,
+  updateSellerAction,
   updateStoreAction,
 } from "./actions";
 
@@ -127,6 +129,153 @@ export function StoreSettingsForm({
         <CardFooter className="justify-between">
           <FormMessage state={state} variant="inline" />
           <SubmitButton className="ml-auto">Save changes</SubmitButton>
+        </CardFooter>
+      ) : null}
+    </form>
+  );
+}
+
+export interface SellerValues {
+  readonly legalName: string;
+  readonly phone: string;
+  readonly addressLine1: string;
+  readonly addressLine2: string;
+  readonly city: string;
+  readonly region: string;
+  readonly postalCode: string;
+  readonly countryCode: string;
+  readonly gstin: string;
+}
+
+/**
+ * The store's public seller identity (final pass, Phase 2A). The state or
+ * region is a list for countries that have one, else free text; the server
+ * checks every field again.
+ */
+export function SellerDetailsForm({
+  storeId,
+  canEdit,
+  values,
+}: {
+  storeId: string;
+  canEdit: boolean;
+  values: SellerValues;
+}) {
+  const [state, action] = useActionState(updateSellerAction.bind(null, storeId), { ok: false });
+  const [country, setCountry] = useState(state.values?.["countryCode"] ?? values.countryCode);
+  const geo = countryByCode(country);
+  const regions = geo?.regions ?? null;
+  const regionLabel = geo?.regionLabel ?? "State or region";
+  return (
+    <form action={action} noValidate>
+      <fieldset disabled={!canEdit} className="min-w-0">
+        <legend className="sr-only">Seller details</legend>
+        <CardBody className="space-y-8 py-6">
+          <FieldGroup title="Business">
+            <TextField
+              label="Legal or business name"
+              name="legalName"
+              defaultValue={values.legalName}
+              autoComplete="organization"
+              maxLength={200}
+              state={state}
+              hint="The name shoppers are buying from, as registered."
+            />
+            <div className="grid gap-5 sm:grid-cols-2">
+              <TextField
+                label="Phone"
+                name="phone"
+                type="tel"
+                defaultValue={values.phone}
+                autoComplete="tel"
+                state={state}
+              />
+              <TextField
+                label="GSTIN (optional)"
+                name="gstin"
+                defaultValue={values.gstin}
+                autoCapitalize="characters"
+                maxLength={20}
+                state={state}
+                hint="Checked and kept with your store. It isn't shown to shoppers or used to calculate tax."
+              />
+            </div>
+          </FieldGroup>
+          <FieldGroup title="Business address" className="border-t border-line pt-8">
+            <TextField
+              label="Address line 1"
+              name="addressLine1"
+              defaultValue={values.addressLine1}
+              autoComplete="address-line1"
+              maxLength={200}
+              state={state}
+            />
+            <TextField
+              label="Address line 2 (optional)"
+              name="addressLine2"
+              defaultValue={values.addressLine2}
+              autoComplete="address-line2"
+              maxLength={200}
+              state={state}
+            />
+            <div className="grid gap-5 sm:grid-cols-2">
+              <TextField
+                label="City"
+                name="city"
+                defaultValue={values.city}
+                autoComplete="address-level2"
+                maxLength={100}
+                state={state}
+              />
+              <TextField
+                label={geo?.postalCode?.label ?? "Postal code"}
+                name="postalCode"
+                defaultValue={values.postalCode}
+                autoComplete="postal-code"
+                maxLength={20}
+                state={state}
+              />
+              <SelectField
+                label="Country"
+                name="countryCode"
+                state={state}
+                options={[{ value: "", label: "Choose a country" }, ...COUNTRY_OPTIONS]}
+                value={country}
+                onChange={(event) => {
+                  setCountry(event.currentTarget.value);
+                }}
+              />
+              {regions ? (
+                <SelectField
+                  key={country}
+                  label={regionLabel}
+                  name="region"
+                  state={state}
+                  options={[
+                    { value: "", label: `Choose a ${regionLabel.toLowerCase()}` },
+                    ...regions.map((r) => ({ value: r.code, label: r.name })),
+                  ]}
+                  defaultValue={country === values.countryCode ? values.region : ""}
+                />
+              ) : (
+                <TextField
+                  key={country}
+                  label="State or region (optional)"
+                  name="region"
+                  defaultValue={country === values.countryCode ? values.region : ""}
+                  autoComplete="address-level1"
+                  maxLength={100}
+                  state={state}
+                />
+              )}
+            </div>
+          </FieldGroup>
+        </CardBody>
+      </fieldset>
+      {canEdit ? (
+        <CardFooter className="justify-between">
+          <FormMessage state={state} variant="inline" />
+          <SubmitButton className="ml-auto">Save seller details</SubmitButton>
         </CardFooter>
       ) : null}
     </form>

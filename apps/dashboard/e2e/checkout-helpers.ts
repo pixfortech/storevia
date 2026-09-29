@@ -1,5 +1,6 @@
 import { expect, type Browser, type Page } from "@playwright/test";
 import type { Tenant } from "./helpers";
+import { completeStoreIdentity } from "./identity-helpers";
 import { fetchStore } from "./storefront-helpers";
 
 // Shared by the Milestone 6 checkout specs: a store set up through the
@@ -46,12 +47,16 @@ export async function addRate(page: Page, zoneName: string, rateName: string, pr
   await expect(page.getByRole("button", { name: `Edit ${rateName}` })).toBeVisible();
 }
 
-/** Test payments on, a support email (the launch checks need one), and the store live. */
+/**
+ * Test payments on, a support email, seller details and the required
+ * policies (the launch checks need them), and the store live.
+ */
 export async function goLive(page: Page, tenant: Tenant) {
   await page.goto(`${tenant.storePath}/settings`);
   await page.getByLabel("Support email").fill("help@shop.example");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(page.getByText("Settings saved.")).toBeVisible();
+  await completeStoreIdentity(page, tenant);
 
   await page.goto(`${tenant.storePath}/settings/payments`);
   await page.getByRole("button", { name: "Connect test payments" }).click();

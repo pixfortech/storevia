@@ -16,6 +16,8 @@ import {
   getCustomer,
   getProduct,
   listCustomers,
+  savePolicyDraft,
+  updateSellerProfile,
 } from "../src";
 import { exportOrganisationData } from "../src/data-export";
 import {
@@ -29,6 +31,7 @@ import {
   type CheckoutStore,
 } from "../src/checkout";
 import { getCustomerOrder, sendCustomerOrderMessage } from "../src/orders/customer";
+import { plainTextToRichText } from "../src/rich-text";
 import { addToCart } from "../src/storefront";
 import { expectCode, makeTenant, memberContext, steppedUp, storeOf, type Tenant } from "./fixtures";
 
@@ -293,6 +296,12 @@ async function collect(stream: AsyncGenerator<string>): Promise<string> {
 describe("exportOrganisationData", () => {
   it("exports every store's data as valid JSON without secrets", async () => {
     await placeOrder(storeB, "vase", "export.me@example.test");
+    await updateSellerProfile(storeOf(b), { legalName: "Vase Works LLP", countryCode: "IN" });
+    await savePolicyDraft(storeOf(b), "REFUND", {
+      title: "Returns",
+      body: plainTextToRichText("Unused items can be returned within ten days of delivery."),
+      revision: 0,
+    });
     const owner = await requireOrganisationAccess(
       { ...b.owner, recentlyAuthenticated: true },
       toTypeId("organisation", b.org.organisationId),
@@ -321,6 +330,9 @@ describe("exportOrganisationData", () => {
     ])
       expect(Array.isArray(store[key])).toBe(true);
     expect((store["orders"] ?? []).length).toBeGreaterThan(0);
+    // The seller identity and the policies (drafts included) are the merchant's own data.
+    expect(store["sellerProfile"]).toMatchObject([{ legalName: "Vase Works LLP" }]);
+    expect(store["policies"]).toMatchObject([{ kind: "REFUND", title: "Returns" }]);
     expect(text).toContain("export.me@example.test");
     // Nothing from another organisation, no secrets or internal keys.
     expect(text).not.toContain(a.org.organisationId);

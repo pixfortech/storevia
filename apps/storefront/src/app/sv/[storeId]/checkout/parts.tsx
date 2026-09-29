@@ -1,9 +1,47 @@
 import type { CheckoutView } from "@storevia/commerce/checkout";
-import type { ReactNode } from "react";
+import type { StorePolicyKind } from "@storevia/commerce/policy-kinds";
+import type { PolicyLinkDto } from "@storevia/commerce/storefront";
+import { Fragment, type ReactNode } from "react";
 
 // Checkout building blocks: labelled fields with their errors announced
-// (aria-invalid + aria-describedby), and the order summary. Server
-// components; no client JavaScript.
+// (aria-invalid + aria-describedby), the order summary, and the policy
+// links by the Pay button. Server components; no client JavaScript.
+
+const NOTED: readonly StorePolicyKind[] = ["REFUND", "SHIPPING", "PRIVACY"];
+
+/**
+ * Links to the store's published terms, returns, shipping and privacy
+ * policies beside the Pay button (final pass, Phase 2A); nothing when none
+ * is published. They open in a new tab so the checkout stays put.
+ */
+export function PolicyNote({ policies }: { policies: readonly PolicyLinkDto[] }) {
+  const terms = policies.find((p) => p.kind === "TERMS");
+  const others = NOTED.flatMap((kind) => policies.filter((p) => p.kind === kind));
+  if (!terms && others.length === 0) return null;
+  const link = (p: PolicyLinkDto) => (
+    <a href={p.href} target="_blank" rel="noopener">
+      {p.title}
+      <span className="sv-visually-hidden"> (opens in a new tab)</span>
+    </a>
+  );
+  return (
+    <p className="sv-checkout-policies" data-testid="checkout-policies">
+      {terms ? <>By placing your order you agree to our {link(terms)}. </> : null}
+      {others.length > 0 ? (
+        <>
+          Read our{" "}
+          {others.map((p, i) => (
+            <Fragment key={p.kind}>
+              {i > 0 ? (i === others.length - 1 ? " and " : ", ") : null}
+              {link(p)}
+            </Fragment>
+          ))}
+          .
+        </>
+      ) : null}
+    </p>
+  );
+}
 
 export function FieldError({ id, message }: { id: string; message: string | undefined }) {
   return message ? (

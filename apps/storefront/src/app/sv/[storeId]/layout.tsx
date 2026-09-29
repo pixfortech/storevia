@@ -7,14 +7,16 @@ import { DEFAULT_THEME_DEFINITION, themeDefinition } from "@storevia/site-engine
 import type { Metadata, Viewport } from "next";
 import { COMMERCE_CSS, StoreActions } from "@/components/chrome";
 import { storeIcons } from "@/lib/brand-icons";
+import { StoreFooter } from "@/components/store-footer";
 import { headerCartCount } from "@/lib/cart";
 import { storeChrome } from "@/lib/route-data";
 
 // The root layout for every store page: the Site Engine's branded shell with
 // the store's theme (tokens, chrome variant and first-party stylesheet of the
 // live theme package, or in a preview the one being previewed) and menus
-// (ADR-0030), and Storevia's search and cart links. The store comes from the
-// proxy's signed header and must match the route's store segment.
+// (ADR-0030), Storevia's search and cart links, and the store's footer
+// (seller details and policies). The store comes from the proxy's signed
+// header and must match the route's store segment.
 
 export async function generateMetadata({
   params,
@@ -63,6 +65,14 @@ export default async function StoreLayout({
       footerNav={<SiteMenu label="Footer" links={chrome.footerMenu} />}
       actions={<StoreActions cartCount={cartCount} />}
       logo={chrome.identity?.logo ?? null}
+      footer={
+        <StoreFooter
+          name={chrome.identity?.name ?? store.name}
+          identity={chrome.identity}
+          footerMenu={chrome.footerMenu}
+          policies={chrome.policies}
+        />
+      }
       previewNote={
         chrome.previewingTheme
           ? `the ${chrome.previewingTheme} theme with its draft settings. It isn't published: shoppers still see your live theme.`
