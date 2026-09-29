@@ -9,6 +9,7 @@ import {
   type SitemapEntry,
 } from "@storevia/site-engine/read";
 import { parseTypeId, toTypeId } from "@storevia/types";
+import { countryByCode, regionByCode } from "@storevia/validation/geo";
 import {
   POLICY_DEFINITIONS,
   policyByHandle,
@@ -316,7 +317,10 @@ export class StorefrontReader {
     const media = await this.site.imagesByUuid(
       [row.logo_media_id, row.favicon_media_id].filter((id): id is string => id !== null),
     );
-    const locality = [row.city, row.region, row.postal_code].filter(Boolean).join(", ");
+    // Names, not codes, for shoppers: "Kolkata, West Bengal, 700016", "India".
+    const country = countryByCode(row.country_code);
+    const region = row.region ? (regionByCode(country, row.region)?.name ?? row.region) : null;
+    const locality = [row.city, region, row.postal_code].filter(Boolean).join(", ");
     return {
       name: row.name,
       email: row.support_email ?? row.contact_email,
@@ -331,7 +335,7 @@ export class StorefrontReader {
           row.address_line1,
           row.address_line2,
           locality || null,
-          row.country_code?.trim() ?? null,
+          country?.name ?? row.country_code?.trim() ?? null,
         ].filter((line): line is string => Boolean(line)),
       },
     };
@@ -346,6 +350,22 @@ export class StorefrontReader {
     return POLICY_DEFINITIONS.flatMap((d) => {
       const title = byKind.get(d.kind);
       return title ? [{ kind: d.kind, title, href: policyPath(d.kind) }] : [];
+    });
+  }
+
+  /**
+   * Sitemap entries for the policy pages: each published policy, and the
+   * contact page, which every store has.
+   */
+  async policySitemap(): Promise<{ path: string; updatedAt: Date | null }[]> {
+    const rows = await this.tx.$queryRaw<{ kind: StorePolicyKind; published_at: Date }[]>`
+      SELECT kind::text AS kind, "publishedAt" AS published_at FROM "StorePolicy"
+      WHERE "publishedDoc" IS NOT NULL`;
+    const published = new Map(rows.map((r) => [r.kind, r.published_at]));
+    return POLICY_DEFINITIONS.flatMap((d): { path: string; updatedAt: Date | null }[] => {
+      const at = published.get(d.kind);
+      if (at) return [{ path: policyPath(d.kind), updatedAt: at }];
+      return d.kind === "CONTACT" ? [{ path: policyPath(d.kind), updatedAt: null }] : [];
     });
   }
 

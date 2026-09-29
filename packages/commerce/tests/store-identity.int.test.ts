@@ -207,7 +207,7 @@ describe("what the storefront reads", () => {
       seller: {
         legalName: "Clay Studio LLP",
         phone: "+91 80 4000 1234",
-        address: ["4 Park Street", "Kolkata, WB, 700016", "IN"],
+        address: ["4 Park Street", "Kolkata, West Bengal, 700016", "India"],
       },
       logo: null,
       favicon: null,
@@ -220,6 +220,11 @@ describe("what the storefront reads", () => {
     expect((await readStorefront(scopeOf(b), (r) => r.policyLinks())).map((l) => l.kind)).toEqual([
       "TERMS",
     ]);
+    // The sitemap lists published policies and the contact page (always there).
+    const sitemap = await readStorefront(scopeOf(a), (r) => r.policySitemap());
+    expect(sitemap.map((e) => e.path)).toEqual(["/policies/privacy", "/policies/contact"]);
+    expect(sitemap[0]?.updatedAt).toBeInstanceOf(Date);
+    expect(sitemap[1]?.updatedAt).toBeNull();
   });
 
   it("the storefront role can't read drafts, seller rows or another store's policies", async () => {

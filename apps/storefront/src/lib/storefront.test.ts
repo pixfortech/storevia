@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { linkHref, type DocumentData } from "@storevia/commerce/blocks";
-import { routeHandle } from "./route-data";
+import { routeHandle, storePolicyPage } from "./route-data";
 
 describe("routes", () => {
   it("route handles are validated before any lookup", () => {
@@ -32,6 +32,28 @@ describe("routes", () => {
     );
     // A kind nobody registered resolves to nothing.
     expect(linkHref(data, { type: "blog", id: "post_1" })).toBeNull();
+  });
+});
+
+describe("policy pages (final pass, Phase 2A)", () => {
+  it("only a known policy handle is looked up or becomes a cache key", async () => {
+    const store = {
+      storeId: "00000000-0000-7000-8000-000000000001",
+      organisationId: "00000000-0000-7000-8000-000000000002",
+      name: "Shop",
+      currency: "INR",
+      locale: "en-IN",
+      country: "IN",
+      hostname: "shop.test",
+      canonicalHostname: "shop.test",
+      availability: "live" as const,
+      preview: false,
+      iat: 0,
+    };
+    // Unknown handles return before any database or cache access.
+    for (const handle of ["returns", "REFUNDS", "../privacy", "terms%20", ""]) {
+      expect(await storePolicyPage(store, handle)).toBeNull();
+    }
   });
 });
 

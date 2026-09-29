@@ -22,15 +22,20 @@ test("an incomplete store can't go live; the dashboard says exactly what is miss
   await expect(check("payments")).toHaveAttribute("data-state", "missing");
   await expect(check("shipping")).toHaveAttribute("data-state", "missing");
   await expect(check("identity")).toHaveAttribute("data-state", "missing");
+  await expect(check("seller")).toHaveAttribute("data-state", "missing");
+  await expect(check("policies")).toHaveAttribute("data-state", "missing");
   await expect(check("products")).toHaveAttribute("data-state", "ok");
   await expect(check("home")).toHaveAttribute("data-state", "ok");
-  await expect(list).toContainText("Before you go live: 3 steps left");
+  await expect(list).toContainText("Before you go live: 5 steps left");
   await expect(page.getByRole("button", { name: "Go live" })).toBeDisabled();
   // Replies go to Storevia's address until the store has one of its own.
   await expect(page.getByTestId("reply-to-note")).toContainText("no support or contact email");
   // Each missing step links to where it's fixed.
   await check("shipping").getByRole("link", { name: /Fix/ }).click();
   await page.waitForURL(/\/settings\/shipping$/);
+  await page.goto(`${tenant.storePath}/settings`);
+  await check("policies").getByRole("link", { name: /Fix/ }).click();
+  await page.waitForURL(/\/settings\/policies$/);
 
   // The store home's set-up steps list the same things.
   await page.goto(tenant.storePath);

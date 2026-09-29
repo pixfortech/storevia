@@ -1,3 +1,4 @@
+import { getSellerProfile } from "@storevia/commerce";
 import { customerReplyTo } from "@storevia/email";
 import {
   getOnlineStore,
@@ -32,6 +33,7 @@ import { storeContextOr404 } from "@/lib/tenant";
 import {
   ArchiveStoreForm,
   BusinessTypeForm,
+  SellerDetailsForm,
   StoreAddressForm,
   StoreSettingsForm,
   StorefrontStatusForm,
@@ -49,10 +51,11 @@ export default async function StoreSettingsPage({
 }) {
   const { storeId } = await params;
   const ctx = await storeContextOr404(storeId, `/s/${storeId}/settings`);
-  const [store, online, checks] = await Promise.all([
+  const [store, online, checks, seller] = await Promise.all([
     getStore(ctx),
     getOnlineStore(ctx),
     launchReadiness(ctx, storeLaunchChecks(ctx.storeId)),
+    getSellerProfile(ctx),
   ]);
   const readiness = checks.map((c) => ({ ...c, href: launchCheckHref(ctx.storeId, c.key) }));
   const blocked = launchBlockers(checks).length > 0;
@@ -67,6 +70,8 @@ export default async function StoreSettingsPage({
     hasPermission(ctx, "domain.manage") && !archived && online.status !== "SUSPENDED";
   const sections: SettingsSectionLink[] = [
     { id: "general", label: "General" },
+    // Launch readiness links to #seller.
+    { id: "seller", label: "Seller details" },
     { id: "storefront", label: "Storefront" },
     // The shell and the store home link to #business-type.
     { id: "business-type", label: "Business type" },
@@ -121,6 +126,28 @@ export default async function StoreSettingsPage({
               { term: "Country", detail: labelFor(COUNTRY_OPTIONS, store.country) },
               { term: "Created", detail: formatLongDate(store.createdAt, store.timezone) },
             ]}
+          />
+        </SettingsSection>
+
+        <SettingsSection
+          id="seller"
+          title="Seller details"
+          description="Who shoppers are buying from. These details are public: your store's footer and contact page show them with the store name and support email above. They're separate from your Storevia account and organisation details."
+        >
+          <SellerDetailsForm
+            storeId={storeId}
+            canEdit={canEdit}
+            values={{
+              legalName: seller.legalName ?? "",
+              phone: seller.phone ?? "",
+              addressLine1: seller.addressLine1 ?? "",
+              addressLine2: seller.addressLine2 ?? "",
+              city: seller.city ?? "",
+              region: seller.region ?? "",
+              postalCode: seller.postalCode ?? "",
+              countryCode: seller.countryCode ?? store.country,
+              gstin: seller.gstin ?? "",
+            }}
           />
         </SettingsSection>
 
