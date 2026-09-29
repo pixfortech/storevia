@@ -3,13 +3,14 @@ import { getStore, hasPermission } from "@storevia/tenancy";
 import { Stat } from "@storevia/ui/data";
 import { Icon } from "@storevia/ui/icons";
 import { Illustration } from "@storevia/ui/illustrations";
-import { Card, EmptyState } from "@storevia/ui/surfaces";
+import { Alert, Card, EmptyState } from "@storevia/ui/surfaces";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AccessNotice } from "@/components/areas/access-notice";
 import { LinkTabs } from "@/components/catalogue/link-tabs";
 import { OrderBadges, StatusBadge, TestBadge } from "@/components/orders/badges";
+import { ExportOrders } from "@/components/orders/export-orders";
 import { ListSearch } from "@/components/orders/list-search";
 import { PageHeader } from "@/components/shell/app-shell";
 import { formatMoney } from "@/lib/catalogue";
@@ -60,6 +61,12 @@ export default async function OrdersPage({
   const tab = parseOrderTab(param("status"));
   const q = (param("q") ?? "").trim().slice(0, 100);
   const after = param("after");
+  // The export's date range (kept after a refused export); YYYY-MM-DD only.
+  const day = (key: string) => {
+    const value = param(key) ?? "";
+    return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
+  };
+  const exportProblem = param("export");
   const [page, metrics, store] = await Promise.all([
     listOrders(ctx, { status: tab, q, cursor: after }),
     orderMetrics(ctx),
@@ -131,12 +138,27 @@ export default async function OrdersPage({
           aren&apos;t counted in your revenue or sales.
         </p>
       ) : null}
+      {exportProblem === "dates" || exportProblem === "limit" ? (
+        <Alert tone="warning" className="mb-4" title="The export didn't start">
+          {exportProblem === "limit"
+            ? "You've exported orders several times recently. Try again later."
+            : "Choose valid dates, with the end date on or after the start date."}
+        </Alert>
+      ) : null}
       <Card className="overflow-hidden">
         <ListSearch
           label="Search orders"
           placeholder="Order number, email or name"
           defaultValue={q}
           keep={tab === "all" ? {} : { status: tab }}
+        />
+        <ExportOrders
+          action={ordersPath(ctx.storeId, "/export")}
+          status={tab}
+          q={q}
+          from={day("from")}
+          to={day("to")}
+          timezone={store.timezone}
         />
         {page.items.length === 0 ? (
           <EmptyState

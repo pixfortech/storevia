@@ -96,21 +96,38 @@ const FILTERS: Readonly<Record<OrderStatusFilter, Prisma.Sql>> = {
   test: Prisma.sql`o."archivedAt" IS NULL AND o."testMode"`,
 };
 
-export async function listOrders(
-  ctx: TenantContext,
-  query: { readonly status?: unknown; readonly q?: unknown; readonly cursor?: unknown } = {},
-  limit = 25,
-): Promise<OrderListResult> {
-  const status: OrderStatusFilter =
-    typeof query.status === "string" && query.status in FILTERS
-      ? (query.status as OrderStatusFilter)
-      : "all";
+export function parseOrderStatusFilter(value: unknown): OrderStatusFilter {
+  return typeof value === "string" && Object.hasOwn(FILTERS, value)
+    ? (value as OrderStatusFilter)
+    : "all";
+}
+
+/**
+ * The conditions (on `"Order" o`) behind an order list: its status tab and
+ * its search. Shared by the list and the CSV export, so an export holds
+ * exactly the orders the list shows.
+ */
+export function orderListConditions(query: { readonly status?: unknown; readonly q?: unknown }): {
+  readonly status: OrderStatusFilter;
+  readonly searched: boolean;
+  conditions: Prisma.Sql[];
+} {
+  const status = parseOrderStatusFilter(query.status);
   const search = typeof query.q === "string" ? searchCondition(query.q) : null;
   // A search looks through archived orders too, unless a filter narrows it.
   const conditions: Prisma.Sql[] = [
     search && status === "all" ? Prisma.sql`true` : FILTERS[status],
   ];
   if (search) conditions.push(search);
+  return { status, searched: search !== null, conditions };
+}
+
+export async function listOrders(
+  ctx: TenantContext,
+  query: { readonly status?: unknown; readonly q?: unknown; readonly cursor?: unknown } = {},
+  limit = 25,
+): Promise<OrderListResult> {
+  const { conditions } = orderListConditions(query);
   const cursor = decodeCursor(query.cursor);
   if (cursor) {
     conditions.push(Prisma.sql`(o."placedAt", o.id) < (${cursor.placedAt}, ${cursor.id}::uuid)`);

@@ -19,6 +19,7 @@ import {
 } from "@/app/(app)/s/[storeId]/products/collections/actions";
 import { ConfirmDialog } from "@/components/areas/confirm-dialog";
 import { FormMessage } from "@/components/forms";
+import { FREE_PRODUCT_CODE, FreeProductDialog } from "../free-product-dialog";
 import { PRODUCT_STATUS, type ProductStatus } from "@/lib/catalogue";
 import { AdjustStockDialog } from "../adjust-stock-dialog";
 import type { EditorLocation, EditorVariant } from "./types";
@@ -43,6 +44,8 @@ export function StatusCard({
   const [message, setMessage] = useState<{ ok: boolean; message?: string | undefined } | null>(
     null,
   );
+  /** The server's reason when publishing needs confirmation (a product priced at 0). */
+  const [confirmFree, setConfirmFree] = useState<string | null>(null);
   const [archiveState, archive] = useActionState(
     async () => {
       const result = await archiveProductAction(storeId, productId);
@@ -56,11 +59,18 @@ export function StatusCard({
     fn: () => Promise<{
       ok: boolean;
       message?: string | undefined;
+      code?: string | undefined;
       values?: Readonly<Record<string, string>> | undefined;
     }>,
   ) => {
     startTransition(async () => {
       const result = await fn();
+      if (!result.ok && result.code === FREE_PRODUCT_CODE) {
+        setMessage(null);
+        setConfirmFree(result.message ?? "This product is priced at 0.");
+        return;
+      }
+      setConfirmFree(null);
       setMessage(result);
       const updatedAt = result.values?.["updatedAt"];
       if (result.ok && updatedAt) noteVersion(updatedAt);
@@ -132,6 +142,16 @@ export function StatusCard({
           ) : null}
         </div>
       </div>
+      <FreeProductDialog
+        message={confirmFree}
+        pending={pending}
+        onCancel={() => {
+          setConfirmFree(null);
+        }}
+        onConfirm={() => {
+          run(() => setProductStatusAction(storeId, productId, "ACTIVE", { confirmFree: true }));
+        }}
+      />
     </Card>
   );
 }

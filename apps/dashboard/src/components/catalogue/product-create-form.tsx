@@ -1,19 +1,22 @@
 "use client";
 
 import { buttonClasses } from "@storevia/ui/button";
-import { Switch } from "@storevia/ui/choice";
+import { Checkbox, Switch } from "@storevia/ui/choice";
 import { Field, Input } from "@storevia/ui/form";
 import { RadioGroup, RadioItem } from "@storevia/ui/choice";
 import { Card, CardBody, CardHeader } from "@storevia/ui/surfaces";
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { startTransition, useActionState, useRef, useState } from "react";
 import { createProductAction } from "@/app/(app)/s/[storeId]/products/actions";
 import { FormMessage, SubmitButton, TextField } from "@/components/forms";
+import { WeightInput, weightDraftOf, type WeightDraft } from "./editor/weight-input";
+import { FREE_PRODUCT_CODE, FreeProductDialog } from "./free-product-dialog";
 import { LazyRichTextEditor } from "./lazy-rich-text";
 import { UnsavedChangesGuard } from "./unsaved-guard";
 
-// The first step for a product: what it is, what it costs and how many there
-// are. Everything else (images, options, SEO) is in the editor it opens.
+// The first step for a product: what it is, what it costs, how many there
+// are and how it ships. Everything else (images, options, SEO) is in the
+// editor it opens. Saving a product priced at 0 as active asks first.
 
 export function ProductCreateForm({
   storeId,
@@ -27,13 +30,24 @@ export function ProductCreateForm({
   const [state, action] = useActionState(createProductAction.bind(null, storeId), { ok: false });
   const [dirty, setDirty] = useState(false);
   const [track, setTrack] = useState(true);
+  const [ships, setShips] = useState(true);
+  const [taxable, setTaxable] = useState(true);
+  const [weight, setWeight] = useState<WeightDraft>(weightDraftOf(null));
   const error = (name: string) => state.fieldErrors?.[name];
   const value = (name: string) => state.values?.[name];
+  // The last submission, repeated with the confirmation when the merchant
+  // publishes a product priced at 0 anyway.
+  const submitted = useRef<FormData | null>(null);
+  const [answered, setAnswered] = useState<typeof state | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const needsConfirmation = !state.ok && state.code === FREE_PRODUCT_CODE && answered !== state;
 
   return (
     <form
       action={(formData) => {
         setDirty(false);
+        setConfirming(false);
+        submitted.current = formData;
         action(formData);
       }}
       noValidate
@@ -44,7 +58,26 @@ export function ProductCreateForm({
     >
       <UnsavedChangesGuard dirty={dirty} />
       <div className="min-w-0 space-y-6">
-        {state.message && !state.ok ? <FormMessage state={state} /> : null}
+        {state.message && !state.ok && state.code !== FREE_PRODUCT_CODE ? (
+          <FormMessage state={state} />
+        ) : null}
+        <FreeProductDialog
+          message={needsConfirmation ? (state.message ?? "") : null}
+          pending={confirming}
+          cancelLabel="Keep editing"
+          onCancel={() => {
+            setAnswered(state);
+          }}
+          onConfirm={() => {
+            const formData = submitted.current;
+            if (!formData) return;
+            formData.set("confirmFree", "true");
+            setConfirming(true);
+            startTransition(() => {
+              action(formData);
+            });
+          }}
+        />
         <Card>
           <CardBody className="space-y-5 py-6">
             <TextField
@@ -97,6 +130,18 @@ export function ProductCreateForm({
                 defaultValue={value("compareAtPrice")}
               />
             </Field>
+            <div className="sm:col-span-2">
+              <Checkbox
+                label="Charge tax on this product"
+                description="Your store's tax rates apply to it at checkout."
+                checked={taxable}
+                onCheckedChange={(v) => {
+                  setTaxable(v === true);
+                  setDirty(true);
+                }}
+              />
+              <input type="hidden" name="taxable" value={taxable ? "true" : "false"} />
+            </div>
           </CardBody>
         </Card>
 
@@ -147,6 +192,37 @@ export function ProductCreateForm({
             ) : null}
           </CardBody>
         </Card>
+
+        <Card>
+          <CardHeader divider={false} title="Shipping" />
+          <CardBody className="space-y-5 pt-4 pb-6">
+            <Switch
+              label="Physical product that needs shipping"
+              description="Turn off for services and digital goods: checkout skips the shipping step when nothing in the cart needs it."
+              checked={ships}
+              onCheckedChange={(v) => {
+                setShips(v);
+                setDirty(true);
+              }}
+            />
+            <input type="hidden" name="requiresShipping" value={ships ? "true" : "false"} />
+            {ships ? (
+              <div className="sm:max-w-64">
+                <WeightInput
+                  label="Weight"
+                  name="weightGrams"
+                  value={weight}
+                  onChange={(next) => {
+                    setWeight(next);
+                    setDirty(true);
+                  }}
+                  error={error("weightGrams")}
+                  description="Packed weight, saved with each order."
+                />
+              </div>
+            ) : null}
+          </CardBody>
+        </Card>
       </div>
 
       <div className="min-w-0 space-y-6 lg:sticky lg:top-20">
@@ -168,6 +244,15 @@ export function ProductCreateForm({
           <CardBody className="space-y-5 pt-4 pb-6">
             <TextField label="Vendor" name="vendor" state={state} placeholder="Who makes it" />
             <TextField label="Product type" name="productType" state={state} placeholder="Shirts" />
+            <TextField
+              label="HSN code"
+              name="hsnCode"
+              state={state}
+              inputMode="numeric"
+              maxLength={12}
+              autoComplete="off"
+              hint="4, 6 or 8 digits. Stored with the product for GST classification; it doesn't change prices or tax yet."
+            />
           </CardBody>
         </Card>
         <div className="flex flex-col-reverse gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">

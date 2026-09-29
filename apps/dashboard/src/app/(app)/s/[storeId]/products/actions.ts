@@ -20,6 +20,8 @@ import {
   type CategoryView,
   type OptionChangeResult,
 } from "@storevia/commerce";
+import { validationFailed } from "@storevia/types";
+import { WEIGHT_MESSAGE } from "@storevia/validation";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { runAction, runDataAction, type ActionState, type DataActionResult } from "@/lib/action";
@@ -60,16 +62,24 @@ export async function createProductAction(
   const state = await runAction(async () => {
     const ctx = await storeActionContext(storeId);
     const stock = text(formData, "initialStock");
+    // The weight field posts whole grams (or "invalid" for a weight it couldn't read).
+    const weight = text(formData, "weightGrams") ?? "";
+    if (weight === "invalid") throw validationFailed({ weightGrams: WEIGHT_MESSAGE });
     const { productId } = await createProduct(ctx, {
       title: text(formData, "title") ?? "",
       description: text(formData, "description"),
       status: text(formData, "status") === "ACTIVE" ? "ACTIVE" : "DRAFT",
+      confirmFree: formData.get("confirmFree") === "true",
       price: text(formData, "price") ?? "",
       compareAtPrice: text(formData, "compareAtPrice") ?? "",
       sku: text(formData, "sku") ?? "",
       barcode: text(formData, "barcode") ?? "",
       vendor: text(formData, "vendor") ?? "",
       productType: text(formData, "productType") ?? "",
+      hsnCode: text(formData, "hsnCode") ?? "",
+      weightGrams: weight,
+      requiresShipping: bool(formData, "requiresShipping") ?? true,
+      taxable: bool(formData, "taxable") ?? true,
       trackInventory: bool(formData, "trackInventory") ?? false,
       ...(stock && stock.trim() !== "" ? { initialStock: stock } : {}),
     });
@@ -97,6 +107,7 @@ export async function updateProductAction(
       productType: text(formData, "productType"),
       tags: tagList(formData),
       categoryCode: text(formData, "categoryCode"),
+      hsnCode: text(formData, "hsnCode"),
       seoTitle: text(formData, "seoTitle"),
       seoDescription: text(formData, "seoDescription"),
       expectedUpdatedAt: text(formData, "expectedUpdatedAt"),
@@ -110,14 +121,22 @@ export async function updateProductAction(
   }, formData);
 }
 
+/**
+ * `confirmFree` is the merchant's answer to "This product is free. Publish
+ * anyway?": without it a product priced at 0 comes back as
+ * CONFIRMATION_REQUIRED and stays a draft.
+ */
 export async function setProductStatusAction(
   storeId: string,
   productId: string,
   status: "ACTIVE" | "DRAFT",
+  options: { readonly confirmFree?: boolean } = {},
 ): Promise<ActionState> {
   return runAction(async () => {
     const ctx = await storeActionContext(storeId);
-    const { updatedAt } = await setProductStatus(ctx, productId, status);
+    const { updatedAt } = await setProductStatus(ctx, productId, status, {
+      confirmFree: options.confirmFree === true,
+    });
     refresh(ctx.storeId, productId);
     return {
       ok: true,

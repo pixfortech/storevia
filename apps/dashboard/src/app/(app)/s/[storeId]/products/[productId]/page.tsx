@@ -85,6 +85,7 @@ export default async function ProductPage({
             active: product.category.active,
           }
         : null,
+      hsnCode: product.hsnCode ?? "",
       seoTitle: product.seoTitle ?? "",
       seoDescription: product.seoDescription ?? "",
       currency: product.currency,
@@ -103,6 +104,9 @@ export default async function ProductPage({
         price: decimal(v.price),
         compareAtPrice: decimal(v.compareAtPrice),
         cost: decimal(v.cost),
+        weightGrams: v.weightGrams,
+        requiresShipping: v.requiresShipping,
+        taxable: v.taxable,
         inventoryPolicy: v.inventoryPolicy,
         tracked: v.tracked,
         available: v.available,

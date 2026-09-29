@@ -26,7 +26,7 @@ import {
   type TenantTx,
 } from "./internal";
 import { ensureDefaultLocation } from "./locations";
-import type { MoneyJson } from "./money";
+import { format as formatMoney, zero, type MoneyJson } from "./money";
 import { parseRichText, renderRichTextHtml, RichTextError, type RichTextDoc } from "./rich-text";
 import { requireAssignableCategory, splitCategoryPath, type CategoryRef } from "./taxonomy";
 
@@ -100,6 +100,55 @@ export async function resolveHandle(
   );
 }
 
+// --- free products ------------------------------------------------------------------
+
+/**
+ * Publishing a product priced at 0 is allowed (samples, gifts, downloads),
+ * but never by accident: the request must say the merchant confirmed it.
+ * The error names the product and the price so the confirmation can quote it.
+ */
+export const FREE_PRODUCT_CODE = "CONFIRMATION_REQUIRED" as const;
+
+function freeProductError(
+  title: string,
+  currency: string,
+  free: number,
+  total: number,
+): DomainError {
+  const price = formatMoney(zero(currency), "en-IN");
+  const subject =
+    total > 1
+      ? `${String(free)} of the ${String(total)} variants of "${title}" ${free === 1 ? "is" : "are"} priced at ${price}.`
+      : `"${title}" is priced at ${price}.`;
+  return new DomainError(
+    FREE_PRODUCT_CODE,
+    `${subject} Publish it only if you mean to offer it for free.`,
+  );
+}
+
+/**
+ * Refuses to make a product with a live variant priced at 0 active unless
+ * the merchant confirmed it. Returns whether the product is free.
+ */
+async function requireFreeConfirmation(
+  tx: TenantTx,
+  productId: string,
+  title: string,
+  confirmFree: boolean,
+): Promise<boolean> {
+  const variants = await tx.productVariant.findMany({
+    where: { productId, deletedAt: null },
+    select: { priceAmount: true, currency: true },
+  });
+  const free = variants.filter((v) => v.priceAmount === 0n);
+  const first = free[0];
+  if (!first) return false;
+  if (!confirmFree) {
+    throw freeProductError(title, first.currency.trim(), free.length, variants.length);
+  }
+  return true;
+}
+
 function skuConflict(error: unknown): DomainError | null {
   if (isUniqueViolation(error)) {
     return conflict("Another variant in this store already uses that SKU.", {
@@ -139,6 +188,9 @@ export async function createProduct(
             "The compare-at price must be higher than the price.",
           );
         }
+        if (data.status === "ACTIVE" && price === 0n && data.confirmFree !== true) {
+          throw freeProductError(data.title, currency, 1, 1);
+        }
         const now = new Date();
         const product = await tx.product.create({
           data: {
@@ -153,6 +205,7 @@ export async function createProduct(
             productType: data.productType ?? null,
             tags: data.tags ?? [],
             categoryCode,
+            hsnCode: data.hsnCode ?? null,
             seoTitle: data.seoTitle ?? null,
             seoDescription: data.seoDescription ?? null,
             publishedAt: data.status === "ACTIVE" ? now : null,
@@ -212,6 +265,8 @@ export async function createProduct(
             handle,
             status: data.status,
             ...(categoryCode ? { category: categoryCode } : {}),
+            ...(data.hsnCode ? { hsnCode: data.hsnCode } : {}),
+            ...(data.status === "ACTIVE" && price === 0n ? { confirmedFree: true } : {}),
           },
         );
         return { productId: publicId("product", product.id) };
@@ -231,13 +286,14 @@ interface LockedProduct {
   handle: string;
   title: string;
   categoryCode: string | null;
+  hsnCode: string | null;
   updatedAt: Date;
 }
 
 /** Locks the product row; refuses when someone saved after the editor loaded. */
 async function lockProduct(tx: TenantTx, productId: string): Promise<LockedProduct> {
   const rows = await tx.$queryRaw<LockedProduct[]>`
-    SELECT id, status::text AS status, handle, title, "categoryCode", "updatedAt" FROM "Product"
+    SELECT id, status::text AS status, handle, title, "categoryCode", "hsnCode", "updatedAt" FROM "Product"
     WHERE id = ${productId}::uuid AND "deletedAt" IS NULL FOR UPDATE`;
   const row = rows[0];
   if (!row) throw notFound();
@@ -316,6 +372,13 @@ export async function updateProduct(
         category = { category: data.categoryCode, previousCategory: current.categoryCode };
         fields.push("category");
       }
+      let hsn: { readonly hsnCode: string | null; readonly previousHsnCode: string | null } | null =
+        null;
+      if (data.hsnCode !== undefined && data.hsnCode !== current.hsnCode) {
+        changes.hsnCode = data.hsnCode;
+        hsn = { hsnCode: data.hsnCode, previousHsnCode: current.hsnCode };
+        fields.push("hsnCode");
+      }
       if (data.taxable !== undefined) {
         await tx.productVariant.updateMany({
           where: { productId, deletedAt: null },
@@ -337,6 +400,7 @@ export async function updateProduct(
           fields: fields.join(","),
           ...(handle !== current.handle ? { handle, previousHandle: current.handle } : {}),
           ...(category ?? {}),
+          ...(hsn ?? {}),
         },
       );
       return { updatedAt: updated.updatedAt };
@@ -352,9 +416,13 @@ async function changeStatus(
   store: StoreContext,
   productId: string,
   target: ProductStatus,
+  confirmFree = false,
 ): Promise<{ changed: boolean; updatedAt: Date }> {
   const current = await lockProduct(tx, productId);
   if (current.status === target) return { changed: false, updatedAt: current.updatedAt };
+  const free =
+    target === "ACTIVE" &&
+    (await requireFreeConfirmation(tx, productId, current.title, confirmFree));
   const now = new Date();
   if (current.status === "ARCHIVED") {
     // Restoring counts against the plan again (ADR-0027 §7).
@@ -390,17 +458,23 @@ async function changeStatus(
       status: target,
       previousStatus: current.status,
       title: current.title,
+      ...(free ? { confirmedFree: true } : {}),
     },
   );
   return { changed: true, updatedAt };
 }
 
-/** Makes a draft visible (ACTIVE) or hides it again (DRAFT). Usage is unchanged. */
+/**
+ * Makes a draft visible (ACTIVE) or hides it again (DRAFT). Usage is unchanged.
+ * A product with a variant priced at 0 becomes active only with
+ * `confirmFree: true` (CONFIRMATION_REQUIRED otherwise).
+ */
 export async function setProductStatus(
   ctx: TenantContext,
   productPublicId: string,
   /** "ACTIVE" or "DRAFT". Typed loosely because callers (server actions) pass what the browser sent. */
   status: unknown,
+  options: { readonly confirmFree?: unknown } = {},
 ): Promise<{ updatedAt: Date }> {
   const productId = internalId("product", productPublicId);
   // The type isn't a runtime check: a replayed action can send any string,
@@ -416,7 +490,13 @@ export async function setProductStatus(
       if (current.status === "ARCHIVED") {
         throw conflict("Restore this product before changing its status.");
       }
-      const { updatedAt } = await changeStatus(tx, store, productId, status);
+      const { updatedAt } = await changeStatus(
+        tx,
+        store,
+        productId,
+        status,
+        options.confirmFree === true,
+      );
       return { updatedAt };
     },
     { write: true },
@@ -546,6 +626,8 @@ export interface ProductDetails {
   readonly tags: readonly string[];
   /** The taxonomy category, with its breadcrumb; null when not categorised. */
   readonly category: CategoryRef | null;
+  /** HSN code for GST classification (4, 6 or 8 digits); not used in any price or tax. */
+  readonly hsnCode: string | null;
   readonly seoTitle: string | null;
   readonly seoDescription: string | null;
   readonly currency: string;
@@ -605,6 +687,7 @@ export async function getProduct(
         productType: true,
         tags: true,
         category: { select: { code: true, name: true, path: true, active: true } },
+        hsnCode: true,
         seoTitle: true,
         seoDescription: true,
         createdAt: true,
@@ -701,6 +784,7 @@ export async function getProduct(
       category: product.category
         ? { ...product.category, path: splitCategoryPath(product.category.path) }
         : null,
+      hsnCode: product.hsnCode,
       seoTitle: product.seoTitle,
       seoDescription: product.seoDescription,
       currency: product.store.currency,
