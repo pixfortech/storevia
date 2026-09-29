@@ -6,7 +6,7 @@ import { unauthenticated } from "@storevia/types";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { cache } from "react";
-import { env } from "./env";
+import { env, supportUrl } from "./env";
 
 let service: AuthService | undefined;
 
@@ -16,6 +16,8 @@ export function dashboardAuth(): AuthService {
     realm: "DASHBOARD",
     baseURL: env().DASHBOARD_URL,
     secret: env().AUTH_SECRET,
+    // The "email changed" notice links to the one support destination (DB-3).
+    supportUrl: supportUrl(),
     plugins: [nextCookies()],
   });
   return service;
