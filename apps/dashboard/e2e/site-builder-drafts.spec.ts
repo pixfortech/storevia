@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { createTenant, type Tenant } from "./helpers";
-import { fetchStore, storefrontOrigin } from "./storefront-helpers";
+import { goLiveReady } from "./launch-helpers";
+import { addProduct, fetchStore, storefrontOrigin } from "./storefront-helpers";
 
 // The builder's draft lifecycle after publishing (PB-1, PB-2) and its
 // field-level validation (PB-3): editing carries on after Publish with no
@@ -13,10 +14,10 @@ const canvas = (page: Page) => page.frameLocator('iframe[title="Page preview"]')
 const sections = (page: Page) => page.getByRole("navigation", { name: "Page sections" });
 const heading = (page: Page) => page.getByRole("textbox", { name: "Heading", exact: true });
 
-async function goLive(page: Page, storePath: string) {
-  await page.goto(`${storePath}/settings`);
-  await page.getByRole("button", { name: "Go live" }).click();
-  await expect(page.getByText("Your store is live.")).toBeVisible();
+/** Going live needs a complete store (launch readiness): a product, shipping, payments, an email. */
+async function goLive(page: Page, tenant: Tenant) {
+  await addProduct(page, tenant, "Stoneware mug", "450", "5");
+  await goLiveReady(page, tenant);
 }
 
 async function newPage(page: Page, tenant: Tenant, title: string): Promise<string> {
@@ -62,7 +63,7 @@ test("publish, keep editing, reload, publish again, and revert to published", as
   test.setTimeout(300_000);
   const tenant = await createTenant(page, "drafts");
   const origin = await storefrontOrigin(page, tenant);
-  await goLive(page, tenant.storePath);
+  await goLive(page, tenant);
   const shopper = await browser.newContext();
   const liveText = async () => (await fetchStore(shopper.request, origin, "/pages/journal")).text;
   const expectLive = async (text: string) => {
