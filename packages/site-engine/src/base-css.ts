@@ -19,16 +19,17 @@ p{margin:0 0 var(--sv-space-md)}
 .sv-header{border-bottom:1px solid var(--sv-color-border);background:var(--sv-color-background)}
 .sv-header-row{display:flex;align-items:center;gap:var(--sv-space-lg);min-height:4rem;flex-wrap:wrap;padding-block:var(--sv-space-sm)}
 .sv-brand{font-family:var(--sv-font-heading);font-size:var(--sv-fontSize-xl);font-weight:600;text-decoration:none;margin-right:auto}
+.sv-brand-logo{display:inline-flex;align-items:center;line-height:0}.sv-brand-logo img{display:block;width:auto;height:auto;max-height:2.5rem;max-width:min(12rem,50vw);object-fit:contain}
 .sv-footer{border-top:1px solid var(--sv-color-border);padding-block:var(--sv-space-xl);color:var(--sv-color-muted);font-size:var(--sv-fontSize-sm)}
 .sv-footer-row{display:flex;flex-wrap:wrap;gap:var(--sv-space-md) var(--sv-space-xl);align-items:center;justify-content:space-between}.sv-footer p{margin:0}
 .sv-menu{display:flex;gap:var(--sv-space-xs) var(--sv-space-md);flex-wrap:wrap;list-style:none;margin:0;padding:0}
 .sv-menu a{text-decoration:none;display:inline-flex;align-items:center;min-height:2.75rem}.sv-menu a:hover,.sv-menu a[aria-current="page"]{text-decoration:underline;text-underline-offset:4px}
 .sv-header-top{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:var(--sv-space-md);min-height:4.5rem;padding-block:var(--sv-space-sm)}
-.sv-header-top .sv-brand{grid-column:2;margin:0;text-align:center}.sv-header-end{grid-column:3;justify-self:end;display:flex;align-items:center}
+.sv-header-top .sv-brand{grid-column:2;margin:0;text-align:center}.sv-header-top .sv-brand-logo{justify-content:center}.sv-header-end{grid-column:3;justify-self:end;display:flex;align-items:center}
 .sv-header-nav{display:flex;justify-content:center}
 .sv-nav-uppercase .sv-menu a{text-transform:uppercase;letter-spacing:.12em;font-size:var(--sv-fontSize-sm)}
 .sv-footer-centred .sv-footer-row{flex-direction:column;justify-content:center;text-align:center}
-@media (max-width:640px){.sv-header-row{gap:var(--sv-space-sm)}.sv-header-row nav{order:3;width:100%}.sv-header-top{grid-template-columns:minmax(0,1fr) auto}.sv-header-top .sv-brand{grid-column:1;text-align:left}.sv-header-end{grid-column:2}.sv-header-nav{justify-content:flex-start}}
+@media (max-width:640px){.sv-header-row{gap:var(--sv-space-sm)}.sv-header-row nav{order:3;width:100%}.sv-header-top{grid-template-columns:minmax(0,1fr) auto}.sv-header-top .sv-brand{grid-column:1;text-align:left}.sv-header-top .sv-brand-logo{justify-content:flex-start}.sv-header-end{grid-column:2}.sv-header-nav{justify-content:flex-start}}
 `
   .replace(/\n/g, "")
   .trim();

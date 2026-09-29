@@ -95,6 +95,18 @@ export default async function WebsitePage({ params }: { params: Promise<{ storeI
           </Link>
         </Card>
         <Card className="grid content-start gap-3 p-5">
+          <h2 className="text-body font-semibold text-ink">Logo and favicon</h2>
+          <p className="text-body-sm text-ink-muted">
+            Your logo in the header of every page, and the icon in browser tabs.
+          </p>
+          <Link
+            href={websitePath(storeId, "/brand")}
+            className={buttonClasses("secondary", "md", "justify-self-start")}
+          >
+            Edit logo and favicon
+          </Link>
+        </Card>
+        <Card className="grid content-start gap-3 p-5">
           <h2 className="text-body font-semibold text-ink">Menus</h2>
           <p className="text-body-sm text-ink-muted">The links in your site's header and footer.</p>
           {hasPermission(ctx, "navigation.manage") ? (

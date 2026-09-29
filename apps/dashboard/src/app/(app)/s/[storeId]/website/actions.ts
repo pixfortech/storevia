@@ -12,6 +12,7 @@ import {
   revertPageDraft,
   saveMenu,
   savePageDraft,
+  setStoreBrandImage,
   unpublishPage,
   updatePageSettings,
   type MenuView,
@@ -22,7 +23,7 @@ import {
 import { hasPermission } from "@storevia/tenancy";
 import { revalidatePath } from "next/cache";
 import { runDataAction, type DataActionResult } from "@/lib/action";
-import { dashboardMediaUrl, dashboardSrcSet, pagesPath } from "@/lib/site";
+import { dashboardMediaUrl, dashboardSrcSet, pagesPath, websitePath } from "@/lib/site";
 import { storeActionContext } from "@/lib/store-action";
 
 // Website actions (ADR-0030). Every call re-derives the store context from
@@ -223,4 +224,35 @@ export async function saveMenuAction(
     const ctx = await storeActionContext(storeId);
     return saveMenu(ctx, handle, input, STOREVIA_SITE);
   }, "Menu saved. Your site shows it now.");
+}
+
+const BRAND_MESSAGES = {
+  logo: {
+    set: "Logo saved. Your site's header shows it now.",
+    removed: "Logo removed. Your site's header shows your store's name.",
+  },
+  favicon: {
+    set: "Favicon saved. Your site's pages use it now.",
+    removed: "Favicon removed. Browsers show their default icon.",
+  },
+} as const;
+
+/**
+ * Sets or removes the store's logo or favicon. The media id is only a
+ * request: the service checks it is a READY image in this store.
+ */
+export async function setBrandImageAction(
+  storeId: string,
+  input: { slot: "logo" | "favicon"; mediaId: string | null },
+): Promise<DataActionResult<null>> {
+  const slot = input.slot === "favicon" ? "favicon" : "logo";
+  return runDataAction(
+    async () => {
+      const ctx = await storeActionContext(storeId);
+      await setStoreBrandImage(ctx, input);
+      revalidatePath(websitePath(ctx.storeId, "/brand"));
+      return null;
+    },
+    BRAND_MESSAGES[slot][input.mediaId === null ? "removed" : "set"],
+  );
 }

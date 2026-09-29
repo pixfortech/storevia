@@ -12,7 +12,7 @@ import {
 import { signStoreHeader, verifyStoreHeader, type StoreRequestContext } from "./context";
 import { escapeHtml, simplePage, unknownHostPage } from "./html";
 import { canonicalUrl, jsonLdJson, robotsTxt, sitemapXml } from "./seo";
-import { JsonLd, SiteShell } from "./shell";
+import { JsonLd, SITE_BASE_CSS, SiteShell } from "./shell";
 import { BOUTIQUE_THEME } from "./theme";
 
 const KEY = Buffer.alloc(32, 7);
@@ -233,6 +233,39 @@ describe("shell", () => {
     // Its stylesheet comes after the composition's CSS, so it can restyle blocks.
     expect(html).toContain(`${BOUTIQUE_THEME.stylesheet}</style>`);
     expect(html).not.toContain('class="sv-container sv-header-row"');
+  });
+
+  it("shows the logo in place of the name in both header variants, sized by the base CSS", () => {
+    const logo = {
+      url: "https://media.example/o/s/m/w640.webp",
+      srcSet:
+        "https://media.example/o/s/m/w320.webp 320w, https://media.example/o/s/m/w640.webp 640w",
+      width: 640,
+      height: 240,
+    };
+    for (const theme of [undefined, BOUTIQUE_THEME]) {
+      const html = renderToStaticMarkup(
+        <SiteShell site={store} nonce="abc" logo={logo} {...(theme ? { theme } : {})}>
+          x
+        </SiteShell>,
+      );
+      expect(html).toMatch(
+        /<a class="sv-brand sv-brand-logo" href="\/"><img src="https:\/\/media\.example\/o\/s\/m\/w640\.webp" srcSet="[^"]+" sizes="12rem" width="640" height="240" alt="Clay &amp; Co"\/><\/a>/,
+      );
+    }
+    // Never taller than the header, never stretched (width follows height).
+    expect(SITE_BASE_CSS).toContain(
+      ".sv-brand-logo img{display:block;width:auto;height:auto;max-height:2.5rem;",
+    );
+    expect(SITE_BASE_CSS).toContain(".sv-header-top .sv-brand-logo{justify-content:center}");
+    // No logo: the name, as before.
+    expect(
+      renderToStaticMarkup(
+        <SiteShell site={store} nonce="abc" logo={null}>
+          x
+        </SiteShell>,
+      ),
+    ).toContain('<a class="sv-brand" href="/">Clay &amp; Co</a>');
   });
 });
 
