@@ -202,6 +202,7 @@ export function MediaField({
   value,
   preview,
   options,
+  error,
   onChange,
 }: {
   label: string;
@@ -209,15 +210,22 @@ export function MediaField({
   /** A thumbnail for the current image, when known. */
   preview: string | null;
   options: SiteOptions;
+  error?: string | undefined;
   onChange: (value: MediaValue | null) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<string | null>(null);
   const altId = useId();
+  const errorId = useId();
   const src = picked ?? preview;
   return (
     <div className="grid gap-2">
       <span className="text-label text-ink">{label}</span>
+      {error ? (
+        <p id={errorId} className="text-label font-normal text-danger-700">
+          {error}
+        </p>
+      ) : null}
       {value ? (
         <div className="flex items-start gap-3">
           <div className="size-16 shrink-0 overflow-hidden rounded-control border border-line bg-subtle">
@@ -231,6 +239,8 @@ export function MediaField({
               id={altId}
               size="sm"
               maxLength={512}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? errorId : undefined}
               value={value.alt ?? ""}
               onChange={(e) => {
                 onChange(
@@ -320,14 +330,21 @@ export function LinkField({
   label,
   value,
   options,
+  error,
   onChange,
 }: {
   label: string;
   value: LinkValue | null;
   options: SiteOptions;
+  /** A problem with the link (e.g. "Choose a product."). */
+  error?: string | undefined;
   onChange: (value: LinkValue) => void;
 }) {
   const typeId = useId();
+  const errorId = useId();
+  const invalid = error
+    ? ({ "aria-invalid": true, "aria-describedby": errorId } as const)
+    : ({} as const);
   const [href, setHref] = useState(value?.type === "url" ? value.href : "https://");
   const hrefValid = SAFE_URL.test(href.trim());
   const type = value?.type ?? "home";
@@ -341,6 +358,7 @@ export function LinkField({
       <Select
         id={typeId}
         size="sm"
+        {...invalid}
         value={type}
         onChange={(e) => {
           const next = e.target.value;
@@ -385,6 +403,7 @@ export function LinkField({
         <Field label={type === "page" ? "Page" : "Collection"}>
           <Select
             size="sm"
+            {...invalid}
             value={id}
             onChange={(e) => {
               onChange({ type, id: e.target.value });
@@ -404,11 +423,17 @@ export function LinkField({
           storeId={options.storeId}
           label="Product"
           chosen={id ? [{ id, title: options.names[id] ?? "Chosen product" }] : []}
+          invalid={invalid}
           onChoose={(product) => {
             options.rememberName(product.id, product.title);
             onChange({ type: "product", id: product.id });
           }}
         />
+      ) : null}
+      {error ? (
+        <p id={errorId} className="text-label font-normal text-danger-700">
+          {error}
+        </p>
       ) : null}
     </fieldset>
   );
@@ -418,11 +443,14 @@ export function ProductSearch({
   storeId,
   label,
   chosen,
+  invalid,
   onChoose,
 }: {
   storeId: string;
   label: string;
   chosen: readonly PickerOption[];
+  /** aria-invalid/aria-describedby for the search box when the choice has a problem. */
+  invalid?: Readonly<Record<string, unknown>>;
   onChoose: (product: PickerOption) => void;
 }) {
   const [query, setQuery] = useState("");
@@ -453,6 +481,7 @@ export function ProductSearch({
         </p>
       ) : null}
       <SearchInput
+        {...invalid}
         aria-label={`${label}: search products`}
         placeholder="Search products"
         value={query}

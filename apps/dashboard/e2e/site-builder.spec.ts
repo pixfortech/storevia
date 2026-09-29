@@ -144,7 +144,7 @@ test("a merchant builds, previews and publishes the home page", async ({
   await preview.close();
 
   // Publish: the live store shows it once the invalidation arrives.
-  await page.getByRole("button", { name: "Publish" }).click();
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(page.getByText(/Published\. Your site shows these changes now\./)).toBeVisible();
   await expect(page.getByText("Published", { exact: true })).toBeVisible();
   await expect
@@ -188,7 +188,7 @@ test("theme, menus, two tabs, and another tenant", async ({ page, browser }) => 
   await page.getByRole("dialog", { name: "New page" }).getByLabel("Title").fill("About us");
   await page.getByRole("button", { name: "Create page" }).click();
   await page.waitForURL(/\/website\/pages\/page_/);
-  await page.getByRole("button", { name: "Publish" }).click();
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(page.getByText("Published", { exact: true })).toBeVisible();
   await expect
     .poll(async () => (await fetchStore(shopper.request, origin, "/pages/about-us")).status, {

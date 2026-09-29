@@ -27,6 +27,7 @@ import {
   pgCode,
   type TenantTx,
 } from "./internal";
+import { DRAFT_CONFLICT_MESSAGE } from "./messages";
 import { documentReferences, missingReferences } from "./references";
 
 // Pages and their versions (ADR-0030 §5, 07 §9). A page has at most one
@@ -505,8 +506,7 @@ const saveSchema = z.strictObject({
   document: z.unknown(),
 });
 
-export const DRAFT_CONFLICT_MESSAGE =
-  "This page was saved somewhere else (another tab, device or person) after you opened it. Reload to see the latest version; copy anything you want to keep first.";
+export { DRAFT_CONFLICT_MESSAGE };
 
 /** Saves the draft if nobody else saved since `revision`; returns the new revision. */
 export async function savePageDraft<C extends SiteRenderContext>(

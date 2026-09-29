@@ -7,20 +7,25 @@ import {
 } from "@storevia/commerce/blocks";
 import {
   createSection,
+  describeIssues,
   duplicateSection,
   insertSection,
   moveSection,
+  problemText,
   removeSection,
   setSectionHidden,
   setSectionVisibility,
   updateSectionProps,
+  validateDocument,
   OperationError,
   type BuilderNode,
+  type DocumentProblem,
   type JsonObject,
   type PageDocument,
 } from "@storevia/editor/document";
 import type { ComponentDefinition } from "@storevia/editor/registry";
 import { collectRequirements } from "@storevia/editor/render";
+import { DRAFT_CONFLICT_MESSAGE } from "@storevia/site-admin/messages";
 import type { ThemeTokens } from "@storevia/site-engine/theme";
 import { Button, IconButton } from "@storevia/ui/button";
 import { cn } from "@storevia/ui/cn";
@@ -40,12 +45,14 @@ import {
   Plus,
   Settings2,
   Trash2,
+  Undo2,
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   canvasDataAction,
   publishPageAction,
+  revertPageDraftAction,
   savePageDraftAction,
   updatePageSettingsAction,
 } from "@/app/(app)/s/[storeId]/website/actions";
@@ -62,13 +69,19 @@ import { StatusNotice, type Notice } from "./notice";
 // panel edits the selected section's settings. Changes save as a draft
 // (debounced autosave plus "Save draft"), with optimistic concurrency:
 // another tab's or person's save is never overwritten. Publishing is a
-// separate step and needs its own permission.
+// separate step and needs its own permission; after it the builder keeps
+// editing the new draft. "Revert to published" throws the draft's changes
+// away. Every change is validated here with the same registry the server
+// uses, so an invalid field is shown at the field (and in a list of
+// problems) and never sent; the server's refusals read the same way.
 
 type PageStatus = "published" | "draft" | "changes";
 type SaveState =
   | { readonly state: "saved" }
   | { readonly state: "dirty" }
   | { readonly state: "saving" }
+  /** The server refused the document; the problems are listed. */
+  | { readonly state: "invalid" }
   | { readonly state: "error"; readonly message: string }
   | { readonly state: "conflict"; readonly message: string };
 
@@ -79,6 +92,8 @@ export interface BuilderPage {
   readonly handle: string;
   readonly seoTitle: string | null;
   readonly seoDescription: string | null;
+  /** The page has a published version. */
+  readonly live: boolean;
   readonly status: PageStatus;
   readonly revision: number;
   readonly document: PageDocument;
@@ -97,6 +112,29 @@ const AUTOSAVE_MS = 1_500;
 function definitionOf(type: string): ComponentDefinition<object, never> | undefined {
   return STOREVIA_REGISTRY.get(type);
 }
+
+/** What the server would refuse in this document (same registry, same rules). */
+function problemsOf(document: PageDocument, kind: BuilderPage["kind"]): DocumentProblem[] {
+  const result = validateDocument(document, { registry: STOREVIA_REGISTRY, pageKind: kind });
+  return result.ok ? [] : describeIssues(document, result.issues, STOREVIA_REGISTRY);
+}
+
+/** A refusal's field errors (keyed by document path) as problems in the document that was sent. */
+function refusedProblems(
+  document: PageDocument,
+  fieldErrors: Readonly<Record<string, string>> | undefined,
+): DocumentProblem[] {
+  const issues = Object.entries(fieldErrors ?? {}).map(([key, message]) => ({
+    path: key.startsWith("root.") ? key : "",
+    message,
+  }));
+  return describeIssues(document, issues, STOREVIA_REGISTRY);
+}
+
+/** A ref's value now (after an await, when it may have changed). */
+const read = <T,>(ref: { readonly current: T }): T => ref.current;
+
+const problemCount = (n: number) => `${String(n)} ${n === 1 ? "problem" : "problems"}`;
 
 /** "Hero: Autumn is here", for the structure list. */
 function sectionLabel(node: BuilderNode): string {
@@ -145,12 +183,29 @@ export function PageBuilder({
   const [removeId, setRemoveId] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [live, setLive] = useState(page.live);
+  const [revertOpen, setRevertOpen] = useState(false);
+  const [reverting, setReverting] = useState(false);
+  /** Bumped when the whole document is replaced (revert), so settings forms start afresh. */
+  const [generation, setGeneration] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  /** Problems the server reported for the last document it was sent. */
+  const [refused, setRefused] = useState<readonly DocumentProblem[]>([]);
+  /** A field to focus once its section's settings are on screen ("Show"). */
+  const [focusTarget, setFocusTarget] = useState<{
+    readonly field: string | null;
+    readonly nonce: number;
+  } | null>(null);
+  const settingsRef = useRef<HTMLDivElement>(null);
 
   const docRef = useRef(document);
   const revisionRef = useRef(page.revision);
   const dirtyRef = useRef(false);
+  /** The save, publish or revert in progress: each waits for the one before (they share the revision). */
   const inFlight = useRef<Promise<boolean> | null>(null);
+
+  const found = useMemo(() => problemsOf(document, page.kind), [document, page.kind]);
+  const problems = found.length > 0 ? found : refused;
 
   const options: SiteOptions = useMemo(
     () => ({
@@ -165,49 +220,72 @@ export function PageBuilder({
 
   // ---- saving -------------------------------------------------------------
 
-  const saveNow = useCallback(async (): Promise<boolean> => {
-    if (inFlight.current) await inFlight.current;
-    if (!dirtyRef.current) return true;
-    const snapshot = docRef.current;
-    dirtyRef.current = false;
-    setSave({ state: "saving" });
-    const request = savePageDraftAction(storeId, page.id, {
-      revision: revisionRef.current,
-      document: snapshot,
-    }).then((result) => {
-      if (result.ok) {
-        revisionRef.current = result.data.revision;
-        setStatus(result.data.status);
-        setSave(dirtyRef.current ? { state: "dirty" } : { state: "saved" });
-        return true;
-      }
-      dirtyRef.current = true;
-      const message = result.message ?? "Your changes couldn't be saved.";
-      setSave(
-        result.code === "CONFLICT" ? { state: "conflict", message } : { state: "error", message },
-      );
-      return false;
-    });
+  /** Runs one request against the draft after any other in progress, holding the line while it runs. */
+  const exclusive = useCallback(async (run: () => Promise<boolean>): Promise<boolean> => {
+    while (inFlight.current) await inFlight.current;
+    const request = run();
     inFlight.current = request;
-    const ok = await request;
-    inFlight.current = null;
-    return ok;
-  }, [storeId, page.id]);
+    try {
+      return await request;
+    } finally {
+      if (inFlight.current === request) inFlight.current = null;
+    }
+  }, []);
 
-  // Debounced autosave: one save at a time, never while a conflict is unresolved.
+  const saveNow = useCallback(
+    async (): Promise<boolean> =>
+      exclusive(async () => {
+        if (!dirtyRef.current) return true;
+        const snapshot = docRef.current;
+        // A document the server would refuse is never sent: its problems
+        // are on screen, and the local copy stays until they're fixed.
+        if (problemsOf(snapshot, page.kind).length > 0) return false;
+        dirtyRef.current = false;
+        setSave({ state: "saving" });
+        const result = await savePageDraftAction(storeId, page.id, {
+          revision: revisionRef.current,
+          document: snapshot,
+        });
+        if (result.ok) {
+          revisionRef.current = result.data.revision;
+          setStatus(result.data.status);
+          setRefused([]);
+          // Changes made while the save was on its way are still to save.
+          setSave(read(dirtyRef) ? { state: "dirty" } : { state: "saved" });
+          return true;
+        }
+        dirtyRef.current = true;
+        const message = result.message ?? "Your changes couldn't be saved.";
+        if (result.code === "CONFLICT" && result.message === DRAFT_CONFLICT_MESSAGE) {
+          setSave({ state: "conflict", message });
+        } else if (result.code === "VALIDATION_FAILED") {
+          setRefused(refusedProblems(snapshot, result.fieldErrors));
+          setSave({ state: "invalid" });
+        } else {
+          setSave({ state: "error", message });
+        }
+        return false;
+      }),
+    [exclusive, storeId, page.id, page.kind],
+  );
+
+  // Debounced autosave: one save at a time, never while a conflict is
+  // unresolved or while the document has problems (it resumes once fixed).
+  const blocked = found.length > 0;
   useEffect(() => {
-    if (save.state !== "dirty" || !canEdit) return;
+    if (save.state !== "dirty" || !canEdit || blocked) return;
     const timer = setTimeout(() => void saveNow(), AUTOSAVE_MS);
     return () => {
       clearTimeout(timer);
     };
-  }, [document, save.state, saveNow, canEdit]);
+  }, [document, save.state, saveNow, canEdit, blocked]);
 
   const change = useCallback((next: PageDocument) => {
     docRef.current = next;
     dirtyRef.current = true;
     setDocument(next);
     setError(null);
+    setRefused([]);
     setSave((current) => (current.state === "conflict" ? current : { state: "dirty" }));
   }, []);
 
@@ -244,23 +322,99 @@ export function PageBuilder({
 
   // ---- publish ------------------------------------------------------------
 
+  /** A refusal of publish or revert: only a stale revision is a conflict. */
+  const refusal = (result: { code?: string | undefined; message?: string | undefined }) => {
+    if (result.code === "CONFLICT" && result.message === DRAFT_CONFLICT_MESSAGE) {
+      setSave({ state: "conflict", message: result.message });
+    } else {
+      setError(result.message ?? "That didn't work. Try again.");
+    }
+  };
+
   async function publish() {
     setPublishing(true);
+    setError(null);
     const saved = await saveNow();
     if (!saved) {
       setPublishing(false);
+      if (problemsOf(docRef.current, page.kind).length > 0) {
+        setError("Fix the problems on this page before publishing it.");
+      }
       return;
     }
-    const result = await publishPageAction(storeId, page.id, { revision: revisionRef.current });
-    setPublishing(false);
-    if (result.ok) {
-      setStatus("published");
+    await exclusive(async () => {
+      const result = await publishPageAction(storeId, page.id, { revision: revisionRef.current });
+      if (!result.ok) {
+        refusal(result);
+        return false;
+      }
+      // The builder carries on with the draft publishing started.
+      revisionRef.current = result.data.revision;
+      setLive(true);
+      if (!dirtyRef.current) setStatus("published");
       setNotice({ tone: "success", title: result.message ?? "Published." });
-    } else {
-      setError(result.message ?? "The page couldn't be published.");
-      if (result.code === "CONFLICT") setSave({ state: "conflict", message: result.message ?? "" });
-    }
+      return true;
+    });
+    setPublishing(false);
   }
+
+  async function revert() {
+    setReverting(true);
+    setError(null);
+    await exclusive(async () => {
+      const result = await revertPageDraftAction(storeId, page.id, {
+        revision: revisionRef.current,
+      });
+      if (!result.ok) {
+        refusal(result);
+        return false;
+      }
+      const next = result.data.document;
+      revisionRef.current = result.data.revision;
+      docRef.current = next;
+      dirtyRef.current = false;
+      setDocument(next);
+      setStatus(result.data.status);
+      setRefused([]);
+      setSave({ state: "saved" });
+      setGeneration((g) => g + 1);
+      setSelectedId((current) =>
+        next.root.some((n) => n.id === current) ? current : (next.root[0]?.id ?? null),
+      );
+      setNotice({ tone: "success", title: result.message ?? "Reverted." });
+      return true;
+    });
+    setReverting(false);
+    setRevertOpen(false);
+  }
+
+  /** Selects a problem's section and focuses the field that fixes it. */
+  const showProblem = (problem: DocumentProblem) => {
+    if (!problem.sectionId) return;
+    setSelectedId(problem.sectionId);
+    setTab("settings");
+    setFocusTarget({ field: problem.field, nonce: Date.now() });
+  };
+  useEffect(() => {
+    if (!focusTarget) return;
+    const frame = requestAnimationFrame(() => {
+      const panel = settingsRef.current;
+      if (!panel) return;
+      const field = focusTarget.field
+        ? panel.querySelector<HTMLElement>(`[data-field="${CSS.escape(focusTarget.field)}"]`)
+        : null;
+      const scope = field ?? panel;
+      scope.scrollIntoView({ block: "center" });
+      scope
+        .querySelector<HTMLElement>(
+          "input:not([type=hidden]):not([disabled]), textarea, select, [contenteditable=true], button",
+        )
+        ?.focus({ preventScroll: true });
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+    };
+  }, [focusTarget]);
 
   // ---- structure ----------------------------------------------------------
 
@@ -271,17 +425,32 @@ export function PageBuilder({
     (d) => !d.requires?.includes("catalogue") || options.hasCatalogue,
   );
   const readOnly = !canEdit || save.state === "conflict";
+  const unsaved = save.state !== "saved";
+  // Publishing needs something new: unsaved edits or a draft that differs from the live page.
+  const nothingToPublish = status === "published" && !unsaved;
+  const canRevert = live && (status === "changes" || unsaved);
 
   const statusText =
-    save.state === "saving"
-      ? "Saving…"
-      : save.state === "dirty"
-        ? "Unsaved changes"
-        : save.state === "error"
-          ? "Not saved"
-          : save.state === "conflict"
-            ? "Not saved: changed elsewhere"
-            : "All changes saved";
+    save.state === "conflict"
+      ? "Not saved: changed elsewhere"
+      : unsaved && problems.length > 0
+        ? `Not saved — fix ${problemCount(problems.length)}`
+        : save.state === "saving"
+          ? "Saving…"
+          : save.state === "dirty"
+            ? "Unsaved changes"
+            : save.state === "error" || save.state === "invalid"
+              ? "Not saved"
+              : "All changes saved";
+
+  const sectionProblems = selected
+    ? problems.filter((p) => p.sectionId === selected.id)
+    : ([] as DocumentProblem[]);
+  const fieldErrors = Object.fromEntries(
+    sectionProblems.flatMap((p) => (p.field ? [[p.field, p.message] as const] : [])),
+  );
+  const unplacedProblems = sectionProblems.filter((p) => !p.field);
+  const needsAttention = new Set(problems.map((p) => p.sectionId));
 
   const structure = (
     <nav aria-label="Page sections" className="grid content-start gap-3 p-3">
@@ -334,6 +503,11 @@ export function PageBuilder({
                   >
                     {label}
                   </span>
+                  {needsAttention.has(node.id) ? (
+                    <Badge size="sm" tone="danger">
+                      Needs a fix
+                    </Badge>
+                  ) : null}
                   {node.hidden ? <Badge size="sm">Hidden</Badge> : null}
                 </button>
                 {isSelected ? (
@@ -413,14 +587,27 @@ export function PageBuilder({
               <p className="text-body-sm text-ink-muted">{definition.description}</p>
             ) : null}
           </div>
+          {unplacedProblems.length > 0 ? (
+            <Alert tone="danger" title="This section needs a fix">
+              {unplacedProblems.map((p) => p.message).join(" ")}
+            </Alert>
+          ) : null}
           <fieldset disabled={readOnly} className="grid gap-5 disabled:opacity-60">
+            {/* Keyed by section (and by revert), so no control keeps another section's state. */}
             <SettingsForm
+              key={`${selected.id}:${String(generation)}`}
               controls={definition.editorControls}
               props={{ ...definition.defaultProps, ...selected.props }}
               onChange={(props) => {
                 apply((d) => updateSectionProps(d, selected.id, props as JsonObject));
               }}
-              context={{ options, previews, sectionId: selected.id }}
+              context={{
+                options,
+                previews,
+                sectionId: selected.id,
+                errors: fieldErrors,
+                schema: definition.propertySchema,
+              }}
             />
             <fieldset className="grid gap-2 border-t border-line pt-4">
               <legend className="mb-1 text-label text-ink">Show on</legend>
@@ -491,6 +678,19 @@ export function PageBuilder({
               setSettingsOpen(true);
             }}
           />
+          {live ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              leadingIcon={Undo2}
+              disabled={readOnly || !canRevert}
+              onClick={() => {
+                setRevertOpen(true);
+              }}
+            >
+              Revert to published
+            </Button>
+          ) : null}
           <Button
             size="sm"
             variant="secondary"
@@ -516,7 +716,8 @@ export function PageBuilder({
             <Button
               size="sm"
               pending={publishing}
-              disabled={readOnly}
+              disabled={readOnly || nothingToPublish}
+              title={nothingToPublish ? "Your site already shows this page." : undefined}
               onClick={() => void publish()}
             >
               Publish
@@ -532,7 +733,42 @@ export function PageBuilder({
         }}
         className="mt-3"
       />
-      {page.problems.length > 0 ? (
+      {problems.length > 0 ? (
+        <Alert
+          tone="danger"
+          className="mt-3"
+          title={
+            unsaved
+              ? `Not saved: fix ${problemCount(problems.length)} to save this page`
+              : `Fix ${problemCount(problems.length)} on this page`
+          }
+          aria-label="Problems on this page"
+        >
+          <p>Your other changes are kept here and save once these are fixed.</p>
+          <ul className="mt-2 grid gap-1.5">
+            {problems.map((problem) => {
+              const text = problemText(problem);
+              return (
+                <li key={`${problem.path}:${problem.message}`} className="flex items-start gap-3">
+                  <span className="min-w-0 flex-1 text-ink">{text}</span>
+                  {problem.sectionId ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      aria-label={`Show ${text}`}
+                      onClick={() => {
+                        showProblem(problem);
+                      }}
+                    >
+                      Show
+                    </Button>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </Alert>
+      ) : page.problems.length > 0 ? (
         <Alert tone="warning" className="mt-3" title="Some of this page needs attention">
           {page.problems.join(" ")}
         </Alert>
@@ -625,6 +861,7 @@ export function PageBuilder({
           />
         </div>
         <div
+          ref={settingsRef}
           className={cn(
             "min-h-0 overflow-y-auto rounded-card border border-line bg-surface lg:block",
             tab !== "settings" && "hidden",
@@ -708,6 +945,30 @@ export function PageBuilder({
         }
       >
         <p className="text-body-sm text-ink-muted">{selected ? sectionLabel(selected) : ""}</p>
+      </Dialog>
+
+      <Dialog
+        open={revertOpen}
+        onOpenChange={(open) => {
+          if (!reverting) setRevertOpen(open);
+        }}
+        role="alertdialog"
+        title="Revert to the published version?"
+        description="Your unpublished changes to this page are thrown away, and the draft goes back to what your site shows now. This can't be undone."
+        footer={
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="secondary" disabled={reverting}>
+                Keep editing
+              </Button>
+            </DialogClose>
+            <Button variant="danger" pending={reverting} onClick={() => void revert()}>
+              Revert
+            </Button>
+          </DialogFooter>
+        }
+      >
+        <p className="text-body-sm text-ink-muted">Your live site doesn&apos;t change.</p>
       </Dialog>
 
       <PageSettingsDialog
