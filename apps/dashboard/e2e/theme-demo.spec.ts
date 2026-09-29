@@ -1,4 +1,5 @@
 import { expect, test, type FrameLocator, type Locator, type Page } from "@playwright/test";
+import { THEME_DEMO_NOT_OFFERED } from "@storevia/site-engine/demo";
 import { createTenant } from "./helpers";
 
 // Theme demos (08-themes.md §10.7): Themes is its own area after Website;
@@ -6,7 +7,9 @@ import { createTenant } from "./helpers";
 // drawn by the real renderer in an isolated frame; each card's actions line
 // up in one order; "View demo" opens a full demo at desktop, tablet and
 // phone widths. The two themes are told apart by the renderer's identity
-// and layout metadata and by measured layout, never by screenshots.
+// and layout metadata and by measured layout, never by screenshots. A demo
+// shows only what a store can (TH-1): no announcement bar, no "You may also
+// like", nothing from THEME_DEMO_NOT_OFFERED.
 
 const noHorizontalScroll = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
@@ -36,6 +39,20 @@ async function expectIdentity(
     "data-sv-header",
     expected.header,
   );
+}
+
+/** The demo shows no feature a store can't have: its markup, without stylesheets. */
+async function expectNoPhantomFeatures(frame: FrameLocator) {
+  await expect(frame.locator(".sv-announcement")).toHaveCount(0);
+  await expect(frame.getByText("You may also like")).toHaveCount(0);
+  const markup = await demoRoot(frame).evaluate((root) => {
+    const copy = root.cloneNode(true) as Element;
+    for (const style of copy.querySelectorAll("style")) style.remove();
+    return copy.outerHTML;
+  });
+  for (const { feature, pattern } of THEME_DEMO_NOT_OFFERED) {
+    expect(pattern.test(markup), feature).toBe(false);
+  }
 }
 
 const actionOrder = (card: Locator) =>
@@ -85,10 +102,11 @@ test("Themes: two genuinely different demos, a full demo at three widths, and th
     card: "portrait",
     productPage: "gallery",
   });
-  // The same demo content in both: brand, announcement, collection, four products, a sale.
+  // The same demo content in both: brand, collection, four products, a sale;
+  // and only what a store can show.
   for (const frame of [storeviaMini, boutiqueMini]) {
     await expect(frame.locator(".sv-brand")).toHaveText("Harbour & Loom");
-    await expect(frame.locator(".sv-announcement")).toContainText("Free delivery");
+    await expectNoPhantomFeatures(frame);
     await expect(frame.locator(".sv-block-heading", { hasText: "The autumn edit" })).toBeAttached();
     await expect(frame.locator(".sv-card")).toHaveCount(4);
     await expect(frame.locator(".sv-price-sale")).toHaveCount(1);
@@ -197,6 +215,9 @@ test("Themes: two genuinely different demos, a full demo at three widths, and th
   await expect(
     product.getByRole("heading", { level: 1, name: "Linen table runner" }),
   ).toBeVisible();
+  // The storefront's product template as it is: no related products.
+  await expectNoPhantomFeatures(product);
+  await expect(product.locator(".sv-card")).toHaveCount(0);
   const productColumns = () =>
     product
       .locator(".sv-product")

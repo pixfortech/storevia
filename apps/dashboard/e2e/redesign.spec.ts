@@ -50,8 +50,11 @@ test("at the store limit the shell offers no create action and billing says what
 
   await page.goto(`${tenant.orgPath}/billing`);
   await expect(page.getByRole("link", { name: "Create store" })).toHaveCount(0);
-  // Plan features that aren't built are listed as planned, not as upgrades.
-  await expect(page.getByText("Planned", { exact: true }).first()).toBeVisible();
+  // Plan features that aren't built are listed as planned, apart from the
+  // plan, not as upgrades.
+  await expect(
+    page.getByTestId("planned-card").getByText("Planned", { exact: true }).first(),
+  ).toBeVisible();
   await expect(page.getByText(/On the roadmap|Milestone/)).toHaveCount(0);
   // The only way to change plan is a working support link (DB-3).
   await expect(

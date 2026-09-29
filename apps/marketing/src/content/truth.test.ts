@@ -21,7 +21,7 @@ import { PRICING_FAQ } from "./faq";
 import { BUSINESS_TYPE_STATUS } from "./business-types";
 import { CAPABILITIES, capability, type Status } from "./capabilities";
 import { ALL_FEATURES } from "./features";
-import { FEATURE_STATUS } from "./plan-features";
+import { FEATURE_STATUS, PREVIEW_FEATURES } from "./plan-features";
 import { ROADMAP } from "./roadmap";
 
 /** Available on the site exactly when the platform says so; anything else is not live. */
@@ -121,6 +121,61 @@ describe("statuses agree with the platform's sources", () => {
       expect(["available", "in-development", "roadmap", "future"]).toContain(item.status);
     }
     expect(PRICING_FAQ.some((q) => q.question.includes("On the roadmap"))).toBe(true);
+  });
+});
+
+describe("plans sell only what exists", () => {
+  it("the home page's plan comparison shows only available features", () => {
+    for (const key of PREVIEW_FEATURES) {
+      expect(FEATURE_AVAILABILITY[key], key).toBe("available");
+    }
+  });
+
+  it("the pricing FAQ says a planned feature is never part of a plan", () => {
+    const answer = PRICING_FAQ.find((q) => q.question.includes("On the roadmap"))?.answer ?? "";
+    expect(answer).toMatch(/never part of a plan/);
+    expect(answer).not.toMatch(/so you can see how plans differ/);
+  });
+
+  it("plan cards and the comparison never show a status next to a plan's feature", () => {
+    const cards = FILES.find((file) => file.path === "app/pricing/plan-cards.tsx")?.text ?? "";
+    const preview =
+      FILES.find((file) => file.path === "components/home/pricing-preview.tsx")?.text ?? "";
+    expect(cards).not.toMatch(/STATUS_LABELS|StatusPill|\.status\b/);
+    expect(preview).not.toMatch(/STATUS_LABELS|StatusPill|\.status\b/);
+  });
+});
+
+// Claims about notifications stand on the product's own sources: the
+// notification kind in the schema, the worker job that sends it, and the
+// title that marks test orders.
+const REPO = join(import.meta.dirname, "..", "..", "..", "..");
+const read = (path: string) => readFileSync(join(REPO, path), "utf8");
+
+describe("new-order notifications", () => {
+  it("are claimed because the product sends them", () => {
+    expect(read("packages/database/prisma/schema.prisma")).toMatch(
+      /enum StaffNotificationKind \{[^}]*\bNEW_ORDER\b[^}]*\}/,
+    );
+    expect(read("apps/worker/src/jobs.ts")).toContain('"orders.new-order-notifications"');
+    expect(read("packages/commerce/src/orders/messages.ts")).toContain('"New test order"');
+
+    const notifications = ALL_FEATURES.find((item) => item.title === "Notifications");
+    expect(notifications?.status).toBe("available");
+    expect(notifications?.description).toMatch(/every new order/);
+    expect(notifications?.description).toMatch(/test orders are labelled/);
+    expect(capability("commerce").points.some((point) => point.includes("every new order"))).toBe(
+      true,
+    );
+    expect(COMMERCE_PARTS.find((part) => part.title === "New-order notifications")?.status).toBe(
+      "available",
+    );
+  });
+
+  it("never promise email, SMS or push alerts, which don't exist", () => {
+    const notifications = ALL_FEATURES.find((item) => item.title === "Notifications");
+    expect(notifications?.description).not.toMatch(/\b(email|sms|text message|push)\b/i);
+    expect(notifications?.description).toMatch(/in-app/);
   });
 });
 

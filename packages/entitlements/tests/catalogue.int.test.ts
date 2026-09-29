@@ -27,6 +27,7 @@ describe("public catalogue", () => {
     for (const seed of publicPlans) {
       const plan = catalogue.plans.find((p) => p.key === seed.key);
       expect(plan?.name).toBe(seed.name);
+      expect(plan?.description).toBe(seed.description);
       expect(plan?.prices.map((p) => [p.interval, p.currency, p.amount]).sort()).toEqual(
         seed.prices.map((p) => [p.interval, p.currency, p.amount]).sort(),
       );
@@ -66,6 +67,17 @@ describe("public catalogue", () => {
         where: { id: starter.id },
         data: { status: starter.status, isPublic: starter.isPublic, name: starter.name },
       });
+    }
+  });
+
+  it("describes discounts as codes only: automatic discounts aren't built", async () => {
+    const catalogue = await loadPublicCatalogue(marketingDb());
+    const discounts = catalogue.features.find((f) => f.key === "discounts");
+    expect(discounts?.description).toBe(
+      "Discount codes: a percentage or a fixed amount off the order.",
+    );
+    for (const feature of catalogue.features) {
+      expect(feature.description ?? "", feature.key).not.toMatch(/automatic discount/i);
     }
   });
 

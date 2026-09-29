@@ -47,6 +47,17 @@ describe("product copy", () => {
     expect(offending(/\bMilestones? \d/)).toEqual([]);
   });
 
+  it("mentions automatic discounts only as something that isn't available", () => {
+    let mentions = 0;
+    for (const file of FILES) {
+      for (const [sentence] of file.text.matchAll(/[^.]*\bautomatic discounts?\b[^.]*\./gi)) {
+        mentions += 1;
+        expect(sentence, file.path).toMatch(/(aren|isn)(&apos;|')t available|not available/);
+      }
+    }
+    expect(mentions).toBeGreaterThan(0);
+  });
+
   it("never promises a release or labels an area Soon", () => {
     expect(offending(/later release|coming in |On the roadmap|What's coming/i)).toEqual([]);
     expect(offending(/["'>]\s*Soon\s*["'<]/)).toEqual([]);

@@ -1,7 +1,8 @@
 import type { MetadataRoute } from "next";
+import { LEGAL_DOCUMENTS } from "@/content/legal";
 
 // Indexable public pages. The legal placeholders are noindex until the real
-// documents are published, so they stay out.
+// documents are published (content/legal.ts), so only final ones are listed.
 const PATHS = [
   "/",
   "/products",
@@ -16,5 +17,8 @@ const PATHS = [
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const base = process.env["MARKETING_URL"] ?? "http://localhost:3000";
-  return PATHS.map((path) => ({ url: new URL(path, base).toString() }));
+  const legal = LEGAL_DOCUMENTS.filter((document) => document.status === "final").map(
+    (document) => document.path,
+  );
+  return [...PATHS, ...legal].map((path) => ({ url: new URL(path, base).toString() }));
 }

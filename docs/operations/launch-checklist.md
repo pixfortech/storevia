@@ -168,6 +168,17 @@ When a staff member has lost their authenticator and their recovery codes:
 - [ ] Terms of service and privacy policy written and reviewed by counsel;
       the marketing site's `/legal/terms` and `/legal/privacy` pages are
       placeholders until then and **must be replaced before launch**.
+      Publish them in `apps/marketing/src/content/legal.ts` (status
+      `final`, with counsel's version, the effective date and the content
+      file registered in `content/legal-bodies.ts`; engineering never
+      writes the text). **`pnpm check:launch` must pass** before the release
+      is tagged: it fails, naming each document, while any is a placeholder
+      or lacks its version, effective date or content file. As a backstop,
+      the marketing site refuses to start with `STOREVIA_ENV=production`
+      while any document is a placeholder (boot error
+      `legal: platform legal documents aren't ready for production: …`);
+      staging, preview and test start and show the placeholders marked
+      "Placeholder: not yet published".
 - [ ] Counsel reviews the retention periods in
       [data-lifecycle.md](../database/data-lifecycle.md) (8 years for
       financial records, 2 years for the audit log, message and log

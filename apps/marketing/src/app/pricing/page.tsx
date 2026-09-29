@@ -14,8 +14,8 @@ import {
 import { PRICING_FAQ } from "@/content/faq";
 import { publicCatalogue } from "@/lib/catalogue";
 import { appLinks } from "@/lib/env";
-import { comparison, pricing } from "@/lib/pricing";
-import { ComparisonTable, MobileComparison } from "./comparison";
+import { comparison, plannedFeatures, pricing } from "@/lib/pricing";
+import { ComparisonTable, MobileComparison, PlannedFeatures } from "./comparison";
 import { IntervalSwitch } from "./interval-switch";
 import { PlanCards } from "./plan-cards";
 
@@ -45,8 +45,9 @@ const HOW_PLANS_WORK = [
   },
   {
     icon: ListChecks,
-    title: "Every status is shown",
-    description: "Features not built yet are marked, so you know what each plan gives you today.",
+    title: "Only what exists today",
+    description:
+      "Plans list only features you can use now. Planned ones are listed apart, in no plan.",
   },
 ] as const;
 
@@ -55,6 +56,7 @@ export default async function PricingPage() {
   const { signUp } = appLinks();
   const view = catalogue ? pricing(catalogue, signUp) : null;
   const groups = catalogue ? comparison(catalogue) : [];
+  const planned = catalogue ? plannedFeatures(catalogue) : [];
   return (
     <>
       <PageHero
@@ -112,7 +114,7 @@ export default async function PricingPage() {
                 id="compare-heading"
                 eyebrow="Compare plans"
                 title="Every feature, plan by plan"
-                lead="Every limit and inclusion, read from the same plan catalogue the product enforces. Features not built yet are marked."
+                lead="Every limit and feature you can use today, read from the same plan catalogue the product enforces."
               />
               <ArrowLink href="/features" className="shrink-0 lg:mb-1">
                 What every feature does
@@ -123,6 +125,20 @@ export default async function PricingPage() {
               <MobileComparison columns={view.columns} groups={groups} />
             </div>
           </Section>
+
+          {planned.length > 0 ? (
+            <Section id="planned" labelledBy="planned-heading">
+              <SectionHeading
+                id="planned-heading"
+                eyebrow="On the roadmap"
+                title="Planned, and not part of any plan yet"
+                lead="These features aren't built, so no plan includes them today and we don't give dates. Choose a plan for what it offers now."
+              />
+              <div className="mt-10">
+                <PlannedFeatures features={planned} />
+              </div>
+            </Section>
+          ) : null}
         </>
       ) : (
         <div className="mx-auto max-w-xl px-4 pb-20">

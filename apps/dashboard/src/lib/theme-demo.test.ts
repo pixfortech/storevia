@@ -1,6 +1,6 @@
-import { STOREVIA_REGISTRY } from "@storevia/commerce/blocks";
-import { validateDocument } from "@storevia/editor/document";
-import { THEME_DEMO, THEME_DEMO_PAGES } from "@storevia/site-engine/demo";
+import { STOREVIA_REGISTRY, STOREVIA_TEMPLATES } from "@storevia/commerce/blocks";
+import { validateDocument, type PageDocument } from "@storevia/editor/document";
+import { THEME_DEMO, THEME_DEMO_NOT_OFFERED, THEME_DEMO_PAGES } from "@storevia/site-engine/demo";
 import { THEMES } from "@storevia/site-engine/theme";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -27,10 +27,9 @@ describe("theme demo pages", () => {
     }
   });
 
-  it("render the demo store with every theme: announcement, header, hero, collection, four products with prices and a sale, footer", () => {
+  it("render the demo store with every theme: header, hero, collection, four products with prices and a sale, footer", () => {
     for (const theme of Object.values(THEMES)) {
       const html = render(theme.key, "home");
-      expect(html).toContain('<p class="sv-announcement">');
       expect(html).toContain('<a class="sv-brand" href="/">Harbour &amp; Loom</a>');
       expect(html).toContain(THEME_DEMO.hero.heading);
       expect(html).toContain(THEME_DEMO.collection.title);
@@ -53,8 +52,7 @@ describe("theme demo pages", () => {
       expect(html).toContain(`<h1 class="sv-product-title">${DEMO_PRODUCT.title}</h1>`);
       expect(html).toContain('aria-label="Options"');
       expect(html).toContain("Add to cart");
-      expect(html).toContain("You may also like");
-      expect(html.match(/<li class="sv-card">/g)).toHaveLength(3);
+      expect(html).not.toContain('<li class="sv-card">');
     }
   });
 
@@ -87,5 +85,54 @@ describe("theme demo pages", () => {
 
   it("is deterministic", () => {
     expect(render("boutique", "product")).toBe(render("boutique", "product"));
+  });
+});
+
+// TH-1: a demo shows only what a store on the theme can really show. Every
+// block is one the storefront registers, the product page is the product
+// template every store renders (nothing added), and no rendered page shows
+// a feature that doesn't exist (THEME_DEMO_NOT_OFFERED).
+describe("theme demo fidelity", () => {
+  interface Node {
+    readonly type: string;
+    readonly children?: readonly Node[];
+  }
+  const blockTypes = (document: PageDocument): string[] => {
+    const visit = (nodes: readonly Node[]): string[] =>
+      nodes.flatMap((node) => [node.type, ...visit(node.children ?? [])]);
+    return visit(document.root);
+  };
+
+  it("uses only blocks the storefront registers", () => {
+    for (const page of THEME_DEMO_PAGES) {
+      const types = blockTypes(DEMO_PAGES[page].document);
+      expect(types.length, page).toBeGreaterThan(0);
+      for (const type of types) {
+        expect(STOREVIA_REGISTRY.get(type), `${page}: ${type}`).toBeDefined();
+      }
+    }
+  });
+
+  it("shows the product page exactly as every store's product template renders it", () => {
+    expect(DEMO_PAGES.product.document.root).toEqual(STOREVIA_TEMPLATES.PRODUCT_TEMPLATE.root);
+  });
+
+  it("uses on the home page only blocks a store's home page has", () => {
+    const home = new Set(blockTypes(STOREVIA_TEMPLATES.HOME));
+    for (const type of blockTypes(DEMO_PAGES.home.document)) {
+      expect(home.has(type), type).toBe(true);
+    }
+  });
+
+  it("shows no announcement bar and no feature a store can't have, on any page or theme", () => {
+    for (const theme of Object.values(THEMES)) {
+      for (const page of THEME_DEMO_PAGES) {
+        const html = render(theme.key, page).replace(/<style>[\s\S]*?<\/style>/g, "");
+        expect(html).not.toContain("sv-announcement");
+        for (const { feature, pattern } of THEME_DEMO_NOT_OFFERED) {
+          expect(pattern.test(html), `${theme.key} ${page}: ${feature}`).toBe(false);
+        }
+      }
+    }
   });
 });

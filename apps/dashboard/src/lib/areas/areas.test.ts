@@ -233,6 +233,27 @@ describe("billing presentation", () => {
     ]);
   });
 
+  it("never counts a planned feature as part of the plan, whatever the plan grants", () => {
+    // A plan that grants everything (like the highest reference plan).
+    const groups = entitlementGroups(
+      FEATURE_KEYS.map((key) => ({
+        key,
+        name: key,
+        type: "BOOLEAN" as const,
+        value: { kind: "BOOLEAN" as const, enabled: true },
+      })),
+    );
+    const planned = FEATURE_KEYS.filter((key) => FEATURE_AVAILABILITY[key] === "planned");
+    expect(groups.planned.map((row) => row.key)).toEqual(planned);
+    for (const row of [...groups.limits, ...groups.features]) {
+      expect(FEATURE_AVAILABILITY[row.key], row.key).toBe("available");
+    }
+    for (const row of groups.planned) {
+      expect(row.included, row.key).toBe(false);
+      expect(row.label, row.key).toBe("Planned");
+    }
+  });
+
   it("takes availability from the platform's one source of truth", () => {
     expect(FEATURE_AVAILABILITY).toBe(CENTRAL_AVAILABILITY);
     // Stores, team members, products, media storage, custom domains, the

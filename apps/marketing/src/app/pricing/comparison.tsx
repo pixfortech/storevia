@@ -1,7 +1,8 @@
 // Every feature by plan, from the catalogue (lib/pricing.ts). From 768 px, one
 // table: its header sticks under the site header on desktop, and on tablets
 // the feature column stays put while the plans scroll. On phones, a plan
-// picker with that plan's features, grouped.
+// picker with that plan's features, grouped. Only features that exist today
+// are compared; PlannedFeatures lists the rest apart from every plan.
 import { buttonClasses } from "@storevia/ui/button";
 import { cn } from "@storevia/ui/cn";
 import {
@@ -17,8 +18,7 @@ import { Icon } from "@storevia/ui/icons";
 import { Check, Minus } from "lucide-react";
 import Link from "next/link";
 import { StatusPill } from "@/components/marketing/status-pill";
-import { STATUS_LABELS } from "@/content/capabilities";
-import type { ComparisonGroup, PricingColumn } from "@/lib/pricing";
+import type { ComparisonGroup, PlannedFeature, PricingColumn } from "@/lib/pricing";
 import { PlanPicker } from "./plan-picker";
 
 function Value({ value }: { value: string | null }) {
@@ -108,10 +108,7 @@ export function ComparisonTable({
                     "h-auto py-3.5 pr-4 pl-5 text-left align-middle font-normal sm:pl-6",
                   )}
                 >
-                  <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                    <span className="text-body-sm font-medium text-ink">{row.name}</span>
-                    {row.status ? <StatusPill status={row.status} /> : null}
-                  </span>
+                  <span className="text-body-sm font-medium text-ink">{row.name}</span>
                   {row.description ? (
                     <span className="mt-0.5 hidden text-caption text-ink-faint lg:block">
                       {row.description}
@@ -162,14 +159,7 @@ function PlanPanel({
                   key={row.key}
                   className="flex min-h-12 items-center justify-between gap-4 py-2.5 text-body-sm"
                 >
-                  <dt className="min-w-0 text-ink">
-                    {row.name}
-                    {row.status ? (
-                      <span className="block text-caption text-ink-faint">
-                        {STATUS_LABELS[row.status]}
-                      </span>
-                    ) : null}
-                  </dt>
+                  <dt className="min-w-0 text-ink">{row.name}</dt>
                   <dd className="shrink-0 text-right font-medium text-ink">
                     <Value value={row.values[index] ?? null} />
                   </dd>
@@ -191,6 +181,30 @@ function PlanPanel({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Features that aren't built yet, apart from every plan: no plan column, no
+ * value and no tick, so none reads as something a plan sells.
+ */
+export function PlannedFeatures({ features }: { features: readonly PlannedFeature[] }) {
+  if (features.length === 0) return null;
+  return (
+    <ul
+      data-testid="planned-features"
+      className="grid gap-x-10 border-t border-line md:grid-cols-2"
+    >
+      {features.map((feature) => (
+        <li key={feature.key} className="border-b border-line py-4">
+          <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+            <span className="text-body-sm font-medium text-ink">{feature.name}</span>
+            <StatusPill status="roadmap" />
+          </p>
+          <p className="mt-1 text-caption text-ink-muted">{feature.description}</p>
+        </li>
+      ))}
+    </ul>
   );
 }
 

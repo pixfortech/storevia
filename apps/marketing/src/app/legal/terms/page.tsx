@@ -1,18 +1,9 @@
-import type { Metadata } from "next";
-import { LegalPlaceholder } from "@/components/legal-placeholder";
+import { LegalDocumentPage, legalMetadata } from "@/components/legal-document";
 
-export const metadata: Metadata = { title: "Terms", robots: { index: false } };
+// Storevia's terms of service: a marked placeholder until counsel's text is
+// published (content/legal.ts; production refuses to start without it).
+export const metadata = legalMetadata("terms");
 
 export default function TermsPage() {
-  return (
-    <LegalPlaceholder
-      title="Terms of service"
-      covers={[
-        "Using Storevia and your account",
-        "Plans, billing and cancellation",
-        "Your content and acceptable use",
-        "Availability, liability and changes to the terms",
-      ]}
-    />
-  );
+  return <LegalDocumentPage documentKey="terms" />;
 }

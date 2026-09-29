@@ -3,7 +3,7 @@ import type { PublicCatalogue } from "@storevia/entitlements/catalogue";
 import { FEATURE_KEYS, type FeatureKey } from "@storevia/entitlements/features";
 import { describe, expect, it } from "vitest";
 import { FEATURE_COPY, FEATURE_GROUPS, FEATURE_STATUS } from "@/content/plan-features";
-import { comparison, planAvailability, pricing } from "./pricing";
+import { comparison, planAvailability, plannedFeatures, pricing } from "./pricing";
 
 const off: EntitlementValue = { kind: "BOOLEAN", enabled: false };
 const on: EntitlementValue = { kind: "BOOLEAN", enabled: true };
@@ -21,6 +21,7 @@ const NAMES: Partial<Record<FeatureKey, string>> = {
   staff_accounts: "Team members",
   custom_domain: "Custom domains",
   visual_builder: "Page builder",
+  discounts: "Discounts",
   analytics: "Analytics",
   advanced_permissions: "Advanced permissions",
 };
@@ -66,6 +67,7 @@ const catalogue: PublicCatalogue = {
         staff_accounts: limit(10n),
         visual_builder: on,
         custom_domain: on,
+        discounts: on,
         advanced_permissions: on,
         analytics: { kind: "CONFIGURATION", enabled: true, config: { retentionDays: 365 } },
       }),
@@ -81,6 +83,7 @@ const catalogue: PublicCatalogue = {
         staff_accounts: limit(50n),
         visual_builder: on,
         custom_domain: on,
+        discounts: on,
         advanced_permissions: on,
         analytics: { kind: "CONFIGURATION", enabled: true, config: { retentionDays: 730 } },
       }),
@@ -166,48 +169,50 @@ describe("pricing", () => {
     expect(free?.highlights.map((h) => h.name)).toEqual(["Page builder"]);
     expect(free?.buildsOn).toBeUndefined();
     expect(starter?.buildsOn).toBe("Free");
-    expect(starter?.highlights.map((h) => h.name)).toEqual(["Custom domains", "Analytics"]);
+    expect(starter?.highlights.map((h) => h.name)).toEqual(["Custom domains"]);
     expect(business?.buildsOn).toBe("Starter");
-    expect(business?.highlights.map((h) => [h.name, h.value])).toEqual([
-      ["Analytics", "365 days of history"],
-      ["Advanced permissions", "Included"],
-    ]);
-    expect(enterprise?.highlights.map((h) => h.value)).toEqual(["730 days of history"]);
+    expect(business?.highlights.map((h) => [h.name, h.value])).toEqual([["Discounts", "Included"]]);
+    // Nothing that exists differs from Business: higher limits only.
+    expect(enterprise?.highlights).toEqual([]);
     // Headline limits never repeat as highlights.
     expect(business?.highlights.some((h) => h.key === "staff_accounts")).toBe(false);
   });
 
-  it("marks features that aren't live yet, and only those", () => {
-    const [, starter, business] = result.columns;
-    // Custom domains shipped: no status mark; store-limited access is planned.
-    expect(starter?.highlights.find((h) => h.key === "custom_domain")?.status).toBeUndefined();
-    expect(business?.highlights.find((h) => h.key === "advanced_permissions")?.status).toBe(
-      "roadmap",
-    );
+  it("never presents a planned feature as part of a plan, even one the plan grants", () => {
+    // The fixture grants analytics and store-limited access, which aren't built.
+    expect(FEATURE_STATUS.analytics).not.toBe("available");
+    expect(FEATURE_STATUS.advanced_permissions).not.toBe("available");
     for (const column of result.columns) {
-      for (const h of column.highlights) {
-        const status = FEATURE_STATUS[h.key];
-        expect(h.status, h.key).toBe(status === "available" ? undefined : status);
+      for (const item of [...column.limits, ...column.highlights]) {
+        expect(FEATURE_STATUS[item.key], `${column.name}: ${item.key}`).toBe("available");
+        expect(item).not.toHaveProperty("status");
       }
     }
   });
 });
 
+const AVAILABLE = FEATURE_KEYS.filter((key) => FEATURE_STATUS[key] === "available");
+const PLANNED = FEATURE_KEYS.filter((key) => FEATURE_STATUS[key] !== "available");
+
 describe("comparison", () => {
-  it("covers every catalogue feature once, grouped, with a value per column", () => {
+  it("covers every available catalogue feature once, grouped, with a value per column", () => {
     const groups = comparison(catalogue);
     const keys = groups.flatMap((g) => g.rows.map((r) => r.key));
-    expect([...keys].sort()).toEqual([...FEATURE_KEYS].sort());
-    expect(groups.map((g) => g.title)).toEqual(FEATURE_GROUPS.map((g) => g.title));
+    expect([...keys].sort()).toEqual([...AVAILABLE].sort());
+    expect(groups.map((g) => g.title)).toEqual(
+      FEATURE_GROUPS.filter((g) => g.keys.some((key) => AVAILABLE.includes(key))).map(
+        (g) => g.title,
+      ),
+    );
     for (const row of groups.flatMap((g) => g.rows)) expect(row.values).toHaveLength(4);
-    const analytics = groups.flatMap((g) => g.rows).find((r) => r.key === "analytics");
-    expect(analytics?.values).toEqual([
-      null,
-      "30 days of history",
-      "365 days of history",
-      "730 days of history",
-    ]);
-    expect(analytics?.status).toBe("roadmap");
+    const discounts = groups.flatMap((g) => g.rows).find((r) => r.key === "discounts");
+    expect(discounts?.values).toEqual([null, null, "Included", "Included"]);
+  });
+
+  it("never compares a planned feature plan by plan", () => {
+    const keys = comparison(catalogue).flatMap((g) => g.rows.map((r) => r.key));
+    expect(PLANNED.length).toBeGreaterThan(0);
+    for (const key of PLANNED) expect(keys, key).not.toContain(key);
   });
 
   it("describes each feature in customer words, not the catalogue's notes", () => {
@@ -226,14 +231,32 @@ describe("comparison", () => {
   });
 });
 
+describe("plannedFeatures", () => {
+  it("lists every planned catalogue feature once, in comparison order, with no plan or value", () => {
+    const planned = plannedFeatures(catalogue);
+    expect(planned.map((f) => f.key)).toEqual(
+      FEATURE_GROUPS.flatMap((g) => g.keys).filter((key) => PLANNED.includes(key)),
+    );
+    for (const feature of planned) {
+      expect(Object.keys(feature).sort()).toEqual(["description", "key", "name"]);
+      expect(feature.description).toBe(FEATURE_COPY[feature.key]);
+    }
+    expect(plannedFeatures({ ...catalogue, features: [] })).toEqual([]);
+  });
+});
+
 describe("planAvailability", () => {
   it("says which plans include a feature, in a few words", () => {
     expect(planAvailability(catalogue, "visual_builder")).toBe("All plans");
     expect(planAvailability(catalogue, "store_count")).toBe("All plans, limits vary");
     expect(planAvailability(catalogue, "custom_domain")).toBe("Paid plans");
-    expect(planAvailability(catalogue, "advanced_permissions")).toBe("Business and Enterprise");
-    expect(planAvailability(catalogue, "priority_support")).toBe("Not in current plans");
+    expect(planAvailability(catalogue, "discounts")).toBe("Business and Enterprise");
+    expect(planAvailability(catalogue, "export")).toBe("Not in current plans");
     const missing = { ...catalogue, features: [] };
     expect(planAvailability(missing, "store_count")).toBeNull();
+  });
+
+  it("never names plans for a feature that isn't built", () => {
+    for (const key of PLANNED) expect(planAvailability(catalogue, key), key).toBeNull();
   });
 });

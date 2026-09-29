@@ -7,11 +7,14 @@
 // - Monthly and yearly prices, when the catalogue has them. No plan is
 //   singled out as recommended: the catalogue has no such flag.
 // - No checkout exists, so paid plans lead to a conversation.
+// - A plan lists only features merchants can use today
+//   (@storevia/entitlements/availability). The catalogue may already grant a
+//   planned feature, but a plan never presents one as something you get:
+//   planned features are listed on their own (plannedFeatures), in no plan.
 import type { EntitlementValue } from "@storevia/entitlements";
 import type { PublicCatalogue } from "@storevia/entitlements/catalogue";
 import { formatEntitlement } from "@storevia/entitlements/format";
 import type { FeatureKey } from "@storevia/entitlements/features";
-import type { Status } from "@/content/capabilities";
 import {
   FEATURE_COPY,
   FEATURE_GROUPS,
@@ -38,8 +41,6 @@ export interface PlanFeatureValue {
   readonly name: string;
   /** Formatted ("Up to 3", "5 GB", "Included"), null when not included. */
   readonly value: string | null;
-  /** Present unless the feature is live today. */
-  readonly status?: Status | undefined;
 }
 
 export interface PricingColumn {
@@ -111,20 +112,21 @@ function paidPrices(plan: PublicCatalogue["plans"][number]): Record<Interval, Pr
   };
 }
 
-/** A column's value for every catalogue feature, formatted, in catalogue order. */
+/** Merchants can use it today (planned features are never shown as part of a plan). */
+const isAvailable = (key: FeatureKey) => FEATURE_STATUS[key] === "available";
+
+/** A column's value for every available catalogue feature, formatted, in catalogue order. */
 function formatted(
   catalogue: PublicCatalogue,
   values: Readonly<Record<FeatureKey, EntitlementValue>>,
 ): PlanFeatureValue[] {
-  return catalogue.features.map((feature) => {
-    const status = FEATURE_STATUS[feature.key];
-    return {
+  return catalogue.features
+    .filter((feature) => isAvailable(feature.key))
+    .map((feature) => ({
       key: feature.key,
       name: feature.name,
       value: formatEntitlement(feature.key, values[feature.key]),
-      ...(status === "available" ? {} : { status }),
-    };
-  });
+    }));
 }
 
 export function pricing(catalogue: PublicCatalogue, signUpHref: string): Pricing {
@@ -205,7 +207,6 @@ export interface ComparisonRow {
   readonly key: FeatureKey;
   readonly name: string;
   readonly description: string;
-  readonly status?: Status | undefined;
   /** One value per column, in pricing() order; null when not included. */
   readonly values: readonly (string | null)[];
 }
@@ -215,7 +216,7 @@ export interface ComparisonGroup {
   readonly rows: readonly ComparisonRow[];
 }
 
-/** Every catalogue feature in its comparison group, with each column's value. */
+/** Every available catalogue feature in its comparison group, with each column's value. */
 export function comparison(catalogue: PublicCatalogue): ComparisonGroup[] {
   const features = new Map(catalogue.features.map((f) => [f.key, f]));
   const columns = [catalogue.freeAllowance, ...catalogue.plans.map((p) => p.values)];
@@ -223,14 +224,12 @@ export function comparison(catalogue: PublicCatalogue): ComparisonGroup[] {
     title: group.title,
     rows: group.keys.flatMap((key): ComparisonRow[] => {
       const feature = features.get(key);
-      if (!feature) return [];
-      const status = FEATURE_STATUS[key];
+      if (!feature || !isAvailable(key)) return [];
       return [
         {
           key,
           name: feature.name,
           description: FEATURE_COPY[key],
-          ...(status === "available" ? {} : { status }),
           values: columns.map((values) => formatEntitlement(key, values[key])),
         },
       ];
@@ -238,13 +237,36 @@ export function comparison(catalogue: PublicCatalogue): ComparisonGroup[] {
   })).filter((group) => group.rows.length > 0);
 }
 
+export interface PlannedFeature {
+  readonly key: FeatureKey;
+  readonly name: string;
+  readonly description: string;
+}
+
+/**
+ * The catalogue's features that aren't built yet, in comparison order. They
+ * carry no plan and no value: what a plan records for them is an
+ * entitlement for later, never something a merchant gets today.
+ */
+export function plannedFeatures(catalogue: PublicCatalogue): PlannedFeature[] {
+  const features = new Map(catalogue.features.map((f) => [f.key, f]));
+  return FEATURE_GROUPS.flatMap((group) =>
+    group.keys.flatMap((key): PlannedFeature[] => {
+      const feature = features.get(key);
+      if (!feature || isAvailable(key)) return [];
+      return [{ key, name: feature.name, description: FEATURE_COPY[key] }];
+    }),
+  );
+}
+
 /**
  * Which plans include a feature, in a few words: "All plans", "All plans,
  * limits vary", "Paid plans" or "Business and Enterprise". Null when the
- * catalogue doesn't have the feature.
+ * catalogue doesn't have the feature, or it isn't built yet (a planned
+ * feature is never a reason to choose a plan).
  */
 export function planAvailability(catalogue: PublicCatalogue, key: FeatureKey): string | null {
-  if (!catalogue.features.some((f) => f.key === key)) return null;
+  if (!isAvailable(key) || !catalogue.features.some((f) => f.key === key)) return null;
   const columns = [
     { name: "Free", values: catalogue.freeAllowance },
     ...catalogue.plans.map((plan) => ({ name: plan.name, values: plan.values })),

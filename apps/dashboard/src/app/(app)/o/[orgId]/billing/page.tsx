@@ -64,8 +64,9 @@ function LimitTiles({ rows }: { rows: readonly EntitlementRow[] }) {
 
 /**
  * Features, each marked included or not in words as well as an icon. The
- * planned list names features that aren't built: "Planned", with no lock and
- * nothing to upgrade for (AN-6), whatever the plan records.
+ * planned list (its own card, apart from what the plan includes) names
+ * features that aren't built: "Planned", with no lock and nothing to upgrade
+ * for (AN-6), whatever the plan records.
  */
 function FeatureList({
   title,
@@ -259,13 +260,20 @@ export default async function BillingPage({ params }: { params: Promise<{ orgId:
             <CardBody className="space-y-8 py-6">
               <LimitTiles rows={limits} />
               <FeatureList title="Features" rows={features} />
-              <FeatureList
-                title="Planned"
-                note="These aren't part of Storevia yet, so no plan includes them today."
-                rows={planned}
-              />
             </CardBody>
           </Card>
+
+          {planned.length > 0 ? (
+            <Card data-testid="planned-card">
+              <CardHeader
+                title="Planned features"
+                description="These aren't part of Storevia yet, so they aren't part of any plan, including yours."
+              />
+              <CardBody className="py-6">
+                <FeatureList title="Not built yet" rows={planned} />
+              </CardBody>
+            </Card>
+          ) : null}
         </div>
 
         <Card data-testid="payments-card" className="xl:sticky xl:top-24">

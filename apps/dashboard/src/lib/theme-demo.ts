@@ -3,6 +3,10 @@
 // page made of the storefront's own blocks, with the catalogue views those
 // blocks read. The app composes them because the Site Engine knows no
 // commerce. Pure and client-safe; nothing here reads a store's data.
+//
+// Only what a store can show (TH-1): the home page uses blocks a merchant
+// adds in the builder, and the product page is the storefront's product
+// template exactly as every store renders it, with nothing added.
 import {
   STOREVIA_TEMPLATES,
   productListKey,
@@ -16,8 +20,6 @@ import { THEME_DEMO, type DemoProduct, type ThemeDemoPage } from "@storevia/site
 const CATALOGUE = { type: "catalogue" } as const;
 /** The home page's collection: the four demo products. */
 const HOME_LIMIT = 4;
-/** "You may also like" on the product page: the three others. */
-const MORE_LIMIT = 3;
 
 const card = (product: DemoProduct): ProductCardView => ({
   id: product.id,
@@ -68,13 +70,7 @@ export const DEMO_PRODUCT: ProductView = {
 
 /** The catalogue views the demo pages' blocks read. */
 export const DEMO_DOCUMENT_DATA: DocumentData = {
-  productLists: [
-    [productListKey(CATALOGUE, HOME_LIMIT), THEME_DEMO.products.map(card)],
-    [
-      productListKey(CATALOGUE, MORE_LIMIT),
-      THEME_DEMO.products.filter((p) => p.id !== featured.id).map(card),
-    ],
-  ],
+  productLists: [[productListKey(CATALOGUE, HOME_LIMIT), THEME_DEMO.products.map(card)]],
   collectionLists: [],
   links: { products: [], collections: [], pages: [] },
   media: [],
@@ -114,26 +110,10 @@ const DEMO_HOME: PageDocument = {
   ],
 };
 
+/** The product template every store renders, as it is. */
 const DEMO_PRODUCT_PAGE: PageDocument = {
   schemaVersion: 1,
-  root: [
-    // The product template every store renders, as it is.
-    ...STOREVIA_TEMPLATES.PRODUCT_TEMPLATE.root,
-    {
-      id: "demoProdMore",
-      type: "featured-products",
-      props: {
-        heading: "You may also like",
-        source: CATALOGUE,
-        limit: MORE_LIMIT,
-        columns: 3,
-        action: null,
-        background: "default",
-        spacing: "standard",
-      },
-      styles: {},
-    },
-  ],
+  root: [...STOREVIA_TEMPLATES.PRODUCT_TEMPLATE.root],
 };
 
 export interface DemoPageDefinition {

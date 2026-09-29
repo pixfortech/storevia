@@ -3,25 +3,17 @@
 // can't drift. No plan is singled out (the catalogue has no such flag), and
 // no checkout exists, so paid plans lead to a conversation. If the catalogue
 // can't be read, the section says so rather than showing invented prices.
+// Like /pricing, it compares only features that exist today.
 import type { PublicCatalogue } from "@storevia/entitlements/catalogue";
-import type { FeatureKey } from "@storevia/entitlements/features";
 import { buttonClasses } from "@storevia/ui/button";
 import { Icon } from "@storevia/ui/icons";
 import { Stagger } from "@storevia/ui/motion";
 import { Alert } from "@storevia/ui/surfaces";
 import { Check, Minus } from "lucide-react";
 import Link from "next/link";
-import { ArrowLink, Section, SectionHeading, StatusPill } from "@/components/marketing";
+import { ArrowLink, Section, SectionHeading } from "@/components/marketing";
+import { PREVIEW_FEATURES } from "@/content/plan-features";
 import { comparison, pricing, type PricingColumn } from "@/lib/pricing";
-
-/** The comparison rows the preview shows: one per group, mostly not available yet. */
-const PREVIEW_FEATURES: readonly FeatureKey[] = [
-  "custom_domain",
-  "visual_builder",
-  "analytics",
-  "advanced_permissions",
-  "priority_support",
-];
 
 function PlanCta({ column }: { column: PricingColumn }) {
   // Same emphasis as /pricing: the free sign-up is the primary action.
@@ -141,7 +133,7 @@ export function PricingPreview({
                     A few differences between plans
                   </span>
                   <span className="ml-2 text-caption text-ink-faint">
-                    Features that aren’t available yet are marked.
+                    Features you can use today.
                   </span>
                 </caption>
                 <thead>
@@ -160,10 +152,7 @@ export function PricingPreview({
                   {rows.map((row) => (
                     <tr key={row.key} className="border-b border-line last:border-b-0">
                       <th scope="row" className="px-6 py-3.5 font-medium text-ink">
-                        <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                          {row.name}
-                          {row.status ? <StatusPill status={row.status} /> : null}
-                        </span>
+                        {row.name}
                       </th>
                       {row.values.map((value, index) => (
                         <td
