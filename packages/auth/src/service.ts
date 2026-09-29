@@ -2,6 +2,9 @@ import "server-only";
 import { systemDb } from "@storevia/database/system";
 import {
   accountDeletedMessage,
+  confirmEmailChangeMessage,
+  emailChangeAddressInUseMessage,
+  emailChangedMessage,
   existingAccountMessage,
   getEmailSender,
   passwordChangedMessage,
@@ -29,6 +32,16 @@ import { betterAuth, type BetterAuthPlugin } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { APIError } from "better-auth/api";
 import { z } from "zod";
+import {
+  EMAIL_CHANGE_TTL_SECONDS,
+  decodeEmailChange,
+  emailChangeIdentifier,
+  emailChangeValuePrefix,
+  encodeEmailChange,
+  isWellFormedEmailChangeToken,
+  maskEmail,
+  newEmailChangeToken,
+} from "./email-change";
 import { hashPassword, isBreachedPassword, verifyPassword } from "./password";
 import {
   authFail,
@@ -47,6 +60,8 @@ export interface AuthServiceOptions {
   readonly secret: string;
   /** e.g. nextCookies() in a Next.js app; omitted in tests. */
   readonly plugins?: BetterAuthPlugin[];
+  /** Where account notices send people for help (optional; plain text otherwise). */
+  readonly supportUrl?: string | undefined;
 }
 
 interface RealmPolicy {
@@ -103,6 +118,13 @@ const RATE_LIMITS = {
   confirmPasswordUser: { name: "auth:confirm-password:user", limit: 10, windowSeconds: 15 * 60 },
   mfaUser: { name: "auth:mfa:user", limit: 10, windowSeconds: 15 * 60 },
   changePasswordUser: { name: "auth:change-password:user", limit: 10, windowSeconds: HOUR },
+  profileUser: { name: "auth:profile:user", limit: 20, windowSeconds: HOUR },
+  // Email change (DB-4): per account, per client, and per new address (the
+  // latter bounds how many links or "already in use" notices one inbox gets).
+  emailChangeUser: { name: "auth:email-change:user", limit: 3, windowSeconds: HOUR },
+  emailChangeIp: { name: "auth:email-change:ip", limit: 10, windowSeconds: HOUR },
+  emailChangeAddress: { name: "auth:email-change:address", limit: 3, windowSeconds: HOUR },
+  emailChangeConfirmIp: { name: "auth:email-change-confirm:ip", limit: 30, windowSeconds: HOUR },
 } satisfies Record<string, RateLimitRule>;
 
 const signUpSchema = z.object({
@@ -113,6 +135,13 @@ const signUpSchema = z.object({
 const signInSchema = z.object({ email: emailSchema, password: z.string().min(1).max(128) });
 
 const GENERIC_SIGN_IN_ERROR = "Email or password is incorrect.";
+const INVALID_EMAIL_CHANGE_LINK = "This link is invalid, has expired or has already been used.";
+
+export interface PendingEmailChange {
+  /** The address waiting to be confirmed. */
+  readonly email: string;
+  readonly expiresAt: Date;
+}
 
 async function send(message: EmailMessage): Promise<void> {
   await getEmailSender().send(message);
@@ -149,6 +178,13 @@ async function sessionAllowed(realm: Realm, userId: string): Promise<boolean> {
   if (user?.status !== "ACTIVE" || user.deletedAt) return false;
   if (realm === "PLATFORM") return user.platformStaff?.active === true;
   return true;
+}
+
+/** A unique-constraint violation (Prisma P2002), e.g. an email taken meanwhile. */
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" && error !== null && (error as { code?: unknown }).code === "P2002"
+  );
 }
 
 function apiErrorCode(error: unknown): string | undefined {
@@ -302,9 +338,12 @@ export class AuthService {
   private readonly baseURL: string;
 
   private readonly secret: string;
+  private readonly supportUrl: string | undefined;
 
   constructor(options: AuthServiceOptions) {
     this.secret = options.secret;
+    // An empty value (an unset env var) means no link.
+    this.supportUrl = options.supportUrl?.trim() === "" ? undefined : options.supportUrl;
     this.realm = options.realm;
     this.policy = POLICIES[options.realm];
     this.baseURL = options.baseURL.replace(/\/$/, "");
@@ -667,6 +706,9 @@ export class AuthService {
       SELECT app_delete_user_account(${session.userId}::uuid) AS outcome`;
     switch (row?.outcome) {
       case "deleted":
+        await systemDb().verification.deleteMany({
+          where: { value: { startsWith: emailChangeValuePrefix(session.userId) } },
+        });
         await audit("auth.account_deleted", session.userId, headers);
         await send(accountDeletedMessage(session.email, session.name));
         return authOk(undefined);
@@ -678,6 +720,228 @@ export class AuthService {
       default:
         return authFail("ACCOUNT_IN_USE", "This account can't be deleted here.");
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Profile (DB-4): the dashboard user's own name and email address. Platform
+  // staff manage their identity through operations, not here.
+  // -------------------------------------------------------------------------
+
+  /** Renames the caller (trimmed, inner whitespace collapsed, 1-100 characters). */
+  async updateName(
+    session: AuthSession,
+    name: unknown,
+    headers: Headers,
+  ): Promise<AuthResult<{ name: string }>> {
+    this.dashboardOnly("profile changes");
+    const parsed = personNameSchema.safeParse(typeof name === "string" ? name : "");
+    if (!parsed.success)
+      return authFail("INVALID_INPUT", parsed.error.issues[0]?.message ?? "Enter your name.");
+    const blocked = await this.limited([[RATE_LIMITS.profileUser, session.userId]]);
+    if (blocked) return blocked;
+    if (parsed.data !== session.name) {
+      await systemDb().user.update({
+        where: { id: session.userId },
+        data: { name: parsed.data },
+      });
+      await audit("auth.profile_updated", session.userId, headers, { fields: "name" });
+    }
+    return authOk({ name: parsed.data });
+  }
+
+  /**
+   * Starts an email change: needs a recent password confirmation (step-up),
+   * then emails a single-use link to the NEW address. The account's email
+   * changes only when that link is used (confirmEmailChange). An address that
+   * already has an account gets the same answer here, like sign-up: the
+   * request is recorded but its link is never sent, so it can't complete,
+   * and the address's owner gets a notice instead.
+   */
+  async requestEmailChange(
+    session: AuthSession,
+    newEmail: unknown,
+    headers: Headers,
+  ): Promise<AuthResult<PendingEmailChange>> {
+    this.dashboardOnly("email changes");
+    if (!hasRecentAuth(session)) {
+      return authFail(
+        "REAUTHENTICATION_REQUIRED",
+        "Confirm your password before changing your email address.",
+      );
+    }
+    const parsed = emailSchema.safeParse(newEmail);
+    if (!parsed.success) {
+      return authFail(
+        "INVALID_INPUT",
+        parsed.error.issues[0]?.message ?? "Enter a valid email address.",
+      );
+    }
+    const email = parsed.data;
+    const same = authFail("INVALID_INPUT", "That's already your email address.");
+    if (email === session.email.toLowerCase()) return same;
+    const blocked = await this.limited([
+      [RATE_LIMITS.emailChangeUser, session.userId],
+      [RATE_LIMITS.emailChangeIp, clientKey(headers)],
+      [RATE_LIMITS.emailChangeAddress, email],
+    ]);
+    if (blocked) return blocked;
+
+    const db = systemDb();
+    const staff = await db.platformStaff.findUnique({
+      where: { userId: session.userId },
+      select: { userId: true },
+    });
+    if (staff) {
+      return authFail(
+        "NOT_ALLOWED",
+        "Platform staff accounts change their email address through Storevia operations.",
+      );
+    }
+    // citext: the lookup ignores case, like the unique constraint.
+    const holder = await db.user.findUnique({
+      where: { email },
+      select: { id: true, email: true, name: true, deletedAt: true },
+    });
+    if (holder?.id === session.userId) return same;
+
+    const token = newEmailChangeToken();
+    const expiresAt = new Date(Date.now() + EMAIL_CHANGE_TTL_SECONDS * 1000);
+    // One request at a time: a new one replaces any earlier link.
+    await db.$transaction([
+      db.verification.deleteMany({
+        where: { value: { startsWith: emailChangeValuePrefix(session.userId) } },
+      }),
+      db.verification.create({
+        data: {
+          identifier: emailChangeIdentifier(token),
+          value: encodeEmailChange({ userId: session.userId, sessionId: session.sessionId, email }),
+          expiresAt,
+        },
+      }),
+    ]);
+    if (!holder) {
+      await send(
+        confirmEmailChangeMessage(
+          email,
+          session.name,
+          session.email,
+          `${this.baseURL}/confirm-email-change?token=${encodeURIComponent(token)}`,
+        ),
+      );
+    } else if (!holder.deletedAt) {
+      await send(
+        emailChangeAddressInUseMessage(holder.email, holder.name, `${this.baseURL}/sign-in`),
+      );
+    }
+    await audit("auth.email_change_requested", session.userId, headers, { to: maskEmail(email) });
+    return authOk({ email, expiresAt });
+  }
+
+  /** The caller's email change waiting for confirmation, if any. */
+  async pendingEmailChange(session: AuthSession): Promise<PendingEmailChange | null> {
+    const row = await systemDb().verification.findFirst({
+      where: {
+        value: { startsWith: emailChangeValuePrefix(session.userId) },
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { createdAt: "desc" },
+      select: { value: true, expiresAt: true },
+    });
+    const request = row ? decodeEmailChange(row.value) : null;
+    return row && request ? { email: request.email, expiresAt: row.expiresAt } : null;
+  }
+
+  /** Withdraws the caller's pending email change (its link stops working). */
+  async cancelEmailChange(session: AuthSession, headers: Headers): Promise<boolean> {
+    const { count } = await systemDb().verification.deleteMany({
+      where: { value: { startsWith: emailChangeValuePrefix(session.userId) } },
+    });
+    if (count > 0) await audit("auth.email_change_cancelled", session.userId, headers);
+    return count > 0;
+  }
+
+  /** What an email-change link would do, without using it (for its landing page). */
+  async previewEmailChange(token: unknown): Promise<PendingEmailChange | null> {
+    const found = await this.findEmailChange(token);
+    return found ? { email: found.request.email, expiresAt: found.expiresAt } : null;
+  }
+
+  /**
+   * Completes an email change from the emailed link: once, before it
+   * expires. The new address becomes the verified sign-in email; links sent
+   * to the old address stop working; every other dashboard session (except
+   * the one that asked, and this browser's own) is signed out; and the old
+   * address is told. Platform sessions are never touched.
+   */
+  async confirmEmailChange(
+    token: unknown,
+    headers: Headers,
+  ): Promise<AuthResult<{ email: string }>> {
+    this.dashboardOnly("email changes");
+    const blocked = await this.limited([[RATE_LIMITS.emailChangeConfirmIp, clientKey(headers)]]);
+    if (blocked) return blocked;
+    const found = await this.findEmailChange(token);
+    if (!found) return authFail("INVALID_TOKEN", INVALID_EMAIL_CHANGE_LINK);
+    const { userId, sessionId, email } = found.request;
+    const db = systemDb();
+
+    let previous: { email: string; name: string } | null = null;
+    try {
+      previous = await db.$transaction(async (tx) => {
+        // Single use: only the request that deletes the row goes on.
+        const { count } = await tx.verification.deleteMany({ where: { id: found.id } });
+        if (count !== 1) return null;
+        const user = await tx.user.findUnique({
+          where: { id: userId },
+          select: {
+            email: true,
+            name: true,
+            status: true,
+            deletedAt: true,
+            platformStaff: { select: { userId: true } },
+          },
+        });
+        if (user?.status !== "ACTIVE" || user.deletedAt || user.platformStaff) return null;
+        await tx.user.update({ where: { id: userId }, data: { email, emailVerified: true } });
+        return { email: user.email, name: user.name };
+      });
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+      // The address was registered after the request: the link is spent.
+      await db.verification.deleteMany({ where: { id: found.id } });
+    }
+    if (!previous) return authFail("INVALID_TOKEN", INVALID_EMAIL_CHANGE_LINK);
+
+    const current = await this.getSession(headers);
+    const keep = [sessionId, ...(current?.userId === userId ? [current.sessionId] : [])];
+    // Password-reset links (Better Auth keys them by user id) went to the old address.
+    await db.verification.deleteMany({ where: { value: userId } });
+    const { count: revoked } = await db.session.deleteMany({
+      where: { userId, realm: this.realm, id: { notIn: keep } },
+    });
+    await audit("auth.email_changed", userId, headers, {
+      from: maskEmail(previous.email),
+      to: maskEmail(email),
+      sessionsRevoked: String(revoked),
+    });
+    await send(
+      emailChangedMessage(previous.email, previous.name, maskEmail(email), this.supportUrl),
+    );
+    return authOk({ email });
+  }
+
+  private async findEmailChange(token: unknown) {
+    if (!isWellFormedEmailChangeToken(token)) return null;
+    const row = await systemDb().verification.findFirst({
+      where: { identifier: emailChangeIdentifier(token), expiresAt: { gt: new Date() } },
+      select: { id: true, value: true, expiresAt: true },
+    });
+    const request = row ? decodeEmailChange(row.value) : null;
+    return row && request ? { id: row.id, expiresAt: row.expiresAt, request } : null;
+  }
+
+  private dashboardOnly(what: string): void {
+    if (this.realm !== "DASHBOARD") throw new Error(`${what} are for the dashboard realm`);
   }
 
   // -------------------------------------------------------------------------

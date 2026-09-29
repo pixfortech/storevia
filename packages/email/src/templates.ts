@@ -161,6 +161,80 @@ export function passwordChangedMessage(to: string, name: string): EmailMessage {
   };
 }
 
+/** To the NEW address: the link that completes an email change (DB-4). */
+export function confirmEmailChangeMessage(
+  to: string,
+  name: string,
+  currentEmail: string,
+  url: string,
+): EmailMessage {
+  const lines = [
+    `Hi ${name},`,
+    `You asked to change the email address of your Storevia account from ${currentEmail} to this one. Confirm it to finish. The link expires in 1 hour and works once.`,
+    `Until you confirm, you keep signing in with ${currentEmail}.`,
+  ];
+  const ignore = "If you didn't ask for this, ignore this email. Nothing changes.";
+  return {
+    to,
+    template: "confirm-email-change",
+    subject: "Confirm your new email for Storevia",
+    text: `${lines.join("\n\n")}\n\n${url}\n\n${ignore}`,
+    html: layout("Confirm your new email", [...lines, ignore], { label: "Confirm new email", url }),
+  };
+}
+
+/**
+ * To an address that already has an account, when someone asks to move
+ * another account onto it (DB-4). Mirrors the sign-up "account exists"
+ * notice: the requester is told the same thing either way.
+ */
+export function emailChangeAddressInUseMessage(
+  to: string,
+  name: string,
+  signInUrl: string,
+): EmailMessage {
+  const lines = [
+    `Hi ${name},`,
+    "Someone asked to change another Storevia account's email address to this one. This address already belongs to your account, so nothing was changed.",
+    "You don't need to do anything.",
+  ];
+  return {
+    to,
+    template: "email-change-address-in-use",
+    subject: "This email already has a Storevia account",
+    text: `${lines.join("\n\n")}\n\nSign in: ${signInUrl}`,
+    html: layout("This email is already in use", lines, { label: "Sign in", url: signInUrl }),
+  };
+}
+
+/**
+ * To the OLD address, once an email change is confirmed (DB-4). `newEmail`
+ * is masked by the caller; `helpUrl` links support when one is configured.
+ */
+export function emailChangedMessage(
+  to: string,
+  name: string,
+  newEmail: string,
+  helpUrl?: string,
+): EmailMessage {
+  const lines = [
+    `Hi ${name},`,
+    `The email address of your Storevia account was changed to ${newEmail}. You now sign in with the new address, and your other sessions were signed out.`,
+    "If this wasn't you, contact Storevia support straight away so we can secure your account. Mention that this notice was sent to this address.",
+  ];
+  return {
+    to,
+    template: "email-changed",
+    subject: "Your Storevia email address was changed",
+    text: `${lines.join("\n\n")}${helpUrl ? `\n\nGet help: ${helpUrl}` : ""}`,
+    html: layout(
+      "Email address changed",
+      lines,
+      helpUrl ? { label: "Get help", url: helpUrl } : undefined,
+    ),
+  };
+}
+
 export function invitationMessage(
   to: string,
   inviterName: string,

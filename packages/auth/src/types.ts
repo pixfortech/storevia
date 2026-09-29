@@ -26,7 +26,11 @@ export type AuthErrorCode =
   | "INVALID_TOKEN"
   | "INVALID_INPUT"
   /** The account can't be deleted yet (it owns an organisation, or is staff). */
-  | "ACCOUNT_IN_USE";
+  | "ACCOUNT_IN_USE"
+  /** A sensitive change needs a recent password confirmation (step-up). */
+  | "REAUTHENTICATION_REQUIRED"
+  /** The action isn't available for this account (e.g. platform staff email). */
+  | "NOT_ALLOWED";
 
 export type AuthResult<T = undefined> =
   | { readonly ok: true; readonly value: T }
