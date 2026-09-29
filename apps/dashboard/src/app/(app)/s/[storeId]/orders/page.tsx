@@ -9,7 +9,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AccessNotice } from "@/components/areas/access-notice";
 import { LinkTabs } from "@/components/catalogue/link-tabs";
-import { OrderBadges, StatusBadge } from "@/components/orders/badges";
+import { OrderBadges, StatusBadge, TestBadge } from "@/components/orders/badges";
 import { ListSearch } from "@/components/orders/list-search";
 import { PageHeader } from "@/components/shell/app-shell";
 import { formatMoney } from "@/lib/catalogue";
@@ -78,6 +78,7 @@ export default async function OrdersPage({
     all: page.counts.all,
     unfulfilled: page.counts.unfulfilled,
     cancelled: page.counts.cancelled,
+    test: page.counts.test,
     archived: page.counts.archived,
   };
   const filtered = Boolean(q) || tab !== "all";
@@ -90,7 +91,7 @@ export default async function OrdersPage({
         title="Orders"
         description="Orders placed on your storefront, newest first, with their payment and fulfilment status. Archived orders stay searchable under Archived orders."
       />
-      {page.counts.all > 0 ? (
+      {page.counts.all > 0 || metrics.testOrders > 0 ? (
         <Card className="mb-6 px-5 py-4 sm:px-6">
           <dl className="grid grid-cols-2 gap-x-6 gap-y-4 lg:grid-cols-4">
             <Stat label="Orders today" value={metrics.ordersToday.toLocaleString("en-IN")} />
@@ -98,7 +99,9 @@ export default async function OrdersPage({
             <Stat
               label="Revenue, 30 days"
               value={formatMoney(metrics.revenue30d)}
-              hint="Net of refunds"
+              hint={
+                metrics.testOrders > 0 ? "Net of refunds; test orders excluded" : "Net of refunds"
+              }
             />
             <Stat
               label="To fulfil"
@@ -122,6 +125,19 @@ export default async function OrdersPage({
           current: t.value === tab,
         }))}
       />
+      {tab !== "test" && tab !== "archived" && page.counts.test > 0 ? (
+        <p className="mb-4 text-body-sm text-ink-muted" data-testid="test-orders-hidden">
+          {page.counts.test.toLocaleString("en-IN")}{" "}
+          {page.counts.test === 1 ? "test order is" : "test orders are"} not shown here or counted
+          in sales.{" "}
+          <Link
+            href={href({ status: "test" })}
+            className="font-medium text-brand-700 hover:underline"
+          >
+            View test orders
+          </Link>
+        </p>
+      ) : null}
       <Card className="overflow-hidden">
         <ListSearch
           label="Search orders"
@@ -141,7 +157,9 @@ export default async function OrdersPage({
               filtered
                 ? q
                   ? "Try another order number, email or name."
-                  : "No orders have this status."
+                  : tab === "test"
+                    ? "Orders paid through a test connection appear here, apart from your sales."
+                    : "No orders have this status."
                 : "Orders placed on your storefront appear here."
             }
           />
@@ -188,6 +206,11 @@ export default async function OrdersPage({
                         >
                           {orderNumber(o.number)}
                         </Link>
+                        {o.testMode ? (
+                          <span className="mt-1 block">
+                            <TestBadge />
+                          </span>
+                        ) : null}
                         {o.stockShortage ? (
                           <span className="mt-1 block">
                             <StatusBadge status={STOCK_SHORTAGE_LABEL} />
@@ -268,6 +291,7 @@ export default async function OrdersPage({
                         stockShortage={o.stockShortage}
                         state={o.state}
                         archived={o.archived}
+                        testMode={o.testMode}
                       />
                     </span>
                   </Link>

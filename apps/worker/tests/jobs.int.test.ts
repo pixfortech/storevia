@@ -101,6 +101,7 @@ describe("scheduled through the worker", () => {
       ["media.sweep", 600],
       ["ops.metrics", 60],
       ["orders.message-notifications", 15],
+      ["orders.new-order-notifications", 15],
       ["orders.notifications", 30],
       ["organisations.delete", 3600],
       ["retention.sweep", 3600],

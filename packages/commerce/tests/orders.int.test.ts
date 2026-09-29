@@ -47,8 +47,16 @@ import {
 } from "../src/checkout";
 import { addToCart } from "../src/storefront";
 import { sendOrderNotifications } from "../src/orders/notifications";
-import type { EmailMessage, EmailSender } from "@storevia/email";
-import { expectCode, makeTenant, memberContext, steppedUp, storeOf, type Tenant } from "./fixtures";
+import { platformReplyTo, type EmailMessage, type EmailSender } from "@storevia/email";
+import {
+  expectCode,
+  makeOrderLive,
+  makeTenant,
+  memberContext,
+  steppedUp,
+  storeOf,
+  type Tenant,
+} from "./fixtures";
 
 let a: Tenant;
 let b: Tenant;
@@ -120,6 +128,8 @@ async function placeOrder(
     where: { storeId: storeA.storeId },
     orderBy: { orderNumber: "desc" },
   });
+  // A live order: these tests read the default lists and the sales figures.
+  await makeOrderLive(order.id);
   return toTypeId("order", order.id);
 }
 
@@ -562,7 +572,38 @@ describe("order emails", () => {
     }
     const confirmation = sent.find((m) => m.template === "order-confirmation");
     expect(confirmation?.subject).toMatch(/^Order #\d+ confirmed – Store /);
+    // Replies go to the store (final pass, CO-3): no support or contact email
+    // is set here, so every message carries Storevia's fallback address.
+    expect(sent.every((m) => m.replyTo === platformReplyTo())).toBe(true);
     expect((await sendOrderNotifications(ok, 100)).sent).toBe(0);
+
+    // With a support email set, replies reach the store.
+    await migratorDb().store.update({
+      where: { id: storeA.storeId },
+      data: { supportEmail: "help@store-a.example", contactEmail: "hello@store-a.example" },
+    });
+    sent.length = 0;
+    await placeOrder([["cap", 1]], { email: "reply@example.test" });
+    for (let i = 0; i < 20; i++) {
+      if ((await sendOrderNotifications(ok, 100)).sent === 0) break;
+    }
+    expect(sent.map((m) => m.replyTo)).toEqual(["help@store-a.example"]);
+    // A value that could inject a header (never accepted by the settings
+    // form) is dropped for the fallback, not sent.
+    await migratorDb().store.update({
+      where: { id: storeA.storeId },
+      data: { supportEmail: "x@store-a.example\r\nBcc: y@example.test", contactEmail: null },
+    });
+    sent.length = 0;
+    await placeOrder([["cap", 1]], { email: "reply2@example.test" });
+    for (let i = 0; i < 20; i++) {
+      if ((await sendOrderNotifications(ok, 100)).sent === 0) break;
+    }
+    expect(sent.map((m) => m.replyTo)).toEqual([platformReplyTo()]);
+    await migratorDb().store.update({
+      where: { id: storeA.storeId },
+      data: { supportEmail: null, contactEmail: null },
+    });
 
     const id = await placeOrder([["cap", 1]], { email: "retry@example.test" });
     const failing: EmailSender = { send: () => Promise.reject(new Error("smtp down")) };

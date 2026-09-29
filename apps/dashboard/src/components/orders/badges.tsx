@@ -7,6 +7,7 @@ import {
   orderStateLabel,
   paymentStatusLabel,
   STOCK_SHORTAGE_LABEL,
+  TEST_ORDER_LABEL,
   type StatusLabel,
 } from "@/lib/orders";
 
@@ -30,8 +31,18 @@ export function StatusBadge({
   );
 }
 
+/** The TEST badge for an order or payment made through a test connection. */
+export function TestBadge({ size = "sm" }: { size?: BadgeSize }) {
+  return (
+    <Badge size={size} tone={TEST_ORDER_LABEL.tone} variant="outline" data-testid="test-badge">
+      {TEST_ORDER_LABEL.label}
+      <span className="sr-only"> (no real payment)</span>
+    </Badge>
+  );
+}
+
 /**
- * An order's badges: payment and fulfilment, plus Cancelled, Completed,
+ * An order's badges: payment and fulfilment, plus Test, Cancelled, Completed,
  * Archived and Stock shortage when they apply. Payment, fulfilment and
  * delivery are separate states and each gets its own badge.
  */
@@ -42,6 +53,7 @@ export function OrderBadges({
   stockShortage,
   state,
   archived = false,
+  testMode = false,
   size = "sm",
 }: {
   status: "OPEN" | "CANCELLED";
@@ -50,10 +62,12 @@ export function OrderBadges({
   stockShortage: boolean;
   state?: "OPEN" | "COMPLETED" | "CANCELLED";
   archived?: boolean;
+  testMode?: boolean;
   size?: BadgeSize;
 }) {
   return (
     <>
+      {testMode ? <TestBadge size={size} /> : null}
       {status === "CANCELLED" ? <StatusBadge status={CANCELLED_LABEL} size={size} /> : null}
       {state === "COMPLETED" ? (
         <StatusBadge status={orderStateLabel("COMPLETED")} size={size} prefix="Order:" />

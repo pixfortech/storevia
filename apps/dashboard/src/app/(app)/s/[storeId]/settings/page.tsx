@@ -1,3 +1,4 @@
+import { customerReplyTo } from "@storevia/email";
 import { getOnlineStore, getStore, hasPermission, storefrontRootDomain } from "@storevia/tenancy";
 import { buttonClasses } from "@storevia/ui/button";
 import { CardBody } from "@storevia/ui/surfaces";
@@ -97,6 +98,7 @@ export default async function StoreSettingsPage({
               contactEmail: store.contactEmail ?? "",
               supportEmail: store.supportEmail ?? "",
             }}
+            replyTo={customerReplyTo(store)}
             fixed={[
               { term: "Web address", detail: store.primaryHostname ?? "No address yet" },
               { term: "Currency", detail: labelFor(CURRENCY_OPTIONS, store.currency) },

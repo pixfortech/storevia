@@ -1,4 +1,5 @@
 import "server-only";
+import { Prisma } from "@storevia/database";
 import type { TenantContext } from "@storevia/tenancy";
 import { inStore, publicIdOrNull, type TenantTx } from "../internal";
 import type { MoneyJson } from "../money";
@@ -8,17 +9,28 @@ import type { MoneyJson } from "../money";
 // period before it for comparison. Every figure comes from the order
 // snapshots in a fixed number of queries (no per-order or per-day reads).
 //
-// Definitions, shared by every figure here:
+// The one definition of a sale and of revenue (final pass, N), used by every
+// figure here, the orders page's numbers and the home widgets; documented in
+// docs/product/revenue-definition.md:
 // - A period is the last `days` calendar days in the store's timezone,
 //   today included (UTC when the store's zone isn't one Postgres knows).
 //   The period before it is the `days` days that precede it.
-// - Cancelled orders count for nothing.
-// - Revenue is the order total less what was refunded, summed over orders
-//   placed in the period, in the store's currency (orders in any other
-//   currency are counted but add no revenue).
+// - A sale is an order that is not cancelled and not a test order (paid
+//   through a test connection). Cancelled and test orders count for nothing.
+//   A failed or abandoned payment never becomes an order.
+// - Revenue is the order total (tax and shipping included) less what was
+//   refunded, summed over sales placed in the period, in the store's
+//   currency (orders in any other currency are counted but add no revenue).
+//   A refund lowers the revenue of the day its order was placed, so a fully
+//   refunded order adds nothing and a partly refunded one adds the rest.
 // - Units sold are the ordered quantity less refunded units.
-// - A new customer is a customer record created in the period, which
-//   checkout does when someone first orders.
+// - A new customer is a customer record created in the period (checkout
+//   creates one when someone first orders), unless every order of theirs
+//   is a test order.
+
+/** An order that counts as a sale (column names unqualified or on `o`). */
+export const SALE_ORDER = Prisma.sql`status <> 'CANCELLED' AND NOT "testMode"`;
+const SALE_ORDER_O = Prisma.sql`o.status <> 'CANCELLED' AND NOT o."testMode"`;
 
 /** The longest period a summary covers (and so twice this, with the period before). */
 export const SALES_MAX_DAYS = 366;
@@ -146,7 +158,7 @@ export async function storeSalesSummary(
         coalesce(sum("totalAmount" - "refundedAmount")
           FILTER (WHERE currency = ${clock.currency}), 0)::bigint AS revenue
       FROM "Order"
-      WHERE "storeId" = ${store.storeId}::uuid AND status <> 'CANCELLED'
+      WHERE "storeId" = ${store.storeId}::uuid AND ${SALE_ORDER}
         AND "placedAt" >= (${from}::date::timestamp AT TIME ZONE ${tz})
       GROUP BY 1`;
 
@@ -156,7 +168,7 @@ export async function storeSalesSummary(
         sum(l.quantity - l."refundedQuantity")::int AS units
       FROM "OrderLine" l
       JOIN "Order" o ON o.id = l."orderId"
-      WHERE o."storeId" = ${store.storeId}::uuid AND o.status <> 'CANCELLED'
+      WHERE o."storeId" = ${store.storeId}::uuid AND ${SALE_ORDER_O}
         AND o."placedAt" >= (${currentFrom}::date::timestamp AT TIME ZONE ${tz})
       GROUP BY l."productId", CASE WHEN l."productId" IS NULL THEN l."productTitle" END
       HAVING sum(l.quantity - l."refundedQuantity") > 0
@@ -212,9 +224,11 @@ export async function storeCustomerSummary(
     const rows = await tx.$queryRaw<{ day: string; count: number }[]>`
       SELECT to_char(("createdAt" AT TIME ZONE ${tz})::date, 'YYYY-MM-DD') AS day,
         count(*)::int AS count
-      FROM "Customer"
+      FROM "Customer" c
       WHERE "storeId" = ${store.storeId}::uuid AND "deletedAt" IS NULL
         AND "createdAt" >= (${from}::date::timestamp AT TIME ZONE ${tz})
+        AND (NOT EXISTS (SELECT 1 FROM "Order" o WHERE o."customerId" = c.id AND o."testMode")
+          OR EXISTS (SELECT 1 FROM "Order" o WHERE o."customerId" = c.id AND NOT o."testMode"))
       GROUP BY 1`;
     const found = new Map(rows.map((row) => [row.day, row.count]));
     const period = (list: readonly string[]): CustomerPeriod => {
@@ -226,6 +240,61 @@ export async function storeCustomerSummary(
       timezone: tz,
       current: period(dates.current),
       previous: period(dates.previous),
+    };
+  });
+}
+
+export interface OrderMetrics {
+  /** Sales placed today in the store's timezone. */
+  readonly ordersToday: number;
+  /** Sales over the last 30 days (the same period as the home's 30-day figures). */
+  readonly orders30d: number;
+  /** Revenue over the last 30 days, by the definition above. */
+  readonly revenue30d: MoneyJson | null;
+  /** Open, not complete, not fully shipped, not a test order. */
+  readonly unfulfilled: number;
+  readonly awaitingRefund: number;
+  /** Test orders not archived (the orders page links to them). */
+  readonly testOrders: number;
+}
+
+/** The orders page's numbers, by the same definitions as the summaries. Needs `order.read`. */
+export async function orderMetrics(ctx: TenantContext): Promise<OrderMetrics> {
+  return inStore(ctx, "order.read", async (tx, store) => {
+    const clock = await storeClock(tx, store.storeId);
+    const tz = clock.timezone;
+    const from = shiftDate(clock.today, -29);
+    const rows = await tx.$queryRaw<
+      {
+        today: number;
+        month: number;
+        revenue: bigint;
+        unfulfilled: number;
+        pending_refunds: number;
+        test: number;
+      }[]
+    >`
+      SELECT
+        count(*) FILTER (WHERE ${SALE_ORDER}
+          AND "placedAt" >= (${clock.today}::date::timestamp AT TIME ZONE ${tz}))::int AS today,
+        count(*) FILTER (WHERE ${SALE_ORDER}
+          AND "placedAt" >= (${from}::date::timestamp AT TIME ZONE ${tz}))::int AS month,
+        coalesce(sum("totalAmount" - "refundedAmount") FILTER (WHERE ${SALE_ORDER}
+          AND currency = ${clock.currency}
+          AND "placedAt" >= (${from}::date::timestamp AT TIME ZONE ${tz})), 0)::bigint AS revenue,
+        count(*) FILTER (WHERE status = 'OPEN' AND NOT "testMode" AND "completedAt" IS NULL
+          AND "archivedAt" IS NULL AND "fulfilmentStatus" <> 'FULFILLED')::int AS unfulfilled,
+        (SELECT count(*)::int FROM "Refund" WHERE status = 'PENDING') AS pending_refunds,
+        count(*) FILTER (WHERE "testMode" AND "archivedAt" IS NULL)::int AS test
+      FROM "Order" WHERE "storeId" = ${store.storeId}::uuid`;
+    const r = rows[0];
+    return {
+      ordersToday: r?.today ?? 0,
+      orders30d: r?.month ?? 0,
+      revenue30d: money(r?.revenue ?? 0n, clock.currency),
+      unfulfilled: r?.unfulfilled ?? 0,
+      awaitingRefund: r?.pending_refunds ?? 0,
+      testOrders: r?.test ?? 0,
     };
   });
 }

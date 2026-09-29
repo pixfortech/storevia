@@ -323,17 +323,25 @@ async function completeCheckout(
   const customerId = customerRows[0]?.id;
   if (!customerId) throw new Error("customer upsert returned no row");
 
+  // A test connection (the Test Provider, or Razorpay with test keys) makes a
+  // test order: recorded from the connection's mode when the order is placed,
+  // so switching keys later never relabels it (final pass, CO-1).
+  const modeRows = await tx.$queryRaw<{ mode: string }[]>`
+    SELECT mode::text AS mode FROM "PaymentProviderConnection" WHERE id = ${payment.connectionId}::uuid`;
+  const testMode = modeRows[0]?.mode === "TEST";
+
   const orderId = uuidv7();
   await tx.$executeRaw`
     INSERT INTO "Order" (id, "organisationId", "storeId", "orderNumber", "checkoutId", "customerId",
       email, phone, currency, "pricesIncludeTax", "subtotalAmount", "discountAmount",
       "shippingAmount", "taxAmount", "totalAmount", status, "paymentStatus", "fulfilmentStatus",
-      "stockShortage", tags, "placedAt", "updatedAt")
+      "stockShortage", "testMode", tags, "placedAt", "updatedAt")
     VALUES (${orderId}::uuid, ${scope.organisationId}::uuid, ${scope.storeId}::uuid, ${orderNumber},
       ${checkout.id}::uuid, ${customerId}::uuid, ${checkout.email}, ${address?.phone ?? null},
       ${quote.currency}, ${quote.pricesIncludeTax}, ${BigInt(quote.subtotal)},
       ${BigInt(quote.discountTotal)}, ${BigInt(quote.shippingTotal)}, ${BigInt(quote.taxTotal)},
-      ${BigInt(quote.total)}, 'OPEN', 'PAID', 'UNFULFILLED', ${shortage}, '{}', now(), now())`;
+      ${BigInt(quote.total)}, 'OPEN', 'PAID', 'UNFULFILLED', ${shortage}, ${testMode}, '{}', now(),
+      now())`;
 
   const lineByVariant = new Map<string, string>();
   for (const line of quote.lines) {

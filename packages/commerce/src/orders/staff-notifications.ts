@@ -16,7 +16,7 @@ export interface StaffNotificationView {
   readonly createdAt: Date;
   readonly read: boolean;
   readonly storeName: string;
-  /** Dashboard path to the order's messages. */
+  /** Dashboard path to the order (its messages, for a customer message). */
   readonly href: string;
 }
 
@@ -46,11 +46,12 @@ export async function staffNotifications(
         store_id: string;
         store_name: string;
         order_id: string;
+        kind: string;
         unread: bigint;
       }[]
     >`
       WITH visible AS (
-        SELECT n.id, n.title, n."createdAt", n."readAt", n."storeId", n."orderId", s.name
+        SELECT n.id, n.title, n."createdAt", n."readAt", n."storeId", n."orderId", n.kind, s.name
         FROM "StaffNotification" n JOIN "Store" s ON s.id = n."storeId"
         WHERE n."userId" = ${ctx.userId}::uuid
           AND n."organisationId" = ${ctx.organisationId}::uuid
@@ -60,6 +61,7 @@ export async function staffNotifications(
       )
       SELECT v.id, v.title, v."createdAt" AS created_at, v."readAt" AS read_at,
         v."storeId" AS store_id, v.name AS store_name, v."orderId" AS order_id,
+        v.kind::text AS kind,
         (SELECT count(*) FROM visible WHERE "readAt" IS NULL) AS unread
       FROM visible v
       ORDER BY v."createdAt" DESC, v.id DESC
@@ -73,7 +75,9 @@ export async function staffNotifications(
         createdAt: r.created_at,
         read: r.read_at !== null,
         storeName: r.store_name,
-        href: `/s/${publicId("store", r.store_id)}/orders/${publicId("order", r.order_id)}#messages`,
+        href: `/s/${publicId("store", r.store_id)}/orders/${publicId("order", r.order_id)}${
+          r.kind === "ORDER_MESSAGE" ? "#messages" : ""
+        }`,
       })),
     };
   });

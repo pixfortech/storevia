@@ -4,6 +4,7 @@ import { recordAudit, requireRecentAuthentication, type TenantContext } from "@s
 import { notFound, validationFailed } from "@storevia/types";
 import { inStore, internalId, publicId } from "./internal";
 import type { MoneyJson } from "./money";
+import { SALE_ORDER } from "./orders/metrics";
 
 // Customers (ADR-0031 §6): one per store and email, created by checkout.
 // Merchants read them with `customer.read` and keep a note and tags with
@@ -14,8 +15,9 @@ export interface CustomerListItem {
   readonly id: string;
   readonly name: string | null;
   readonly email: string | null;
+  /** Orders that aren't test orders. */
   readonly orderCount: number;
-  /** Order totals minus refunds, cancelled orders excluded. */
+  /** Revenue from this customer: order totals minus refunds, cancelled and test orders excluded. */
   readonly totalSpent: MoneyJson | null;
   readonly lastOrderAt: Date | null;
   readonly createdAt: Date;
@@ -66,8 +68,8 @@ export async function listCustomers(
         c."createdAt" AS created_at
       FROM "Customer" c
       LEFT JOIN LATERAL (
-        SELECT count(*) AS orders,
-          sum("totalAmount" - "refundedAmount") FILTER (WHERE status = 'OPEN') AS spent,
+        SELECT count(*) FILTER (WHERE NOT "testMode") AS orders,
+          sum("totalAmount" - "refundedAmount") FILTER (WHERE ${SALE_ORDER}) AS spent,
           max(currency) AS currency, max("placedAt") AS last_order
         FROM "Order" WHERE "customerId" = c.id
       ) o ON true
@@ -113,6 +115,7 @@ export interface CustomerDetail {
     readonly status: string;
     readonly paymentStatus: string;
     readonly fulfilmentStatus: string;
+    readonly testMode: boolean;
   }[];
 }
 
@@ -137,6 +140,7 @@ export async function getCustomer(
         status: true,
         paymentStatus: true,
         fulfilmentStatus: true,
+        testMode: true,
       },
     });
     return {
@@ -155,6 +159,7 @@ export async function getCustomer(
         status: o.status,
         paymentStatus: o.paymentStatus,
         fulfilmentStatus: o.fulfilmentStatus,
+        testMode: o.testMode,
       })),
     };
   });

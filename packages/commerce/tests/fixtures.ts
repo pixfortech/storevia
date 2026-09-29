@@ -143,3 +143,19 @@ export async function steppedUp(ctx: StoreContext): Promise<StoreContext> {
     toTypeId("store", ctx.storeId),
   );
 }
+
+/**
+ * Makes an order placed through the Test Provider a live one, as a live
+ * payment connection (Razorpay with live keys) would have recorded it. The
+ * Test Provider's orders are test orders (a CHECK keeps its connection in
+ * TEST mode), which lists and sales figures leave out; tests of those
+ * figures need live ones. testMode is immutable for every role, so the
+ * table owner lifts that trigger for this one transaction.
+ */
+export async function makeOrderLive(orderId: string): Promise<void> {
+  await migratorDb().$transaction(async (tx) => {
+    await tx.$executeRaw`ALTER TABLE "Order" DISABLE TRIGGER "Order_snapshot_immutable"`;
+    await tx.order.update({ where: { id: orderId }, data: { testMode: false } });
+    await tx.$executeRaw`ALTER TABLE "Order" ENABLE TRIGGER "Order_snapshot_immutable"`;
+  });
+}

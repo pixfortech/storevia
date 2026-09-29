@@ -110,6 +110,7 @@ export default async function CustomerPage({
                         paymentStatus={o.paymentStatus}
                         fulfilmentStatus={o.fulfilmentStatus}
                         stockShortage={false}
+                        testMode={o.testMode}
                       />
                     </span>
                   </>

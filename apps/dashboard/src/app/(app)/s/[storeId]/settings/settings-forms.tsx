@@ -29,9 +29,12 @@ export function StoreSettingsForm({
   canEdit,
   values,
   fixed,
+  replyTo,
 }: {
   storeId: string;
   canEdit: boolean;
+  /** Where shoppers' replies to order emails go today (from the saved settings). */
+  replyTo: { address: string; source: "support" | "contact" | "platform" };
   values: {
     name: string;
     locale: string;
@@ -87,6 +90,15 @@ export function StoreSettingsForm({
                 state={state}
               />
             </div>
+            <p className="text-body-sm text-ink-muted" data-testid="reply-to-note">
+              Shoppers&apos; replies to order emails go to{" "}
+              <span className="font-medium text-ink">{replyTo.address}</span>
+              {replyTo.source === "support"
+                ? " (your support email)."
+                : replyTo.source === "contact"
+                  ? " (your contact email; a support email takes its place when set)."
+                  : ", Storevia's address, because this store has no support or contact email. Add one so replies reach you."}
+            </p>
           </FieldGroup>
           <FieldGroup title="Region" className="border-t border-line pt-8">
             <div className="grid gap-5 sm:grid-cols-2">

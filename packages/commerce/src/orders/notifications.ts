@@ -2,6 +2,7 @@ import "server-only";
 import { workerDb } from "@storevia/database/worker";
 import { storefrontOrigin } from "@storevia/domains";
 import {
+  customerReplyTo,
   orderCancelledMessage,
   orderConfirmationMessage,
   orderFulfilledMessage,
@@ -40,9 +41,12 @@ interface Claimed {
   attempts: number;
 }
 
-async function orderEmail(
-  orderId: string,
-): Promise<{ order: OrderEmail; fmt: (a: bigint) => string; refunded: bigint } | null> {
+async function orderEmail(orderId: string): Promise<{
+  order: OrderEmail;
+  fmt: (a: bigint) => string;
+  refunded: bigint;
+  replyTo: string;
+} | null> {
   const db = workerDb();
   const rows = await db.$queryRaw<
     {
@@ -57,12 +61,15 @@ async function orderEmail(
       refunded: bigint;
       store_name: string;
       locale: string;
+      support_email: string | null;
+      contact_email: string | null;
     }[]
   >`
     SELECT o."orderNumber" AS number, trim(o.currency) AS currency, o."pricesIncludeTax" AS include_tax,
       o."subtotalAmount" AS subtotal, o."discountAmount" AS discount, o."shippingAmount" AS shipping,
       o."taxAmount" AS tax, o."totalAmount" AS total, o."refundedAmount" AS refunded,
-      s.name AS store_name, s.locale
+      s.name AS store_name, s.locale, s."supportEmail" AS support_email,
+      s."contactEmail" AS contact_email
     FROM "Order" o JOIN "Store" s ON s.id = o."storeId"
     WHERE o.id = ${orderId}::uuid`;
   const o = rows[0];
@@ -109,6 +116,9 @@ async function orderEmail(
   return {
     fmt,
     refunded: o.refunded,
+    // Shoppers' replies reach the store (final pass, CO-3).
+    replyTo: customerReplyTo({ supportEmail: o.support_email, contactEmail: o.contact_email })
+      .address,
     order: {
       storeName: o.store_name,
       orderNumber: o.number,
@@ -135,6 +145,14 @@ async function orderEmail(
 async function buildMessage(n: Claimed): Promise<EmailMessage | null> {
   const loaded = await orderEmail(n.orderId);
   if (!loaded) return null;
+  const message = await buildContent(n, loaded);
+  return message ? { ...message, replyTo: loaded.replyTo } : null;
+}
+
+async function buildContent(
+  n: Claimed,
+  loaded: NonNullable<Awaited<ReturnType<typeof orderEmail>>>,
+): Promise<EmailMessage | null> {
   const { order, fmt } = loaded;
   const db = workerDb();
   switch (n.kind) {

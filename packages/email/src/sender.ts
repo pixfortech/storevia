@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import nodemailer, { type Transporter } from "nodemailer";
+import { safeEmailAddress } from "./reply-to";
 
 export interface EmailMessage {
   readonly to: string;
@@ -9,6 +10,8 @@ export interface EmailMessage {
   readonly html: string;
   /** Machine-readable template name, used by tests and logs (never the content). */
   readonly template: string;
+  /** Where replies go (one plain address; anything else is dropped, never sent as a header). */
+  readonly replyTo?: string | null;
 }
 
 export interface EmailSender {
@@ -25,9 +28,11 @@ export class SmtpEmailSender implements EmailSender {
     this.transport = nodemailer.createTransport(url);
   }
   async send(message: EmailMessage): Promise<void> {
+    const replyTo = safeEmailAddress(message.replyTo);
     await this.transport.sendMail({
       from: this.from,
       to: message.to,
+      ...(replyTo ? { replyTo } : {}),
       subject: message.subject,
       text: message.text,
       html: message.html,
@@ -49,9 +54,10 @@ export class FileEmailSender implements EmailSender {
       this.directory,
       `${String(Date.now())}-${safeRecipient}-${message.template}.json`,
     );
+    const replyTo = safeEmailAddress(message.replyTo);
     await writeFile(
       file,
-      JSON.stringify({ ...message, sentAt: new Date().toISOString() }, null, 2),
+      JSON.stringify({ ...message, replyTo, sentAt: new Date().toISOString() }, null, 2),
     );
   }
 }

@@ -11,7 +11,11 @@ import {
   createProduct,
   createShippingRate,
   createShippingZone,
+  getCustomer,
   getProduct,
+  listCustomers,
+  listOrders,
+  orderMetrics,
   refundOrder,
   storeCustomerSummary,
   storeSalesSummary,
@@ -27,7 +31,15 @@ import {
   type CheckoutStore,
 } from "../src/checkout";
 import { addToCart } from "../src/storefront";
-import { expectCode, makeTenant, memberContext, steppedUp, storeOf, type Tenant } from "./fixtures";
+import {
+  expectCode,
+  makeOrderLive,
+  makeTenant,
+  memberContext,
+  steppedUp,
+  storeOf,
+  type Tenant,
+} from "./fixtures";
 
 let a: Tenant;
 let b: Tenant;
@@ -63,11 +75,16 @@ async function setUpStore(tenant: Tenant, key: "a" | "b") {
   await connectTestPayments(s);
 }
 
-/** Places a paid order through the real checkout; returns its public id. */
+/**
+ * Places a paid order through the real checkout; returns its public id.
+ * The Test Provider's orders are test orders; unless `test` is set, the
+ * order is made a live one so the sales figures have something to count.
+ */
 async function placeOrder(
   key: "a" | "b",
   lines: readonly [string, number][],
   email: string,
+  options: { readonly test?: boolean } = {},
 ): Promise<string> {
   ip += 1;
   const store = shop[key];
@@ -106,6 +123,8 @@ async function placeOrder(
     where: { storeId: store.storeId },
     orderBy: { orderNumber: "desc" },
   });
+  expect(order.testMode).toBe(true);
+  if (!options.test) await makeOrderLive(order.id);
   return toTypeId("order", order.id);
 }
 
@@ -271,6 +290,84 @@ describe("sales figures", () => {
     await expectCode(storeSalesSummary(marketing, { days: 7 }), "FORBIDDEN");
     expect((await storeCustomerSummary(marketing, { days: 7 })).current.newCustomers).toBe(4);
     expect((await storeSalesSummary(support, { days: 7 })).current.orders).toBe(3);
+  });
+});
+
+describe("test orders (final pass, CO-1) and the one revenue definition (N)", () => {
+  // Added to store A on top of the orders above, all today:
+  //  t1 tee ×3 by a new shopper, paid through the Test Provider → 1540.00
+  //  t2 cap ×2 by "one@example.test" (a live customer), test    →  640.00
+  // None of it may reach revenue, order counts, best sellers, new customers
+  // or a customer's total.
+  let t1 = "";
+  let before: Awaited<ReturnType<typeof storeSalesSummary>>;
+  let customersBefore: number;
+  beforeAll(async () => {
+    before = await storeSalesSummary(storeOf(a), { days: 7 });
+    customersBefore = (await storeCustomerSummary(storeOf(a), { days: 7 })).current.newCustomers;
+    t1 = await placeOrder("a", [["tee", 3]], "tester@example.test", { test: true });
+    await placeOrder("a", [["cap", 2]], "one@example.test", { test: true });
+  });
+
+  it("the order records that it was paid through a test connection, and it can't be changed", async () => {
+    const id = parseTypeId("order", t1) ?? "";
+    expect((await migratorDb().order.findUniqueOrThrow({ where: { id } })).testMode).toBe(true);
+    await expect(
+      migratorDb().order.update({ where: { id }, data: { testMode: false } }),
+    ).rejects.toThrow();
+  });
+
+  it("sales figures leave test orders out entirely", async () => {
+    const after = await storeSalesSummary(storeOf(a), { days: 7 });
+    expect(after.current.revenue).toEqual(before.current.revenue);
+    expect(after.current.orders).toBe(before.current.orders);
+    expect(after.current.daily).toEqual(before.current.daily);
+    expect(after.topProducts).toEqual(before.topProducts);
+    // The shopper whose only order is a test order is not a new customer.
+    const customers = await storeCustomerSummary(storeOf(a), { days: 7 });
+    expect(customers.current.newCustomers).toBe(customersBefore);
+  });
+
+  it("the orders page's numbers use the same definition as the home's", async () => {
+    const metrics = await orderMetrics(storeOf(a));
+    const month = await storeSalesSummary(storeOf(a), { days: 30 });
+    const week = await storeSalesSummary(storeOf(a), { days: 7 });
+    expect(metrics.revenue30d).toEqual(month.current.revenue);
+    expect(metrics.orders30d).toBe(month.current.orders);
+    expect(metrics.ordersToday).toBe(week.current.daily.at(-1)?.orders);
+    // o1, o2 (a partial refund), o4 and o5 are live and unfulfilled; the
+    // test orders need no shipping.
+    expect(metrics.unfulfilled).toBe(4);
+    expect(metrics.testOrders).toBe(2);
+  });
+
+  it("lists hide test orders except under their own filter", async () => {
+    const s = storeOf(a);
+    const all = await listOrders(s);
+    expect(all.items.some((o) => o.testMode)).toBe(false);
+    expect(all.items.some((o) => o.id === t1)).toBe(false);
+    expect(all.counts.test).toBe(2);
+    for (const status of ["open", "unfulfilled", "unpaid", "cancelled", "completed"]) {
+      const list = await listOrders(s, { status });
+      expect(list.items.some((o) => o.testMode)).toBe(false);
+    }
+    const test = await listOrders(s, { status: "test" });
+    expect(test.items).toHaveLength(2);
+    expect(test.items.every((o) => o.testMode)).toBe(true);
+    // A search still finds one, marked.
+    const number = test.items.find((o) => o.id === t1)?.number ?? 0;
+    const found = await listOrders(s, { q: `#${String(number)}` });
+    expect(found.items).toEqual([expect.objectContaining({ id: t1, testMode: true })]);
+  });
+
+  it("a customer's total leaves their test orders out", async () => {
+    const s = storeOf(a);
+    const list = await listCustomers(s, { q: "one@example.test" });
+    const one = list.items.find((c) => c.email === "one@example.test");
+    expect(one?.totalSpent).toEqual({ amount: "104000", currency: "INR" });
+    expect(one?.orderCount).toBe(1);
+    const detail = await getCustomer(s, one?.id);
+    expect(detail.orders.map((o) => o.testMode).sort()).toEqual([false, true]);
   });
 });
 

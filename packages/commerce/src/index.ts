@@ -78,14 +78,8 @@ export { getCatalogue } from "./catalogue";
 export type { CatalogueProduct, CatalogueVariant } from "./catalogue";
 
 // Orders, customers and store settings (ADR-0031).
-export { getOrder, listOrders, loadOrderDetail, orderMetrics } from "./orders/read";
-export type {
-  OrderDetail,
-  OrderListItem,
-  OrderListResult,
-  OrderMetrics,
-  OrderStatusFilter,
-} from "./orders/read";
+export { getOrder, listOrders, loadOrderDetail } from "./orders/read";
+export type { OrderDetail, OrderListItem, OrderListResult, OrderStatusFilter } from "./orders/read";
 export {
   cancelOrder,
   fulfilOrder,
@@ -152,10 +146,16 @@ export {
   testPaymentsSetupProblem,
 } from "./settings/payments";
 export type { PaymentConnectionView, PaymentSettings } from "./settings/payments";
-export { storeCustomerSummary, storeSalesSummary, SALES_MAX_DAYS } from "./orders/metrics";
+export {
+  orderMetrics,
+  storeCustomerSummary,
+  storeSalesSummary,
+  SALES_MAX_DAYS,
+} from "./orders/metrics";
 export type {
   CustomerDay,
   CustomerPeriod,
+  OrderMetrics,
   SalesDay,
   SalesPeriod,
   StoreCustomerSummary,

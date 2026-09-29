@@ -228,3 +228,85 @@ export async function notifyStaffOfCustomerMessages(
   }
   return { messages, notifications };
 }
+
+/** The roles told about new orders: those that read orders. */
+export function rolesNotifiedOfOrders(roles: readonly MemberRole[]): MemberRole[] {
+  return roles.filter((role) => permissionsFor(role).has("order.read"));
+}
+
+/**
+ * Notifies, for each order not yet announced (every order is paid or
+ * confirmed when it's created), every active member of the store's
+ * organisation whose role grants `order.read` and who can access that store
+ * (final pass, ORD-1). Claimed and marked like customer messages, so two
+ * workers never announce an order twice; the partial unique index on
+ * (userId, orderId) for NEW_ORDER makes a repeat a no-op anyway. Test orders
+ * say so in the title.
+ */
+export async function notifyStaffOfNewOrders(
+  roles: readonly MemberRole[],
+  limit = 50,
+): Promise<{ readonly orders: number; readonly notifications: number }> {
+  const eligible = rolesNotifiedOfOrders(roles);
+  let orders = 0;
+  let notifications = 0;
+  const skipped: string[] = [];
+  for (let i = 0; i < limit; i++) {
+    const claim: { id: string | null } = { id: null };
+    let done: number | null;
+    try {
+      done = await workerDb().$transaction(async (tx) => {
+        const rows = await tx.$queryRaw<
+          {
+            id: string;
+            organisation_id: string;
+            store_id: string;
+            number: number;
+            test: boolean;
+          }[]
+        >`
+        SELECT o.id, o."organisationId" AS organisation_id, o."storeId" AS store_id,
+          o."orderNumber" AS number, o."testMode" AS test
+        FROM "Order" o
+        WHERE o."staffNotifiedAt" IS NULL AND o.id <> ALL(${skipped}::uuid[])
+        ORDER BY o."placedAt"
+        LIMIT 1
+        FOR UPDATE SKIP LOCKED`;
+        const o = rows[0];
+        if (!o) return null;
+        claim.id = o.id;
+        const title = `${o.test ? "New test order" : "New order"} #${String(o.number)}`;
+        const created = await tx.$executeRaw`
+        INSERT INTO "StaffNotification" (id, "organisationId", "storeId", "userId", kind, "orderId",
+          title)
+        SELECT gen_random_uuid(), ms."organisationId", ${o.store_id}::uuid, ms."userId",
+          'NEW_ORDER', ${o.id}::uuid, ${title}
+        FROM "Membership" ms JOIN "User" u ON u.id = ms."userId"
+        WHERE ms."organisationId" = ${o.organisation_id}::uuid AND ms.status = 'ACTIVE'
+          AND u.status = 'ACTIVE'
+          AND ms.role::text = ANY(${eligible as string[]}::text[])
+          AND (ms."allStores" OR EXISTS (
+            SELECT 1 FROM "MembershipStoreAccess" a
+            WHERE a."membershipId" = ms.id AND a."storeId" = ${o.store_id}::uuid))
+        ON CONFLICT ("userId", "orderId") WHERE kind = 'NEW_ORDER' DO NOTHING`;
+        await tx.$executeRaw`
+        UPDATE "Order" SET "staffNotifiedAt" = now() WHERE id = ${o.id}::uuid`;
+        return created;
+      });
+    } catch (error) {
+      if (claim.id === null) throw error;
+      skipped.push(claim.id);
+      recordMetric("orders.new_order_notification_failed", 1);
+      log.error("new order could not be announced", { orderId: claim.id, error });
+      continue;
+    }
+    if (done === null) break;
+    orders += 1;
+    notifications += done;
+  }
+  if (orders > 0) {
+    recordMetric("orders.new_order_notifications", notifications);
+    log.info("new orders announced", { orders, notifications });
+  }
+  return { orders, notifications };
+}

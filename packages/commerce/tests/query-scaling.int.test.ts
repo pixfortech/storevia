@@ -13,7 +13,12 @@
 // collection 3, chrome 3, cart page 2 (the header count and the page share
 // one read per request, apps/storefront/src/lib/cart.ts); dashboard products list 5, product editor 14, orders list 2, order
 // detail 17, customers list 1. Raising one is a decision, not a fix-up.
-import { countQueries, disconnectTestClients, truncateAll } from "@storevia/database/testing";
+import {
+  countQueries,
+  disconnectTestClients,
+  migratorDb,
+  truncateAll,
+} from "@storevia/database/testing";
 import { upgradeDocument, validateDocument, type PageDocument } from "@storevia/editor/document";
 import { NAVIGATION_HANDLES, usableNavigationItems } from "@storevia/editor/navigation";
 import { saveMenu } from "@storevia/site-admin";
@@ -53,7 +58,7 @@ import {
   resolveDocumentData,
   type CartStore,
 } from "../src/storefront";
-import { makeTenant, storeOf } from "./fixtures";
+import { makeOrderLive, makeTenant, storeOf } from "./fixtures";
 
 // Resolving media signs local media URLs; CI provides no secret for them.
 process.env["MEDIA_UPLOAD_SECRET"] ??= "commerce-query-scaling-media-secret-00000000";
@@ -140,6 +145,12 @@ async function placeOrder(store: CheckoutStore, variantIds: readonly string[], n
   });
   if (started.kind !== "redirect") throw new Error("payment did not start");
   await simulateTestPayment(req, new URL(started.url).searchParams.get("ref") ?? "", "captured");
+  // A live order, so the default order list shows it.
+  const order = await migratorDb().order.findFirstOrThrow({
+    where: { storeId: store.storeId },
+    orderBy: { orderNumber: "desc" },
+  });
+  await makeOrderLive(order.id);
 }
 
 /** A store with `shape`'s data, created through the merchant, storefront and checkout services. */

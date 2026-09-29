@@ -6,7 +6,10 @@ import {
   sweepExpiredPayments,
 } from "@storevia/commerce/checkout";
 import { sendOrderNotifications } from "@storevia/commerce/notifications";
-import { notifyStaffOfCustomerMessages } from "@storevia/commerce/order-messages";
+import {
+  notifyStaffOfCustomerMessages,
+  notifyStaffOfNewOrders,
+} from "@storevia/commerce/order-messages";
 import { getEmailSender } from "@storevia/email";
 import { workerDb } from "@storevia/database/worker";
 import { reconcileUsage } from "@storevia/entitlements";
@@ -154,11 +157,27 @@ export const orderMessageNotificationsJob: JobDefinition = {
   },
 };
 
+/**
+ * Tells the staff who read orders (order.read, with access to the store)
+ * that a new order was placed: in-app notifications linking to the order,
+ * never on the checkout's path (final pass, ORD-1).
+ */
+export const newOrderNotificationsJob: JobDefinition = {
+  name: "orders.new-order-notifications",
+  schedule: { everySeconds: 15 },
+  maxAttempts: 3,
+  timeoutMs: 60_000,
+  async run() {
+    return { ...(await notifyStaffOfNewOrders(MEMBER_ROLES)) };
+  },
+};
+
 export const JOBS: readonly JobDefinition[] = [
   checkoutExpiryJob,
   checkoutPurgeJob,
   orderNotificationsJob,
   orderMessageNotificationsJob,
+  newOrderNotificationsJob,
   subscriptionExpiryJob,
   usageReconciliationJob,
   outboxDispatchJob,

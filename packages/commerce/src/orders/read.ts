@@ -20,7 +20,7 @@ import {
 // queries of its own. Amounts are the order's immutable snapshots.
 
 export type OrderStatusFilter =
-  "all" | "open" | "unfulfilled" | "unpaid" | "cancelled" | "completed" | "archived";
+  "all" | "open" | "unfulfilled" | "unpaid" | "cancelled" | "completed" | "archived" | "test";
 
 export interface OrderListItem {
   readonly id: string;
@@ -34,6 +34,8 @@ export interface OrderListItem {
   readonly fulfilmentStatus: string;
   readonly itemCount: number;
   readonly stockShortage: boolean;
+  /** Paid through a test connection: not a sale (final pass, CO-1). */
+  readonly testMode: boolean;
   readonly archived: boolean;
   readonly state: OrderState;
 }
@@ -46,6 +48,8 @@ export interface OrderListResult {
     readonly unfulfilled: number;
     readonly cancelled: number;
     readonly archived: number;
+    /** Test orders (not archived), which the other lists leave out. */
+    readonly test: number;
   };
 }
 
@@ -78,15 +82,17 @@ function searchCondition(q: string): Prisma.Sql | null {
       AND (a."firstName" || ' ' || a."lastName") ILIKE ${like}))`;
 }
 
-// Archived orders leave every list but their own (a search still finds them).
+// Archived orders leave every list but their own, and test orders every list
+// but theirs (a search still finds both). The archive keeps both kinds.
 const FILTERS: Readonly<Record<OrderStatusFilter, Prisma.Sql>> = {
-  all: Prisma.sql`o."archivedAt" IS NULL`,
-  open: Prisma.sql`o."archivedAt" IS NULL AND o.status = 'OPEN' AND o."completedAt" IS NULL`,
-  unfulfilled: Prisma.sql`o."archivedAt" IS NULL AND o.status = 'OPEN' AND o."fulfilmentStatus" <> 'FULFILLED'`,
-  unpaid: Prisma.sql`o."archivedAt" IS NULL AND o."paymentStatus" NOT IN ('PAID', 'PARTIALLY_REFUNDED', 'REFUNDED')`,
-  cancelled: Prisma.sql`o."archivedAt" IS NULL AND o.status = 'CANCELLED'`,
-  completed: Prisma.sql`o."archivedAt" IS NULL AND o."completedAt" IS NOT NULL`,
+  all: Prisma.sql`o."archivedAt" IS NULL AND NOT o."testMode"`,
+  open: Prisma.sql`o."archivedAt" IS NULL AND NOT o."testMode" AND o.status = 'OPEN' AND o."completedAt" IS NULL`,
+  unfulfilled: Prisma.sql`o."archivedAt" IS NULL AND NOT o."testMode" AND o.status = 'OPEN' AND o."fulfilmentStatus" <> 'FULFILLED'`,
+  unpaid: Prisma.sql`o."archivedAt" IS NULL AND NOT o."testMode" AND o."paymentStatus" NOT IN ('PAID', 'PARTIALLY_REFUNDED', 'REFUNDED')`,
+  cancelled: Prisma.sql`o."archivedAt" IS NULL AND NOT o."testMode" AND o.status = 'CANCELLED'`,
+  completed: Prisma.sql`o."archivedAt" IS NULL AND NOT o."testMode" AND o."completedAt" IS NOT NULL`,
   archived: Prisma.sql`o."archivedAt" IS NOT NULL`,
+  test: Prisma.sql`o."archivedAt" IS NULL AND o."testMode"`,
 };
 
 export async function listOrders(
@@ -124,6 +130,7 @@ export async function listOrders(
         fulfilment_status: string;
         items: number;
         shortage: boolean;
+        test: boolean;
         archived: boolean;
         completed: boolean;
       }[]
@@ -133,7 +140,7 @@ export async function listOrders(
         o.status::text AS status, o."paymentStatus"::text AS payment_status,
         o."fulfilmentStatus"::text AS fulfilment_status,
         (SELECT coalesce(sum(l.quantity), 0)::int FROM "OrderLine" l WHERE l."orderId" = o.id) AS items,
-        o."stockShortage" AS shortage, o."archivedAt" IS NOT NULL AS archived,
+        o."stockShortage" AS shortage, o."testMode" AS test, o."archivedAt" IS NOT NULL AS archived,
         o."completedAt" IS NOT NULL AS completed
       FROM "Order" o
       LEFT JOIN "OrderAddress" a ON a."orderId" = o.id AND a.type = 'SHIPPING'
@@ -141,13 +148,15 @@ export async function listOrders(
       ORDER BY o."placedAt" DESC, o.id DESC
       LIMIT ${limit + 1}`;
     const counts = await tx.$queryRaw<
-      { all: number; unfulfilled: number; cancelled: number; archived: number }[]
+      { all: number; unfulfilled: number; cancelled: number; archived: number; test: number }[]
     >`
-      SELECT count(*) FILTER (WHERE "archivedAt" IS NULL)::int AS all,
-        count(*) FILTER (WHERE "archivedAt" IS NULL AND status = 'OPEN'
+      SELECT count(*) FILTER (WHERE "archivedAt" IS NULL AND NOT "testMode")::int AS all,
+        count(*) FILTER (WHERE "archivedAt" IS NULL AND NOT "testMode" AND status = 'OPEN'
           AND "fulfilmentStatus" <> 'FULFILLED')::int AS unfulfilled,
-        count(*) FILTER (WHERE "archivedAt" IS NULL AND status = 'CANCELLED')::int AS cancelled,
-        count(*) FILTER (WHERE "archivedAt" IS NOT NULL)::int AS archived
+        count(*) FILTER (WHERE "archivedAt" IS NULL AND NOT "testMode"
+          AND status = 'CANCELLED')::int AS cancelled,
+        count(*) FILTER (WHERE "archivedAt" IS NOT NULL)::int AS archived,
+        count(*) FILTER (WHERE "archivedAt" IS NULL AND "testMode")::int AS test
       FROM "Order"`;
     const page = rows.slice(0, limit);
     const last = page.at(-1);
@@ -167,11 +176,12 @@ export async function listOrders(
         fulfilmentStatus: r.fulfilment_status,
         itemCount: r.items,
         stockShortage: r.shortage,
+        testMode: r.test,
         archived: r.archived,
         state: r.status === "CANCELLED" ? "CANCELLED" : r.completed ? "COMPLETED" : "OPEN",
       })),
       nextCursor: rows.length > limit && last ? encodeCursor(last.placed_at, last.id) : null,
-      counts: counts[0] ?? { all: 0, unfulfilled: 0, cancelled: 0, archived: 0 },
+      counts: counts[0] ?? { all: 0, unfulfilled: 0, cancelled: 0, archived: 0, test: 0 },
     };
   });
 }
@@ -223,6 +233,8 @@ export interface OrderPaymentView {
   readonly refundable: MoneyJson;
   readonly capturedAt: Date | null;
   readonly primary: boolean;
+  /** Taken through a test connection (no real money moved). */
+  readonly testMode: boolean;
 }
 
 export interface OrderRefundView {
@@ -275,6 +287,8 @@ export interface OrderDetail {
   /** Why the order can't be completed yet (empty: it can). */
   readonly completionBlockers: readonly string[];
   readonly stockShortage: boolean;
+  /** Paid through a test connection: not a sale, left out of every sales figure. */
+  readonly testMode: boolean;
   readonly cancelledAt: Date | null;
   readonly cancelReason: string | null;
   readonly note: string | null;
@@ -332,13 +346,16 @@ export async function loadOrderDetail(tx: TenantTx, orderId: string): Promise<Or
           refunded: bigint;
           pending: bigint;
           captured_at: Date | null;
+          test: boolean;
         }[]
       >`
         SELECT p.id, p.provider, p.status::text AS status, p.amount, p."capturedAmount" AS captured,
           p."refundedAmount" AS refunded,
           coalesce((SELECT sum(r.amount) FROM "Refund" r
             WHERE r."paymentId" = p.id AND r.status = 'PENDING'), 0)::bigint AS pending,
-          p."capturedAt" AS captured_at
+          p."capturedAt" AS captured_at,
+          (SELECT c.mode = 'TEST' FROM "PaymentProviderConnection" c
+            WHERE c.id = p."connectionId") AS test
         FROM "Payment" p WHERE p."orderId" = ${orderId}::uuid
         ORDER BY p."capturedAt" NULLS LAST, p.id`,
       tx.refund.findMany({
@@ -406,6 +423,7 @@ export async function loadOrderDetail(tx: TenantTx, orderId: string): Promise<Or
     completedAt: order.completedAt,
     completionBlockers: completionBlockers({ ...order, deliveryStatus }),
     stockShortage: order.stockShortage,
+    testMode: order.testMode,
     cancelledAt: order.cancelledAt,
     cancelReason: order.cancelReason,
     note: order.note,
@@ -451,6 +469,7 @@ export async function loadOrderDetail(tx: TenantTx, orderId: string): Promise<Or
       refundable: money(p.captured - p.refunded - p.pending, c),
       capturedAt: p.captured_at,
       primary: p.id === primaryId,
+      testMode: p.test,
     })),
     refunds: refunds.map((r) => ({
       id: publicId("refund", r.id),
@@ -501,50 +520,5 @@ export async function getOrder(ctx: TenantContext, orderPublicId: unknown): Prom
     const detail = await loadOrderDetail(tx, orderId);
     if (!detail) throw notFound();
     return detail;
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Overview numbers (basic, real)
-// ---------------------------------------------------------------------------
-
-export interface OrderMetrics {
-  readonly ordersToday: number;
-  readonly orders30d: number;
-  /** Paid revenue over 30 days (order totals minus refunds; cancelled orders excluded). */
-  readonly revenue30d: MoneyJson | null;
-  readonly unfulfilled: number;
-  readonly awaitingRefund: number;
-}
-
-export async function orderMetrics(ctx: TenantContext): Promise<OrderMetrics> {
-  return inStore(ctx, "order.read", async (tx) => {
-    const rows = await tx.$queryRaw<
-      {
-        today: number;
-        month: number;
-        revenue: bigint | null;
-        currency: string | null;
-        unfulfilled: number;
-        pending_refunds: number;
-      }[]
-    >`
-      SELECT
-        count(*) FILTER (WHERE "placedAt" >= date_trunc('day', now()))::int AS today,
-        count(*) FILTER (WHERE "placedAt" >= now() - interval '30 days')::int AS month,
-        sum("totalAmount" - "refundedAmount") FILTER (WHERE "placedAt" >= now() - interval '30 days'
-          AND status = 'OPEN')::bigint AS revenue,
-        max(currency) AS currency,
-        count(*) FILTER (WHERE status = 'OPEN' AND "fulfilmentStatus" <> 'FULFILLED')::int AS unfulfilled,
-        (SELECT count(*)::int FROM "Refund" WHERE status = 'PENDING') AS pending_refunds
-      FROM "Order"`;
-    const r = rows[0];
-    return {
-      ordersToday: r?.today ?? 0,
-      orders30d: r?.month ?? 0,
-      revenue30d: r?.currency && r.revenue !== null ? money(r.revenue, r.currency) : null,
-      unfulfilled: r?.unfulfilled ?? 0,
-      awaitingRefund: r?.pending_refunds ?? 0,
-    };
   });
 }

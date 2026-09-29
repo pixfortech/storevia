@@ -21,7 +21,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AccessNotice } from "@/components/areas/access-notice";
-import { OrderStatusPanel, StatusBadge } from "@/components/orders/badges";
+import { OrderStatusPanel, StatusBadge, TestBadge } from "@/components/orders/badges";
 import { CancelOrderDialog } from "@/components/orders/cancel-dialog";
 import { FulfilDialog } from "@/components/orders/fulfil-dialog";
 import {
@@ -260,7 +260,12 @@ export default async function OrderPage({
         }
         title={`Order ${label}`}
         meta={
-          order.stockShortage ? <StatusBadge status={STOCK_SHORTAGE_LABEL} size="md" /> : undefined
+          order.testMode || order.stockShortage ? (
+            <>
+              {order.testMode ? <TestBadge size="md" /> : null}
+              {order.stockShortage ? <StatusBadge status={STOCK_SHORTAGE_LABEL} size="md" /> : null}
+            </>
+          ) : undefined
         }
         description={
           <>
@@ -281,6 +286,12 @@ export default async function OrderPage({
       </Card>
 
       <div className="mb-6 space-y-3 empty:hidden">
+        {order.testMode ? (
+          <Alert tone="info" title="Test order">
+            Paid through a test connection, so no real money changed hands. Test orders are left out
+            of your revenue and sales figures, and don&apos;t need to be shipped.
+          </Alert>
+        ) : null}
         {order.stockShortage ? (
           <Alert
             tone="warning"
@@ -414,6 +425,7 @@ export default async function OrderPage({
                   <li key={p.id} className="space-y-2 px-5 py-4 sm:px-6">
                     <p className="flex flex-wrap items-center gap-2 text-body-sm font-medium text-ink">
                       {providerLabel(p.provider)}
+                      {p.testMode ? <TestBadge /> : null}
                       <StatusBadge status={paymentRecordLabel(p.status)} />
                     </p>
                     <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-body-sm sm:grid-cols-4">

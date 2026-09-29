@@ -1900,6 +1900,8 @@ model Order {
   fulfilmentStatus OrderFulfilmentStatus @default(UNFULFILLED)
   /// Paid after its reservation was released and stock ran out (ADR-0031 §4).
   stockShortage    Boolean               @default(false)
+  /// Paid through a test connection (Test Provider or Razorpay test keys): excluded from sales (final pass, CO-1).
+  testMode         Boolean               @default(false)
   sourceName       String                @default("storefront")
   customerLocale   String?
   note             String?
@@ -1911,6 +1913,8 @@ model Order {
   archivedById     String?               @db.Uuid
   completedAt      DateTime?             @db.Timestamptz(3)
   completedById    String?               @db.Uuid
+  /// When staff were told about this order (the worker's new-order notification).
+  staffNotifiedAt  DateTime?             @db.Timestamptz(3)
   createdAt        DateTime              @default(now()) @db.Timestamptz(3)
   updatedAt        DateTime              @updatedAt @db.Timestamptz(3)
 
@@ -1935,6 +1939,7 @@ model Order {
   @@unique([id, storeId])
   @@index([storeId, placedAt])
   @@index([storeId, archivedAt, placedAt])
+  @@index([storeId, testMode, placedAt])
   @@index([storeId, status, placedAt])
   @@index([storeId, paymentStatus, fulfilmentStatus])
   @@index([customerId])
@@ -2363,6 +2368,7 @@ model OrderMessage {
 
 enum StaffNotificationKind {
   ORDER_MESSAGE
+  NEW_ORDER
 }
 
 /// An in-app notification for one staff member (the dashboard's bell).

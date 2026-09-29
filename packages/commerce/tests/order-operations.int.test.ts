@@ -7,7 +7,7 @@ import { withCheckout } from "@storevia/database/checkout";
 import { disconnectTestClients, migratorDb, truncateAll } from "@storevia/database/testing";
 import { withTenant } from "@storevia/database";
 import type { EmailMessage, EmailSender } from "@storevia/email";
-import { MEMBER_ROLES } from "@storevia/tenancy";
+import { MEMBER_ROLES, permissionsFor } from "@storevia/tenancy";
 import { parseTypeId, toTypeId } from "@storevia/types";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
@@ -49,10 +49,17 @@ import {
   verifiedOrderAccessHash,
 } from "../src/orders/access";
 import { getCustomerOrder, sendCustomerOrderMessage } from "../src/orders/customer";
-import { notifyStaffOfCustomerMessages } from "../src/orders/messages";
+import { notifyStaffOfCustomerMessages, notifyStaffOfNewOrders } from "../src/orders/messages";
 import { sendOrderNotifications } from "../src/orders/notifications";
 import { addToCart } from "../src/storefront";
-import { expectCode, makeTenant, memberContext, storeOf, type Tenant } from "./fixtures";
+import {
+  expectCode,
+  makeOrderLive,
+  makeTenant,
+  memberContext,
+  storeOf,
+  type Tenant,
+} from "./fixtures";
 
 let a: Tenant;
 let b: Tenant;
@@ -82,6 +89,7 @@ async function placeOrder(
   store: CheckoutStore,
   key: string,
   quantity = 1,
+  options: { readonly test?: boolean } = {},
 ): Promise<{ id: string; token: string }> {
   ip += 1;
   const clientIp = `198.51.100.${String(ip % 250)}`;
@@ -117,6 +125,8 @@ async function placeOrder(
     where: { storeId: store.storeId },
     orderBy: { orderNumber: "desc" },
   });
+  // Live unless asked: these tests read the default order lists.
+  if (!options.test) await makeOrderLive(order.id);
   return { id: toTypeId("order", order.id), token: path.slice("/orders/view/".length) };
 }
 
@@ -870,5 +880,78 @@ describe("customer messages and staff notifications", () => {
         (tx) => tx.$executeRaw`DELETE FROM "OrderMessage" WHERE "orderId" = ${internal(id)}::uuid`,
       ),
     ).rejects.toThrow();
+  });
+});
+
+describe("new order notifications (final pass, ORD-1)", () => {
+  it("reach the members who read orders in that store, once, linking to the order", async () => {
+    const db = migratorDb();
+    // Orders placed by earlier tests are announced first, so this one's
+    // recipients are read on their own.
+    await notifyStaffOfNewOrders(MEMBER_ROLES, 1000);
+    const s = storeOf(a);
+    const manager = await memberContext(a, "ORDER_MANAGER", s, { storeIds: [s.storeId] });
+    const elsewhere = await memberContext(a, "ORDER_MANAGER", storeOf(a, 1), {
+      storeIds: [storeOf(a, 1).storeId],
+    });
+    const designer = await memberContext(a, "DESIGNER", s);
+    const otherTenant = storeOf(b);
+    const { id } = await placeOrder(storeA, "lamp", 1, { test: true });
+    expect(
+      (await db.order.findUniqueOrThrow({ where: { id: internal(id) } })).staffNotifiedAt,
+    ).toBeNull();
+
+    const run = await notifyStaffOfNewOrders(MEMBER_ROLES);
+    expect(run.orders).toBe(1);
+    // Idempotent: a second run announces nothing.
+    expect((await notifyStaffOfNewOrders(MEMBER_ROLES)).orders).toBe(0);
+    expect(
+      (await db.order.findUniqueOrThrow({ where: { id: internal(id) } })).staffNotifiedAt,
+    ).not.toBeNull();
+
+    const rows = await db.staffNotification.findMany({
+      where: { orderId: internal(id), kind: "NEW_ORDER" },
+      select: { userId: true, title: true },
+    });
+    const notified = new Set(rows.map((r) => r.userId));
+    expect(rows).toHaveLength(notified.size);
+    expect(notified.has(s.userId)).toBe(true);
+    expect(notified.has(manager.userId)).toBe(true);
+    expect(notified.has(elsewhere.userId)).toBe(false);
+    expect(notified.has(designer.userId)).toBe(false);
+    expect(notified.has(otherTenant.userId)).toBe(false);
+    // Every recipient reads orders and can open this store; nobody else in
+    // the organisation who could is left out.
+    const members = await db.membership.findMany({
+      where: { organisationId: a.org.organisationId, status: "ACTIVE" },
+      include: { storeAccess: true },
+    });
+    for (const m of members) {
+      const eligible =
+        permissionsFor(m.role).has("order.read") &&
+        (m.allStores || m.storeAccess.some((x) => x.storeId === s.storeId));
+      expect(notified.has(m.userId)).toBe(eligible);
+    }
+    const detail = await getOrder(s, id);
+    // A Test Provider order says so.
+    expect(detail.testMode).toBe(true);
+    expect(detail.payments.every((p) => p.testMode)).toBe(true);
+    expect(rows[0]?.title).toBe(`New test order #${String(detail.number)}`);
+
+    // The bell links straight to the order (not to its messages).
+    const list = await staffNotifications(manager);
+    const item = list.items.find((i) => i.title === rows[0]?.title);
+    expect(item?.href).toBe(`/s/${toTypeId("store", s.storeId)}/orders/${id}`);
+    expect((await staffNotifications(designer)).items).toHaveLength(0);
+    expect(
+      (await staffNotifications(elsewhere)).items.some((i) => i.title === rows[0]?.title),
+    ).toBe(false);
+    await db.staffNotification.deleteMany({ where: { orderId: internal(id) } });
+  });
+
+  it("a run leaves no order unannounced", async () => {
+    await notifyStaffOfNewOrders(MEMBER_ROLES, 1000);
+    const pending = await migratorDb().order.count({ where: { staffNotifiedAt: null } });
+    expect(pending).toBe(0);
   });
 });

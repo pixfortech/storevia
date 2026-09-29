@@ -98,6 +98,8 @@ export const orderStateLabel = (state: string) => lookup(ORDER_STATE, state);
 export const CANCELLED_LABEL: StatusLabel = { label: "Cancelled", tone: "danger" };
 export const STOCK_SHORTAGE_LABEL: StatusLabel = { label: "Stock shortage", tone: "danger" };
 export const ARCHIVED_LABEL: StatusLabel = { label: "Archived", tone: "neutral" };
+/** Paid through a test connection: no real money, left out of every sales figure. */
+export const TEST_ORDER_LABEL: StatusLabel = { label: "TEST", tone: "accent" };
 
 const PROVIDERS: Readonly<Record<string, string>> = {
   razorpay: "Razorpay",
@@ -109,15 +111,20 @@ export const providerLabel = (provider: string) => PROVIDERS[provider] ?? humani
 /** "#1001". */
 export const orderNumber = (n: number) => `#${String(n)}`;
 
-export type OrderTab = "all" | "unfulfilled" | "unpaid" | "completed" | "cancelled" | "archived";
+export type OrderTab =
+  "all" | "unfulfilled" | "unpaid" | "completed" | "cancelled" | "test" | "archived";
 
-/** Every tab but Archived leaves archived orders out. */
+/**
+ * Every tab but Archived leaves archived orders out, and every tab but Test
+ * and Archived leaves test orders out.
+ */
 export const ORDER_TABS: readonly { readonly value: OrderTab; readonly label: string }[] = [
   { value: "all", label: "All" },
   { value: "unfulfilled", label: "Unfulfilled" },
   { value: "unpaid", label: "Unpaid" },
   { value: "completed", label: "Completed" },
   { value: "cancelled", label: "Cancelled" },
+  { value: "test", label: "Test orders" },
   { value: "archived", label: "Archived orders" },
 ];
 
