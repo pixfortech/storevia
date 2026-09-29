@@ -139,21 +139,28 @@ Both are expand-only.
 
 ## 11. Tests and CI
 
-| Gate                         | Result                                                                                                                    |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Format, lint, typecheck      | clean (24 packages)                                                                                                       |
-| Unit                         | 1369 passed                                                                                                               |
-| Integration (real Postgres)  | 1047 passed                                                                                                               |
-| E2E (fresh production build) | 94 tests: 88 passed in the full run; the 3 failures and the 3 tests after them were fixed and pass when rerun (see below) |
-| gitleaks                     | no leaks                                                                                                                  |
-| GitHub CI                    | see the branch's latest run                                                                                               |
+| Gate                         | Result                                                                           |
+| ---------------------------- | -------------------------------------------------------------------------------- |
+| Format, lint, typecheck      | clean (24 packages)                                                              |
+| Unit                         | 1369 passed                                                                      |
+| Integration (real Postgres)  | 1047 passed                                                                      |
+| E2E (fresh production build) | 94 tests; all pass in GitHub CI (Node LTS and Node Current)                      |
+| gitleaks                     | no leaks                                                                         |
+| GitHub CI                    | green on every job (Verify, Integration, E2E on both runtimes, Windows, secrets) |
 
-Fixed at the end of the pass: the product form's status choice reset to
-Draft after "Keep editing" in the ₹0 dialog (a real bug: the radio group is
-now remounted with the submitted choice); the branding integration suite
-needed a media signing secret in CI; and spec-only issues (Node requests
-to `*.localhost`, a missing product before going live, ambiguous locators,
-and a logo check that matched the inlined CSS).
+Fixed while closing the pass:
+
+- Product form: the status choice reset to Draft after "Keep editing" in the
+  ₹0 dialog, so a second save skipped the question (the radio group is now
+  remounted with the submitted choice).
+- Policy editor: Publish was enabled after one character of the merchant's
+  own text while the server needs 20; both use `POLICY_MIN_OWN_TEXT` now.
+- Tests: the branding integration suite needed a media signing secret in CI;
+  a copy-truth regex backtracked for over 5 s on CI; the test-order spec
+  checked the bell after opening the order (which marks it read); and
+  spec-only issues (Node requests to `*.localhost`, a missing product before
+  going live, ambiguous locators, a logo check matching the inlined CSS, and
+  a hand-enabled button React never re-disabled).
 
 New suites: `store-identity`, `store-branding`, `product-logistics`,
 `order-export` (integration); `store-identity`, `store-branding`,
