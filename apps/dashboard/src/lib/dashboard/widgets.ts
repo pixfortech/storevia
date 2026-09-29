@@ -62,15 +62,13 @@ export type WidgetSource =
    */
   | { readonly kind: "live"; readonly period?: UpcomingVisual }
   /**
-   * The domain isn't built yet. It starts collecting when the store area
-   * ships; the milestone is read from STORE_AREAS, never repeated here,
-   * unless the widget's data arrives after its area (`availability`).
+   * Storevia doesn't collect this data (it is planned, with no dates). `area`
+   * is the store area the figures belong with, for grouping and the icon.
    */
   | {
       readonly kind: "upcoming";
       readonly area: AreaKey;
       readonly visual: UpcomingVisual;
-      readonly availability?: string;
     };
 
 export interface WidgetCopy {
@@ -96,11 +94,10 @@ export interface WidgetDefinition extends WidgetCopy {
 const ALL: readonly BusinessType[] = ["ECOMMERCE", "BUSINESS", "PUBLISHING", "PORTFOLIO"];
 const SITES: readonly BusinessType[] = ["BUSINESS", "PUBLISHING", "PORTFOLIO"];
 
-const upcoming = (area: AreaKey, visual: UpcomingVisual, availability?: string): WidgetSource => ({
+const upcoming = (area: AreaKey, visual: UpcomingVisual): WidgetSource => ({
   kind: "upcoming",
   area,
   visual,
-  ...(availability === undefined ? {} : { availability }),
 });
 const LIVE: WidgetSource = { kind: "live" };
 /** Live, and scoped by the period control (orders and customers). */
@@ -177,7 +174,7 @@ export const DASHBOARD_WIDGETS: Readonly<Record<WidgetKey, WidgetDefinition>> = 
   },
   // Enquiries carry visitors' contact details, so only members who may read
   // customer details see them, and they sit with customers. Customer records
-  // shipped with orders (Milestone 6); site forms come in a later release.
+  // exist; site forms, where enquiries would come from, are planned.
   enquiries: {
     key: "enquiries",
     title: "Enquiries",
@@ -185,7 +182,7 @@ export const DASHBOARD_WIDGETS: Readonly<Record<WidgetKey, WidgetDefinition>> = 
     size: "kpi",
     businessTypes: ["BUSINESS", "PORTFOLIO"],
     permission: "customer.read",
-    source: upcoming("customers", "metric", "a later release"),
+    source: upcoming("customers", "metric"),
   },
   "posts-published": {
     key: "posts-published",
@@ -350,7 +347,7 @@ export const DASHBOARD_WIDGETS: Readonly<Record<WidgetKey, WidgetDefinition>> = 
   focus: {
     key: "focus",
     title: "Built around your store",
-    description: "What's coming first for your business type, and when.",
+    description: "Where to start for your business type.",
     size: "full",
     businessTypes: ALL,
     permission: "store.read",

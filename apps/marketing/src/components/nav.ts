@@ -15,7 +15,11 @@ import {
   ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
-import { BUSINESS_TYPE_ANCHOR, BUSINESS_TYPE_GLYPH } from "@/content/business-types";
+import {
+  BUSINESS_TYPE_ANCHOR,
+  BUSINESS_TYPE_GLYPH,
+  BUSINESS_TYPE_STATUS,
+} from "@/content/business-types";
 import { capability, type Status } from "@/content/capabilities";
 
 export interface MenuLink {
@@ -87,7 +91,7 @@ export const PRODUCTS_MENU: NavMenu = {
       heading: "Build",
       links: [
         capabilityLink("builder", "Design pages visually, for every screen."),
-        capabilityLink("commerce", "Products, variants, stock and media."),
+        capabilityLink("commerce", "Products, stock, checkout and orders."),
         capabilityLink("content", "Posts, pages, categories and authors."),
         capabilityLink("domains", "Connect your own domain, with HTTPS."),
       ],
@@ -95,15 +99,15 @@ export const PRODUCTS_MENU: NavMenu = {
     {
       heading: "Run",
       links: [
-        capabilityLink("organisations", "Many stores and sites, one account."),
+        capabilityLink("organisations", "Many online stores, one account."),
         capabilityLink("teams", "Roles mapped to precise permissions."),
         capabilityLink("administration", "A dashboard for desktop, tablet and phone."),
-        capabilityLink("analytics", "Traffic, engagement and sales reports."),
+        capabilityLink("analytics", "Sales on your home; traffic reports planned."),
       ],
     },
   ],
   footer: {
-    text: "Storevia is built in stages. Every capability shows its status.",
+    text: "Every capability shows its status, so you know what's ready today.",
     links: [
       { label: "Product overview", href: "/products" },
       { label: "All features", href: "/features" },
@@ -125,6 +129,10 @@ export const SOLUTIONS_MENU: NavMenu = {
         description: BUSINESS_TYPE_DEFINITIONS[type].tagline,
         href: `/solutions#${BUSINESS_TYPE_ANCHOR[type]}`,
         glyph: BUSINESS_TYPE_GLYPH[type],
+        // Only the online store is offered today; the others are marked.
+        ...(BUSINESS_TYPE_STATUS[type] === "available"
+          ? {}
+          : { status: BUSINESS_TYPE_STATUS[type] }),
       })),
     },
     {
@@ -278,6 +286,9 @@ export const FOOTER_NAV: readonly { title: string; links: readonly FooterLink[] 
       ...BUSINESS_TYPES.map((type) => ({
         label: PLURAL_TYPE_LABEL[type],
         href: `/solutions#${BUSINESS_TYPE_ANCHOR[type]}`,
+        ...(BUSINESS_TYPE_STATUS[type] === "available"
+          ? {}
+          : { status: BUSINESS_TYPE_STATUS[type] }),
       })),
       { label: "In-person selling", href: `/products#${retail.id}`, status: retail.status },
     ],

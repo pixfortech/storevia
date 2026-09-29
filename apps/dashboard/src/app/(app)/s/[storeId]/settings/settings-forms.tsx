@@ -3,6 +3,8 @@
 import {
   BUSINESS_TYPE_DEFINITIONS,
   isBusinessType,
+  isLaunchBusinessType,
+  LAUNCH_BUSINESS_TYPES,
   type BusinessType,
 } from "@storevia/tenancy/business-types";
 import { Button } from "@storevia/ui/button";
@@ -15,7 +17,7 @@ import { FieldGroup } from "@/components/areas/settings";
 import { BusinessTypePicker } from "@/components/business-type-picker";
 import { FormMessage, SelectField, SubmitButton, TextField } from "@/components/forms";
 import { BUSINESS_TYPE_GLYPH } from "@/lib/business-types";
-import { LOCALE_OPTIONS, TIMEZONE_OPTIONS } from "@/lib/options";
+import { localeOptionsFor, TIMEZONE_OPTIONS } from "@/lib/options";
 import {
   archiveStoreAction,
   changeBusinessTypeAction,
@@ -94,8 +96,9 @@ export function StoreSettingsForm({
                 label="Language"
                 name="locale"
                 state={state}
-                options={withCurrent(LOCALE_OPTIONS, values.locale)}
+                options={localeOptionsFor(values.locale)}
                 defaultValue={values.locale}
+                hint="Your storefront and emails are in English. This sets how dates and numbers look."
               />
               <SelectField
                 label="Time zone"
@@ -151,7 +154,12 @@ export function BusinessTypeForm({
     setSeen(state);
     setVersion((v) => v + 1);
   }
-  if (!canEdit) {
+  // Only the launch types are offered (DB-2); a store with another type may
+  // keep it or move to a launch type. With nothing else to choose, there's no form.
+  const offered: readonly BusinessType[] = isLaunchBusinessType(current)
+    ? LAUNCH_BUSINESS_TYPES
+    : [current, ...LAUNCH_BUSINESS_TYPES];
+  if (!canEdit || offered.length === 1) {
     const definition = BUSINESS_TYPE_DEFINITIONS[current];
     return (
       <CardBody className="flex items-center gap-4 py-6">
@@ -170,7 +178,10 @@ export function BusinessTypeForm({
         <BusinessTypePicker
           legend="This store is a…"
           hideLegend
-          defaultValue={!state.ok && isBusinessType(chosen) ? chosen : current}
+          defaultValue={
+            !state.ok && isBusinessType(chosen) && offered.includes(chosen) ? chosen : current
+          }
+          types={offered}
           error={state.fieldErrors?.["businessType"]}
         />
       </CardBody>

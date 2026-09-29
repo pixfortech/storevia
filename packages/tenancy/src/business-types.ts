@@ -6,6 +6,7 @@
 // is entitled (plans). The navigation resolver below therefore filters by the
 // member's permissions and marks areas the plan doesn't include; it can only
 // ever show less than RBAC and the plan allow.
+import type { Availability } from "@storevia/entitlements/availability";
 import type { FeatureKey } from "@storevia/entitlements/features";
 import type { MemberRole, Permission } from "./rbac";
 
@@ -14,6 +15,19 @@ export type BusinessType = (typeof BUSINESS_TYPES)[number];
 
 export function isBusinessType(value: string): value is BusinessType {
   return (BUSINESS_TYPES as readonly string[]).includes(value);
+}
+
+/**
+ * The business types a merchant may choose for a new store (DB-2). Only the
+ * online store is offered at launch: the other types' own areas (posts,
+ * projects, blog, forms) aren't built. Every type stays in BUSINESS_TYPES, so
+ * existing stores, seeds and the service layer keep working; the dashboard's
+ * pickers and create/change actions offer and accept only these.
+ */
+export const LAUNCH_BUSINESS_TYPES = ["ECOMMERCE"] as const satisfies readonly BusinessType[];
+
+export function isLaunchBusinessType(value: string): boolean {
+  return (LAUNCH_BUSINESS_TYPES as readonly string[]).includes(value);
 }
 
 export type AreaKey =
@@ -43,13 +57,15 @@ export interface StoreArea {
   readonly permission: Permission;
   /** Plan feature that unlocks the area, if any. */
   readonly feature?: FeatureKey;
-  /** undefined = available now; otherwise when it ships (shown honestly). */
-  readonly availability?: string;
+  /**
+   * Whether the area exists today (the vocabulary of plan features in
+   * @storevia/entitlements/availability). Planned areas carry no dates: they
+   * stay out of navigation, and their route says plainly they aren't built.
+   */
+  readonly availability: Availability;
   /** One sentence for the placeholder page and tooltips. */
   readonly description: string;
 }
-
-const LATER = "a later release";
 
 /** Every store area, whatever the business type. */
 export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
@@ -58,6 +74,7 @@ export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
     label: "Home",
     segment: "",
     permission: "store.read",
+    availability: "available",
     description: "Your store at a glance.",
   },
   orders: {
@@ -65,6 +82,7 @@ export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
     label: "Orders",
     segment: "/orders",
     permission: "order.read",
+    availability: "available",
     description: "Orders placed on your storefront, with payment and fulfilment status.",
   },
   products: {
@@ -72,6 +90,7 @@ export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
     label: "Products",
     segment: "/products",
     permission: "product.read",
+    availability: "available",
     description: "Products with variants, pricing, media and collections.",
   },
   inventory: {
@@ -79,6 +98,7 @@ export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
     label: "Inventory",
     segment: "/inventory",
     permission: "inventory.read",
+    availability: "available",
     description: "Stock levels by location, with a full movement history.",
   },
   customers: {
@@ -86,6 +106,7 @@ export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
     label: "Customers",
     segment: "/customers",
     permission: "customer.read",
+    availability: "available",
     description: "Customers who ordered from your store, with their order history.",
   },
   website: {
@@ -94,6 +115,7 @@ export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
     segment: "/website",
     permission: "design.edit",
     feature: "visual_builder",
+    availability: "available",
     description: "Design your site with the visual builder, menus and themes.",
   },
   pages: {
@@ -101,6 +123,7 @@ export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
     label: "Pages",
     segment: "/pages",
     permission: "design.edit",
+    availability: "available",
     description: "Pages such as About, Contact and landing pages.",
   },
   posts: {
@@ -108,7 +131,7 @@ export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
     label: "Posts",
     segment: "/posts",
     permission: "design.edit",
-    availability: LATER,
+    availability: "planned",
     description: "Articles and stories, from draft to published.",
   },
   categories: {
@@ -116,7 +139,7 @@ export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
     label: "Categories",
     segment: "/categories",
     permission: "design.edit",
-    availability: LATER,
+    availability: "planned",
     description: "Organise posts into sections readers can browse.",
   },
   authors: {
@@ -124,7 +147,7 @@ export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
     label: "Authors",
     segment: "/authors",
     permission: "design.edit",
-    availability: LATER,
+    availability: "planned",
     description: "Author profiles shown on your posts.",
   },
   projects: {
@@ -132,7 +155,7 @@ export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
     label: "Projects",
     segment: "/projects",
     permission: "design.edit",
-    availability: LATER,
+    availability: "planned",
     description: "Showcase your work as projects with images and case studies.",
   },
   blog: {
@@ -140,7 +163,7 @@ export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
     label: "Blog",
     segment: "/blog",
     permission: "design.edit",
-    availability: LATER,
+    availability: "planned",
     description: "News and articles alongside your site.",
   },
   media: {
@@ -148,6 +171,7 @@ export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
     label: "Media",
     segment: "/media",
     permission: "media.read",
+    availability: "available",
     description: "Images used across your store: products, collections and branding.",
   },
   marketing: {
@@ -156,6 +180,7 @@ export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
     segment: "/marketing",
     permission: "discount.read",
     feature: "discounts",
+    availability: "available",
     description: "Discount codes for your storefront.",
   },
   analytics: {
@@ -164,7 +189,7 @@ export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
     segment: "/analytics",
     permission: "analytics.read",
     feature: "analytics",
-    availability: LATER,
+    availability: "planned",
     description: "Traffic, engagement and sales reports.",
   },
   settings: {
@@ -172,6 +197,7 @@ export const STORE_AREAS: Readonly<Record<AreaKey, StoreArea>> = {
     label: "Settings",
     segment: "/settings",
     permission: "store.read",
+    availability: "available",
     description: "Store details, address and preferences.",
   },
 };
@@ -381,7 +407,9 @@ export interface NavigationItem extends StoreArea {
 
 /**
  * The store navigation for a business type, filtered by the member's
- * permissions and marked where the plan doesn't include the area.
+ * permissions and marked where the plan doesn't include the area. Planned
+ * areas are left out, so navigation never leads to something that isn't
+ * built (DB-5); their routes still exist and say so (areaForSegment).
  */
 export function storeNavigation(
   type: BusinessType,
@@ -391,7 +419,7 @@ export function storeNavigation(
   const definition = BUSINESS_TYPE_DEFINITIONS[type];
   return definition.navigation
     .map((key) => STORE_AREAS[key])
-    .filter((area) => permissions.has(area.permission))
+    .filter((area) => area.availability === "available" && permissions.has(area.permission))
     .map((area) => ({
       ...area,
       locked: area.feature !== undefined && !isEntitled(area.feature),

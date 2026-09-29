@@ -13,6 +13,7 @@ import { redirect } from "next/navigation";
 import { runAction, type ActionState } from "@/lib/action";
 import { requireActionPrincipal } from "@/lib/auth";
 import { orgPath } from "@/lib/ids";
+import { launchBusinessType } from "@/lib/launch-scope";
 import { requestInfo } from "@/lib/request";
 
 /**
@@ -55,7 +56,10 @@ export async function changeBusinessTypeAction(
       storeId,
       await requestInfo(),
     );
-    await changeStoreBusinessType(ctx, { businessType: formData.get("businessType") });
+    // A launch type (DB-2), or the type the store already has.
+    await changeStoreBusinessType(ctx, {
+      businessType: launchBusinessType(formData.get("businessType"), ctx.storeBusinessType),
+    });
     revalidatePath(`/s/${storeId}`, "layout");
     return { ok: true, message: "Business type updated. Your navigation now reflects it." };
   }, formData);

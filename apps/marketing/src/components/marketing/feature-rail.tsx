@@ -15,7 +15,7 @@ export interface FeatureRailItem {
   /** …or a Lucide icon for everything else. */
   icon?: LucideIcon;
   status?: Status;
-  /** Replaces the status wording, e.g. "Milestone 6" (still shown in the status's look). */
+  /** Replaces the status wording, e.g. "Released" (still shown in the status look). */
   statusLabel?: string;
   /** Makes the whole item a link. */
   href?: string;

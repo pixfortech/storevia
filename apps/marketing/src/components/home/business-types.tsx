@@ -1,17 +1,18 @@
-// 05 Business types: four panels, one per type, each with its line scene,
-// what it's for, what Storevia adapts for it and a link to its solution
-// page. Straight from the domain's business-type definitions.
+// 05 Business types: one panel per type, each with its line scene and what
+// it's for. Only the launch type (the online store) is offered today, with
+// what Storevia adapts for it; the others are marked On the roadmap and make
+// no promises. Straight from the domain's business-type definitions.
 import { BUSINESS_TYPE_DEFINITIONS, BUSINESS_TYPES } from "@storevia/tenancy/business-types";
 import { BusinessScene } from "@storevia/ui/illustrations";
 import { Stagger } from "@storevia/ui/motion";
-import { ArrowLink, Section, SectionHeading } from "@/components/marketing";
-import { BUSINESS_TYPE_ANCHOR } from "@/content/business-types";
+import { ArrowLink, Section, SectionHeading, StatusPill } from "@/components/marketing";
+import { BUSINESS_TYPE_ANCHOR, BUSINESS_TYPE_STATUS } from "@/content/business-types";
 
 const LINK_LABEL = {
   ECOMMERCE: "Explore online stores",
-  BUSINESS: "Explore business websites",
-  PUBLISHING: "Explore publishing",
-  PORTFOLIO: "Explore portfolios",
+  BUSINESS: "What's planned",
+  PUBLISHING: "What's planned",
+  PORTFOLIO: "What's planned",
 } as const;
 
 export function BusinessTypes() {
@@ -20,8 +21,8 @@ export function BusinessTypes() {
       <SectionHeading
         id="types-heading"
         eyebrow="Business types"
-        title="Start from what you’re building"
-        lead="Choose a type for each store. Its dashboard, navigation and suggested roles are built around it, and you can change it at any time without losing anything."
+        title="Built for online stores"
+        lead="Every store is set up for selling: its dashboard, navigation and suggested roles are built around orders, products and customers. Business websites, publications and portfolios are on the roadmap."
       />
       <Stagger
         as="ul"
@@ -31,6 +32,8 @@ export function BusinessTypes() {
       >
         {BUSINESS_TYPES.map((type) => {
           const definition = BUSINESS_TYPE_DEFINITIONS[type];
+          const status = BUSINESS_TYPE_STATUS[type];
+          const offered = status === "available";
           return (
             <article key={type} aria-labelledby={`type-${type}`} className="flex flex-1 flex-col">
               {/* Phones: the scene as a thumbnail beside the title, so four
@@ -44,19 +47,26 @@ export function BusinessTypes() {
                     {definition.label}
                   </h3>
                   <p className="mt-2 text-body-sm text-ink-muted">{definition.tagline}</p>
+                  <StatusPill status={status} className="mt-3" />
                 </div>
               </div>
-              <ul className="mt-5 flex-1 space-y-2 border-t border-line pt-5 text-body-sm text-ink-muted">
-                {definition.adapts.map((point) => (
-                  <li key={point} className="flex gap-2.5">
-                    <span
-                      aria-hidden="true"
-                      className="mt-[0.6rem] h-px w-2.5 shrink-0 bg-neutral-400"
-                    />
-                    {point}
-                  </li>
-                ))}
-              </ul>
+              {offered ? (
+                <ul className="mt-5 flex-1 space-y-2 border-t border-line pt-5 text-body-sm text-ink-muted">
+                  {definition.adapts.map((point) => (
+                    <li key={point} className="flex gap-2.5">
+                      <span
+                        aria-hidden="true"
+                        className="mt-[0.6rem] h-px w-2.5 shrink-0 bg-neutral-400"
+                      />
+                      {point}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-5 flex-1 border-t border-line pt-5 text-body-sm text-ink-muted">
+                  Not offered yet: you can&apos;t create one today, and we don&apos;t give dates.
+                </p>
+              )}
               <ArrowLink href={`/solutions#${BUSINESS_TYPE_ANCHOR[type]}`} className="mt-6">
                 {LINK_LABEL[type]}
               </ArrowLink>

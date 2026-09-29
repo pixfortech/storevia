@@ -1,6 +1,7 @@
-// Presentation for the placeholder pages of store areas that haven't shipped
+// Presentation for the placeholder pages of store areas that aren't built
 // (s/[storeId]/[area]). Pure data: the page still checks the area's
-// permission and the plan before it shows anything.
+// permission before it shows anything.
+import { AVAILABILITY_LABELS, type Availability } from "@storevia/entitlements/availability";
 import type { AreaKey } from "@storevia/tenancy/business-types";
 import type { IllustrationName } from "@storevia/ui/illustrations";
 
@@ -25,10 +26,10 @@ export const AREA_ILLUSTRATION: Readonly<Record<AreaKey, IllustrationName>> = {
 };
 
 /**
- * The honest status of an area that hasn't shipped: its milestone when one
- * is scheduled ("Milestone 6"), otherwise "On the roadmap".
+ * The honest status of an area: "Available" or "Planned" (the neutral
+ * vocabulary of @storevia/entitlements/availability), never a milestone or
+ * a date.
  */
-export function areaScheduleLabel(availability: string | undefined): string {
-  if (availability === undefined) return "Available";
-  return /^Milestone \d+$/.test(availability) ? availability : "On the roadmap";
+export function areaScheduleLabel(availability: Availability): string {
+  return AVAILABILITY_LABELS[availability];
 }

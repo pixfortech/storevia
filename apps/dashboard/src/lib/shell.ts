@@ -128,7 +128,7 @@ function createActionsFor(
     actions.push({
       key: "create-store",
       label: "Create store",
-      description: "Add an online store, business website, publication or portfolio.",
+      description: "Add another online store to your organisation.",
       href: orgPath(ctx.organisationId, "/stores/new"),
       // Inside a store the page's action stays "Invite member"; creating
       // another store is offered in the Create sheet and the command menu.
@@ -163,26 +163,15 @@ export async function storeShellData(ctx: StoreContext): Promise<ShellData> {
     label: area.label,
     href: storePath(ctx.storeId, area.segment),
     icon: area.key,
-    soon: area.availability,
     locked: area.locked,
     primaryOnMobile: area.primaryOnMobile,
     exact: area.segment === "",
   }));
   // Themes sit right after Website, for the members who have Website.
-  const areas = withThemesArea(typeAreas, storePath(ctx.storeId, "/themes"));
-  // Apps sit with Settings: an honest placeholder (no app catalogue exists).
-  const apps: ShellLink = {
-    key: "apps",
-    label: "Apps",
-    href: storePath(ctx.storeId, "/apps"),
-    icon: "apps",
-    soon: "On the roadmap",
-  };
-  const settings = areas.findIndex((area) => area.key === "settings");
-  const links =
-    settings === -1
-      ? [...areas, apps]
-      : [...areas.slice(0, settings), apps, ...areas.slice(settings)];
+  // Navigation lists only what exists (DB-5): planned areas are left out by
+  // storeNavigation, and Apps has no link while no app or integration exists
+  // (its /apps route stays and says so plainly).
+  const links = withThemesArea(typeAreas, storePath(ctx.storeId, "/themes"));
   const createActions = createActionsFor(organisation, base.canCreateStore, false);
   // At the product limit the shell offers no "Add product"; the list says why.
   const productsFull =

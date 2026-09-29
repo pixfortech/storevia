@@ -1,3 +1,4 @@
+import { FEATURE_AVAILABILITY } from "@storevia/entitlements/availability";
 import type { FeatureKey } from "@storevia/entitlements/features";
 import { BUSINESS_TYPES, STORE_AREAS } from "@storevia/tenancy/business-types";
 import { permissionsFor, type Permission } from "@storevia/tenancy/rbac";
@@ -38,19 +39,21 @@ describe("the widget registry", () => {
     }
   });
 
-  it("takes every upcoming widget's schedule from a store area that hasn't shipped", () => {
+  it("marks as upcoming only data Storevia doesn't collect, never a built feature", () => {
     for (const widget of Object.values(DASHBOARD_WIDGETS)) {
       if (widget.source.kind !== "upcoming") continue;
-      // When an area ships, its widgets must be wired to real data, unless
-      // the widget's own data comes later and it says when.
-      const schedule = widget.source.availability ?? STORE_AREAS[widget.source.area].availability;
-      expect(schedule, widget.key).toBeDefined();
+      // When a planned area or feature ships, its widgets must be wired to
+      // real data. Enquiries sit with customers but need site forms (planned).
+      if (widget.key !== "enquiries") {
+        expect(STORE_AREAS[widget.source.area].availability, widget.key).toBe("planned");
+      }
+      if (widget.feature) expect(FEATURE_AVAILABILITY[widget.feature], widget.key).toBe("planned");
     }
   });
 
   it("wires the shipped orders and customers areas to real, period-scoped data", () => {
-    expect(STORE_AREAS.orders.availability).toBeUndefined();
-    expect(STORE_AREAS.customers.availability).toBeUndefined();
+    expect(STORE_AREAS.orders.availability).toBe("available");
+    expect(STORE_AREAS.customers.availability).toBe("available");
     for (const key of ["revenue", "orders", "customers", "sales-trend", "top-products"] as const) {
       expect(DASHBOARD_WIDGETS[key].source.kind, key).toBe("live");
     }
@@ -63,7 +66,6 @@ describe("the widget registry", () => {
         (w.source.area === "orders" || w.source.area === "customers"),
     );
     expect(waiting.map((w) => w.key)).toEqual(["enquiries"]);
-    expect(DASHBOARD_WIDGETS.enquiries.source).toMatchObject({ availability: "a later release" });
   });
 });
 
@@ -181,19 +183,21 @@ describe("composeDashboard: RBAC decides visibility", () => {
 });
 
 describe("composeDashboard: entitlements decide commercial access", () => {
-  it("locks plan features without hiding them, and never locks what needs no feature", () => {
+  it("never locks a planned feature behind the plan: it reads as planned (AN-6)", () => {
     const widgets = composeDashboard({
       businessType: "BUSINESS",
       permissions: OWNER,
       grantedFeatures: FREE,
     }).widgets;
-    expect(find(widgets, "visitors").state).toEqual({ kind: "locked", feature: "analytics" });
-    expect(find(widgets, "traffic-trend").state.kind).toBe("locked");
+    expect(FEATURE_AVAILABILITY.analytics).toBe("planned");
+    expect(find(widgets, "visitors").state).toMatchObject({ kind: "upcoming", area: "analytics" });
+    expect(find(widgets, "traffic-trend").state.kind).toBe("upcoming");
     expect(find(widgets, "enquiries").state.kind).toBe("upcoming");
     expect(find(widgets, "plan-usage").state.kind).toBe("live");
+    for (const widget of widgets) expect(widget.state.kind, widget.key).not.toBe("locked");
   });
 
-  it("marks upcoming widgets with the store area and milestone they arrive with", () => {
+  it("marks upcoming widgets with the store area they belong with, and no date", () => {
     const widgets = composeDashboard({
       businessType: "ECOMMERCE",
       permissions: OWNER,
@@ -202,17 +206,17 @@ describe("composeDashboard: entitlements decide commercial access", () => {
     const conversion = find(widgets, "conversion").state;
     expect(conversion).toMatchObject({ kind: "upcoming", area: "analytics", visual: "metric" });
     if (conversion.kind !== "upcoming") throw new Error("expected upcoming");
-    expect(conversion.availability).toBe(STORE_AREAS.analytics.availability);
     expect(conversion.areaLabel).toBe("Analytics");
-    // Inventory shipped in Milestone 3: its widgets show real data.
+    expect(Object.keys(conversion)).not.toContain("availability");
+    // Inventory is built: its widgets show real data.
     expect(find(widgets, "stock-alerts").state).toEqual({ kind: "live" });
     expect(find(widgets, "catalogue").state).toEqual({ kind: "live" });
-    // Orders and customers shipped in Milestone 6: real figures over the period.
+    // Orders and customers are built: real figures over the period.
     expect(find(widgets, "revenue").state).toEqual({ kind: "live", period: "metric" });
     expect(find(widgets, "customers").state).toEqual({ kind: "live", period: "metric" });
   });
 
-  it("takes a widget's own schedule when its data comes after its area", () => {
+  it("keeps a planned widget with the area it belongs with, even a built one", () => {
     const enquiries = find(
       composeDashboard({ businessType: "BUSINESS", permissions: OWNER, grantedFeatures: PAID })
         .widgets,
@@ -222,7 +226,6 @@ describe("composeDashboard: entitlements decide commercial access", () => {
       kind: "upcoming",
       area: "customers",
       areaLabel: "Customers",
-      availability: "a later release",
       visual: "metric",
     });
   });
@@ -282,7 +285,14 @@ describe("widgetDisplay and the period control", () => {
   });
 
   it("never shows data, even example data, in a locked widget", () => {
-    expect(widgetDisplay(find(compose(FREE), "traffic-trend"), true)).toBe("locked");
+    // Only a feature that exists can be locked (none of today's widgets
+    // needs one), so the widget is built by hand.
+    const locked: ComposedWidget = {
+      ...find(compose(FREE), "traffic-trend"),
+      state: { kind: "locked", feature: "custom_domain" },
+    };
+    expect(widgetDisplay(locked, true)).toBe("locked");
+    expect(widgetDisplay(locked, false)).toBe("locked");
   });
 
   it("shows live order figures as real data, and example data only in a preview", () => {

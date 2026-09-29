@@ -19,7 +19,7 @@ const SETUP_STEPS = [
   { title: "Create your organisation", body: "It holds your stores, team and plan." },
   {
     title: "Create your first store",
-    body: "An online store, business website, publication or portfolio.",
+    body: "Your online store, with its own address on the web.",
   },
 ];
 

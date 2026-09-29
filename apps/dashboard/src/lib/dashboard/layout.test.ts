@@ -52,17 +52,16 @@ describe("arrangeDashboard with real data only (production)", () => {
     expect(business.underMain).toBeNull();
   });
 
-  it("summarises the rest by the store area their data starts with, soonest first", () => {
+  it("summarises the rest by the store area their figures belong with, with no dates", () => {
     // Nothing from orders or customers is upcoming any more.
     expect(layout.tracking.map((g) => [g.area, g.metrics])).toEqual([
       ["analytics", ["Conversion"]],
     ]);
-    expect(layout.tracking[0]?.availability).toBe(STORE_AREAS.analytics.availability);
-    // Enquiries sit with customers but wait for site forms, in a later release.
+    expect(Object.keys(layout.tracking[0] ?? {})).not.toContain("availability");
+    // Enquiries sit with customers but need site forms, which are planned.
     const business = arrangeDashboard(widgets("BUSINESS"), false);
     expect(business.tracking.find((g) => g.area === "customers")).toMatchObject({
       label: "Customers",
-      availability: "a later release",
       metrics: ["Enquiries"],
     });
   });
@@ -85,18 +84,11 @@ describe("arrangeDashboard in a development preview", () => {
     expect(layout.tracking).toEqual([]);
   });
 
-  it("still summarises plan-locked widgets, with no data, after the rest", () => {
+  it("never locks a planned feature, so a preview draws it as example data whatever the plan", () => {
     const layout = arrangeDashboard(widgets("BUSINESS", FREE), true);
-    expect(keys(layout.metrics)).toEqual(["enquiries"]);
-    expect(layout.tracking).toEqual([
-      {
-        area: "analytics",
-        label: STORE_AREAS.analytics.label,
-        availability: STORE_AREAS.analytics.availability,
-        metrics: ["Visitors", "Page views", "Top pages"],
-        lockedBy: "analytics",
-      },
-    ]);
+    expect(keys(layout.metrics)).toEqual(["visitors", "page-views", "enquiries"]);
+    expect(layout.tracking).toEqual([]);
+    expect(STORE_AREAS.analytics.availability).toBe("planned");
   });
 
   it("gives a designer's single module the main column's width", () => {
@@ -107,12 +99,11 @@ describe("arrangeDashboard in a development preview", () => {
 });
 
 describe("trackingGroups", () => {
-  it("keeps a locked area apart from the same area's unlocked figures", () => {
+  it("groups planned figures without a plan lock, whatever the plan (AN-6)", () => {
     const groups = trackingGroups(widgets("ECOMMERCE", FREE));
-    const analytics = groups.filter((g) => g.area === "analytics");
-    expect(analytics).toHaveLength(1);
-    expect(analytics[0]?.lockedBy).toBe("analytics");
-    expect(groups.at(-1)?.lockedBy).toBe("analytics");
+    expect(groups).toEqual([
+      { area: "analytics", label: "Analytics", metrics: ["Conversion"], lockedBy: null },
+    ]);
   });
 
   it("ignores live widgets", () => {

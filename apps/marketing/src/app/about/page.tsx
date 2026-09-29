@@ -15,8 +15,8 @@ import {
   SectionHeading,
   StatusPill,
 } from "@/components/marketing";
-import { BUSINESS_TYPE_PLURAL } from "@/content/business-types";
-import { formatReleaseDate, releasesByDay, taggedMilestones } from "@/content/changelog";
+import { BUSINESS_TYPE_PLURAL, BUSINESS_TYPE_STATUS } from "@/content/business-types";
+import { formatReleaseDate, releasesByDay } from "@/content/changelog";
 import { ALL_FEATURES, statusCounts } from "@/content/features";
 import { publicCatalogue } from "@/lib/catalogue";
 
@@ -25,11 +25,6 @@ export const metadata: Metadata = {
   description:
     "Why we're building Storevia, how we build it and where it stands today, from the product itself.",
 };
-
-/** "Milestones 0, 1 and 2": the releases marked by a git tag. */
-const TAGGED = `Milestones ${new Intl.ListFormat("en-GB", { type: "conjunction" }).format(
-  taggedMilestones().map((label) => label.replace(/^Milestone /, "")),
-)}`;
 
 const BELIEFS = [
   {
@@ -59,7 +54,7 @@ const PRACTICES = [
     icon: ShieldCheck,
     title: "Isolation tested on every change",
     description:
-      "A suite of tenant-isolation tests runs on every change, and each milestone ends with a security review whose findings get regression tests.",
+      "A suite of tenant-isolation tests runs on every change, and each stage ends with a security review whose findings get regression tests.",
   },
   {
     icon: Accessibility,
@@ -83,12 +78,12 @@ const PRACTICES = [
 
 export default async function AboutPage() {
   const catalogue = await publicCatalogue();
-  const available = statusCounts(ALL_FEATURES).available;
+  const counts = statusCounts(ALL_FEATURES);
   // Figures about the product itself, counted from its own definitions.
   const facts = [
-    { value: String(BUSINESS_TYPES.length), label: "business types, each with its own dashboard" },
+    { value: String(counts.available), label: "features available today" },
+    { value: String(counts.roadmap), label: "features on the roadmap, each marked" },
     { value: String(MEMBER_ROLES.length), label: "team roles, mapped to precise permissions" },
-    { value: String(available), label: "features available today" },
     ...(catalogue
       ? [
           {
@@ -103,7 +98,7 @@ export default async function AboutPage() {
       <PageHero
         eyebrow="About Storevia"
         title="Software that helps businesses show up online, properly"
-        lead="Storevia is one platform for online stores, business websites, publications and portfolios, designed to be run by a team. We're building it in stages, starting with the foundations that are hardest to add later."
+        lead="Storevia is one platform for running an online store, designed to be run by a team. We're building it in stages, starting with the foundations that are hardest to add later. Business websites, publications and portfolios are on the roadmap."
         layout="split"
         visual={
           <ul className="grid grid-cols-2 gap-3">
@@ -113,8 +108,11 @@ export default async function AboutPage() {
                 className="rounded-panel border border-line bg-surface-sunken px-4 pt-4 pb-3 sm:px-6 sm:pt-6"
               >
                 <BusinessScene type={type} />
-                <p className="mt-2 text-caption text-ink-muted sm:mt-3">
+                <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-ink-muted sm:mt-3">
                   {BUSINESS_TYPE_PLURAL[type]}
+                  {BUSINESS_TYPE_STATUS[type] === "available" ? null : (
+                    <StatusPill status={BUSINESS_TYPE_STATUS[type]} />
+                  )}
                 </p>
               </li>
             ))}
@@ -138,10 +136,10 @@ export default async function AboutPage() {
                 business you run.
               </p>
               <p>
-                We&apos;re doing it in the open. The foundations (accounts, organisations, stores,
-                teams, roles and plans) and the catalogue are available today. The storefront,
-                builder and checkout follow, and every part of this site says exactly where each one
-                stands.
+                We&apos;re doing it in the open. Everything an online store needs is available
+                today: the catalogue, a storefront you design, checkout and payments, orders,
+                customers, your own domain and your team. Every part of this site says exactly where
+                each feature stands.
               </p>
             </div>
           </Reveal>
@@ -204,7 +202,7 @@ export default async function AboutPage() {
               id="stage-heading"
               eyebrow="Where we are"
               title="Built in stages"
-              lead={`A release is listed once it's complete and its tests pass. ${TAGGED} are also tagged in our repository.`}
+              lead="A release is listed once it's complete and its tests pass."
             />
             <div className="mt-8 flex flex-col items-start gap-3">
               <ArrowLink href="/changelog">Read the changelog</ArrowLink>
@@ -231,7 +229,6 @@ export default async function AboutPage() {
                       />
                       <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-caption text-ink-faint">
                         <span className="font-medium text-ink-muted">{release.label}</span>
-                        {release.tag ? <span className="font-mono">{release.tag}</span> : null}
                         {release.status === "in-progress" ? (
                           <StatusPill status="in-development" label="In progress" />
                         ) : null}
@@ -256,7 +253,7 @@ export default async function AboutPage() {
 
       <CTASection
         title="Build with us from the start"
-        lead="Set up your organisation and first store today, and get each new part of Storevia as it ships."
+        lead="Set up your organisation and first store today, free to start."
       />
     </>
   );

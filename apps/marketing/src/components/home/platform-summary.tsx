@@ -14,8 +14,8 @@ export function PlatformSummary() {
           title="Everything your business runs online, in one place"
         />
         <p className="max-w-xl text-body-lg text-ink-muted lg:justify-self-end">
-          Some of it is ready today and the rest is on a public roadmap. Every part shows its
-          status, so you know exactly what you&apos;re getting.
+          Everything an online store needs is ready today, and the rest is on a public roadmap.
+          Every part shows its status, so you know exactly what you&apos;re getting.
         </p>
       </div>
       <ul className="mt-12 grid gap-px overflow-hidden rounded-panel border border-line bg-line sm:grid-cols-2 lg:mt-14 lg:grid-cols-3 xl:grid-cols-6">

@@ -13,6 +13,7 @@ import {
 } from "@/components/areas/settings";
 import { LinkTabs } from "@/components/catalogue/link-tabs";
 import { PageHeader } from "@/components/shell/app-shell";
+import { SupportLink } from "@/components/support-link";
 import { formatLongDate } from "@/lib/areas/dates";
 import { storeStatusBadge } from "@/lib/dashboard/setup";
 import { COUNTRY_OPTIONS, CURRENCY_OPTIONS } from "@/lib/options";
@@ -130,11 +131,16 @@ export default async function StoreSettingsPage({
               ) : null}
             </div>
             <p className="text-body-sm text-ink-muted">
-              {live
-                ? "Shoppers can browse your products and add them to a cart."
-                : online.status === "DRAFT"
-                  ? "Shoppers see a coming-soon page. Preview your store, then go live when you're ready."
-                  : "Your storefront is unavailable. Contact Storevia support for help."}
+              {live ? (
+                "Shoppers can browse your products and add them to a cart."
+              ) : online.status === "DRAFT" ? (
+                "Shoppers see a coming-soon page. Preview your store, then go live when you're ready."
+              ) : (
+                <>
+                  Your storefront is unavailable.{" "}
+                  <SupportLink>Contact Storevia support</SupportLink> for help.
+                </>
+              )}
             </p>
             {online.redirectingHosts.length > 0 ? (
               <p className="text-body-sm text-ink-muted">

@@ -1,5 +1,3 @@
-import type { PublicCatalogue } from "@storevia/entitlements/catalogue";
-import { formatEntitlement } from "@storevia/entitlements/format";
 import type { MemberRole } from "@storevia/tenancy/rbac";
 import { buttonClasses } from "@storevia/ui/button";
 import { cn } from "@storevia/ui/cn";
@@ -23,14 +21,12 @@ import { IllustrativeNote } from "@/components/product/frame";
 import {
   CAPABILITIES,
   capability,
-  comingLabel,
   STATUS_DESCRIPTIONS,
   STATUSES,
   type Capability,
 } from "@/content/capabilities";
 import { FEATURE_AREAS } from "@/content/features";
 import { roleSummaries } from "@/content/roles";
-import { publicCatalogue } from "@/lib/catalogue";
 import { appLinks } from "@/lib/env";
 import {
   AdministrationVisual,
@@ -49,17 +45,14 @@ import {
 export const metadata: Metadata = {
   title: "Products",
   description:
-    "Every part of Storevia, from organisations and teams to commerce, the website builder and analytics, each with its real status.",
+    "Every part of Storevia, from organisations and teams to commerce, the website builder and domains, each with its real status.",
 };
 
-/** "On the roadmap · Coming in Milestone 5": the status and, when planned, the milestone. */
+/** A capability's status ("Available now", "On the roadmap"), never a date. */
 function Timing({ item, className }: { item: Capability; className?: string }) {
   return (
     <p className={cn("flex flex-wrap items-center gap-x-3 gap-y-2", className)}>
       <StatusPill status={item.status} size="md" />
-      {item.milestone ? (
-        <span className="text-caption text-ink-muted">{comingLabel(item.milestone)}</span>
-      ) : null}
     </p>
   );
 }
@@ -80,8 +73,8 @@ function Points({ points }: { points: readonly string[] }) {
 
 /**
  * Every part of an area, as on /features. A part shows its own status only
- * where it differs from the area's, and when it's planned for, so a list
- * of eight parts doesn't repeat one label eight times.
+ * where it differs from the area's, so a list of eight parts doesn't repeat
+ * one label eight times.
  */
 function Parts({
   item,
@@ -111,9 +104,6 @@ function Parts({
             <span className="text-body-sm font-medium text-ink">{part.title}</span>
             <span className="flex shrink-0 items-center gap-2.5">
               {part.status !== item.status ? <StatusPill status={part.status} /> : null}
-              {part.milestone && part.milestone !== item.milestone ? (
-                <span className="text-caption text-ink-faint">{part.milestone}</span>
-              ) : null}
             </span>
           </li>
         ))}
@@ -195,47 +185,69 @@ function DeepDive({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-/** How much analytics history each plan keeps, from the catalogue. */
-function HistoryByPlan({ catalogue }: { catalogue: PublicCatalogue }) {
-  const rows = [
-    { name: "Free", value: catalogue.freeAllowance.analytics },
-    ...catalogue.plans.map((plan) => ({ name: plan.name, value: plan.values.analytics })),
-  ].map((row) => ({ name: row.name, label: formatEntitlement("analytics", row.value) }));
-  return (
-    <div>
-      <p className="text-overline text-ink-faint uppercase">History each plan keeps</p>
-      <dl className="mt-3 divide-y divide-line border-y border-line">
-        {rows.map((row) => (
-          <div key={row.name} className="flex min-h-11 items-center justify-between gap-4 py-2">
-            <dt className="text-body-sm text-ink-muted">{row.name}</dt>
-            <dd className="text-body-sm font-medium text-ink tabular-nums">
-              {row.label ?? "Not included"}
-            </dd>
-          </div>
-        ))}
-      </dl>
-      <p className="mt-3 text-caption text-ink-faint">From our live plan catalogue.</p>
-    </div>
-  );
-}
-
 /** The roles publishing is designed around, in the order a post meets them. */
 const PUBLISHING_ROLES: readonly MemberRole[] = ["AUTHOR", "EDITOR", "CONTENT_MANAGER"];
 
 /**
- * The smaller roadmap areas. `parts`: list the area's features with their
- * own statuses instead of summary points (integrations' parts land in
- * different milestones).
+ * The smaller areas, as cards. `parts`: list the area's features with their
+ * own statuses instead of summary points.
  */
-const ROADMAP_CARDS: readonly { id: string; visual: ReactNode; parts?: boolean }[] = [
+interface AreaCard {
+  readonly id: string;
+  readonly visual: ReactNode;
+  readonly parts?: boolean;
+}
+
+const AVAILABLE_CARDS: readonly AreaCard[] = [
   { id: "customers", visual: <CustomersVignette /> },
   { id: "domains", visual: <DomainsVignette /> },
   { id: "themes", visual: <ThemesVignette /> },
-  { id: "integrations", visual: <IntegrationsVignette />, parts: true },
 ];
 
-export default async function ProductsPage() {
-  const catalogue = await publicCatalogue();
+/** One smaller area: a picture, what it is, and its points or parts. */
+function CapabilityCard({ id, visual, parts = false }: AreaCard) {
+  const item = capability(id);
+  return (
+    <article
+      id={id}
+      aria-labelledby={`${id}-heading`}
+      className="flex w-full scroll-mt-24 flex-col overflow-hidden rounded-panel border border-line bg-surface"
+    >
+      <div className="flex h-36 items-center justify-center border-b border-line bg-surface-sunken px-6">
+        {visual}
+      </div>
+      <div className="flex flex-1 flex-col p-6 lg:p-7">
+        <div className="flex items-center gap-3">
+          <GlyphTile name={item.glyph} tone="neutral" size="sm" />
+          <h3 id={`${id}-heading`} className="font-display text-h4 text-ink">
+            {item.title}
+          </h3>
+        </div>
+        <p className="mt-4 text-body-sm text-ink-muted">{item.summary}</p>
+        {parts ? (
+          <div className="mt-5 flex-1">
+            <Parts item={item} title="Part by part" />
+          </div>
+        ) : (
+          <ul className="mt-4 flex-1 space-y-2 text-body-sm text-ink-muted">
+            {item.points.map((point) => (
+              <li key={point} className="flex gap-2.5">
+                <span
+                  aria-hidden="true"
+                  className="mt-[0.6rem] h-px w-2.5 shrink-0 bg-neutral-400"
+                />
+                {point}
+              </li>
+            ))}
+          </ul>
+        )}
+        <Timing item={item} className="mt-6" />
+      </div>
+    </article>
+  );
+}
+
+export default function ProductsPage() {
   const { signUp } = appLinks();
   const organisations = capability("organisations");
   const teams = capability("teams");
@@ -252,7 +264,7 @@ export default async function ProductsPage() {
       <PageHero
         eyebrow="Products"
         title="Everything you run online, in one workspace"
-        lead="Storevia is built in stages, and every part of it says where it stands. Here is what you can use today and what comes after."
+        lead="Everything an online store needs is ready today, and every part of Storevia says where it stands. Here is what you can use now and what's planned."
         actions={
           <>
             <a href={signUp} className={buttonClasses("primary", "lg")}>
@@ -272,8 +284,9 @@ export default async function ProductsPage() {
         className="pt-4 md:pt-8 lg:pt-10"
       >
         <Chapter n="01" title="Available today">
-          The foundations every business needs to sell: an account, stores, a team, a dashboard that
-          works on every screen, and a catalogue built for real stock.
+          Everything an online store needs: an account, stores, a team, a dashboard that works on
+          every screen, a catalogue built for real stock, checkout and orders, a storefront you
+          design, and your own domain.
         </Chapter>
         <SplitFeature
           className="mt-14 lg:mt-20"
@@ -281,7 +294,7 @@ export default async function ProductsPage() {
           eyebrow={organisations.title}
           status={organisations.status}
           title="One organisation, every store you run"
-          lead="Your organisation holds every store and site you run, of any type, on one plan. Each store is set up for what it is and reserves its own web address."
+          lead="Your organisation holds every online store you run, on one plan. Each store has its own web address, products, orders and team access."
           checklist={organisations.points}
           visual={<OrganisationVisual />}
         />
@@ -347,7 +360,7 @@ export default async function ProductsPage() {
             eyebrow={commerce.title}
             status={commerce.status}
             title="Products modelled the way you stock them"
-            lead="Options, variants, stock and media each get a proper structure of their own, so a catalogue stays accurate at four products or four thousand. Checkout, orders and customers follow."
+            lead="Options, variants, stock and media each get a proper structure of their own, so a catalogue stays accurate at four products or four thousand. Checkout, orders and customers build on the same records."
           />
         </div>
         <div className="mt-12 grid gap-8 lg:mt-16 xl:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] xl:items-center xl:gap-16">
@@ -381,46 +394,63 @@ export default async function ProductsPage() {
         </div>
       </Section>
 
-      {/* Chapter 3: on the roadmap. */}
       <Section labelledBy="builder-heading" id="builder">
-        <Chapter n="02" title="On the roadmap">
-          Designed into the platform from the start, and built in order after the catalogue.
-          Concepts below show the direction, not shipped screens.
-        </Chapter>
-        <div className="mt-14 lg:mt-20">
+        <div>
           <SectionHeading
             id="builder-heading"
             eyebrow={builder.title}
             title="Draft freely, publish when it's right"
-            lead="Every page keeps a draft apart from what's live. Autosave keeps your work, publishing is a deliberate step, and any earlier version can be restored."
+            lead="Every page keeps a draft apart from what's live. Autosave keeps your work, and publishing is a deliberate step, previewed first on every screen size."
           />
           <Timing item={builder} className="mt-6" />
         </div>
         <Reveal className="mt-12 lg:mt-14">
           <PublishingVisual />
-          <IllustrativeNote className="mt-4">
-            A concept of a feature on the roadmap, with a sample store.
-          </IllustrativeNote>
+          <IllustrativeNote className="mt-4">An illustration with a sample store.</IllustrativeNote>
         </Reveal>
         <div className="mt-12 lg:mt-14">
           <Parts item={builder} title="Website and storefront, part by part" columns={2} />
         </div>
       </Section>
 
-      <Section tone="tinted" labelledBy="content-heading" id="content">
-        <div>
+      <Section tone="tinted" labelledBy="more-heading">
+        <SectionHeading
+          id="more-heading"
+          eyebrow="Also available"
+          title="Customers, domains and themes"
+          lead="The records, the address and the look that go with your store."
+        />
+        <Stagger
+          as="ul"
+          itemAs="li"
+          className="mt-12 grid gap-4 md:grid-cols-3"
+          itemClassName="flex min-w-0"
+        >
+          {AVAILABLE_CARDS.map((card) => (
+            <CapabilityCard key={card.id} {...card} />
+          ))}
+        </Stagger>
+      </Section>
+
+      {/* Chapter 2: on the roadmap. */}
+      <Section labelledBy="content-heading" id="content">
+        <Chapter n="02" title="On the roadmap">
+          Planned, but not built yet. The concepts below show the direction, not shipped screens,
+          and we don&apos;t give dates.
+        </Chapter>
+        <div className="mt-14 lg:mt-20">
           <SectionHeading
             id="content-heading"
             eyebrow={content.title}
             title="The right hands at every step"
-            lead="Authors write drafts, editors review and publish them, and content managers run the whole publication. The roles exist in Storevia today; the writing tools that use them are on the roadmap."
+            lead="Authors write drafts, editors review and publish them, and content managers run the whole publication. The roles exist in Storevia today; the writing tools that use them are planned."
           />
           <Timing item={content} className="mt-6" />
         </div>
         <Reveal className="mt-12 lg:mt-14">
           <EditorialFlowVisual />
           <IllustrativeNote className="mt-4">
-            A concept of publishing on the roadmap, with sample posts and people.
+            A concept of planned publishing tools, with sample posts and people.
           </IllustrativeNote>
         </Reveal>
         <div className="mt-12 grid gap-12 lg:mt-14 lg:grid-cols-2 lg:gap-16">
@@ -442,7 +472,7 @@ export default async function ProductsPage() {
         </div>
       </Section>
 
-      <Section labelledBy="analytics-heading" id="analytics">
+      <Section tone="tinted" labelledBy="analytics-heading" id="analytics">
         <div className="grid gap-12 lg:grid-cols-[5fr_7fr] lg:items-center lg:gap-16">
           <Reveal className="min-w-0">
             <SectionHeading
@@ -453,11 +483,7 @@ export default async function ProductsPage() {
             />
             <Timing item={analytics} className="mt-6" />
             <div className="mt-9">
-              {catalogue ? (
-                <HistoryByPlan catalogue={catalogue} />
-              ) : (
-                <Points points={analytics.points} />
-              )}
+              <Points points={analytics.points} />
             </div>
           </Reveal>
           <Reveal className="min-w-0">
@@ -467,68 +493,19 @@ export default async function ProductsPage() {
               <ChannelsCard className="sm:col-span-2" />
             </div>
             <IllustrativeNote className="mt-4">
-              A concept of analytics on the roadmap, with example figures.
+              A concept of planned storefront analytics, with example figures.
             </IllustrativeNote>
           </Reveal>
         </div>
       </Section>
 
-      <Section tone="tinted" labelledBy="more-heading">
-        <SectionHeading
-          id="more-heading"
-          eyebrow="Also on the roadmap"
-          title="Customers, domains, themes and integrations"
-          lead="Each arrives with the part of Storevia it belongs to."
-        />
-        <Stagger
-          as="ul"
-          itemAs="li"
-          className="mt-12 grid gap-4 md:grid-cols-2"
-          itemClassName="flex min-w-0"
-        >
-          {ROADMAP_CARDS.map(({ id, visual, parts = false }) => {
-            const item = capability(id);
-            return (
-              <article
-                key={id}
-                id={id}
-                aria-labelledby={`${id}-heading`}
-                className="flex w-full scroll-mt-24 flex-col overflow-hidden rounded-panel border border-line bg-surface"
-              >
-                <div className="flex h-36 items-center justify-center border-b border-line bg-surface-sunken px-6">
-                  {visual}
-                </div>
-                <div className="flex flex-1 flex-col p-6 lg:p-7">
-                  <div className="flex items-center gap-3">
-                    <GlyphTile name={item.glyph} tone="neutral" size="sm" />
-                    <h3 id={`${id}-heading`} className="font-display text-h4 text-ink">
-                      {item.title}
-                    </h3>
-                  </div>
-                  <p className="mt-4 text-body-sm text-ink-muted">{item.summary}</p>
-                  {parts ? (
-                    <div className="mt-5 flex-1">
-                      <Parts item={item} title="Part by part" />
-                    </div>
-                  ) : (
-                    <ul className="mt-4 flex-1 space-y-2 text-body-sm text-ink-muted">
-                      {item.points.map((point) => (
-                        <li key={point} className="flex gap-2.5">
-                          <span
-                            aria-hidden="true"
-                            className="mt-[0.6rem] h-px w-2.5 shrink-0 bg-neutral-400"
-                          />
-                          {point}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <Timing item={item} className="mt-6" />
-                </div>
-              </article>
-            );
-          })}
-        </Stagger>
+      <Section labelledBy="integrations-section-heading">
+        <h2 id="integrations-section-heading" className="sr-only">
+          Integrations
+        </h2>
+        <div className="max-w-2xl">
+          <CapabilityCard id="integrations" visual={<IntegrationsVignette />} parts />
+        </div>
       </Section>
 
       {/* Future: in-person selling, restrained and clearly labelled. */}
@@ -562,7 +539,7 @@ export default async function ProductsPage() {
 
       <CTASection
         title="Start with what’s ready today"
-        lead="Set up your organisation, your stores and your team now. Everything else arrives in the same workspace as it ships."
+        lead="Set up your organisation, your store and your team now, and take your first order."
         secondary={{ label: "See the roadmap", href: "/resources#roadmap" }}
       />
     </>

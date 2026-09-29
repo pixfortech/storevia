@@ -2,11 +2,13 @@ import "server-only";
 import { withTenant } from "@storevia/database";
 import { consumeUsage, releaseUsage } from "@storevia/entitlements";
 import { platformHostname, storefrontRootDomain } from "@storevia/domains";
-import { notFound } from "@storevia/types";
+import { notFound, validationFailed } from "@storevia/types";
 import { conflict, generateTokenSafe } from "./internal";
 import {
   changeBusinessTypeSchema,
   createStoreSchema,
+  isSupportedLocale,
+  SUPPORTED_LOCALE_MESSAGE,
   updateStoreSchema,
 } from "@storevia/validation";
 import { recordAudit } from "./audit";
@@ -172,10 +174,15 @@ export async function updateStore(ctx: StoreContext, input: unknown): Promise<vo
   await withTenant(scopeOf(ctx), async (tx) => {
     const current = await tx.store.findFirst({
       where: { id: ctx.storeId, organisationId: ctx.organisationId },
-      select: { status: true },
+      select: { status: true, locale: true },
     });
     if (!current) throw notFound();
     if (current.status === "ARCHIVED") throw conflict("Archived stores can't be edited.");
+    // English-only launch (SF-3): a store keeps a locale it already has, but
+    // a change must be to a supported one.
+    if (data.locale !== current.locale && !isSupportedLocale(data.locale)) {
+      throw validationFailed({ locale: SUPPORTED_LOCALE_MESSAGE });
+    }
     await tx.store.update({ where: { id: ctx.storeId }, data, select: { id: true } });
     await recordAudit(
       tx,

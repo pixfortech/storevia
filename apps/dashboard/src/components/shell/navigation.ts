@@ -168,9 +168,9 @@ export function breadcrumbTrail(
   return trail.map((crumb, index) => (index === trail.length - 1 ? { label: crumb.label } : crumb));
 }
 
-/** A quiet status for a destination: "Soon" for unbuilt areas, the plan lock otherwise. */
+/** A quiet status for a destination: "Planned" for unbuilt areas, the plan lock otherwise. */
 export function linkStatus(link: Pick<ShellLink, "soon" | "locked">): string | undefined {
-  const parts = [link.soon ? "Soon" : null, link.locked ? "Not in your plan" : null];
+  const parts = [link.soon ? "Planned" : null, link.locked ? "Not in your plan" : null];
   const text = parts.filter((p): p is string => p !== null).join(" · ");
   return text || undefined;
 }

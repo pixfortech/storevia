@@ -20,6 +20,8 @@ const PUBLIC_PREFIXES = [
   "/reset-password",
   "/invitations/",
   "/api/health",
+  // Redirects to the configured support destination (DB-3).
+  "/support",
   // Provider webhooks authenticate by signature, not session (docs 05 §4).
   "/api/webhooks/",
   // Local media storage (development): uploads authenticate with a signed,

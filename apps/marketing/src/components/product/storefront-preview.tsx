@@ -1,7 +1,7 @@
 // A storefront as a merchant might design it on Storevia: a browser window
-// with the store's header, a hero and a product grid. Storefronts are on the
-// roadmap, so this is a concept, not a theme catalogue; the store, products
-// and prices are sample content. Responds to its own width.
+// with the store's header, a hero and a product grid. An illustration, not a
+// theme catalogue; the store, products and prices are sample content.
+// Responds to its own width.
 import { buttonClasses } from "@storevia/ui/button";
 import { cn } from "@storevia/ui/cn";
 import { Icon } from "@storevia/ui/icons";

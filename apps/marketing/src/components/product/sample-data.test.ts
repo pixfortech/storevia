@@ -23,10 +23,11 @@ describe("scaleSeries", () => {
 });
 
 describe("SAMPLE_DASHBOARDS", () => {
-  it("gives the analytics chart a figure to agree with", () => {
-    expect(SAMPLE_DASHBOARDS.ECOMMERCE.kpis.find((k) => k.label === "Visitors")).toMatchObject({
-      value: "8,940",
-      delta: 9.1,
-    });
+  it("shows an online store only the figures its home really has (no visitors: planned)", () => {
+    expect(SAMPLE_DASHBOARDS.ECOMMERCE.kpis.map((k) => k.label)).toEqual([
+      "Revenue",
+      "Orders",
+      "New customers",
+    ]);
   });
 });

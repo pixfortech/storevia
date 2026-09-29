@@ -5,6 +5,7 @@ import {
   displayNameSchema,
   emailSchema,
   localeSchema,
+  supportedLocaleSchema,
   timezoneSchema,
 } from "./common";
 
@@ -95,13 +96,16 @@ export const createStoreSchema = z.object({
   slug: storeSlugSchema,
   currency: currencySchema,
   country: countrySchema,
-  locale: localeSchema,
+  // New stores choose from the launch languages (SF-3).
+  locale: supportedLocaleSchema,
   timezone: timezoneSchema,
 });
 export type CreateStoreInput = z.infer<typeof createStoreSchema>;
 
 export const updateStoreSchema = z.object({
   name: displayNameSchema("store"),
+  // Any valid tag here, so a store keeps a locale it already has; a change
+  // must be to a supported locale (checked against the store in updateStore).
   locale: localeSchema,
   timezone: timezoneSchema,
   contactEmail: z.union([z.literal(""), emailSchema]).transform((v) => v || null),

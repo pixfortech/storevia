@@ -1,9 +1,13 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { FEATURE_AVAILABILITY } from "@storevia/entitlements/availability";
 import { describe, expect, it } from "vitest";
 import {
+  areaForSegment,
   BUSINESS_TYPE_DEFINITIONS,
   BUSINESS_TYPES,
+  isLaunchBusinessType,
+  LAUNCH_BUSINESS_TYPES,
   rolePresetsFor,
   STORE_AREAS,
   storeNavigation,
@@ -93,6 +97,37 @@ describe("storeNavigation never shows more than RBAC and the plan allow", () => 
       const before = [...ROLE_PERMISSIONS[role]];
       for (const type of types) storeNavigation(type, ROLE_PERMISSIONS[role], entitledAll);
       expect([...ROLE_PERMISSIONS[role]]).toEqual(before);
+    }
+  });
+});
+
+describe("launch scope and availability (DB-2, DB-5)", () => {
+  it("offers only the online store for new stores, and keeps every type for existing ones", () => {
+    expect([...LAUNCH_BUSINESS_TYPES]).toEqual(["ECOMMERCE"]);
+    for (const type of LAUNCH_BUSINESS_TYPES) expect(BUSINESS_TYPES).toContain(type);
+    expect(isLaunchBusinessType("ECOMMERCE")).toBe(true);
+    for (const type of ["BUSINESS", "PUBLISHING", "PORTFOLIO", "ecommerce", ""]) {
+      expect(isLaunchBusinessType(type), type).toBe(false);
+    }
+  });
+
+  it("never puts a planned area in navigation, but keeps its route", () => {
+    for (const type of BUSINESS_TYPES) {
+      for (const item of storeNavigation(type, all, entitledAll)) {
+        expect(item.availability, `${type}/${item.key}`).toBe("available");
+      }
+    }
+    const ecommerce = storeNavigation("ECOMMERCE", all, entitledAll).map((i) => i.key);
+    expect(ecommerce).not.toContain("analytics");
+    expect(areaForSegment("ECOMMERCE", "analytics")?.availability).toBe("planned");
+    expect(areaForSegment("PUBLISHING", "posts")?.availability).toBe("planned");
+  });
+
+  it("never calls an area available when the plan feature it needs is planned", () => {
+    for (const area of Object.values(STORE_AREAS)) {
+      if (area.feature && FEATURE_AVAILABILITY[area.feature] === "planned") {
+        expect(area.availability, area.key).toBe("planned");
+      }
     }
   });
 });

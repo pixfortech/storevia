@@ -18,6 +18,7 @@ import {
   listStores,
   requireOrganisationAccess,
   requireStoreAccess,
+  updateStore,
   type OrganisationContext,
   type Principal,
 } from "../src";
@@ -117,6 +118,42 @@ describe("persistence", () => {
 
   it("rejects unknown business types", async () => {
     await expectCode(createStore(org, storeInput("the-diner", "RESTAURANT")), "VALIDATION_FAILED");
+  });
+});
+
+describe("store languages (SF-3)", () => {
+  it("creates stores only in a supported English locale", async () => {
+    await expectCode(
+      createStore(org, { ...storeInput("the-bazaar"), locale: "hi-IN" }),
+      "VALIDATION_FAILED",
+    );
+    const { storeId } = await createStore(org, { ...storeInput("the-bazaar"), locale: "en-GB" });
+    const ctx = await requireStoreAccess(owner, toTypeId("store", storeId));
+    expect((await getStore(ctx)).locale).toBe("en-GB");
+  });
+
+  it("keeps a locale a store already has, and refuses a change to an unsupported one", async () => {
+    const { storeId } = await createStore(org, storeInput("the-souk"));
+    // A store created before the English-only launch.
+    await migratorDb().store.update({ where: { id: storeId }, data: { locale: "ar-AE" } });
+    const ctx = await requireStoreAccess(owner, toTypeId("store", storeId));
+    const update = (locale: string) =>
+      updateStore(ctx, {
+        name: "The Souk",
+        locale,
+        timezone: "UTC",
+        contactEmail: "",
+        supportEmail: "",
+      });
+    await update("ar-AE");
+    expect((await getStore(ctx)).locale).toBe("ar-AE");
+    await expect(update("fr-FR")).rejects.toMatchObject({
+      code: "VALIDATION_FAILED",
+      fieldErrors: { locale: "Choose one of the supported languages." },
+    });
+    await update("en-AE");
+    expect((await getStore(ctx)).locale).toBe("en-AE");
+    await expectCode(update("ar-AE"), "VALIDATION_FAILED");
   });
 });
 
@@ -220,21 +257,25 @@ describe("business type is not an authorisation or entitlement input", () => {
   });
 
   it("navigation locks follow the plan, identically for every business type", async () => {
-    const { storeId } = await createStore(org, storeInput("the-atelier", "PORTFOLIO"));
+    const { storeId } = await createStore(org, storeInput("the-atelier", "ECOMMERCE"));
     const ctx = await requireStoreAccess(owner, toTypeId("store", storeId));
-    const locked = async () => {
+    const locked = async (type = ctx.storeBusinessType) => {
       const granted = await grantedFeatures(ctx);
-      return storeNavigation(ctx.storeBusinessType, ctx.permissions, (f) => granted.has(f))
+      return storeNavigation(type, ctx.permissions, (f) => granted.has(f))
         .filter((item) => item.locked)
         .map((item) => item.key);
     };
-    // Free allowance: analytics isn't included.
-    expect(await locked()).toContain("analytics");
+    // Free allowance: discount codes (Marketing) aren't included. Planned
+    // areas such as analytics never appear, locked or not.
+    expect(await locked()).toEqual(["marketing"]);
+    for (const type of ["BUSINESS", "PUBLISHING", "PORTFOLIO"] as const) {
+      expect(await locked(type)).toEqual([]);
+    }
     await subscribe("business");
     expect(await locked()).toEqual([]);
     // A member without billing access may still know what is included.
     const viewer = await member("VIEWER");
     const viewerCtx = await requireStoreAccess(viewer, toTypeId("store", storeId));
-    expect((await grantedFeatures(viewerCtx)).has("analytics")).toBe(true);
+    expect((await grantedFeatures(viewerCtx)).has("discounts")).toBe(true);
   });
 });

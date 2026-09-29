@@ -3,12 +3,13 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { AuthAside } from "./auth-aside";
 
-// The four business types, in the order the marketing site lists them.
-const SITE_GLYPHS: readonly GlyphName[] = ["online-store", "website", "publishing", "portfolio"];
+// What an online store brings together (DB-2: Storevia launches for online
+// stores only): the store, its catalogue, its website and its team.
+const SITE_GLYPHS: readonly GlyphName[] = ["online-store", "commerce", "builder", "teams"];
 
 /**
- * Phones and tablets: the aside's one line on what Storevia is, with the four
- * business-type glyphs, so the single column still carries the brand.
+ * Phones and tablets: the aside's one line on what Storevia is, with four
+ * product glyphs, so the single column still carries the brand.
  */
 function AuthBrandNote() {
   return (
@@ -28,10 +29,10 @@ function AuthBrandNote() {
         ))}
       </div>
       <p id="auth-brand-note" className="mt-4 font-display text-h4 text-balance text-ink">
-        Every kind of site, run from one account.
+        Your online store, run from one account.
       </p>
       <p className="mt-1 text-body-sm text-ink-muted">
-        Online stores, business websites, publications and portfolios.
+        Products, orders, customers and a storefront you design.
       </p>
     </aside>
   );

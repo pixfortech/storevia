@@ -5,13 +5,13 @@ import { Check, ChevronsUpDown, MonitorSmartphone, type LucideIcon } from "lucid
 // (docs/design/design-plan.md: no invented metrics or testimonials; keep in
 // step with the marketing site's capabilities).
 
-// Sample sites for the store-switcher composition. Invented names, labelled
-// "Illustrative" under the picture; the business types are the real ones.
+// Sample stores for the store-switcher composition. Invented names, labelled
+// "Illustrative" under the picture. Online stores only: the other business
+// types aren't offered at launch (DB-2).
 const SAMPLE_SITES: readonly { glyph: GlyphName; name: string; type: string }[] = [
   { glyph: "online-store", name: "Harbour Goods", type: "Online store" },
-  { glyph: "website", name: "Harbour & Co.", type: "Business website" },
-  { glyph: "publishing", name: "The Harbour Journal", type: "Publication" },
-  { glyph: "portfolio", name: "Studio Harbour", type: "Portfolio" },
+  { glyph: "online-store", name: "Harbour Home", type: "Online store" },
+  { glyph: "online-store", name: "Harbour Outlet", type: "Online store" },
 ];
 
 // Each point's picture: a Storevia glyph where one names the idea, otherwise
@@ -23,7 +23,7 @@ const VALUE_POINTS: readonly (PointArt & { title: string; body: string })[] = [
   {
     glyph: "teams",
     title: "The right access for everyone",
-    body: "Roles from owner to author, and access to selected stores only.",
+    body: "Roles from owner to support, each with precise permissions.",
   },
   {
     icon: MonitorSmartphone,
@@ -32,13 +32,13 @@ const VALUE_POINTS: readonly (PointArt & { title: string; body: string })[] = [
   },
 ];
 
-/** A store switcher with one site of each business type: one decorative image. */
+/** A store switcher listing an organisation's stores: one decorative image. */
 function SiteSwitcherPicture() {
   return (
     <figure>
       <div
         role="img"
-        aria-label="Illustration: a store switcher listing four sample sites in one organisation, an online store, a business website, a publication and a portfolio."
+        aria-label="Illustration: a store switcher listing three sample online stores in one organisation."
       >
         <div
           inert
@@ -50,7 +50,7 @@ function SiteSwitcherPicture() {
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-label text-ink">Harbour &amp; Co.</span>
-              <span className="block text-caption text-ink-faint">Organisation · 4 sites</span>
+              <span className="block text-caption text-ink-faint">Organisation · 3 stores</span>
             </span>
             <Icon icon={ChevronsUpDown} size="sm" className="text-ink-faint" />
           </div>
@@ -98,11 +98,11 @@ export function AuthAside() {
       <div className="m-auto w-full max-w-[31rem] px-12 py-14 xl:px-16">
         <p className="text-overline text-brand-700 uppercase">One platform</p>
         <h2 id="auth-aside-title" className="mt-4 font-display text-h3 text-balance text-ink">
-          Every kind of site, run from one account.
+          Your online stores, run from one account.
         </h2>
         <p className="mt-3 text-body-sm text-ink-muted">
-          An online store, a business website, a publication or a portfolio, each set up for what it
-          is.
+          Products, orders, customers and a storefront you design, with a team that has the right
+          access.
         </p>
         <div className="mt-8">
           <SiteSwitcherPicture />

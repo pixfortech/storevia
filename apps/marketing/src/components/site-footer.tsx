@@ -15,7 +15,7 @@ export function SiteFooter() {
               <Logo />
             </Link>
             <p className="mt-5 text-body-sm text-ink-muted">
-              Websites, online stores, publications and portfolios, run by your team from one place.
+              Online stores, run by your team from one place.
             </p>
             <div className="mt-6 rounded-card border border-line p-4">
               <p className="text-label text-ink">Built in the open</p>

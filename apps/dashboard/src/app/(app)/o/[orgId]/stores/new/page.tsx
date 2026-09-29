@@ -5,6 +5,7 @@ import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { AccessNotice } from "@/components/areas/access-notice";
+import { SupportLink } from "@/components/support-link";
 import { PageHeader } from "@/components/shell/app-shell";
 import { orgPath } from "@/lib/ids";
 import { defaultsForCountry } from "@/lib/options";
@@ -53,8 +54,8 @@ export default async function NewStorePage({
           }
         >
           {ctx.organisationName} has {allowance.usage.toString()} of {allowance.limit.toString()}{" "}
-          {allowance.limit === 1n ? "store" : "stores"} allowed by its plan. Archive a store, or
-          contact Storevia to change your plan.
+          {allowance.limit === 1n ? "store" : "stores"} allowed by its plan. Archive a store, or{" "}
+          <SupportLink>contact Storevia</SupportLink> to change your plan.
         </AccessNotice>
       </>
     );
@@ -67,7 +68,7 @@ export default async function NewStorePage({
         title={onboarding ? "Create your first store" : "Create store"}
         description={
           onboarding
-            ? "Tell us what you're building. You can change everything except the address and currency later."
+            ? "Name your store and choose its address. You can change everything except the address and currency later."
             : "Each store has its own address, navigation and team access. It shares your organisation's plan."
         }
       />

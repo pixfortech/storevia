@@ -1,4 +1,4 @@
-import { SUPPORTED_CURRENCIES } from "@storevia/validation";
+import { isSupportedLocale, SUPPORTED_CURRENCIES, SUPPORTED_LOCALES } from "@storevia/validation";
 import { countries } from "@storevia/validation/geo";
 
 // Option lists for forms. Countries come from the geo reference data (the
@@ -16,18 +16,42 @@ export const CURRENCY_OPTIONS = SUPPORTED_CURRENCIES.map((code) => ({
   label: `${code} · ${currencyNames.of(code) ?? code}`,
 }));
 
-export const LOCALE_OPTIONS = [
-  { value: "en-IN", label: "English (India)" },
-  { value: "en-US", label: "English (United States)" },
-  { value: "en-GB", label: "English (United Kingdom)" },
-  { value: "en-AU", label: "English (Australia)" },
-  { value: "hi-IN", label: "Hindi (India)" },
-  { value: "fr-FR", label: "French (France)" },
-  { value: "de-DE", label: "German (Germany)" },
-  { value: "es-ES", label: "Spanish (Spain)" },
-  { value: "ar-AE", label: "Arabic (UAE)" },
-  { value: "ja-JP", label: "Japanese (Japan)" },
-] as const;
+const languageNames = new Intl.DisplayNames(["en"], {
+  type: "language",
+  languageDisplay: "standard",
+});
+
+/**
+ * English only at launch (SF-3): "English (India)", "English (United
+ * Kingdom)"… The server accepts only these for new values; a store that
+ * already has another locale keeps it (the settings form lists it too).
+ */
+export const LOCALE_OPTIONS = SUPPORTED_LOCALES.map((tag) => ({
+  value: tag,
+  label: languageNames.of(tag) ?? tag,
+}));
+
+/** The label for a stored locale, including one that is no longer offered. */
+export function localeLabel(tag: string): string {
+  try {
+    return languageNames.of(tag) ?? tag;
+  } catch {
+    return tag;
+  }
+}
+
+/**
+ * The language choices for a store's settings: the supported locales, plus
+ * the store's own when it chose one before the English-only launch (it may
+ * keep it, but can't switch back to it once changed).
+ */
+export function localeOptionsFor(current: string): { value: string; label: string }[] {
+  if (isSupportedLocale(current)) return LOCALE_OPTIONS;
+  return [
+    { value: current, label: `${localeLabel(current)} (no longer offered)` },
+    ...LOCALE_OPTIONS,
+  ];
+}
 
 export const TIMEZONE_OPTIONS = [
   "Asia/Kolkata",
@@ -49,7 +73,13 @@ export const TIMEZONE_OPTIONS = [
   "Africa/Johannesburg",
 ].map((zone) => ({ value: zone, label: zone.replace(/_/g, " ") }));
 
-/** Sensible defaults from the organisation's country. */
+/** The English locale for a country when there is one ("en-SG"), else US English. */
+function englishLocaleFor(country: string): string {
+  const tag = `en-${country}`;
+  return isSupportedLocale(tag) ? tag : "en-US";
+}
+
+/** Sensible defaults from the organisation's country. The language is always English (SF-3). */
 export function defaultsForCountry(country: string | null | undefined) {
   switch (country) {
     case "IN":
@@ -61,8 +91,13 @@ export function defaultsForCountry(country: string | null | undefined) {
     case "AU":
       return { currency: "AUD", locale: "en-AU", timezone: "Australia/Sydney", country: "AU" };
     case "AE":
-      return { currency: "AED", locale: "ar-AE", timezone: "Asia/Dubai", country: "AE" };
+      return { currency: "AED", locale: "en-AE", timezone: "Asia/Dubai", country: "AE" };
     default:
-      return { currency: "USD", locale: "en-US", timezone: "UTC", country: country ?? "US" };
+      return {
+        currency: "USD",
+        locale: englishLocaleFor(country ?? "US"),
+        timezone: "UTC",
+        country: country ?? "US",
+      };
   }
 }

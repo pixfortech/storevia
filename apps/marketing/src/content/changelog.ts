@@ -1,28 +1,132 @@
 // Storevia's release history, newest first, compiled from the repository:
-// every entry is a milestone tag or a group of commits in `git log`, dated by
-// its commit date (UTC). Add an entry when a release lands; never add one for
-// work that hasn't been committed.
+// every entry is a release tag or a group of commits in `git log`, dated by
+// its last commit's date (UTC). Add an entry when a release lands; never add
+// one for work that hasn't been committed, and never describe more than the
+// commits delivered. Labels are plain categories, never internal milestone
+// numbers (tags are kept for provenance only and aren't shown).
 
 export interface Release {
   /** Anchor on /changelog. */
   readonly id: string;
   /** Commit date, YYYY-MM-DD (UTC). For work in progress, the date it started. */
   readonly date: string;
-  /** "Milestone 2", "Design", "Engineering". */
+  /** "Product", "Design", "Engineering". */
   readonly label: string;
   readonly title: string;
   readonly status: "released" | "in-progress";
   readonly summary: string;
   readonly changes: readonly string[];
-  /** The git tag that marks the release, when there is one. */
+  /** The git tag that marks the release, when there is one (provenance, not shown). */
   readonly tag?: string;
 }
 
 export const RELEASES: readonly Release[] = [
   {
+    id: "data-and-security",
+    date: "2026-09-28",
+    label: "Product",
+    title: "Your data and security",
+    status: "released",
+    summary:
+      "Owners control their organisation's data, and the checks around sign-in, payments and public forms are stronger.",
+    changes: [
+      "Organisation data export for owners, and account and organisation deletion that keeps order and payment history intact",
+      "An audit log of changes to your organisation, readable in the dashboard",
+      "Password confirmation before refunds, and order links you can revoke",
+      "Rate limits that hold when an address changes, and stricter checks on payment webhooks",
+      "Razorpay payments tested end to end, with refunds that can't be issued twice",
+    ],
+  },
+  {
+    id: "themes",
+    date: "2026-09-28",
+    label: "Product",
+    title: "Themes",
+    status: "released",
+    summary: "A second theme, and a Themes area to preview, customise and switch between them.",
+    changes: [
+      "Boutique, a second first-party theme",
+      "Install, preview, customise, publish and switch themes",
+      "Demo previews of every theme",
+      "Storefront text colours that stay readable on every background",
+    ],
+  },
+  {
+    id: "order-operations",
+    date: "2026-09-28",
+    label: "Product",
+    title: "Order operations",
+    status: "released",
+    summary: "Orders from payment to delivery, and a page where customers follow theirs.",
+    changes: [
+      "Shipments with tracking, delivery steps and order completion",
+      "Archived orders, kept out of the way but never deleted",
+      "A private order page where customers follow their order and send you a message",
+      "A notification centre for customer messages, for the people who handle orders",
+      "Product categories and tags, and shipping zones by country and state",
+    ],
+  },
+  {
+    id: "custom-domains",
+    date: "2026-09-28",
+    label: "Product",
+    title: "Custom domains",
+    status: "released",
+    summary: "Serve your store on your own domain, with HTTPS handled for you.",
+    changes: [
+      "Connect a domain in store settings, with clear DNS instructions",
+      "Verification before a domain goes live, so only its owner can claim it",
+      "HTTPS certificates issued and renewed automatically",
+    ],
+  },
+  {
+    id: "checkout-and-orders",
+    date: "2026-09-27",
+    label: "Product",
+    title: "Checkout, orders and payments",
+    status: "released",
+    tag: "milestone-6-accepted",
+    summary: "Stores take orders: shoppers check out and pay, and merchants fulfil and refund.",
+    changes: [
+      "A checkout on your storefront, with prices, shipping, tax and discount codes worked out on the server",
+      "Payments through your own Razorpay account, confirmed by signed notifications from Razorpay",
+      "Orders with fulfilment, cancellation and refunds, and a record for every customer",
+      "Order emails for your customers",
+      "Discount codes, shipping zones and rates, and tax rates in the dashboard",
+      "Sales, orders, new customers and top products on each store's home",
+    ],
+  },
+  {
+    id: "builder",
+    date: "2026-09-27",
+    label: "Product",
+    title: "Visual builder, pages and menus",
+    status: "released",
+    summary: "Design every page of your store yourself.",
+    changes: [
+      "Pages built from ready-made sections, with desktop, tablet and phone previews",
+      "Autosaved drafts, a private preview and publishing when you're ready",
+      "A theme with your own colours, fonts and buttons",
+      "Header and footer menus, and content pages",
+    ],
+  },
+  {
+    id: "storefront",
+    date: "2026-09-26",
+    label: "Product",
+    title: "Storefront",
+    status: "released",
+    summary: "Stores become visible on the web.",
+    changes: [
+      "Your store on the web at its Storevia address",
+      "Product pages, collections, cart and search",
+      "A coming-soon page until you go live, and a private preview for your team",
+    ],
+  },
+  {
     id: "milestone-3",
     date: "2026-09-25",
-    label: "Milestone 3",
+    label: "Product",
     title: "Catalogue, inventory and media",
     status: "released",
     tag: "milestone-3",
@@ -39,12 +143,12 @@ export const RELEASES: readonly Release[] = [
   },
   {
     id: "redesign",
-    date: "2026-09-24",
+    date: "2026-09-25",
     label: "Design",
     title: "A new look for Storevia",
-    status: "in-progress",
+    status: "released",
     summary:
-      "A visual reset of every surface, starting from a new design system. The marketing site, the dashboard and the staff tools are being redesigned on it now.",
+      "A visual reset of every surface on a new design system: the public site, the dashboard, sign-in and the staff tools.",
     changes: [
       "A design system of type, colour, icons, charts and motion, with every text colour pair tested for accessible contrast",
       "The Storevia mark redrawn as a vector, and a set of product glyphs and line illustrations in the same style",
@@ -67,13 +171,13 @@ export const RELEASES: readonly Release[] = [
   {
     id: "milestone-2-5",
     date: "2026-09-24",
-    label: "Milestone 2.5",
+    label: "Product",
     title: "Business types, background jobs and the public site",
     status: "released",
     summary:
       "Stores learned what they are, the platform learned to work in the background, and Storevia got its public website.",
     changes: [
-      "Business types for each store (online store, business website, publication or portfolio), shaping navigation, the store's home and suggested roles",
+      "Business types for each store, shaping navigation, the store's home and suggested roles (online stores are offered today; the other types are planned)",
       "Five new roles for business types: inventory manager, site manager, content manager, editor and author",
       "Onboarding by business type and a dashboard designed for desktop, tablet and phone",
       "Background jobs that end expired subscriptions and keep usage counts accurate",
@@ -84,7 +188,7 @@ export const RELEASES: readonly Release[] = [
   {
     id: "milestone-2",
     date: "2026-09-24",
-    label: "Milestone 2",
+    label: "Product",
     title: "Plans, limits and subscriptions",
     status: "released",
     tag: "milestone-2",
@@ -101,7 +205,7 @@ export const RELEASES: readonly Release[] = [
   {
     id: "milestone-1",
     date: "2026-09-24",
-    label: "Milestone 1",
+    label: "Product",
     title: "Accounts, teams and the dashboard",
     status: "released",
     tag: "milestone-1",
@@ -117,7 +221,7 @@ export const RELEASES: readonly Release[] = [
   {
     id: "milestone-0",
     date: "2026-09-24",
-    label: "Milestone 0",
+    label: "Engineering",
     title: "Architecture",
     status: "released",
     tag: "milestone-0",
@@ -125,7 +229,7 @@ export const RELEASES: readonly Release[] = [
       "The plan before the product: architecture, data model, security model and roadmap, reviewed and approved.",
     changes: [
       "Architecture decisions recorded for every foundational choice",
-      "The data model, the threat model and the milestone roadmap",
+      "The data model, the threat model and the roadmap",
       "Repository tooling and continuous integration",
     ],
   },
@@ -162,12 +266,4 @@ export function releasesByDay(releases: readonly Release[] = RELEASES): ReleaseD
     else days.push({ date: release.date, releases: [release] });
   }
   return days;
-}
-
-/** Labels of the releases marked by a git tag ("Milestone 0", …), oldest first. */
-export function taggedMilestones(releases: readonly Release[] = RELEASES): string[] {
-  return releases
-    .filter((release) => release.tag)
-    .map((release) => release.label)
-    .reverse();
 }

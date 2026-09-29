@@ -2,7 +2,7 @@
 // the shared mockup frames (components/product). Each one is a single
 // labelled, inert image; any that shows a figure or a name says it's
 // illustrative. Server components.
-import { BUSINESS_TYPE_DEFINITIONS, BUSINESS_TYPES } from "@storevia/tenancy/business-types";
+import { BUSINESS_TYPE_DEFINITIONS } from "@storevia/tenancy/business-types";
 import { ROLE_LABELS } from "@storevia/tenancy/rbac";
 import { cn } from "@storevia/ui/cn";
 import { CommandMenuPreview } from "@storevia/ui/command-preview";
@@ -36,11 +36,18 @@ import { StorefrontPreview } from "@/components/product/storefront-preview";
 import { BUSINESS_TYPE_GLYPH } from "@/content/business-types";
 
 /** An organisation's store switcher: one store of each type, and the plan's store limit. */
+/** Sample online stores in one organisation (online stores are what Storevia offers). */
+const SAMPLE_STORES = [
+  SAMPLE_DASHBOARDS.ECOMMERCE.store,
+  "Northwind Home",
+  "Northwind Outlet",
+] as const;
+
 export function OrganisationVisual() {
   return (
     <div>
       <Mockup
-        label={`Illustration: the store switcher for a sample organisation, ${SAMPLE_ORGANISATION}, with one store of each business type and its plan's store limit.`}
+        label={`Illustration: the store switcher for a sample organisation, ${SAMPLE_ORGANISATION}, with three online stores and its plan's store limit.`}
         className="rounded-panel border border-line bg-surface-sunken p-5 sm:p-8"
       >
         <div className="mx-auto max-w-md overflow-hidden rounded-card border border-line bg-surface shadow-popover">
@@ -54,9 +61,9 @@ export function OrganisationVisual() {
           </div>
           <p className="px-4 pt-3 pb-1 text-overline text-ink-faint uppercase">Stores</p>
           <ul className="px-2 pb-2">
-            {BUSINESS_TYPES.map((type, index) => (
+            {SAMPLE_STORES.map((store, index) => (
               <li
-                key={type}
+                key={store}
                 className={
                   index === 0
                     ? "flex items-center gap-3 rounded-control bg-subtle px-2 py-2"
@@ -64,14 +71,12 @@ export function OrganisationVisual() {
                 }
               >
                 <span className="flex size-8 items-center justify-center rounded-control border border-line bg-surface">
-                  <Glyph name={BUSINESS_TYPE_GLYPH[type]} className="size-4.5 text-ink" />
+                  <Glyph name={BUSINESS_TYPE_GLYPH.ECOMMERCE} className="size-4.5 text-ink" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-body-sm font-medium text-ink">
-                    {SAMPLE_DASHBOARDS[type].store}
-                  </span>
+                  <span className="block truncate text-body-sm font-medium text-ink">{store}</span>
                   <span className="block text-caption text-ink-muted">
-                    {BUSINESS_TYPE_DEFINITIONS[type].label}
+                    {BUSINESS_TYPE_DEFINITIONS.ECOMMERCE.label}
                   </span>
                 </span>
                 {index === 0 ? <Icon icon={Check} size="sm" className="text-brand-600" /> : null}
@@ -79,7 +84,7 @@ export function OrganisationVisual() {
             ))}
           </ul>
           <div className="border-t border-line px-4 py-3.5">
-            <UsageMeter label="Stores on your plan" used={4} limit={10} size="sm" />
+            <UsageMeter label="Stores on your plan" used={3} limit={10} size="sm" />
           </div>
           <div className="flex items-center gap-2 border-t border-line px-4 py-3 text-body-sm text-ink-muted">
             <Icon icon={Plus} size="sm" />
@@ -120,11 +125,11 @@ export function AdministrationVisual() {
                 icon: <Glyph name="online-store" className="size-4" />,
               },
               {
-                id: "journal",
-                label: SAMPLE_DASHBOARDS.PUBLISHING.store,
+                id: "outlet",
+                label: "Northwind Outlet",
                 group: "Stores",
-                hint: BUSINESS_TYPE_DEFINITIONS.PUBLISHING.label,
-                icon: <Glyph name="publishing" className="size-4" />,
+                hint: BUSINESS_TYPE_DEFINITIONS.ECOMMERCE.label,
+                icon: <Glyph name="online-store" className="size-4" />,
               },
               {
                 id: "settings",
@@ -156,11 +161,11 @@ export function AdministrationVisual() {
   );
 }
 
-/** A domain being connected: verification, then HTTPS (a roadmap concept). */
+/** A domain being connected: verification, then HTTPS (sample domain). */
 export function DomainsVignette() {
   return (
     <Mockup
-      label="Illustration: a custom domain connected to a store, verified and with HTTPS, a concept for a feature on the roadmap."
+      label="Illustration: a sample custom domain connected to a store, verified and with HTTPS."
       className="w-full max-w-xs"
     >
       <div className="overflow-hidden rounded-card border border-line bg-surface shadow-card">
@@ -180,14 +185,11 @@ export function DomainsVignette() {
   );
 }
 
-/** A theme's colours and type, being adjusted (a roadmap concept). */
+/** A theme's colours and type, being adjusted. */
 export function ThemesVignette() {
   const swatches = ["bg-navy-950", "bg-brand-600", "bg-accent-400", "bg-neutral-100"];
   return (
-    <Mockup
-      label="Illustration: a theme's colours and type styles, a concept for a feature on the roadmap."
-      className="w-full max-w-xs"
-    >
+    <Mockup label="Illustration: a theme's colours and type styles." className="w-full max-w-xs">
       <div className="flex items-center gap-4 rounded-card border border-line bg-surface px-4 py-3.5 shadow-card">
         <span className="font-display text-[2rem] leading-none font-semibold tracking-tight text-ink">
           Aa
@@ -210,13 +212,10 @@ export function ThemesVignette() {
   );
 }
 
-/** A customer record (a roadmap concept, a sample person). */
+/** A customer record (a sample person). */
 export function CustomersVignette() {
   return (
-    <Mockup
-      label="Illustration: a sample customer record, a concept for a feature on the roadmap."
-      className="w-full max-w-xs"
-    >
+    <Mockup label="Illustration: a sample customer record." className="w-full max-w-xs">
       <div className="flex items-center gap-3 rounded-card border border-line bg-surface px-3.5 py-3 shadow-card">
         <Avatar name="Leo Hart" size="sm" />
         <span className="min-w-0 flex-1">
@@ -455,17 +454,16 @@ export function MediaPipelineVisual() {
 }
 
 // ---------------------------------------------------------------------------
-// Website builder (roadmap): one page on two screens, and its history.
+// Website builder: one page on two screens, and its draft and live states.
 // ---------------------------------------------------------------------------
 
+// Only the draft and what's live: restoring earlier versions is on the roadmap.
 const VERSIONS = [
   { label: "Draft", detail: "Autosaved just now", state: "draft" },
   { label: "Published", detail: "Today, 09:40", state: "live" },
-  { label: "Version 2", detail: "Mon, 16:05", state: "earlier" },
-  { label: "Version 1", detail: "2 Sep, 11:20", state: "earlier" },
 ] as const;
 
-/** A page's history: the draft, what's live and earlier versions to restore. */
+/** A page's state: the autosaved draft beside what's live. */
 function PageHistory({ className }: { className?: string }) {
   return (
     <div
@@ -476,7 +474,7 @@ function PageHistory({ className }: { className?: string }) {
     >
       <div className="flex items-center gap-2 border-b border-line px-3.5 py-2.5">
         <Icon icon={History} size="sm" className="text-ink-faint" />
-        <span className="text-label text-ink">Home page history</span>
+        <span className="text-label text-ink">Home page</span>
       </div>
       <ol className="px-3.5 py-1.5">
         {VERSIONS.map((version) => (
@@ -486,16 +484,12 @@ function PageHistory({ className }: { className?: string }) {
                 "size-2 shrink-0 rounded-full",
                 version.state === "draft" && "border-2 border-brand-600",
                 version.state === "live" && "bg-success-500",
-                version.state === "earlier" && "bg-neutral-300",
               )}
             />
             <span className="min-w-0 flex-1">
               <span className="block text-body-sm font-medium text-ink">{version.label}</span>
               <span className="block text-caption text-ink-faint">{version.detail}</span>
             </span>
-            {version.state === "earlier" ? (
-              <span className="text-caption font-medium text-brand-700">Restore</span>
-            ) : null}
           </li>
         ))}
       </ol>
@@ -503,11 +497,11 @@ function PageHistory({ className }: { className?: string }) {
   );
 }
 
-/** The same page at desktop and phone width, with its version history. */
+/** The same page at desktop and phone width, with its draft and live states. */
 export function PublishingVisual() {
   return (
     <Mockup
-      label="Illustration: one sample storefront page shown at desktop and phone width, beside its history of drafts and published versions, a concept for a feature on the roadmap."
+      label="Illustration: one sample storefront page shown at desktop and phone width, beside its autosaved draft and published version."
       className="@container/publish rounded-panel border border-line bg-surface-sunken p-4 sm:p-8"
     >
       <div className="grid items-start gap-5 @2xl/publish:grid-cols-[minmax(0,1fr)_15rem] @2xl/publish:gap-8">

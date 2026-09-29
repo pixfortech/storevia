@@ -58,7 +58,12 @@ const POINTS: readonly Point[] = [
 export function TeamsSection({ catalogue }: { catalogue: PublicCatalogue | null }) {
   const teams = capability("teams");
   const rows = roleMatrix();
-  const plans = catalogue ? planAvailability(catalogue, "advanced_permissions") : null;
+  // Plan names only for a feature that exists: a planned one is never a
+  // reason to choose a plan.
+  const plans =
+    catalogue && FEATURE_STATUS.advanced_permissions === "available"
+      ? planAvailability(catalogue, "advanced_permissions")
+      : null;
   const points: readonly Point[] = [
     ...POINTS.slice(0, 3),
     {

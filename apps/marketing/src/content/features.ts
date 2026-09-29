@@ -1,13 +1,15 @@
 // The full capability matrix on /features: every feature Storevia has or
 // plans, grouped by area, each with its real status. Plan features take their
-// status from plan-features.ts and store areas their timing from the domain's
-// STORE_AREAS, so this page, pricing and the dashboard can't disagree. A test
-// checks that every plan feature appears here.
+// status from plan-features.ts and store areas from the domain's STORE_AREAS
+// (both derived from the platform's own sources), so this page, pricing and
+// the dashboard can't disagree. Tests check that every plan feature appears
+// here and that every status agrees with its source. No dates, no milestones.
 import type { FeatureKey } from "@storevia/entitlements/features";
-import { STORE_AREAS } from "@storevia/tenancy/business-types";
+import type { AreaKey } from "@storevia/tenancy/business-types";
 import { MEMBER_ROLES } from "@storevia/tenancy/rbac";
 import type { GlyphName } from "@storevia/ui/icons";
 import { CreditCard, LifeBuoy, ShieldCheck, type LucideIcon } from "lucide-react";
+import { areaStatus } from "./business-types";
 import { STATUSES, type Status } from "./capabilities";
 import { FEATURE_STATUS } from "./plan-features";
 
@@ -17,8 +19,8 @@ export interface FeatureItem {
   readonly status: Status;
   /** The plan feature that decides which plans include it (and how much). */
   readonly planFeature?: FeatureKey | undefined;
-  /** When an unfinished feature is planned: "Milestone 3", "a later release". */
-  readonly milestone?: string | undefined;
+  /** The store area it is, when it is one (its status comes from STORE_AREAS). */
+  readonly area?: AreaKey | undefined;
 }
 
 export interface FeatureArea {
@@ -35,42 +37,15 @@ export interface FeatureArea {
   readonly items: readonly FeatureItem[];
 }
 
-/** A feature sold by plan: its status always matches the pricing page. */
-function planFeature(
-  key: FeatureKey,
-  title: string,
-  description: string,
-  milestone?: string,
-): FeatureItem {
-  const status = FEATURE_STATUS[key];
-  return {
-    title,
-    description,
-    status,
-    planFeature: key,
-    ...(status === "available" ? {} : { milestone }),
-  };
+/** A feature sold by plan: its status always matches the pricing page and the dashboard. */
+function planFeature(key: FeatureKey, title: string, description: string): FeatureItem {
+  return { title, description, status: FEATURE_STATUS[key], planFeature: key };
 }
 
-const M = {
-  catalogue: STORE_AREAS.products.availability,
-  inventory: STORE_AREAS.inventory.availability,
-  media: STORE_AREAS.media.availability,
-  orders: STORE_AREAS.orders.availability,
-  customers: STORE_AREAS.customers.availability,
-  discounts: STORE_AREAS.marketing.availability,
-  website: STORE_AREAS.website.availability,
-  pages: STORE_AREAS.pages.availability,
-  posts: STORE_AREAS.posts.availability,
-  categories: STORE_AREAS.categories.availability,
-  authors: STORE_AREAS.authors.availability,
-  projects: STORE_AREAS.projects.availability,
-  blog: STORE_AREAS.blog.availability,
-  analytics: STORE_AREAS.analytics.availability,
-  // From the public roadmap (docs/roadmap/implementation-roadmap.md).
-  domains: "Milestone 7",
-  hardening: "Milestone 8",
-} as const;
+/** A store area: its status always matches the dashboard's navigation. */
+function areaFeature(area: AreaKey, title: string, description: string): FeatureItem {
+  return { title, description, status: areaStatus(area), area };
+}
 
 export const FEATURE_AREAS: readonly FeatureArea[] = [
   {
@@ -78,7 +53,7 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
     title: "Organisations and stores",
     glyph: "online-store",
     capability: "organisations",
-    summary: "One account for everything you run online, each store set up for what it is.",
+    summary: "One account for every online store you run, each with its own address and team.",
     items: [
       {
         title: "Organisations",
@@ -88,28 +63,28 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
       planFeature(
         "store_count",
         "Several stores",
-        "Run stores and sites from one organisation, up to your plan's limit.",
+        "Run several online stores from one organisation, up to your plan's limit.",
       ),
       {
-        title: "Business types",
+        title: "Online stores",
         description:
-          "Tell Storevia what each store is: an online store, a business website, a publication or a portfolio.",
+          "Every store is set up for selling: navigation, its home and suggested roles are built around orders, products and customers.",
         status: "available",
       },
       {
-        title: "Change type at any time",
-        description:
-          "Switch a store's business type later. Nothing is deleted, and your plan and permissions stay the same.",
-        status: "available",
+        title: "Business websites, publications and portfolios",
+        description: "Stores built around pages, posts or projects instead of products.",
+        status: "roadmap",
       },
       {
         title: "Store web address",
-        description: "Each store reserves its own Storevia address, ready for its storefront.",
+        description: "Each store has its own Storevia address, live when you choose.",
         status: "available",
       },
       {
         title: "Store settings",
-        description: "Name, language, time zone, and contact and support emails for each store.",
+        description:
+          "Name, date and number format, time zone, and contact and support emails for each store.",
         status: "available",
       },
       {
@@ -124,7 +99,7 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
     title: "Team and access",
     glyph: "teams",
     capability: "teams",
-    summary: "Bring in staff, freelancers and writers without handing over the keys.",
+    summary: "Bring in staff and freelancers without handing over the keys.",
     items: [
       {
         title: "Invitations",
@@ -138,12 +113,7 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
       ),
       {
         title: "Standard roles",
-        description: `${String(MEMBER_ROLES.length)} roles, from owner to author, each mapped to precise permissions checked on every request.`,
-        status: "available",
-      },
-      {
-        title: "Suggested roles",
-        description: "Role suggestions that match each store's business type when you invite.",
+        description: `${String(MEMBER_ROLES.length)} roles, each mapped to precise permissions checked on every request.`,
         status: "available",
       },
       planFeature(
@@ -160,11 +130,11 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
       {
         title: "Password confirmation",
         description:
-          "Sensitive changes, like granting admin rights, ask you to confirm your password first.",
+          "Sensitive changes, like granting admin rights or refunding an order, ask you to confirm your password first.",
         status: "available",
       },
       {
-        title: "Audit trail",
+        title: "Audit log",
         description:
           "Changes to members, roles, stores and plans are recorded with who made them and when.",
         status: "available",
@@ -195,27 +165,21 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
         status: "available",
       },
       {
-        title: "Navigation by business type",
-        description: "Each store's navigation puts what matters for its type first.",
-        status: "available",
-      },
-      {
         title: "Plan and usage",
         description: "See your plan, what it includes and how much of each limit you're using.",
         status: "available",
       },
       {
-        title: "Business figures on your store's home",
+        title: "Notifications",
         description:
-          "Sales, orders and visitors on each store's home, filling in as each part of Storevia ships.",
-        status: "roadmap",
-        milestone: M.orders,
+          "Messages from customers about their orders, for the people who handle orders.",
+        status: "available",
       },
     ],
   },
   {
     id: "security",
-    title: "Accounts and security",
+    title: "Accounts, security and your data",
     icon: ShieldCheck,
     summary: "Protection that's built in from the first line, not added at the end.",
     items: [
@@ -245,11 +209,25 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
         description: "Sign-in, sign-up and public forms are rate limited against abuse.",
         status: "available",
       },
+      planFeature(
+        "export",
+        "Data export",
+        "Owners can download their organisation's data, and products can be exported as CSV.",
+      ),
       {
-        title: "Two-step sign-in and Google sign-in",
-        description: "A second step at sign-in, and signing in with your Google account.",
+        title: "Account and organisation deletion",
+        description: "Delete your account, or your whole organisation, from the dashboard.",
+        status: "available",
+      },
+      {
+        title: "Two-step sign-in",
+        description: "A second step when you sign in, with an authenticator app.",
         status: "roadmap",
-        milestone: M.hardening,
+      },
+      {
+        title: "Sign in with Google",
+        description: "Sign in with your Google account instead of a password.",
+        status: "roadmap",
       },
     ],
   },
@@ -257,7 +235,7 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
     id: "plans",
     title: "Plans and billing",
     icon: CreditCard,
-    summary: "Start free. Plans are set up with our team until online checkout arrives.",
+    summary: "Start free. Paid plans are set up with our team.",
     items: [
       {
         title: "Free to start",
@@ -296,19 +274,18 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
       planFeature(
         "product_limit",
         "Products and collections",
-        "Products with descriptions, pricing and media, grouped into collections.",
-        M.catalogue,
+        "Products with descriptions, pricing and media, grouped into collections, with tags and categories.",
       ),
       {
         title: "Options and variants",
         description: "Sizes, colours and materials, each variant with its own price and stock.",
         status: "available",
       },
-      {
-        title: "Inventory by location",
-        description: "Stock levels per location, with a full history of every movement.",
-        status: "available",
-      },
+      areaFeature(
+        "inventory",
+        "Inventory by location",
+        "Stock levels per location, with a full history of every movement.",
+      ),
       {
         title: "Search and bulk editing",
         description:
@@ -319,31 +296,60 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
         "media_storage",
         "Media library",
         "One library of images and files for your products and pages.",
-        M.media,
       ),
       {
         title: "Checkout and payments",
         description:
-          "A guest checkout with prices, shipping and tax worked out on the server, paid on your payment provider's secure page.",
+          "A guest checkout with prices, shipping and tax worked out on the server, paid on Razorpay's secure page.",
+        status: "available",
+      },
+      areaFeature(
+        "orders",
+        "Orders, fulfilment and refunds",
+        "Every order with its payment and fulfilment status, shipments with tracking, delivery, refunds and cancellation.",
+      ),
+      areaFeature(
+        "customers",
+        "Customers",
+        "A record for every customer who orders, with their order history, notes and tags.",
+      ),
+      {
+        title: "Customer order page",
+        description:
+          "Each shopper gets a private link to follow their order and send you a message.",
         status: "available",
       },
       {
-        title: "Orders, refunds and fulfilment",
-        description: "Every order with its payment and fulfilment status, refunds included.",
-        status: "available",
-      },
-      {
-        title: "Customers",
-        description: "A record for every customer who orders, with their order history.",
+        title: "Shipping and tax",
+        description:
+          "Shipping zones with flat and price-based rates, and tax rates you set, with your GST number.",
         status: "available",
       },
       planFeature(
         "discounts",
         "Discount codes",
         "Percentage or fixed-amount codes with minimums, dates and usage limits.",
-        M.discounts,
       ),
-      planFeature("abandoned_cart", "Abandoned cart recovery", "Recover abandoned checkouts."),
+      {
+        title: "Automatic discounts",
+        description: "Discounts that apply at checkout without a code.",
+        status: "roadmap",
+      },
+      {
+        title: "Cash on delivery",
+        description: "Let shoppers pay when their order arrives.",
+        status: "roadmap",
+      },
+      {
+        title: "Customer accounts",
+        description: "Shoppers sign in to see their orders and saved addresses.",
+        status: "roadmap",
+      },
+      planFeature(
+        "abandoned_cart",
+        "Abandoned cart recovery",
+        "Remind shoppers about checkouts they didn't finish.",
+      ),
     ],
   },
   {
@@ -356,7 +362,7 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
       {
         title: "Storefront",
         description:
-          "Your store on the web at its Storevia address, with product pages, collections, cart and search.",
+          "Your store on the web, with product pages, collections, cart and search, served over HTTPS.",
         status: "available",
       },
       planFeature(
@@ -380,15 +386,15 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
         description: "Compare and restore earlier published versions of a page.",
         status: "roadmap",
       },
+      areaFeature("pages", "Pages", "Pages such as About, Contact and landing pages."),
       {
-        title: "Pages",
-        description: "Pages such as About, Contact and landing pages.",
+        title: "Menus",
+        description: "Menus for your site's header and footer.",
         status: "available",
       },
       {
-        title: "Themes and menus",
-        description:
-          "A choice of styles with your own colours, fonts and buttons, and menus for the header and footer.",
+        title: "Search titles and descriptions",
+        description: "Set how each product and page appears in search results.",
         status: "available",
       },
       planFeature(
@@ -406,45 +412,19 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
     capability: "content",
     summary: "Write, edit and publish as a team, for publications and any business with news.",
     items: [
+      areaFeature("posts", "Posts", "Articles and stories, from draft to published."),
+      areaFeature("categories", "Categories", "Sections readers can browse."),
+      areaFeature("authors", "Author profiles", "Author profiles shown on your posts."),
+      areaFeature("blog", "Blog", "News and articles alongside your store."),
+      areaFeature(
+        "projects",
+        "Projects",
+        "Show your work as projects with images and case studies.",
+      ),
       {
-        title: "Posts",
-        description: "Articles and stories, from draft to published.",
+        title: "Site forms",
+        description: "Contact and enquiry forms on your site.",
         status: "roadmap",
-        milestone: M.posts,
-      },
-      {
-        title: "Categories",
-        description: "Sections readers can browse.",
-        status: "roadmap",
-        milestone: M.categories,
-      },
-      {
-        title: "Author profiles",
-        description: "Author profiles shown on your posts.",
-        status: "roadmap",
-        milestone: M.authors,
-      },
-      {
-        title: "Blog",
-        description: "News and articles alongside a business website or portfolio.",
-        status: "roadmap",
-        milestone: M.blog,
-      },
-      {
-        title: "Projects",
-        description: "Show your work as projects with images and case studies.",
-        status: "roadmap",
-        milestone: M.projects,
-      },
-      {
-        title: "Search previews",
-        description: "Titles and descriptions for search engines, set per page and per post.",
-        status: "roadmap",
-      },
-      {
-        title: "Writer and editor roles",
-        description: "Author, editor and content manager roles are ready for your team today.",
-        status: "available",
       },
     ],
   },
@@ -459,19 +439,21 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
         "custom_domain",
         "Custom domains",
         "Serve your store on your own domain, with clear DNS instructions and verification.",
-        M.domains,
       ),
       {
         title: "Automatic HTTPS",
         description: "Certificates issued and renewed for your domains automatically.",
-        status: "roadmap",
-        milestone: M.domains,
+        status: "available",
+      },
+      {
+        title: "Themes",
+        description: "Two first-party themes, each with ready-made presets.",
+        status: "available",
       },
       {
         title: "Theme customisation",
         description: "Customise colours, type and layout, and preview before you publish.",
-        status: "roadmap",
-        milestone: M.domains,
+        status: "available",
       },
       planFeature("premium_themes", "Premium themes", "Install premium themes."),
     ],
@@ -481,13 +463,23 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
     title: "Analytics",
     glyph: "analytics",
     capability: "analytics",
-    summary: "Reports on traffic, engagement and sales, with history set by your plan.",
+    summary: "Your sales at a glance today; traffic and reports are planned.",
     items: [
+      {
+        title: "Business figures on your store's home",
+        description:
+          "Sales, orders, new customers, a sales trend and top products over the period you choose.",
+        status: "available",
+      },
+      areaFeature(
+        "analytics",
+        "Storefront visitors and conversion",
+        "How many people visit your store, and how many of them order.",
+      ),
       planFeature(
         "analytics",
         "Reports",
-        "Traffic, engagement and sales reports. How much history you keep is set by your plan.",
-        M.analytics,
+        "Sales and traffic reports, with how much history you keep set by your plan.",
       ),
     ],
   },
@@ -502,10 +494,13 @@ export const FEATURE_AREAS: readonly FeatureArea[] = [
         "api_access",
         "API access",
         "Use the Storevia API with API keys, starting with the catalogue.",
-        M.orders,
       ),
-      planFeature("webhooks", "Webhooks", "Send events to your own endpoints.", M.orders),
-      planFeature("export", "Data export", "Export your data.", M.hardening),
+      planFeature("webhooks", "Webhooks", "Send events to your own endpoints."),
+      {
+        title: "Apps",
+        description: "Add features to your store from other providers.",
+        status: "roadmap",
+      },
     ],
   },
   {

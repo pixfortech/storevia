@@ -1,9 +1,10 @@
-// Answers reflect the product as it is today (see capabilities.ts).
+// Answers reflect the product as it is today (see capabilities.ts), with no
+// dates for anything that isn't built.
 export const FAQ: readonly { question: string; answer: string }[] = [
   {
-    question: "Can I use Storevia today?",
+    question: "What can I do with Storevia today?",
     answer:
-      "Yes, to set up your organisation, your stores and your team. Storevia is in active development: the storefront, product catalogue and visual builder arrive over the coming releases, and every feature on this site shows its status.",
+      "Run an online store. Build your catalogue, design your storefront with the visual builder and a theme, connect your own domain, take payments through your Razorpay account, and manage orders, customers and your team. Everything that isn't built yet is marked on this site.",
   },
   {
     question: "What does it cost to start?",
@@ -13,22 +14,27 @@ export const FAQ: readonly { question: string; answer: string }[] = [
   {
     question: "How do I move to a paid plan?",
     answer:
-      "Online checkout isn't available yet, so paid plans are set up by our team. Get in touch through the contact page and we'll help you choose.",
+      "Paid plans are set up by our team. Get in touch through the contact page and we'll help you choose.",
   },
   {
-    question: "What is a business type, and can I change it?",
+    question: "Is Storevia only for online stores?",
     answer:
-      "When you create a store you tell us what you're building: an online store, a business website, a publication or a portfolio. Storevia shapes navigation, your store's home and suggested team roles around it. You can change it at any time and nothing is deleted. It never changes your plan or anyone's permissions.",
+      "For now, yes. Every store is set up for selling: its navigation, home and suggested team roles are built around orders, products and customers. Business websites, blogs and portfolios are on the roadmap, and you can't create them yet.",
   },
   {
     question: "Does Storevia take payments?",
     answer:
-      "Your store does, through your own payment provider account (Razorpay for now), so the money goes straight to you. Shoppers pay on the provider's secure page: card details never reach Storevia or your store.",
+      "Your store does, through your own Razorpay account, so the money goes straight to you. Shoppers pay on Razorpay's secure page: card details never reach Storevia or your store. Cash on delivery isn't available yet.",
   },
   {
     question: "Can I use my own domain?",
     answer:
-      "Custom domains are on the roadmap. Until then, each store has its own Storevia web address.",
+      "Yes, on plans that include custom domains. Connect a domain you own with the DNS instructions in your dashboard, and HTTPS certificates are issued and renewed automatically. Every store also has its own Storevia address.",
+  },
+  {
+    question: "What languages does my store support?",
+    answer:
+      "English. Your storefront and emails are in English, and you choose a regional format (such as English (India) or English (United Kingdom)) for dates and numbers.",
   },
   {
     question: "How is my data kept separate from other businesses?",
@@ -48,17 +54,17 @@ export const PRICING_FAQ: readonly { question: string; answer: string }[] = [
   {
     question: "What does a plan cover?",
     answer:
-      "A plan belongs to your organisation, not to a single store. Its limits are shared by every store and team member in it, whatever each store's business type.",
+      "A plan belongs to your organisation, not to a single store. Its limits are shared by every store and team member in it.",
   },
   {
     question: "How do I move to a paid plan?",
     answer:
-      "Online checkout isn't available yet, so our team sets up paid plans and trials. Choose Talk to us on a plan, tell us roughly how many stores and team members you need, and we'll reply by email.",
+      "Our team sets up paid plans and trials. Choose Talk to us on a plan, tell us roughly how many stores and team members you need, and we'll reply by email.",
   },
   {
-    question: "What do Up next and On the roadmap mean on a plan?",
+    question: "What does On the roadmap mean on a plan?",
     answer:
-      "They mark features that aren't built yet: Up next is the next milestone we build, On the roadmap comes after it. Each plan already records whether it includes them, and the product enforces what the plan records, so you can use a feature on your plan as soon as it ships.",
+      "It marks a feature that isn't built yet, so you can't use it on any plan today, and we don't give dates. A plan lists it so you can see how plans differ once it exists.",
   },
   {
     question: "What happens if I reach a limit?",
@@ -67,7 +73,6 @@ export const PRICING_FAQ: readonly { question: string; answer: string }[] = [
   },
   {
     question: "Can I change or cancel my plan later?",
-    answer:
-      "Yes. For now our team makes plan changes: send us a message and we'll take care of it. Choosing and changing plans yourself arrives with online checkout.",
+    answer: "Yes. Our team makes plan changes: send us a message and we'll take care of it.",
   },
 ];

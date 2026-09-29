@@ -1,5 +1,12 @@
-import { STORE_AREAS, type BusinessType } from "@storevia/tenancy/business-types";
+import {
+  BUSINESS_TYPES,
+  isLaunchBusinessType,
+  STORE_AREAS,
+  type AreaKey,
+  type BusinessType,
+} from "@storevia/tenancy/business-types";
 import type { GlyphName } from "@storevia/ui/icons";
+import { statusOf, type Status } from "./capabilities";
 
 export const BUSINESS_TYPE_GLYPH: Readonly<Record<BusinessType, GlyphName>> = {
   ECOMMERCE: "online-store",
@@ -7,6 +14,28 @@ export const BUSINESS_TYPE_GLYPH: Readonly<Record<BusinessType, GlyphName>> = {
   PUBLISHING: "publication",
   PORTFOLIO: "portfolio",
 };
+
+/**
+ * Whether merchants can create a store of each type today: the dashboard
+ * offers only the launch types (LAUNCH_BUSINESS_TYPES, DB-2), so every other
+ * type is on the roadmap, never sold as available.
+ */
+export const BUSINESS_TYPE_STATUS: Readonly<Record<BusinessType, Status>> = Object.fromEntries(
+  BUSINESS_TYPES.map((type) => [type, isLaunchBusinessType(type) ? "available" : "roadmap"]),
+) as Record<BusinessType, Status>;
+
+/** The business types merchants can choose today, then the planned ones. */
+export const OFFERED_BUSINESS_TYPES = BUSINESS_TYPES.filter(
+  (type) => BUSINESS_TYPE_STATUS[type] === "available",
+);
+export const PLANNED_BUSINESS_TYPES = BUSINESS_TYPES.filter(
+  (type) => BUSINESS_TYPE_STATUS[type] !== "available",
+);
+
+/** A store area's status on the site, from the domain's STORE_AREAS. */
+export function areaStatus(area: AreaKey): Status {
+  return statusOf(STORE_AREAS[area].availability);
+}
 
 /** Anchors on /solutions. */
 export const BUSINESS_TYPE_ANCHOR: Readonly<Record<BusinessType, string>> = {
@@ -24,34 +53,26 @@ export const BUSINESS_TYPE_PLURAL: Readonly<Record<BusinessType, string>> = {
   PORTFOLIO: "Portfolios",
 };
 
-const when = (area: keyof typeof STORE_AREAS) =>
-  STORE_AREAS[area].availability ?? "a later release";
-
 /**
- * The /solutions headline and lead for each type. Timings come from the
- * domain's store areas, so they can't drift from the dashboard's own labels.
+ * The /solutions headline and lead for each type. Only the launch type is
+ * described as something you can use; the others say plainly that they are
+ * planned, with no dates.
  */
 export const SOLUTION_COPY: Readonly<Record<BusinessType, { headline: string; lead: string }>> = {
   ECOMMERCE: {
     headline: "A store run from one place",
-    lead: "Your navigation starts with orders, products and customers, and your store's home with your sales and stock. Shoppers check out on your storefront and pay through your own provider.",
+    lead: "Your navigation starts with orders, products and customers, and your store's home with your sales and stock. Shoppers check out on your storefront and pay through your own Razorpay account.",
   },
   BUSINESS: {
-    headline: "A professional website, without the clutter",
-    lead: `Navigation built around your website, pages and blog, with no commerce areas in your way until you need them. The visual builder arrives in ${when("website")}.`,
+    headline: "Business websites",
+    lead: "A site built around your pages, with site forms for enquiries. Not offered yet: you can't create a business website today.",
   },
   PUBLISHING: {
-    headline: "A publication your whole team can write for",
-    lead: `Posts, categories and authors come first, and the roles for content managers, editors and authors are ready today. Writing tools arrive in ${when("posts")}.`,
+    headline: "Blogs and publications",
+    lead: "Posts, categories and authors, with a writing workflow for your team. Not offered yet: you can't create a publication today.",
   },
   PORTFOLIO: {
-    headline: "A portfolio that puts your work first",
-    lead: `Projects and media lead your navigation, with roles for everyone who helps you show your work. Portfolio tools arrive in ${when("projects")}.`,
+    headline: "Portfolios",
+    lead: "Projects with images and case studies. Not offered yet: you can't create a portfolio today.",
   },
 };
-
-/** When a store area is available: "Available", "Milestone 3", "A later release". */
-export function areaTiming(availability: string | undefined): string {
-  if (!availability) return "Available";
-  return availability.charAt(0).toUpperCase() + availability.slice(1);
-}

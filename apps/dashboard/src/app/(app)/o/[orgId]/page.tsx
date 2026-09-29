@@ -8,6 +8,7 @@ import { ArrowRight, Globe, Info, Plus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/shell/app-shell";
+import { SupportLink } from "@/components/support-link";
 import { BUSINESS_TYPE_GLYPH } from "@/lib/business-types";
 import { storeStatusBadge } from "@/lib/dashboard/setup";
 import { orgPath, storePath } from "@/lib/ids";
@@ -48,7 +49,7 @@ export default async function OrganisationPage({ params }: { params: Promise<{ o
             title={canCreate ? "Create your first store" : "No stores to show yet"}
             description={
               canCreate
-                ? "A store is an online store, business website, publication or portfolio, with its own address on the web."
+                ? "Each store has its own products, orders and address on the web."
                 : "There are no stores you can access yet. Ask an owner or admin to give you access."
             }
             action={
@@ -169,7 +170,7 @@ export default async function OrganisationPage({ params }: { params: Promise<{ o
                 Your plan&apos;s store limit has been reached.
               </span>{" "}
               {ctx.organisationName} uses {used} of {limit} {limit === 1 ? "store" : "stores"}.
-              Archive a store, or contact Storevia to change your plan.
+              Archive a store, or <SupportLink>contact Storevia</SupportLink> to change your plan.
             </span>
           </p>
           {billingHref ? (

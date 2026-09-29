@@ -7,6 +7,7 @@ import { Alert, Badge, Card, CardBody, CardHeader } from "@storevia/ui/surfaces"
 import { Building2, Check, CreditCard, FlaskConical, Minus, UserCog } from "lucide-react";
 import type { Metadata } from "next";
 import { AccessNotice } from "@/components/areas/access-notice";
+import { SupportLink } from "@/components/support-link";
 import { PageHeader } from "@/components/shell/app-shell";
 import { UsageMeters } from "@/components/usage-meters";
 import {
@@ -54,9 +55,6 @@ function LimitTiles({ rows }: { rows: readonly EntitlementRow[] }) {
             >
               {row.label}
             </dd>
-            {row.availability ? (
-              <dd className="mt-1 truncate text-caption text-ink-faint">{row.availability}</dd>
-            ) : null}
           </div>
         ))}
       </dl>
@@ -65,14 +63,24 @@ function LimitTiles({ rows }: { rows: readonly EntitlementRow[] }) {
 }
 
 /**
- * Features, each marked included or not in words as well as an icon, and,
- * when it isn't built yet, when it's planned: a plan can include a feature
- * before merchants can use it.
+ * Features, each marked included or not in words as well as an icon. The
+ * planned list names features that aren't built: "Planned", with no lock and
+ * nothing to upgrade for (AN-6), whatever the plan records.
  */
-function FeatureList({ rows }: { rows: readonly EntitlementRow[] }) {
+function FeatureList({
+  title,
+  note,
+  rows,
+}: {
+  title: string;
+  note?: string;
+  rows: readonly EntitlementRow[];
+}) {
+  if (rows.length === 0) return null;
   return (
     <div>
-      <h3 className="text-overline text-ink-faint uppercase">Features</h3>
+      <h3 className="text-overline text-ink-faint uppercase">{title}</h3>
+      {note ? <p className="mt-1.5 text-body-sm text-ink-muted">{note}</p> : null}
       <ul className="mt-3 grid grid-cols-1 border-t border-line md:grid-cols-2 md:gap-x-10">
         {rows.map((row) => (
           <li
@@ -90,21 +98,22 @@ function FeatureList({ rows }: { rows: readonly EntitlementRow[] }) {
                 <span className={cn("block", row.included ? "text-ink" : "text-ink-muted")}>
                   {row.name}
                 </span>
-                {row.availability ? (
-                  <Badge size="sm" variant="outline" className="mt-1.5">
-                    {row.availability}
-                  </Badge>
-                ) : null}
               </span>
             </span>
-            <span
-              className={cn(
-                "shrink-0 text-right",
-                row.included ? "text-ink-muted" : "text-ink-faint",
-              )}
-            >
-              {row.label}
-            </span>
+            {row.availability === "planned" ? (
+              <Badge size="sm" variant="outline" className="shrink-0">
+                {row.label}
+              </Badge>
+            ) : (
+              <span
+                className={cn(
+                  "shrink-0 text-right",
+                  row.included ? "text-ink-muted" : "text-ink-faint",
+                )}
+              >
+                {row.label}
+              </span>
+            )}
           </li>
         ))}
       </ul>
@@ -127,7 +136,7 @@ export default async function BillingPage({ params }: { params: Promise<{ orgId:
   }
   const billing = await getOrganisationBilling(ctx);
   const sub = billing.subscription;
-  const { limits, features } = entitlementGroups(billing.entitlements);
+  const { limits, features, planned } = entitlementGroups(billing.entitlements);
   const over = billing.usage.filter((l) => l.overLimit);
 
   const now = new Date();
@@ -140,20 +149,21 @@ export default async function BillingPage({ params }: { params: Promise<{ orgId:
   const alerts = [
     trialEnds ? (
       <Alert key="trial" tone="info" title={`Your trial ends on ${formatLongDate(trialEnds)}`}>
-        Contact Storevia support to keep {sub?.planName ?? "your plan"}. If the trial ends, nothing
-        is deleted: you keep working within the free allowance.
+        <SupportLink>Contact Storevia support</SupportLink> to keep {sub?.planName ?? "your plan"}.
+        If the trial ends, nothing is deleted: you keep working within the free allowance.
       </Alert>
     ) : null,
     sub && (sub.status === "EXPIRED" || !sub.entitling) ? (
       <Alert key="ended" tone="warning" title="Your plan has ended">
         Nothing has been deleted. Your stores keep working within the free allowance, and anything
-        above it can&apos;t be added to. Contact Storevia support to choose a plan.
+        above it can&apos;t be added to. <SupportLink>Contact Storevia support</SupportLink> to
+        choose a plan.
       </Alert>
     ) : null,
     sub?.status === "PAST_DUE" ? (
       <Alert key="past-due" tone="warning" title="Payment is overdue">
         Your plan stays active until {sub.graceEndsAt ? formatLongDate(sub.graceEndsAt) : null}.
-        Contact Storevia to keep it.
+        <SupportLink>Contact Storevia support</SupportLink> to keep it.
       </Alert>
     ) : null,
     sub?.status === "CANCELLED" ? (
@@ -244,11 +254,16 @@ export default async function BillingPage({ params }: { params: Promise<{ orgId:
           <Card>
             <CardHeader
               title="What your plan includes"
-              description="Limits and features apply to your whole organisation. Most features are still being built: each shows when it's planned, and it switches on for your plan when it launches."
+              description="Limits and features apply to your whole organisation."
             />
             <CardBody className="space-y-8 py-6">
               <LimitTiles rows={limits} />
-              <FeatureList rows={features} />
+              <FeatureList title="Features" rows={features} />
+              <FeatureList
+                title="Planned"
+                note="These aren't part of Storevia yet, so no plan includes them today."
+                rows={planned}
+              />
             </CardBody>
           </Card>
         </div>
@@ -265,7 +280,7 @@ export default async function BillingPage({ params }: { params: Promise<{ orgId:
           <CardBody className="space-y-5">
             <p className="text-body-sm text-ink-muted">
               Online payments aren&apos;t available yet, and nothing is charged here. To change your
-              plan, contact Storevia support.
+              plan, <SupportLink />.
             </p>
             <ul className="space-y-3 border-t border-line pt-4 text-body-sm text-ink-muted">
               <li className="flex gap-2.5">

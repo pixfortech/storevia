@@ -1,6 +1,6 @@
 // 08 Store management: the merchant dashboard at full size, with example
 // figures, and an honest line on what the store home shows today versus
-// what arrives with orders and analytics.
+// what's planned (storefront analytics).
 import { ScaleIn } from "@storevia/ui/motion";
 import { Section, SectionHeading, StatusPill } from "@/components/marketing";
 import { DashboardWindow } from "@/components/product/dashboard-window";
@@ -10,19 +10,21 @@ import { PhoneAdmin } from "@/components/product/phone-admin";
 const STAGES = [
   {
     status: "available",
-    title: "Today",
+    title: "Sales",
     description:
-      "Each store's home shows what to set up next, product and stock counts, low and out-of-stock items, and your plan's usage.",
+      "Revenue, orders, new customers, a sales trend and top products, over the period you choose.",
+  },
+  {
+    status: "available",
+    title: "Stock and setup",
+    description:
+      "What to set up next, product and stock counts, low and out-of-stock items, and your plan's usage.",
   },
   {
     status: "roadmap",
-    title: "With orders",
-    description: "Revenue, orders and top products, once checkout and orders arrive.",
-  },
-  {
-    status: "roadmap",
-    title: "With analytics",
-    description: "Visitors, customer growth and trends, with history set by your plan.",
+    title: "Visitors",
+    description:
+      "Storefront visitors and conversion. Not recorded yet, so never shown or estimated.",
   },
 ] as const;
 
@@ -36,8 +38,8 @@ export function ManagementSection() {
           title="Your business at a glance, every morning"
         />
         <p className="max-w-xl text-body-lg text-ink-muted lg:justify-self-end">
-          One home for each store: what sold, who visited, what your team changed and what needs you
-          next. Figures fill in as each part of Storevia ships.
+          One home for each store: what sold, what&apos;s running low, what your team changed and
+          what needs you next.
         </p>
       </div>
       <ScaleIn className="mt-12 lg:mt-16">

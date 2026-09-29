@@ -128,7 +128,7 @@ export function LocationDialog({
         </div>
         <Switch
           label="Fulfils online orders"
-          description="Online orders can be shipped from here (used from Milestone 6)."
+          description="Stock here counts towards online orders, and orders can be shipped from here."
           checked={fulfils}
           onCheckedChange={setFulfils}
         />

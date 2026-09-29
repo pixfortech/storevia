@@ -1,6 +1,6 @@
 // 07 Commerce: copy and a part-by-part status list beside the product
-// editor. The catalogue is live; the list says which parts follow, so
-// nothing unfinished (checkout, orders, customers) reads as live.
+// editor. Catalogue, checkout, orders and customers are live; the list marks
+// the parts that are planned, so nothing unfinished reads as live.
 import { Reveal, SlideReveal } from "@storevia/ui/motion";
 import { Section, SectionHeading, StatusPill } from "@/components/marketing";
 import { capability } from "@/content/capabilities";
@@ -18,8 +18,8 @@ export function CommerceSection() {
             id="commerce-heading"
             eyebrow="Commerce"
             status={commerce.status}
-            title="A catalogue built for real stock"
-            lead="Products with options and variants, stock tracked by location with a full history, and one media library. Checkout, orders and customers follow."
+            title="From catalogue to delivered order"
+            lead="Products with options and variants, stock tracked by location, a checkout paid through your own Razorpay account, and orders, fulfilment and customers in one place."
           />
           <ul className="mt-9 divide-y divide-line border-y border-line">
             {COMMERCE_PARTS.map((part) => (

@@ -41,16 +41,16 @@ const store = {
 // The online store's navigation as lib/shell.ts builds it for an owner.
 const ecommerce = [
   area("home", { primaryOnMobile: true }),
-  area("orders", { primaryOnMobile: true, soon: "Milestone 6" }),
-  area("products", { primaryOnMobile: true, soon: "Milestone 3" }),
+  area("orders", { primaryOnMobile: true, soon: "planned" }),
+  area("products", { primaryOnMobile: true, soon: "planned" }),
   area("inventory"),
   area("customers"),
-  area("website", { soon: "Milestone 5", locked: true }),
-  area("themes", { soon: "Milestone 5", locked: true }),
+  area("website", { soon: "planned", locked: true }),
+  area("themes", { soon: "planned", locked: true }),
   area("pages"),
   area("marketing"),
   area("analytics", { locked: true }),
-  area("apps", { soon: "On the roadmap" }),
+  area("apps", { soon: "planned" }),
   area("settings"),
 ];
 
@@ -282,9 +282,9 @@ describe("isActive and linkStatus", () => {
     expect(isActive(`${STORE}/settingsx`, { href: `${STORE}/settings` })).toBe(false);
   });
 
-  it("says Soon for unbuilt areas, never a milestone", () => {
-    expect(linkStatus({ soon: "Milestone 6" })).toBe("Soon");
-    expect(linkStatus({ soon: "a later release", locked: true })).toBe("Soon · Not in your plan");
+  it("says Planned for unbuilt areas, never a milestone or a date", () => {
+    expect(linkStatus({ soon: "planned" })).toBe("Planned");
+    expect(linkStatus({ soon: "planned", locked: true })).toBe("Planned · Not in your plan");
     expect(linkStatus({ locked: true })).toBe("Not in your plan");
     expect(linkStatus({})).toBeUndefined();
   });

@@ -1,6 +1,6 @@
 import { Icon } from "@storevia/ui/icons";
 import { Reveal } from "@storevia/ui/motion";
-import { Check, Tag } from "lucide-react";
+import { Check } from "lucide-react";
 import type { Metadata } from "next";
 import { ArrowLink, CTASection, PageHero, Section, StatusPill } from "@/components/marketing";
 import { formatReleaseDate, releasesByDay } from "@/content/changelog";
@@ -8,7 +8,7 @@ import { formatReleaseDate, releasesByDay } from "@/content/changelog";
 export const metadata: Metadata = {
   title: "Changelog",
   description:
-    "Every Storevia release so far, from its repository history: milestones, dates and what changed.",
+    "Every Storevia release so far, from its repository history: dates and what changed.",
 };
 
 export default function ChangelogPage() {
@@ -17,7 +17,7 @@ export default function ChangelogPage() {
       <PageHero
         eyebrow="Changelog"
         title="What’s new in Storevia"
-        lead="Every release so far, taken from our repository's history and dated by its commits. Storevia hasn't launched publicly yet, so these are its development milestones, newest first."
+        lead="Every release so far, taken from our repository's history and dated by its commits, newest first."
       >
         <ArrowLink href="/resources#roadmap">See what comes next</ArrowLink>
       </PageHero>
@@ -56,12 +56,6 @@ export default function ChangelogPage() {
                         ) : (
                           <StatusPill status="available" label="Released" />
                         )}
-                        {release.tag ? (
-                          <span className="inline-flex items-center gap-1.5 font-mono text-caption text-ink-faint">
-                            <Icon icon={Tag} size="xs" />
-                            {release.tag}
-                          </span>
-                        ) : null}
                       </div>
                     </div>
                     <div className="min-w-0 max-w-(--container-prose)">

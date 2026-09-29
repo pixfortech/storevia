@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     template: "%s · Storevia",
   },
   description:
-    "One workspace for your website, online store, publication or portfolio, and the team that runs it. Built in stages, with every feature labelled with its status.",
+    "One workspace for your online store and the team that runs it: catalogue, storefront, checkout, orders and customers. Every feature is labelled with its status.",
 };
 
 export const viewport: Viewport = {

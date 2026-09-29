@@ -1,6 +1,6 @@
-// 06 Website builder: the editor as a concept, full width, with numbered
-// captions for its parts. The builder is on the roadmap, and the section
-// says so before anything else.
+// 06 Website builder: the editor, full width, with numbered captions for its
+// parts. The builder is available; the picture is an illustration with a
+// sample store.
 import { ScaleIn, Stagger } from "@storevia/ui/motion";
 import { ArrowLink, Section, SectionHeading } from "@/components/marketing";
 import { capability } from "@/content/capabilities";
@@ -21,12 +21,12 @@ export function BuilderSection() {
         />
         <div className="max-w-xl lg:justify-self-end">
           <p className="text-body-lg text-ink-muted">
-            The builder follows the product catalogue on the roadmap. Here is where it&apos;s
-            heading: sections you arrange, words you edit in place and a preview for each screen,
-            with drafts and safe publishing.
+            Arrange ready-made sections, edit their words and images, and check every page on
+            desktop, tablet and phone. Drafts save as you go, and nothing goes live until you
+            publish.
           </p>
-          <ArrowLink href="/resources#roadmap" className="mt-4">
-            See the roadmap
+          <ArrowLink href="/features#website" className="mt-4">
+            Every builder feature
           </ArrowLink>
         </div>
       </div>
@@ -34,7 +34,7 @@ export function BuilderSection() {
         <EditorWindow markers className="h-[26rem] sm:h-[30rem] lg:h-[36rem]" />
       </ScaleIn>
       <IllustrativeNote className="mt-5">
-        A concept of a feature on the roadmap, not a shipped screen.
+        An illustration of the page builder, with a sample store.
       </IllustrativeNote>
       <Stagger
         as="ol"

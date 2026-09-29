@@ -17,10 +17,13 @@ test("a new user registers, creates an organisation as OWNER, creates the first 
     "Website",
     "Pages",
     "Marketing",
-    "Analytics",
     "Settings",
   ]) {
     await expect(nav.getByRole("link", { name: label })).toBeVisible();
+  }
+  // Navigation lists only what's built (DB-5): no analytics or apps placeholders.
+  for (const hidden of ["Analytics", "Apps"]) {
+    await expect(nav.getByRole("link", { name: hidden })).toHaveCount(0);
   }
   await expect(page.getByText("Your store is ready")).toBeVisible();
 
@@ -39,8 +42,22 @@ test("a new user registers, creates an organisation as OWNER, creates the first 
   await page.goto(`${tenant.storePath}/orders`);
   await expect(page.getByText("No orders yet")).toBeVisible();
 
-  // Areas still to come are clearly marked and have no controls.
+  // Areas that aren't built say so plainly, with no controls and no dates.
   await page.goto(`${tenant.storePath}/posts`);
-  await expect(page.getByText("Posts is coming in a later release")).toBeVisible();
+  await expect(page.getByText("Posts isn't available")).toBeVisible();
   await expect(page.getByRole("main").getByRole("button")).toHaveCount(0);
+  await page.goto(`${tenant.storePath}/apps`);
+  await expect(page.getByText("Apps and integrations aren't available")).toBeVisible();
+
+  // One support entry point (DB-3): the account menu, through /support.
+  await page.goto(tenant.storePath);
+  await page.locator('button[aria-label^="Account menu"]:visible').first().click();
+  await expect(page.getByRole("menuitem", { name: /Help and support/ })).toHaveAttribute(
+    "href",
+    "/support",
+  );
+  await page.keyboard.press("Escape");
+  const support = await page.request.get("/support", { maxRedirects: 0 });
+  expect(support.status()).toBe(307);
+  expect(support.headers()["location"]).toMatch(/^https?:\/\/.+/);
 });

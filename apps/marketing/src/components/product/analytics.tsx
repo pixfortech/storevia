@@ -1,7 +1,7 @@
-// Analytics mockups: a small floating figure card (hero collage) and the
-// report preview (live, interactive charts on example data, each marked
-// "Example data"). Analytics is on the roadmap; plans already set how much
-// history each keeps.
+// Analytics mockups: a small floating figure card (a figure the store home
+// really shows: revenue, orders or new customers) and, for storefront
+// analytics, which is planned, a channels card and a report preview that may
+// only appear as a labelled concept with example data.
 import {
   AreaChart,
   BarChart,

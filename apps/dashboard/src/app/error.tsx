@@ -3,6 +3,7 @@
 import { Button, buttonClasses } from "@storevia/ui/button";
 import Link from "next/link";
 import { StatusPage } from "@/components/shell/status-page";
+import { SupportLink } from "@/components/support-link";
 
 export default function ErrorBoundary({
   error,
@@ -19,7 +20,7 @@ export default function ErrorBoundary({
       title="Something went wrong"
       description={
         <>
-          Please try again. If it keeps happening, contact support
+          Please try again. If it keeps happening, <SupportLink />
           {error.digest ? (
             <>
               {" "}

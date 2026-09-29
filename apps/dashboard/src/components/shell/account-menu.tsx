@@ -11,10 +11,11 @@ import {
 } from "@storevia/ui/dropdown-menu";
 import { Icon } from "@storevia/ui/icons";
 import { Avatar } from "@storevia/ui/surfaces";
-import { ChevronsUpDown, LogOut, ShieldCheck } from "lucide-react";
+import { ChevronsUpDown, LifeBuoy, LogOut, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { startTransition } from "react";
 import { signOutAction } from "@/app/(app)/account/actions";
+import { SUPPORT_PATH } from "@/components/support-link";
 
 /**
  * The signed-in person and their account actions. `row` is the sidebar's
@@ -66,6 +67,13 @@ export function AccountMenu({
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild icon={ShieldCheck}>
           <Link href="/account/security">Account security</Link>
+        </DropdownMenuItem>
+        {/* The one support entry point (DB-3); /support redirects to it. */}
+        <DropdownMenuItem asChild icon={LifeBuoy}>
+          <a href={SUPPORT_PATH} target="_blank" rel="noopener noreferrer">
+            Help and support
+            <span className="sr-only"> (opens in a new tab)</span>
+          </a>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         {/* A <form> inside the menu would unmount (and cancel) when the menu
