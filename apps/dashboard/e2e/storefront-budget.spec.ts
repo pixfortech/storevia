@@ -50,7 +50,7 @@ test("store pages ship the framework runtime and no application code", async ({
   await page.getByRole("dialog", { name: "New page" }).getByLabel("Title").fill("About us");
   await page.getByRole("button", { name: "Create page" }).click();
   await page.waitForURL(/\/website\/pages\/page_/);
-  await page.getByRole("button", { name: "Publish" }).click();
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(page.getByText("Published", { exact: true })).toBeVisible();
 
   const origin = await storefrontOrigin(page, tenant);

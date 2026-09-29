@@ -57,6 +57,7 @@ export default async function BuilderPage({
         handle: draft.handle,
         seoTitle: draft.seoTitle,
         seoDescription: draft.seoDescription,
+        live: draft.live,
         status: draft.status,
         revision: draft.revision,
         document: draft.document,

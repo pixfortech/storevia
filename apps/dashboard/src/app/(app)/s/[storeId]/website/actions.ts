@@ -9,12 +9,15 @@ import {
   createPage,
   deletePage,
   publishPage,
+  revertPageDraft,
   saveMenu,
   savePageDraft,
   unpublishPage,
   updatePageSettings,
   type MenuView,
   type PageStatus,
+  type PublishResult,
+  type RevertResult,
 } from "@storevia/site-admin";
 import { hasPermission } from "@storevia/tenancy";
 import { revalidatePath } from "next/cache";
@@ -53,13 +56,34 @@ export async function publishPageAction(
   storeId: string,
   pageId: string,
   input: { revision: number },
-): Promise<DataActionResult<{ versionNumber: number }>> {
+): Promise<DataActionResult<PublishResult>> {
+  const result = await runDataAction(async () => {
+    const ctx = await storeActionContext(storeId);
+    const published = await publishPage(ctx, pageId, input, STOREVIA_SITE);
+    if (published.changed) revalidatePath(pagesPath(ctx.storeId));
+    return published;
+  });
+  if (!result.ok) return result;
+  return {
+    ...result,
+    message: result.data.changed
+      ? "Published. Your site shows these changes now."
+      : "Nothing new to publish: your site already shows this page.",
+  };
+}
+
+/** Throws away the draft's unpublished changes (the live page doesn't change). */
+export async function revertPageDraftAction(
+  storeId: string,
+  pageId: string,
+  input: { revision: number },
+): Promise<DataActionResult<RevertResult>> {
   return runDataAction(async () => {
     const ctx = await storeActionContext(storeId);
-    const result = await publishPage(ctx, pageId, input, STOREVIA_SITE);
+    const result = await revertPageDraft(ctx, pageId, input, STOREVIA_SITE);
     revalidatePath(pagesPath(ctx.storeId));
     return result;
-  }, "Published. Your site shows these changes now.");
+  }, "Your draft is back to the published version.");
 }
 
 export async function updatePageSettingsAction(

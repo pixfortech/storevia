@@ -8,7 +8,7 @@ import {
   migratorDb,
   truncateAll,
 } from "@storevia/database/testing";
-import { validateDocument, type PageDocument } from "@storevia/editor/document";
+import { describeIssues, validateDocument, type PageDocument } from "@storevia/editor/document";
 import {
   DRAFT_CONFLICT_MESSAGE,
   createPage,
@@ -19,6 +19,7 @@ import {
   openPageDraft,
   publishPage,
   publishTheme,
+  revertPageDraft,
   savePageDraft,
   saveMenu,
   saveThemeDraft,
@@ -28,7 +29,7 @@ import {
 import { readPublicSite } from "@storevia/site-engine/read";
 import { DEFAULT_THEME_SETTINGS } from "@storevia/site-engine/theme";
 import type { StoreContext } from "@storevia/tenancy";
-import { toTypeId } from "@storevia/types";
+import { parseTypeId, toTypeId } from "@storevia/types";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createCollection, createProduct } from "../src";
 import { STOREVIA_SITE } from "../src/site";
@@ -99,7 +100,8 @@ describe("pages: draft and publish", () => {
       openPageDraft(A, homeA, STOREVIA_SITE),
       openPageDraft(A, homeA, STOREVIA_SITE),
     ]);
-    expect(one.revision).toBe(0);
+    // Past the published version's revision (0): revisions are never reused.
+    expect(one.revision).toBe(1);
     expect(two.versionNumber).toBe(one.versionNumber);
     expect(one.versionNumber).toBe(2);
     expect(one.status).toBe("published");
@@ -163,6 +165,55 @@ describe("pages: draft and publish", () => {
     expect((await openPageDraft(A, homeA, STOREVIA_SITE)).revision).toBe(draft.revision);
   });
 
+  it("says which section and field is wrong, in words, with the same problems the builder finds", async () => {
+    const draft = await openPageDraft(A, homeA, STOREVIA_SITE);
+    const bad = doc(
+      section("heroStruct01", "hero", { heading: "Fine" }),
+      section("heroStruct02", "hero", { cta: { label: "", link: { type: "home" } } }),
+      section("prodStruct01", "featured-products", {
+        limit: 60,
+        action: { label: "Shop", link: { type: "product", id: "" } },
+      }),
+      section("faqStruct001", "faq", {
+        items: [
+          { question: "Open?", answer: "Yes." },
+          { question: "x".repeat(301), answer: "" },
+        ],
+      }),
+    );
+    const error = (await savePageDraft(
+      A,
+      homeA,
+      { revision: draft.revision, document: bad },
+      STOREVIA_SITE,
+    ).catch((e: unknown) => e)) as { code: string; message: string; fieldErrors: object };
+    expect(error.code).toBe("VALIDATION_FAILED");
+    expect(error.fieldErrors).toEqual({
+      "root.1.props.cta.label": "Enter at least 1 character.",
+      "root.2.props.limit": "Enter 48 or less.",
+      "root.2.props.action.link.id": "Choose a product.",
+      "root.3.props.items.1.question": "Use 300 characters or fewer.",
+    });
+    expect(error.message).toBe(
+      "This page can't be saved. Section 2 · Hero › Button › Button text: Enter at least 1 character. " +
+        "Section 3 · Products › Most products shown: Enter 48 or less. " +
+        "Section 3 · Products › Button › Goes to: Choose a product. (and 1 more)",
+    );
+    // The builder validates with the same registry before it sends a save,
+    // and reads the server's answer the same way.
+    const client = validateDocument(bad, { registry: STOREVIA_REGISTRY, pageKind: "HOME" });
+    expect(client.ok).toBe(false);
+    const problems = client.ok ? [] : describeIssues(bad, client.issues, STOREVIA_REGISTRY);
+    expect(problems.map((p) => [p.path, p.message])).toEqual(Object.entries(error.fieldErrors));
+    expect(problems.at(-1)).toMatchObject({
+      sectionId: "faqStruct001",
+      section: "Section 4 · Questions and answers",
+      field: "items.1.question",
+      fieldLabel: "Questions, item 2 › Question",
+    });
+    expect((await openPageDraft(A, homeA, STOREVIA_SITE)).revision).toBe(draft.revision);
+  });
+
   it("refuses references to another store's media, pages, products and collections", async () => {
     const draft = await openPageDraft(A, homeA, STOREVIA_SITE);
     const save = (document: unknown) =>
@@ -216,25 +267,40 @@ describe("pages: draft and publish", () => {
     );
     const before = await readPublicSite(scope(A), (site) => site.page("HOME"));
     expect(before?.document).not.toEqual(published);
-    await publishPage(A, homeA, { revision: saved.revision }, STOREVIA_SITE);
+    const result = await publishPage(A, homeA, { revision: saved.revision }, STOREVIA_SITE);
+    expect(result).toEqual({ versionNumber: 2, revision: saved.revision + 1, changed: true });
     const after = await readPublicSite(scope(A), (site) => site.page("HOME"));
     expect(after).toMatchObject({ state: "PUBLISHED", document: published });
-    const states = await migratorDb().$queryRaw<{ state: string; n: bigint }[]>`
+    const states = () => migratorDb().$queryRaw<{ state: string; n: bigint }[]>`
       SELECT state::text, count(*) AS n FROM "PageVersion" WHERE "storeId" = ${A.storeId}::uuid GROUP BY 1 ORDER BY 1`;
-    expect(states).toEqual([
+    // The next draft starts as a copy of what went live.
+    expect(await states()).toEqual([
       { state: "ARCHIVED", n: 1n },
+      { state: "DRAFT", n: 1n },
       { state: "PUBLISHED", n: 1n },
     ]);
     const events = await migratorDb().$queryRaw<{ n: bigint }[]>`
       SELECT count(*) AS n FROM "OutboxEvent" WHERE "storeId" = ${A.storeId}::uuid AND type = 'page.changed'`;
     expect(events[0]?.n).toBeGreaterThan(0n);
-    // Nothing left to publish until the next edit.
-    await expectCode(
+    // Nothing new to publish until the next edit: publishing again is a
+    // no-op, not a new version and not a conflict.
+    expect(await publishPage(A, homeA, { revision: result.revision }, STOREVIA_SITE)).toEqual({
+      versionNumber: 2,
+      revision: result.revision,
+      changed: false,
+    });
+    expect(await states()).toEqual([
+      { state: "ARCHIVED", n: 1n },
+      { state: "DRAFT", n: 1n },
+      { state: "PUBLISHED", n: 1n },
+    ]);
+    // The revision the builder had before publishing is stale now.
+    await expect(
       publishPage(A, homeA, { revision: saved.revision }, STOREVIA_SITE),
-      "CONFLICT",
-    );
+    ).rejects.toMatchObject({ code: "CONFLICT", message: DRAFT_CONFLICT_MESSAGE });
     const next = await openPageDraft(A, homeA, STOREVIA_SITE);
     expect(next.versionNumber).toBe(3);
+    expect(next.revision).toBe(result.revision);
     expect(next.document).toEqual(published);
     expect(next.status).toBe("published");
   });
@@ -276,6 +342,248 @@ describe("pages: draft and publish", () => {
     expect(
       (await readPublicSite(scope(B), (site) => site.page("HOME"), { preview: true }))?.document,
     ).not.toEqual(secret);
+  });
+});
+
+describe("pages: editing after publish", () => {
+  const hero = (heading: string) => doc(section("heroKeepEdit", "hero", { heading }));
+  const liveHeading = async (handle: string) => {
+    const live = await readPublicSite(scope(A), (site) => site.page("STANDARD", handle));
+    return (live?.document as PageDocument | undefined)?.root[0]?.props["heading"];
+  };
+  const versionStates = (pageId: string) =>
+    migratorDb().$queryRaw<{ state: string; n: bigint }[]>`
+      SELECT state::text, count(*) AS n FROM "PageVersion"
+      WHERE "pageId" = ${parseTypeId("page", pageId)}::uuid GROUP BY 1 ORDER BY 1`;
+
+  it("keeps editing after publishing: the next save lands on a fresh draft and survives a reload", async () => {
+    const { pageId } = await createPage(A, { title: "Keep editing" });
+    const draft = await openPageDraft(A, pageId, STOREVIA_SITE);
+    const saved = await savePageDraft(
+      A,
+      pageId,
+      { revision: draft.revision, document: hero("First") },
+      STOREVIA_SITE,
+    );
+    const published = await publishPage(A, pageId, { revision: saved.revision }, STOREVIA_SITE);
+    expect(published.revision).toBeGreaterThan(saved.revision);
+    expect(await liveHeading("keep-editing")).toBe("First");
+
+    // The builder carries on with the revision publish gave it: no conflict.
+    const again = await savePageDraft(
+      A,
+      pageId,
+      { revision: published.revision, document: hero("After publish") },
+      STOREVIA_SITE,
+    );
+    expect(again).toEqual({ revision: published.revision + 1, status: "changes" });
+    const reopened = await openPageDraft(A, pageId, STOREVIA_SITE);
+    expect(reopened.revision).toBe(again.revision);
+    expect(reopened.status).toBe("changes");
+    expect(reopened.document.root[0]?.props["heading"]).toBe("After publish");
+    expect((await listPages(A)).find((p) => p.id === pageId)?.status).toBe("changes");
+    // The live page is the published version until the edit is published.
+    expect(await liveHeading("keep-editing")).toBe("First");
+
+    const republished = await publishPage(A, pageId, { revision: again.revision }, STOREVIA_SITE);
+    expect(republished.revision).toBeGreaterThan(again.revision);
+    expect(await liveHeading("keep-editing")).toBe("After publish");
+    expect((await listPages(A)).find((p) => p.id === pageId)?.status).toBe("published");
+    expect(await versionStates(pageId)).toEqual([
+      { state: "ARCHIVED", n: 1n },
+      { state: "DRAFT", n: 1n },
+      { state: "PUBLISHED", n: 1n },
+    ]);
+  });
+
+  it("never reuses a revision: a stale tab can't save over the draft made by a publish", async () => {
+    const { pageId } = await createPage(A, { title: "Two tabs publish" });
+    // Both tabs open the page and see the same draft revision.
+    const tabA = await openPageDraft(A, pageId, STOREVIA_SITE);
+    const tabB = await openPageDraft(A, pageId, STOREVIA_SITE);
+    expect(tabB.revision).toBe(tabA.revision);
+    // Tab A publishes: the new draft's revision is past every earlier one.
+    const published = await publishPage(A, pageId, { revision: tabA.revision }, STOREVIA_SITE);
+    expect(published.revision).toBeGreaterThan(tabA.revision);
+    await expect(
+      savePageDraft(A, pageId, { revision: tabB.revision, document: hero("Tab B") }, STOREVIA_SITE),
+    ).rejects.toMatchObject({ code: "CONFLICT", message: DRAFT_CONFLICT_MESSAGE });
+    // Even a revision number the old draft never reached doesn't match by accident.
+    for (const revision of [0, tabA.revision, tabA.revision + 1].filter(
+      (r) => r !== published.revision,
+    )) {
+      await expectCode(
+        savePageDraft(A, pageId, { revision, document: hero("Stale") }, STOREVIA_SITE),
+        "CONFLICT",
+      );
+    }
+    const reopened = await openPageDraft(A, pageId, STOREVIA_SITE);
+    expect(reopened.revision).toBe(published.revision);
+    expect(reopened.document.root.some((n) => n.props["heading"] === "Tab B")).toBe(false);
+  });
+
+  it("a draft created later (after a publish that left none) also starts past every revision", async () => {
+    const { pageId } = await createPage(A, { title: "Older publish" });
+    const draft = await openPageDraft(A, pageId, STOREVIA_SITE);
+    const saved = await savePageDraft(
+      A,
+      pageId,
+      { revision: draft.revision, document: hero("Published before") },
+      STOREVIA_SITE,
+    );
+    await publishPage(A, pageId, { revision: saved.revision }, STOREVIA_SITE);
+    // Pages published before drafts outlived a publish have no draft.
+    await migratorDb().$executeRaw`
+      DELETE FROM "PageVersion" WHERE "pageId" = ${parseTypeId("page", pageId)}::uuid AND state = 'DRAFT'`;
+    const reopened = await openPageDraft(A, pageId, STOREVIA_SITE);
+    expect(reopened.revision).toBeGreaterThan(saved.revision);
+    expect(reopened.document.root[0]?.props["heading"]).toBe("Published before");
+    expect(reopened.status).toBe("published");
+    await expectCode(
+      savePageDraft(
+        A,
+        pageId,
+        { revision: saved.revision, document: hero("Stale") },
+        STOREVIA_SITE,
+      ),
+      "CONFLICT",
+    );
+    await expectCode(
+      publishPage(A, pageId, { revision: saved.revision }, STOREVIA_SITE),
+      "CONFLICT",
+    );
+  });
+
+  it("unpublishing keeps the draft, so reopening shows the page as it was, not a blank starter", async () => {
+    const { pageId } = await createPage(A, { title: "Seasonal" });
+    const draft = await openPageDraft(A, pageId, STOREVIA_SITE);
+    const saved = await savePageDraft(
+      A,
+      pageId,
+      { revision: draft.revision, document: hero("Winter sale") },
+      STOREVIA_SITE,
+    );
+    await publishPage(A, pageId, { revision: saved.revision }, STOREVIA_SITE);
+    await unpublishPage(A, pageId);
+    const reopened = await openPageDraft(A, pageId, STOREVIA_SITE);
+    expect(reopened.status).toBe("draft");
+    expect(reopened.document.root[0]?.props["heading"]).toBe("Winter sale");
+    expect((await listPages(A)).find((p) => p.id === pageId)?.status).toBe("draft");
+  });
+});
+
+describe("pages: revert to the published version", () => {
+  const hero = (heading: string) => doc(section("heroRevert01", "hero", { heading }));
+  const liveHeading = async (handle: string) => {
+    const live = await readPublicSite(scope(A), (site) => site.page("STANDARD", handle));
+    return (live?.document as PageDocument | undefined)?.root[0]?.props["heading"];
+  };
+  const audits = async (pageId: string) =>
+    migratorDb().$queryRaw<{ action: string; metadata: unknown }[]>`
+      SELECT action, metadata FROM "AuditLog"
+      WHERE "entityId" = ${parseTypeId("page", pageId)}::uuid AND action = 'page.draft_reverted'`;
+
+  async function publishedPage(title: string, heading: string) {
+    const { pageId } = await createPage(A, { title });
+    const draft = await openPageDraft(A, pageId, STOREVIA_SITE);
+    const saved = await savePageDraft(
+      A,
+      pageId,
+      { revision: draft.revision, document: hero(heading) },
+      STOREVIA_SITE,
+    );
+    const published = await publishPage(A, pageId, { revision: saved.revision }, STOREVIA_SITE);
+    return { pageId, revision: published.revision };
+  }
+
+  it("restores the published content into the draft; the live page never changes", async () => {
+    const { pageId, revision } = await publishedPage("Revert me", "Live words");
+    const edited = await savePageDraft(
+      A,
+      pageId,
+      { revision, document: hero("Draft words") },
+      STOREVIA_SITE,
+    );
+    expect(edited.status).toBe("changes");
+    const reverted = await revertPageDraft(A, pageId, { revision: edited.revision }, STOREVIA_SITE);
+    expect(reverted.revision).toBeGreaterThan(edited.revision);
+    expect(reverted.status).toBe("published");
+    expect(reverted.document).toEqual(hero("Live words"));
+    expect(reverted.problems).toEqual([]);
+    const reopened = await openPageDraft(A, pageId, STOREVIA_SITE);
+    expect(reopened).toMatchObject({ revision: reverted.revision, status: "published" });
+    expect(reopened.document).toEqual(hero("Live words"));
+    expect(await liveHeading("revert-me")).toBe("Live words");
+    expect((await listPages(A)).find((p) => p.id === pageId)?.status).toBe("published");
+    const events = await audits(pageId);
+    expect(events).toHaveLength(1);
+    // The version it went back to: the page's first, the one that is live.
+    expect(events[0]?.metadata).toMatchObject({ kind: "STANDARD", versionNumber: 1 });
+
+    // Editing carries on from the reverted draft; publishing it publishes nothing new.
+    expect(
+      await publishPage(A, pageId, { revision: reverted.revision }, STOREVIA_SITE),
+    ).toMatchObject({ changed: false });
+    const after = await savePageDraft(
+      A,
+      pageId,
+      { revision: reverted.revision, document: hero("Second try") },
+      STOREVIA_SITE,
+    );
+    await publishPage(A, pageId, { revision: after.revision }, STOREVIA_SITE);
+    expect(await liveHeading("revert-me")).toBe("Second try");
+  });
+
+  it("refuses a stale revision, and a page that was never published", async () => {
+    const { pageId, revision } = await publishedPage("Revert stale", "Live");
+    const edited = await savePageDraft(
+      A,
+      pageId,
+      { revision, document: hero("Newer, from another tab") },
+      STOREVIA_SITE,
+    );
+    await expect(revertPageDraft(A, pageId, { revision }, STOREVIA_SITE)).rejects.toMatchObject({
+      code: "CONFLICT",
+      message: DRAFT_CONFLICT_MESSAGE,
+    });
+    const reopened = await openPageDraft(A, pageId, STOREVIA_SITE);
+    expect(reopened.revision).toBe(edited.revision);
+    expect(reopened.document).toEqual(hero("Newer, from another tab"));
+    expect(await audits(pageId)).toEqual([]);
+
+    const { pageId: fresh } = await createPage(A, { title: "Never live" });
+    const draft = await openPageDraft(A, fresh, STOREVIA_SITE);
+    await expectCode(
+      revertPageDraft(A, fresh, { revision: draft.revision }, STOREVIA_SITE),
+      "CONFLICT",
+    );
+  });
+
+  it("needs design.edit, and another store can't revert this store's page", async () => {
+    const { pageId, revision } = await publishedPage("Revert roles", "Live");
+    const edited = await savePageDraft(
+      A,
+      pageId,
+      { revision, document: hero("Draft") },
+      STOREVIA_SITE,
+    );
+    const viewer = await memberContext(tenantA, "VIEWER", A);
+    await expectCode(
+      revertPageDraft(viewer, pageId, { revision: edited.revision }, STOREVIA_SITE),
+      "FORBIDDEN",
+    );
+    await expectCode(
+      revertPageDraft(B, pageId, { revision: edited.revision }, STOREVIA_SITE),
+      "NOT_FOUND",
+    );
+    const author = await memberContext(tenantA, "AUTHOR", A);
+    const reverted = await revertPageDraft(
+      author,
+      pageId,
+      { revision: edited.revision },
+      STOREVIA_SITE,
+    );
+    expect(reverted.document).toEqual(hero("Live"));
   });
 });
 

@@ -53,7 +53,7 @@ test("the builder and the pages it publishes pass an automated accessibility aud
   await page.getByRole("button", { name: "Add section" }).click();
   await audit(page, "add section dialog");
   await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Publish" }).click();
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(page.getByText("Published", { exact: true })).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
