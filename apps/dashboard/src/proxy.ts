@@ -18,6 +18,8 @@ const PUBLIC_PREFIXES = [
   "/check-email",
   "/forgot-password",
   "/reset-password",
+  // The link sent to a new address (DB-4); it may be opened on another device.
+  "/confirm-email-change",
   "/invitations/",
   "/api/health",
   // Provider webhooks authenticate by signature, not session (docs 05 §4).

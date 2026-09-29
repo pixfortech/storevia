@@ -1,11 +1,8 @@
-import { Icon } from "@storevia/ui/icons";
 import { Avatar } from "@storevia/ui/surfaces";
-import { ArrowLeft } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import { AccountHeaderBar, AccountTabs } from "@/components/areas/account";
 import { SettingsLayout, SettingsSection } from "@/components/areas/settings";
-import { SignOutButton, StandaloneHeader } from "@/components/areas/standalone";
 import { describeUserAgent } from "@/lib/areas/user-agent";
 import { relativeTime } from "@/lib/dashboard/activity";
 import { dashboardAuth, getSession, toPrincipal } from "@/lib/auth";
@@ -32,24 +29,13 @@ export default async function AccountSecurityPage() {
   const now = new Date();
   return (
     <div className="flex min-h-dvh flex-col">
-      <StandaloneHeader>
-        <Link
-          href="/"
-          className="inline-flex h-8 items-center gap-1.5 rounded-control px-3 text-body-sm font-medium text-ink-muted transition-colors hover:bg-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus pointer-coarse:h-11"
-        >
-          <Icon icon={ArrowLeft} size="sm" />
-          <span>
-            Back<span className="max-sm:hidden"> to dashboard</span>
-          </span>
-        </Link>
-        <SignOutButton />
-      </StandaloneHeader>
+      <AccountHeaderBar />
       <main
         id="main"
         // The settings column (48 rem), plus the side index from 1280 px, centred.
         className="mx-auto w-full max-w-[52rem] flex-1 px-4 pt-8 pb-16 sm:px-6 lg:px-8 lg:pt-12 xl:max-w-[68.5rem] xl:px-10"
       >
-        <header className="mb-8 flex items-center gap-4 lg:mb-10">
+        <header className="mb-6 flex items-center gap-4 lg:mb-8">
           <Avatar name={session.name} size="xl" />
           <div className="min-w-0">
             <p className="text-overline text-ink-faint uppercase">Your account</p>
@@ -59,6 +45,7 @@ export default async function AccountSecurityPage() {
             </p>
           </div>
         </header>
+        <AccountTabs current="security" />
         <SettingsLayout
           sections={[
             ...(pending.length > 0

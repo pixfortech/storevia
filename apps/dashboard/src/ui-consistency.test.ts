@@ -45,6 +45,7 @@ const RAW_BUTTON_ALLOWED: Readonly<Record<string, string>> = {
 const OWN_H1_ALLOWED = new Set([
   "app/(app)/onboarding/page.tsx",
   "app/(app)/account/security/page.tsx",
+  "app/(app)/account/profile/page.tsx",
   "app/invitations/[token]/page.tsx",
 ]);
 

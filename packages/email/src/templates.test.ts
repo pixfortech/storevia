@@ -105,6 +105,39 @@ describe("order emails", () => {
   });
 });
 
+describe("email change notices (DB-4)", () => {
+  it("the confirmation link goes to the new address and names the current one", async () => {
+    const { confirmEmailChangeMessage } = await import("./templates");
+    const m = confirmEmailChangeMessage(
+      "new@example.test",
+      "Asha <b>",
+      "old@example.test",
+      "https://app.storevia.test/confirm-email-change?token=abc",
+    );
+    expect(m).toMatchObject({ to: "new@example.test", template: "confirm-email-change" });
+    expect(m.text).toContain("?token=abc");
+    expect(m.text).toContain("old@example.test");
+    expect(m.html).toContain("Asha &lt;b&gt;");
+  });
+
+  it("the old address is told, with a help link only when one is configured", async () => {
+    const { emailChangedMessage } = await import("./templates");
+    const plain = emailChangedMessage("old@example.test", "Asha", "n•••@example.test");
+    expect(plain.template).toBe("email-changed");
+    expect(plain.text).toContain("n•••@example.test");
+    expect(plain.text).toContain("contact Storevia support");
+    expect(plain.html).not.toMatch(/href=/);
+    const linked = emailChangedMessage(
+      "old@example.test",
+      "Asha",
+      "n•••@example.test",
+      "https://help.storevia.test",
+    );
+    expect(linked.text).toContain("Get help: https://help.storevia.test");
+    expect(linked.html).toContain('href="https://help.storevia.test"');
+  });
+});
+
 describe("billing notices (M8)", () => {
   const base = {
     organisationName: "Acme <script>",

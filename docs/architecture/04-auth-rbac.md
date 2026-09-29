@@ -30,6 +30,7 @@ service.signUp / signIn / signOut / verifyEmail / resendVerification
 service.requestPasswordReset / resetPassword / changePassword
 service.listSessions / revokeSession / revokeOtherSessions
 service.confirmPassword(session, password)                   // step-up: stamps reauthenticatedAt
+service.updateName / requestEmailChange / confirmEmailChange // profile, dashboard realm (DB-4)
 hasRecentAuth(session, maxAgeSeconds = 600): boolean
 ```
 
@@ -54,6 +55,7 @@ be under our control.
 | Password policy                   | 10–128 characters, no composition rules, blocked if it appears in a breached-password corpus (HIBP k-anonymity API, fail-open with logging if unavailable), not equal to the email                                                                           |
 | Email verification                | Required **before sign-in** (ADR-0021). The link carries a signed token issued by Better Auth that expires after 24 h. Verifying twice is harmless. Resends are rate-limited per email                                                                       |
 | Password reset                    | Random token, stored **hashed** (`Verification.identifier`), 30 min TTL, single-use; **all sessions revoked** on reset; the response is identical whether or not the email exists; a "password changed" email is sent                                        |
+| Email change                      | Step-up, then a hashed, single-use 1 h token to the **new** address; the email changes only when it is used. Other dashboard sessions are revoked and the old address told. A registered address gets the same response but never completes (dashboard only) |
 | Account enumeration               | Sign-up, sign-in and reset responses and timings do not reveal whether an email is registered (sign-up of an existing address sends a "you already have an account" email instead)                                                                           |
 | Brute force / credential stuffing | Fixed-window limits in PostgreSQL (`RateLimit`) per IP (only from the trusted edge header) and per account, on sign-in, sign-up, reset, verification and step-up; edge WAF bot rules in front. A CAPTCHA challenge after repeated failures is planned for M8 |
 | Reset/verification token abuse    | Per-email and per-IP limits on issuance and redemption; reset tokens are single-use                                                                                                                                                                          |

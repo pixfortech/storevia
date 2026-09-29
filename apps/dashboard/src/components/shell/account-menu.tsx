@@ -11,7 +11,7 @@ import {
 } from "@storevia/ui/dropdown-menu";
 import { Icon } from "@storevia/ui/icons";
 import { Avatar } from "@storevia/ui/surfaces";
-import { ChevronsUpDown, LogOut, ShieldCheck } from "lucide-react";
+import { ChevronsUpDown, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import Link from "next/link";
 import { startTransition } from "react";
 import { signOutAction } from "@/app/(app)/account/actions";
@@ -64,6 +64,9 @@ export function AccountMenu({
           <span className="block truncate font-normal">{user.email}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem asChild icon={UserRound}>
+          <Link href="/account/profile">Profile</Link>
+        </DropdownMenuItem>
         <DropdownMenuItem asChild icon={ShieldCheck}>
           <Link href="/account/security">Account security</Link>
         </DropdownMenuItem>

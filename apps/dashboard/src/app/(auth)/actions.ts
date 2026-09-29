@@ -1,6 +1,7 @@
 "use server";
 
 import { safeRedirectPath } from "@storevia/security";
+import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { runAction, formValues, type ActionState } from "@/lib/action";
@@ -69,6 +70,23 @@ export async function forgotPasswordAction(
       message: "If an account exists for that email, we've sent a link to reset your password.",
     };
   }, formData);
+}
+
+/** Completes an email change from the link sent to the new address (DB-4). */
+export async function confirmEmailChangeAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const result = await dashboardAuth().confirmEmailChange(
+      str(formData, "token"),
+      await headers(),
+    );
+    if (!result.ok) return { ok: false, message: result.message };
+    // A signed-in shell elsewhere in this browser shows the new address.
+    revalidatePath("/", "layout");
+    return { ok: true, message: `Your email address is now ${result.value.email}.` };
+  });
 }
 
 export async function resetPasswordAction(

@@ -4,7 +4,8 @@ import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { cancelOrganisationDeletion } from "@storevia/tenancy";
-import { runAction, type ActionState } from "@/lib/action";
+import { emailSchema } from "@storevia/validation";
+import { formValues, runAction, type ActionState } from "@/lib/action";
 import { dashboardAuth, getSession, requireActionPrincipal } from "@/lib/auth";
 import { requestInfo } from "@/lib/request";
 
@@ -116,4 +117,81 @@ export async function deleteAccountAction(
   }, formData);
   if (result.ok) redirect("/sign-in?deleted=1");
   return result;
+}
+
+// --- Profile (DB-4) ----------------------------------------------------------
+
+/** Renames the signed-in user; the shell shows the new name on every page. */
+export async function updateNameAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const result = await dashboardAuth().updateName(
+      await session(),
+      formData.get("name"),
+      await headers(),
+    );
+    if (!result.ok) {
+      const values = formValues(formData);
+      return result.code === "INVALID_INPUT"
+        ? { ok: false, fieldErrors: { name: result.message }, values }
+        : { ok: false, message: result.message, values };
+    }
+    revalidatePath("/", "layout");
+    return { ok: true, message: "Name saved.", values: { name: result.value.name } };
+  }, formData);
+}
+
+/**
+ * Starts an email change: the password is confirmed first (the step-up that
+ * stamps this session), then a link goes to the new address. The account's
+ * email stays as it is until that link is used.
+ */
+export async function requestEmailChangeAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  return runAction(async () => {
+    const values = formValues(formData);
+    // Field problems first, so a typo never spends a password attempt.
+    const email = emailSchema.safeParse(formData.get("newEmail") ?? "");
+    const password = formData.get("password");
+    const fieldErrors: Record<string, string> = {};
+    if (!email.success) fieldErrors["newEmail"] = "Enter a valid email address.";
+    if (typeof password !== "string" || !password) fieldErrors["password"] = "Enter your password.";
+    if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors, values };
+
+    const auth = dashboardAuth();
+    const requestHeaders = await headers();
+    const confirmed = await auth.confirmPassword(await session(), password, requestHeaders);
+    if (!confirmed.ok) {
+      return confirmed.code === "INVALID_CREDENTIALS"
+        ? { ok: false, fieldErrors: { password: confirmed.message }, values }
+        : { ok: false, message: confirmed.message, values };
+    }
+    // Read the session again: the confirmation just stamped it.
+    const current = await auth.getSession(requestHeaders);
+    if (!current) redirect("/sign-in");
+    const result = await auth.requestEmailChange(current, formData.get("newEmail"), requestHeaders);
+    if (!result.ok) {
+      return result.code === "INVALID_INPUT"
+        ? { ok: false, fieldErrors: { newEmail: result.message }, values }
+        : { ok: false, code: result.code, message: result.message, values };
+    }
+    revalidatePath("/account/profile");
+    return {
+      ok: true,
+      message: `We sent a link to ${result.value.email}. Your email stays ${current.email} until you confirm.`,
+    };
+  }, formData);
+}
+
+/** Withdraws a pending email change; its link stops working. */
+export async function cancelEmailChangeAction(_prev: ActionState): Promise<ActionState> {
+  return runAction(async () => {
+    await dashboardAuth().cancelEmailChange(await session(), await headers());
+    revalidatePath("/account/profile");
+    return { ok: true, message: "Email change cancelled. Your email address hasn't changed." };
+  });
 }
