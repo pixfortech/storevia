@@ -8,11 +8,11 @@ import type { ReactNode } from "react";
 import type { StoreRequestContext } from "./context";
 import { jsonLdJson } from "./seo";
 import { SITE_BASE_CSS } from "./base-css";
-import { SiteChrome, type ShellTheme } from "./chrome";
+import { SiteChrome, type ChromeLogo, type ShellTheme } from "./chrome";
 import { DEFAULT_THEME, DEFAULT_THEME_DEFINITION, themeCss, type ThemeTokens } from "./theme";
 
 export { SITE_BASE_CSS };
-export { SiteChrome, SiteMenu, type MenuLink, type ShellTheme } from "./chrome";
+export { SiteChrome, SiteMenu, type ChromeLogo, type MenuLink, type ShellTheme } from "./chrome";
 
 type ShellContext = Pick<StoreRequestContext, "name" | "locale" | "preview" | "availability">;
 
@@ -26,6 +26,8 @@ export function SiteShell({
   footerNav,
   actions,
   previewNote,
+  logo,
+  footer,
   children,
 }: {
   site: ShellContext;
@@ -43,6 +45,10 @@ export function SiteShell({
   actions?: ReactNode;
   /** The composition's wording for the preview banner. */
   previewNote?: string;
+  /** The site's logo in the header (its name when omitted). */
+  logo?: ChromeLogo | null;
+  /** The footer's content (the footer menu and copyright when omitted). */
+  footer?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -71,6 +77,8 @@ export function SiteShell({
           nav={nav}
           footerNav={footerNav}
           actions={actions}
+          logo={logo}
+          footer={footer}
         >
           {children}
         </SiteChrome>

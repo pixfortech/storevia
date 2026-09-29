@@ -15,8 +15,10 @@ import {
   readStorefront,
   resolveDocumentData,
   type CollectionDto,
+  type PolicyLinkDto,
   type ProductDto,
   type SearchDto,
+  type StoreIdentityDto,
 } from "@storevia/commerce/storefront";
 import { upgradeDocument, validateDocument, type PageDocument } from "@storevia/editor/document";
 import { NAVIGATION_HANDLES, usableNavigationItems } from "@storevia/editor/navigation";
@@ -206,15 +208,21 @@ export interface StoreChrome {
   readonly previewingTheme: string | null;
   readonly mainMenu: readonly MenuLink[];
   readonly footerMenu: readonly MenuLink[];
+  /** Name, logo, favicon, emails and seller details (final pass, Phase 2A). */
+  readonly identity: StoreIdentityDto | null;
+  /** Published policies, in display order (footer and checkout links). */
+  readonly policies: readonly PolicyLinkDto[];
 }
 
 async function loadChrome(store: StoreRequestContext): Promise<StoreChrome> {
   return readStorefront(
     store,
     async (reader, site) => {
-      const [themeRow, menus] = await Promise.all([
+      const [themeRow, menus, identity, policies] = await Promise.all([
         site.theme(),
         site.navigation(NAVIGATION_HANDLES),
+        reader.identity(),
+        reader.policyLinks(),
       ]);
       // The theme package by the stored key, its settings migrated and
       // validated; an unknown or incompatible theme, or invalid settings,
@@ -253,6 +261,8 @@ async function loadChrome(store: StoreRequestContext): Promise<StoreChrome> {
         previewingTheme: store.preview && themeRow && !themeRow.live ? rendered.theme.name : null,
         mainMenu,
         footerMenu: links(footer),
+        identity,
+        policies,
       };
     },
     { preview: store.preview },

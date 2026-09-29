@@ -20,8 +20,36 @@ import {
   createProduct,
   createShippingRate,
   createShippingZone,
+  getPolicy,
+  policyStarter,
+  publishPolicy,
+  savePolicyDraft,
+  updateSellerProfile,
+  type StorePolicyKind,
 } from "../src";
+import { plainTextToRichText } from "../src/rich-text";
 import { expectCode, makeTenant, memberContext, storeOf, type Tenant } from "./fixtures";
+
+const SELLER = {
+  legalName: "Clay Studio LLP",
+  phone: "+91 80 4000 1234",
+  addressLine1: "4 Park Street",
+  city: "Kolkata",
+  region: "WB",
+  postalCode: "700016",
+  countryCode: "IN",
+};
+
+/** Saves a policy with text of its own and publishes it. */
+async function publishWithText(ctx: StoreContext, kind: StorePolicyKind) {
+  const current = await getPolicy(ctx, kind);
+  const { revision } = await savePolicyDraft(ctx, kind, {
+    title: current.title,
+    body: plainTextToRichText("Our own words about this policy, written for our shoppers."),
+    revision: current.revision,
+  });
+  await publishPolicy(ctx, kind, { revision });
+}
 
 let a: Tenant;
 let b: Tenant;
@@ -75,7 +103,13 @@ describe("launch readiness", () => {
     let checks = byKey(await read(s));
     expect(checks.get("payments")).toMatchObject({ ok: false, blocking: false });
     expect(checks.get("payments")?.detail).toMatch(/test mode/);
-    expect(launchBlockers([...checks.values()]).map((c) => c.key)).toEqual(["identity"]);
+    expect(launchBlockers([...checks.values()]).map((c) => c.key)).toEqual([
+      "identity",
+      "seller",
+      "policies",
+    ]);
+    // A shippable product: the shipping policy is required too.
+    expect(checks.get("policies")?.detail).toMatch(/shipping policy/);
     await expectCode(setStorefrontLive(s, true, checksFor(s)), "CONFLICT");
 
     await updateStore(s, {
@@ -88,6 +122,32 @@ describe("launch readiness", () => {
     checks = byKey(await read(s));
     expect(checks.get("identity")).toMatchObject({ ok: true });
     expect(checks.get("identity")?.detail).toContain("help@clay.example");
+
+    // Seller details: every required field, or the check names what is missing.
+    await updateSellerProfile(s, { legalName: "Clay Studio LLP" });
+    checks = byKey(await read(s));
+    expect(checks.get("seller")?.detail).toMatch(
+      /phone number, address, city, postal code and country/,
+    );
+    await updateSellerProfile(s, SELLER);
+    expect(byKey(await read(s)).get("seller")).toMatchObject({ ok: true });
+
+    // Policies: a starter (headings only) can't be published; real text can.
+    const starter = await savePolicyDraft(s, "REFUND", {
+      title: "Returns and refunds",
+      body: policyStarter("REFUND"),
+      revision: 0,
+    });
+    await expectCode(
+      publishPolicy(s, "REFUND", { revision: starter.revision }),
+      "VALIDATION_FAILED",
+    );
+    for (const kind of ["REFUND", "PRIVACY", "TERMS"] as const) await publishWithText(s, kind);
+    checks = byKey(await read(s));
+    expect(checks.get("policies")?.detail).toBe("Write and publish your shipping policy.");
+    await expectCode(setStorefrontLive(s, true, checksFor(s)), "CONFLICT");
+    await publishWithText(s, "SHIPPING");
+    expect(byKey(await read(s)).get("policies")).toMatchObject({ ok: true });
     await setStorefrontLive(s, true, checksFor(s));
     expect((await getOnlineStore(s)).status).toBe("ACTIVE");
   });

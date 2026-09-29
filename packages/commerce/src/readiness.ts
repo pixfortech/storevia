@@ -3,12 +3,15 @@ import type { TenantTx } from "@storevia/database";
 import { getPaymentProvider } from "@storevia/payments";
 import type { LaunchCheck } from "@storevia/tenancy";
 import { acceptsCurrency } from "./checkout/connection";
+import { POLICY_DEFINITIONS, policyRequired, type StorePolicyKind } from "./policy-kinds";
+import { sellerProfileGaps, type SellerProfile } from "./settings/seller";
 
 // What an online store needs before it goes live (final pass, DB-1): a way
 // to take payment, something to sell, a way to ship what needs shipping, and
-// a way for shoppers to reach the store. Each check says exactly what is
-// missing. Tenancy enforces them when the store goes live; the dashboard
-// shows them with links. Store policies join in Phase 2.
+// a way for shoppers to reach the store, who the seller is, and the store's
+// policies (final pass, Phase 2A). Each check says exactly what is missing.
+// Tenancy enforces them when the store goes live; the dashboard shows them
+// with links.
 
 interface StoreRow {
   business_type: string;
@@ -31,7 +34,7 @@ export async function commerceLaunchChecks(
   // Only online stores sell; other business types have no commerce checks.
   if (store?.business_type !== "ECOMMERCE") return [];
 
-  const [catalogue, connections, shipping] = await Promise.all([
+  const [catalogue, connections, shipping, sellers, policies] = await Promise.all([
     tx.$queryRaw<{ active: number; shippable: number }[]>`
       SELECT count(DISTINCT p.id)::int AS active,
         count(DISTINCT p.id) FILTER (WHERE v."requiresShipping")::int AS shippable
@@ -49,6 +52,10 @@ export async function commerceLaunchChecks(
       WHERE z."storeId" = ${storeId}::uuid
         AND EXISTS (SELECT 1 FROM "ShippingZoneCountry" c WHERE c."zoneId" = z.id)
         AND EXISTS (SELECT 1 FROM "ShippingRate" r WHERE r."zoneId" = z.id AND r.active)`,
+    tx.storeSellerProfile.findMany({ where: { storeId } }),
+    tx.$queryRaw<{ kind: StorePolicyKind }[]>`
+      SELECT kind::text AS kind FROM "StorePolicy"
+      WHERE "storeId" = ${storeId}::uuid AND "publishedDoc" IS NOT NULL`,
   ]);
   const products = catalogue[0] ?? { active: 0, shippable: 0 };
   const zones = shipping[0]?.zones ?? 0;
@@ -143,18 +150,76 @@ export async function commerceLaunchChecks(
     store.name.trim() && email
       ? {
           key: "identity",
-          label: "Store contact details",
+          label: "Support email",
           ok: true,
           blocking: true,
           detail: `Shoppers can reach ${store.name} at ${email}.`,
         }
       : {
           key: "identity",
-          label: "Store contact details",
+          label: "Support email",
           ok: false,
           blocking: true,
           detail: "Add a support or contact email so shoppers can reach you.",
         },
   );
+
+  const seller = sellers[0];
+  const gaps = sellerProfileGaps({
+    legalName: seller?.legalName ?? null,
+    phone: seller?.phone ?? null,
+    addressLine1: seller?.addressLine1 ?? null,
+    addressLine2: seller?.addressLine2 ?? null,
+    city: seller?.city ?? null,
+    region: seller?.region ?? null,
+    postalCode: seller?.postalCode ?? null,
+    countryCode: seller?.countryCode ?? null,
+    gstin: seller?.gstin ?? null,
+  } satisfies SellerProfile);
+  checks.push(
+    gaps.length === 0
+      ? {
+          key: "seller",
+          label: "Seller details",
+          ok: true,
+          blocking: true,
+          detail: `Shoppers see who they buy from: ${seller?.legalName ?? store.name}.`,
+        }
+      : {
+          key: "seller",
+          label: "Seller details",
+          ok: false,
+          blocking: true,
+          detail: `Add your ${list(gaps)} so shoppers know who they are buying from.`,
+        },
+  );
+
+  const published = new Set(policies.map((p) => p.kind));
+  const missing = POLICY_DEFINITIONS.filter(
+    (d) => policyRequired(d.kind, products.shippable > 0) && !published.has(d.kind),
+  );
+  checks.push(
+    missing.length === 0
+      ? {
+          key: "policies",
+          label: "Store policies",
+          ok: true,
+          blocking: true,
+          detail: "Your required policies are published.",
+        }
+      : {
+          key: "policies",
+          label: "Store policies",
+          ok: false,
+          blocking: true,
+          detail: `Write and publish your ${list(missing.map((d) => d.defaultTitle.toLowerCase()))}.`,
+        },
+  );
   return checks;
+}
+
+/** "a", "a and b", "a, b and c". */
+function list(items: readonly string[]): string {
+  if (items.length <= 1) return items.join("");
+  return `${items.slice(0, -1).join(", ")} and ${items.at(-1) ?? ""}`;
 }

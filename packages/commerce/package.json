@@ -18,7 +18,8 @@
     "./notifications": "./src/orders/notifications.ts",
     "./order-lifecycle": "./src/orders/lifecycle.ts",
     "./order-messages": "./src/orders/messages.ts",
-    "./customer-order": "./src/orders/customer.ts"
+    "./customer-order": "./src/orders/customer.ts",
+    "./policy-kinds": "./src/policy-kinds.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

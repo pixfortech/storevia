@@ -165,3 +165,25 @@ export type {
 
 // Launch readiness (final pass, DB-1).
 export { commerceLaunchChecks } from "./readiness";
+
+// Seller identity and store policies (final pass, Phase 2A).
+export {
+  EMPTY_SELLER_PROFILE,
+  REQUIRED_SELLER_FIELDS,
+  getSellerProfile,
+  isValidGstin,
+  sellerProfileGaps,
+  updateSellerProfile,
+} from "./settings/seller";
+export type { SellerProfile } from "./settings/seller";
+export {
+  getPolicy,
+  listPolicies,
+  policyBodyText,
+  policyStarter,
+  publishPolicy,
+  savePolicyDraft,
+  unpublishPolicy,
+} from "./settings/policies";
+export type { PolicyStatus, StorePolicyView } from "./settings/policies";
+export * from "./policy-kinds";

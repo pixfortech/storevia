@@ -11,6 +11,14 @@ import type { ThemeDefinition } from "./theme-core";
 /** The parts of a theme package the chrome renders: its key, chrome variant and stylesheet. */
 export type ShellTheme = Pick<ThemeDefinition, "key" | "chrome" | "stylesheet">;
 
+/** A logo image for the header brand (the site's name is its alt text). */
+export interface ChromeLogo {
+  readonly url: string;
+  readonly srcSet?: string;
+  readonly width: number | null;
+  readonly height: number | null;
+}
+
 export function SiteChrome({
   name,
   theme,
@@ -19,6 +27,8 @@ export function SiteChrome({
   actions,
   announcement,
   brandHref = "/",
+  logo,
+  footer,
   children,
 }: {
   /** The site's name (the brand in the header and footer). */
@@ -33,12 +43,25 @@ export function SiteChrome({
   /** A short line above the header (e.g. a delivery offer). */
   announcement?: ReactNode;
   brandHref?: string;
+  /** The site's logo; the name is shown when there is none. */
+  logo?: ChromeLogo | null | undefined;
+  /** The footer's content; the footer menu and a copyright line when omitted. */
+  footer?: ReactNode | undefined;
   children: ReactNode;
 }) {
   const { chrome } = theme;
   const brand = (
-    <a className="sv-brand" href={brandHref}>
-      {name}
+    <a className={logo ? "sv-brand sv-brand-logo" : "sv-brand"} href={brandHref}>
+      {logo ? (
+        <img
+          src={logo.url}
+          {...(logo.srcSet ? { srcSet: logo.srcSet, sizes: "12rem" } : {})}
+          {...(logo.width && logo.height ? { width: logo.width, height: logo.height } : {})}
+          alt={name}
+        />
+      ) : (
+        name
+      )}
     </a>
   );
   return (
@@ -66,12 +89,14 @@ export function SiteChrome({
       </header>
       {children}
       <footer className={`sv-footer${chrome.footer === "centred" ? " sv-footer-centred" : ""}`}>
-        <div className="sv-container sv-footer-row">
-          {footerNav}
-          <p>
-            © {new Date().getFullYear()} {name}
-          </p>
-        </div>
+        {footer ?? (
+          <div className="sv-container sv-footer-row">
+            {footerNav}
+            <p>
+              © {new Date().getFullYear()} {name}
+            </p>
+          </div>
+        )}
       </footer>
     </>
   );

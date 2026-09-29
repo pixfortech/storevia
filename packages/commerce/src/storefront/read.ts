@@ -9,6 +9,12 @@ import {
   type SitemapEntry,
 } from "@storevia/site-engine/read";
 import { parseTypeId, toTypeId } from "@storevia/types";
+import {
+  POLICY_DEFINITIONS,
+  policyByHandle,
+  policyPath,
+  type StorePolicyKind,
+} from "../policy-kinds";
 import { safeRichText, type RichTextDoc } from "../rich-text";
 
 // Storefront catalogue read models (06-storefront.md §4, ADR-0028 §7,
@@ -241,6 +247,41 @@ const paged = (rows: readonly CardRow[], page: number, pageSize: number): PagedP
 };
 
 // ---------------------------------------------------------------------------
+// Store identity and policies (final pass, Phase 2A).
+// ---------------------------------------------------------------------------
+
+/** The store's public identity: header brand, favicon, footer and contact page. */
+export interface StoreIdentityDto {
+  readonly name: string;
+  /** The support email, else the contact email (what shoppers write to). */
+  readonly email: string | null;
+  readonly supportEmail: string | null;
+  readonly contactEmail: string | null;
+  /** READY logo renditions in this store, or null (the name is shown instead). */
+  readonly logo: ImageDto | null;
+  /** READY favicon renditions in this store, or null (the default icon). */
+  readonly favicon: ImageDto | null;
+  readonly seller: {
+    readonly legalName: string | null;
+    readonly phone: string | null;
+    /** Address lines ready to print: street, locality, country code. */
+    readonly address: readonly string[];
+  };
+}
+
+export interface PolicyLinkDto {
+  readonly kind: StorePolicyKind;
+  readonly title: string;
+  readonly href: string;
+}
+
+export interface PolicyPageDto extends PolicyLinkDto {
+  /** The published rich-text document (validated again when rendered). */
+  readonly body: unknown;
+  readonly publishedAt: Date;
+}
+
+// ---------------------------------------------------------------------------
 // The reader: every method runs on the one scoped transaction.
 // ---------------------------------------------------------------------------
 
@@ -249,6 +290,84 @@ export class StorefrontReader {
 
   constructor(private readonly tx: TenantTx) {
     this.site = new SiteReader(tx);
+  }
+
+  /** The store's public identity (one function call and one media lookup). */
+  async identity(): Promise<StoreIdentityDto | null> {
+    const rows = await this.tx.$queryRaw<
+      {
+        name: string;
+        support_email: string | null;
+        contact_email: string | null;
+        logo_media_id: string | null;
+        favicon_media_id: string | null;
+        legal_name: string | null;
+        phone: string | null;
+        address_line1: string | null;
+        address_line2: string | null;
+        city: string | null;
+        region: string | null;
+        postal_code: string | null;
+        country_code: string | null;
+      }[]
+    >`SELECT * FROM app_storefront_identity()`;
+    const row = rows[0];
+    if (!row) return null;
+    const media = await this.site.imagesByUuid(
+      [row.logo_media_id, row.favicon_media_id].filter((id): id is string => id !== null),
+    );
+    const locality = [row.city, row.region, row.postal_code].filter(Boolean).join(", ");
+    return {
+      name: row.name,
+      email: row.support_email ?? row.contact_email,
+      supportEmail: row.support_email,
+      contactEmail: row.contact_email,
+      logo: row.logo_media_id ? (media.get(row.logo_media_id) ?? null) : null,
+      favicon: row.favicon_media_id ? (media.get(row.favicon_media_id) ?? null) : null,
+      seller: {
+        legalName: row.legal_name,
+        phone: row.phone,
+        address: [
+          row.address_line1,
+          row.address_line2,
+          locality || null,
+          row.country_code?.trim() ?? null,
+        ].filter((line): line is string => Boolean(line)),
+      },
+    };
+  }
+
+  /** The store's published policies, in display order. */
+  async policyLinks(): Promise<PolicyLinkDto[]> {
+    const rows = await this.tx.$queryRaw<{ kind: StorePolicyKind; title: string }[]>`
+      SELECT kind::text AS kind, "publishedTitle" AS title FROM "StorePolicy"
+      WHERE "publishedDoc" IS NOT NULL`;
+    const byKind = new Map(rows.map((r) => [r.kind, r.title]));
+    return POLICY_DEFINITIONS.flatMap((d) => {
+      const title = byKind.get(d.kind);
+      return title ? [{ kind: d.kind, title, href: policyPath(d.kind) }] : [];
+    });
+  }
+
+  /** One published policy by its storefront handle, or null. */
+  async policy(handle: string): Promise<PolicyPageDto | null> {
+    const definition = policyByHandle(handle);
+    if (!definition) return null;
+    const rows = await this.tx.$queryRaw<{ title: string; body: unknown; published_at: Date }[]>`
+      SELECT "publishedTitle" AS title, "publishedDoc" AS body, "publishedAt" AS published_at
+      FROM "StorePolicy"
+      WHERE kind = ${definition.kind}::"StorePolicyKind" AND "publishedDoc" IS NOT NULL
+      LIMIT 1`;
+    const row = rows[0];
+    return row
+      ? {
+          kind: definition.kind,
+          title: row.title,
+          href: policyPath(definition.kind),
+          body: row.body,
+          publishedAt: row.published_at,
+        }
+      : null;
   }
 
   /** Product cards for each requested source, in one query per source kind. */

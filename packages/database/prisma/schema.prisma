@@ -83,6 +83,8 @@ model Product {
   tags            String[]
   /// Global product taxonomy (ProductCategory); null when not categorised.
   categoryCode    String?
+  /// HSN classification for Phase 2B GST (4, 6 or 8 digits); not used in any calculation yet.
+  hsnCode         String?
   seoTitle        String?
   seoDescription  String?
   publishedAt     DateTime?     @db.Timestamptz(3)
@@ -787,6 +789,8 @@ model Store {
   pageVersions          PageVersion[]
   storeThemes           StoreTheme[]
   navigations           Navigation[]
+  sellerProfile         StoreSellerProfile?
+  policies              StorePolicy[]
   outboxEvents          OutboxEvent[]
   media                 MediaAsset[]
   products              Product[]
@@ -1444,6 +1448,63 @@ model Navigation {
   store Store @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
 
   @@unique([storeId, handle])
+  @@unique([id, storeId])
+}
+
+enum StorePolicyKind {
+  SHIPPING
+  REFUND
+  CANCELLATION
+  PRIVACY
+  TERMS
+  CONTACT
+}
+
+/// The public seller identity a shopper sees (final pass, Phase 2A): legal
+/// name, phone and business address, kept apart from organisation and
+/// account data. GSTIN is held for Phase 2B. One per store.
+model StoreSellerProfile {
+  storeId        String   @id @db.Uuid
+  organisationId String   @db.Uuid
+  legalName      String?
+  phone          String?
+  addressLine1   String?
+  addressLine2   String?
+  city           String?
+  region         String?
+  postalCode     String?
+  countryCode    String?  @db.Char(2)
+  gstin          String?
+  updatedById    String?  @db.Uuid
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+
+  @@unique([storeId, organisationId])
+}
+
+/// A merchant-written store policy (final pass, Phase 2A): a draft and the
+/// published copy the storefront shows. Storevia never writes their text.
+model StorePolicy {
+  id             String          @id @default(uuid(7)) @db.Uuid
+  organisationId String          @db.Uuid
+  storeId        String          @db.Uuid
+  kind           StorePolicyKind
+  title          String
+  /// The draft body: an allow-listed rich-text document (@storevia/editor/rich-text).
+  bodyDoc        Json?
+  publishedTitle String?
+  publishedDoc   Json?
+  publishedAt    DateTime?       @db.Timestamptz(3)
+  revision       Int             @default(0)
+  updatedById    String?         @db.Uuid
+  createdAt      DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime        @updatedAt @db.Timestamptz(3)
+
+  store Store @relation(fields: [storeId, organisationId], references: [id, organisationId], onDelete: Restrict)
+
+  @@unique([storeId, kind])
   @@unique([id, storeId])
 }
 

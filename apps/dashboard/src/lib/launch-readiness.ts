@@ -29,6 +29,10 @@ export function launchCheckHref(storeId: string, key: string): string | null {
       return settingsPath(storeId, "/shipping");
     case "identity":
       return `${settingsPath(storeId)}#general`;
+    case "seller":
+      return `${settingsPath(storeId)}#seller`;
+    case "policies":
+      return settingsPath(storeId, "/policies");
     case "home":
       return storePath(storeId, "/pages");
     default:
