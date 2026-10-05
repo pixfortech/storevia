@@ -52,11 +52,11 @@
     "@radix-ui/react-toast": "1.2.23",
     "@radix-ui/react-tooltip": "1.2.16",
     "clsx": "2.1.1",
-    "lucide-react": "1.47.0",
+    "lucide-react": "1.49.0",
     "tailwind-merge": "3.7.0"
   },
   "devDependencies": {
-    "@types/node": "24.13.6",
+    "@types/node": "24.19.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "react": "19.3.0",
