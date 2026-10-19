@@ -20,10 +20,10 @@
     "@storevia/tenancy": "workspace:*",
     "@storevia/types": "workspace:*",
     "server-only": "0.0.1",
-    "zod": "4.6.5"
+    "zod": "4.6.7"
   },
   "devDependencies": {
-    "@types/node": "24.13.6",
+    "@types/node": "24.19.2",
     "@types/react": "19.3.0",
     "vitest": "4.1.11"
   }

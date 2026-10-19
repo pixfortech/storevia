@@ -22,8 +22,8 @@
     "@storevia/tenancy": "workspace:*",
     "@storevia/types": "workspace:*",
     "server-only": "0.0.1",
-    "sharp": "0.35.4",
-    "zod": "4.6.5"
+    "sharp": "0.35.5",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "vitest": "4.1.11"
